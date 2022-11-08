@@ -1,0 +1,380 @@
+/*
+ *    Calendula - An assistant for personal medication management.
+ *    Copyright (C) 2016 CITIUS - USC
+ *
+ *    Calendula is free software; you can redistribute it and/or modify
+ *    it under the terms of the GNU General Public License as published by
+ *    the Free Software Foundation; either version 3 of the License, or
+ *    (at your option) any later version.
+ *
+ *    This program is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU General Public License for more details.
+ *
+ *    You should have received a copy of the GNU General Public License
+ *    along with this software.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    apply from: "provider-buildscript.gradle", to: buildscript
+}
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+apply plugin: 'kotlin-android-extensions'
+apply plugin: 'kotlin-kapt'
+apply plugin: 'idea'
+// build config fields
+apply from: 'config.gradle'
+
+
+repositories {
+    mavenCentral()
+    jcenter()
+    google()
+    maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
+    maven { url 'https://jitpack.io' }
+}
+
+idea {
+    module {
+        downloadJavadoc = true
+        downloadSources = true
+    }
+}
+
+// read keystore for app signing
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = null
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties = new Properties()
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+
+static def getDate() {
+    def date = new Date()
+    def formattedDate = date.format('yyyy.MM.dd')
+    return formattedDate
+}
+
+def getCustomProguardFiles() {
+    return fileTree(dir: "proguard", include: ["*.pro"]).asList().toArray()
+}
+
+// workaround for Kotlin coverage in Android Studio 3
+// see https://stackoverflow.com/questions/45819700/android-studio-3-0-gradle-3-0-0-beta2-breaks-kotlin-unit-test-coverage
+task copyTestClasses(type: Copy) {
+    from "build/tmp/kotlin-classes/developDebug"
+    into "build/intermediates/classes/develop/debug"
+}
+
+android {
+    compileSdkVersion 29
+    defaultConfig {
+        minSdkVersion 18
+        targetSdkVersion 29
+        versionCode 39
+        versionName "2.5.8"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        applicationId "es.usc.citius.servando.calendula"
+        multiDexEnabled true
+        vectorDrawables.useSupportLibrary = true
+    }
+
+    packagingOptions {
+        exclude 'LICENSE.txt'
+    }
+
+    signingConfigs {
+        release {
+            keyAlias keystoreProperties != null ? keystoreProperties['keyAlias'] : null
+            keyPassword keystoreProperties != null ? keystoreProperties['keyPassword'] : null
+            storeFile keystoreProperties != null ? file(keystoreProperties['storeFile']) : null
+            storePassword keystoreProperties != null ? keystoreProperties['storePassword'] : null
+        }
+    }
+
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+        }
+    }
+
+
+    lintOptions {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+
+    flavorDimensions "buildType"
+
+    productFlavors {
+        develop {
+            applicationIdSuffix ".dev"
+            dimension "buildType"
+            minSdkVersion 18
+        }
+        product {
+            dimension "buildType"
+        }
+        ci {
+            dimension "buildType"
+            minSdkVersion 18
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android.txt')
+            proguardFiles getCustomProguardFiles()
+            testProguardFiles getDefaultProguardFile('proguard-android.txt')
+            testProguardFiles getCustomProguardFiles()
+            productFlavors.develop.signingConfig signingConfigs.release
+            ndk {
+                abiFilters "arm64-v8a", "armeabi-v7a", "x86_64", "x86"
+            }
+        }
+        debug {
+            debuggable true
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android.txt')
+            proguardFiles getCustomProguardFiles()
+            testCoverageEnabled true
+            ndk {
+                abiFilters "arm64-v8a", "armeabi-v7a", "x86_64", "x86"
+            }
+        }
+        beta {
+            minifyEnabled false
+            versionNameSuffix "-build" + getDate()
+            matchingFallbacks = ['debug']
+        }
+        alpha {
+            minifyEnabled false
+            applicationIdSuffix ".alpha"
+            signingConfig signingConfigs.release
+            versionNameSuffix "-" + getDate()
+            matchingFallbacks = ['debug']
+        }
+    }
+
+
+    productFlavors {
+        develop {
+            applicationIdSuffix ".dev"
+            dimension "buildType"
+            minSdkVersion 18
+        }
+        product {
+            dimension "buildType"
+        }
+        ci {
+            dimension "buildType"
+            minSdkVersion 18
+        }
+    }
+    compileOptions {
+        sourceCompatibility = 1.8
+        targetCompatibility = 1.8
+    }
+
+//    splits {
+//
+//        abi {
+//            enable true
+//            reset()
+//            include "armeabi-v7a", "arm64-v8a"
+//            universalApk true
+//        }
+//    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            outputFileName = "${project.name}-${variant.name}-${output.getFilter(com.android.build.OutputFile.ABI)}-${variant.versionName}.apk"
+        }
+    }
+    compileOptions.incremental = false
+}
+
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile) {
+    kotlinOptions {
+        allWarningsAsErrors = true
+    }
+}
+
+dependencies {
+
+    /********** DEBUGGING **********/
+    // Chrome debug bridge
+    debugImplementation 'com.facebook.stetho:stetho:1.5.1'
+
+    // Memory leak debugging
+    //  1.5.2 held back because of a bug with gradle 3.0
+    debugImplementation "com.squareup.leakcanary:leakcanary-android-no-op:$libVersions.leakcanary"
+    releaseImplementation "com.squareup.leakcanary:leakcanary-android-no-op:$libVersions.leakcanary"
+    alphaImplementation "com.squareup.leakcanary:leakcanary-android-no-op:$libVersions.leakcanary"
+    betaImplementation "com.squareup.leakcanary:leakcanary-android-no-op:$libVersions.leakcanary"
+    testImplementation "com.squareup.leakcanary:leakcanary-android-no-op:$libVersions.leakcanary"
+    androidTestImplementation "com.squareup.leakcanary:leakcanary-android-no-op:$libVersions.leakcanary"
+
+    /********** SUPPORT **********/
+    // Multidex support
+    implementation 'androidx.multidex:multidex:2.0.1'
+
+    // Support libs
+    implementation 'androidx.appcompat:appcompat:1.1.0'
+    implementation 'androidx.cardview:cardview:1.0.0'
+    implementation 'com.google.android.material:material:1.0.0'
+    implementation 'androidx.gridlayout:gridlayout:1.0.0'
+    implementation 'androidx.palette:palette:1.0.0'
+    implementation 'androidx.preference:preference:1.1.0'
+    implementation 'androidx.recyclerview:recyclerview:1.1.0'
+    implementation 'androidx.annotation:annotation:1.1.0'
+    implementation 'androidx.legacy:legacy-support-v4:1.0.0'
+    implementation 'androidx.legacy:legacy-preference-v14:1.0.0'
+
+    // Testing dependencies
+    //  Made explicit to avoid conflicts with other testing libs
+    androidTestImplementation 'androidx.appcompat:appcompat:1.1.0'
+    androidTestImplementation 'com.google.android.material:material:1.0.0'
+    androidTestImplementation 'androidx.recyclerview:recyclerview:1.1.0'
+    androidTestImplementation 'androidx.annotation:annotation:1.1.0'
+    androidTestImplementation 'androidx.legacy:legacy-support-v4:1.0.0'
+
+    /********** TESTING **********/
+    // JUnit
+    testImplementation 'junit:junit:4.12'
+
+    // Mockito
+    testImplementation "org.mockito:mockito-inline:$libVersions.mockito"
+    androidTestImplementation "org.mockito:mockito-android:$libVersions.mockito"
+
+    // Support testing
+    androidTestImplementation 'androidx.test.espresso:espresso-contrib:3.2.0'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
+    androidTestImplementation 'androidx.test:rules:1.2.0'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.1'
+
+    // Roboelectric
+    testImplementation "org.robolectric:robolectric:$libVersions.robolectric"
+    testImplementation "org.robolectric:shadows-multidex:$libVersions.robolectric"
+
+    /********** UTILITIES **********/
+    // HTML parsing
+    implementation 'org.jsoup:jsoup:1.10.2'
+
+    // Event bus
+    implementation 'org.greenrobot:eventbus:3.0.0'
+
+    // Jobs
+    implementation 'com.evernote:android-job:1.4.2'
+
+    // JSON serializing-deserializing
+    implementation 'com.google.code.gson:gson:2.8.5'
+
+    // Lang utilities
+    //  Used for Levenshtein distance, etc
+    implementation 'org.apache.commons:commons-lang3:3.6'
+    implementation 'org.apache.commons:commons-text:1.1'
+
+    // QR code scanning
+    implementation 'com.google.zxing:core:3.3.0'
+    implementation 'com.journeyapps:zxing-android-embedded:3.5.0@aar'
+
+    // Recurrence processing
+    implementation 'org.dmfs:lib-recur:0.10'
+
+    // SQLite ORM
+    implementation 'com.j256.ormlite:ormlite-android:5.0'
+
+    // Time and date handling
+    implementation 'com.fatboyindustrial.gson-jodatime-serialisers:gson-jodatime-serialisers:1.6.0'
+    implementation 'joda-time:joda-time:2.9.7'
+
+    // View/resource binding
+    kapt "com.jakewharton:butterknife-compiler:$libVersions.butterknife"
+    implementation "com.jakewharton:butterknife:$libVersions.butterknife"
+
+    /********** VIEWS AND VIEW UTILITIES **********/
+    // About page with libraries
+    implementation("com.mikepenz:aboutlibraries:${latestAboutLibsRelease}") {
+        transitive = true
+    }
+
+    // Calendar views
+//    implementation 'com.roomorama:caldroid:3.0.1'
+    implementation 'com.squareup:android-times-square:1.6.4@aar'
+
+    // Circular progress "pie" view
+    //  Used for pill picker
+    implementation 'com.github.filippudak.progresspieview:library:1.0.4'
+
+    // Dialogs with material style
+    implementation 'com.github.javiersantos:MaterialStyledDialogs:2.0'
+
+    // GIF ImageView
+    implementation 'pl.droidsonroids.gif:android-gif-drawable:1.2.19'
+
+    // Icons
+    implementation 'com.mikepenz:community-material-typeface:2.7.94.1@aar'
+    implementation 'com.mikepenz:google-material-typeface:2.2.0.1@aar'
+    implementation 'com.mikepenz:iconics-core:3.2.5@aar'
+    implementation 'com.mikepenz:iconics-views:3.2.5@aar'
+
+    // Image loading
+    implementation 'com.squareup.picasso:picasso:2.5.2'
+
+    // Intro slides
+    implementation 'com.heinrichreimersoftware:material-intro:1.5.8'
+
+    // Material style utilities
+    implementation('com.mikepenz:materialize:1.2.1@aar') {
+        transitive = true
+    }
+
+    // Picker DialogFragments
+    implementation 'com.code-troopers.betterpickers:library:3.1.0'
+
+    // Round image view
+    implementation 'com.makeramen:roundedimageview:1.5.0'
+
+    // Tab strip
+    implementation 'com.astuetz:pagerslidingtabstrip:1.0.1'
+
+    // Sliding left drawer
+    implementation('com.mikepenz:materialdrawer:6.1.0@aar') {
+        transitive = true
+    }
+    // Material Drawer dependencies
+    implementation "androidx.constraintlayout:constraintlayout:1.1.3"
+//    implementation "androidx.drawerlayout:drawerlayout:1.0.0"
+
+    // Recyclerview adapters
+    implementation('com.mikepenz:fastadapter:3.3.1@aar') {
+        transitive = true
+    }
+    implementation 'com.mikepenz:fastadapter-commons:3.3.1@aar'
+    implementation 'com.mikepenz:fastadapter-extensions:3.3.1@aar'
+    implementation 'com.mikepenz:fastadapter-extensions-expandable:3.3.1@aar'
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+
+    // Secured preferences
+    implementation 'com.github.TonyTangAndroid:Secured-Preference-Store:0.5.4'
+
+
+    // Schedule step-by-step building
+    implementation 'com.stepstone.stepper:material-stepper:3.3.0'
+    implementation 'com.wdullaer:materialdatetimepicker:3.2.2'
+    implementation 'com.shawnlin:number-picker:2.4.6'
+
+    implementation project(':caldroid')
+
+}
+
+apply from: 'provider.gradle'

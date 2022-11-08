@@ -1,0 +1,455 @@
+<!--
+  ~    Calendula - An assistant for personal medication management.
+  ~    Copyright (C) 2016 CITIUS - USC
+  ~
+  ~    Calendula is free software; you can redistribute it and/or modify
+  ~    it under the terms of the GNU General Public License as published by
+  ~    the Free Software Foundation; either version 3 of the License, or
+  ~    (at your option) any later version.
+  ~
+  ~    This program is distributed in the hope that it will be useful,
+  ~    but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~    GNU General Public License for more details.
+  ~
+  ~    You should have received a copy of the GNU General Public License
+  ~    along with this software.  If not, see <http://www.gnu.org/licenses/>.
+  -->
+
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+                                            xmlns:app="http://schemas.android.com/apk/res-auto"
+                                            xmlns:tools="http://schemas.android.com/tools"
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="match_parent"
+                                            android:fillViewport="true"
+                                            android:orientation="vertical">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+
+        android:padding="24dp">
+
+
+        <RelativeLayout
+            android:id="@+id/every_day_box"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:id="@+id/every_day_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_centerVertical="true"
+                android:text="@string/schedule_build_dayselect_every_day_title"
+                android:textAllCaps="true"
+                android:textColor="@color/activity_schedule_build_secondary"
+                android:textSize="14dp"/>
+
+            <ImageView
+                android:id="@+id/every_day_selection"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                />
+        </RelativeLayout>
+
+        <RelativeLayout
+            android:id="@+id/custom_box"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/every_day_box">
+
+            <TextView
+                android:id="@+id/custom_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_alignParentTop="true"
+                android:layout_marginTop="24dp"
+                android:text="@string/schedule_build_dayselect_custom"
+                android:textAllCaps="true"
+                android:textColor="@color/activity_schedule_build_secondary"
+                android:textSize="14dp"/>
+
+            <ImageView
+                android:id="@+id/custom_title_selection"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_alignParentEnd="true"
+                android:layout_alignTop="@id/custom_title"
+                />
+        </RelativeLayout>
+
+            <RelativeLayout
+                android:id="@+id/custom_box_content"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/custom_box">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <RelativeLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                        <TextView
+                            android:id="@+id/repeat_title"
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:layout_alignParentTop="true"
+                            android:layout_marginTop="24dp"
+                            android:gravity="end|center_vertical"
+                            android:text="@string/schedule_build_dayselect_repeat"
+                            android:textColor="@color/activity_schedule_build_foreground"
+                            android:textSize="18dp"/>
+
+
+                        <Spinner
+                            android:id="@+id/repeat_freq"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_alignBottom="@id/repeat_title"
+                            android:layout_alignParentTop="true"
+                            android:layout_alignTop="@id/repeat_title"
+                            android:layout_marginTop="24dp"
+                            android:layout_toEndOf="@id/repeat_title"
+                            android:textColor="@color/activity_schedule_build_foreground"
+                            android:textSize="18dp"/>
+
+                    </RelativeLayout>
+
+                    <RelativeLayout
+                        android:id="@+id/interval_box"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp">
+
+                        <TextView
+                            android:id="@+id/repeat_freq_label"
+                            android:layout_width="80dp"
+                            android:layout_height="35dp"
+                            android:layout_centerVertical="true"
+                            android:gravity="end|center_vertical"
+                            android:layout_toStartOf="@id/repeat_interval"
+                            android:text="@string/schedule_build_dayselect_every"
+                            android:textColor="@color/activity_schedule_build_foreground"
+                            android:textSize="18dp"/>
+
+                        <!--<android.support.v7.widget.RecyclerView-->
+                        <!--android:id="@+id/interval"-->
+                        <!--android:layout_width="wrap_content"-->
+                        <!--android:layout_height="35dp"-->
+                        <!--android:layout_alignBottom="@+id/repeat_freq"-->
+                        <!--android:layout_alignTop="@+id/repeat_freq"-->
+                        <!--android:layout_marginLeft="10dp"-->
+                        <!--android:layout_marginRight="10dp"-->
+                        <!--android:layout_toLeftOf="@id/repeat_freq_after"-->
+                        <!--android:layout_toRightOf="@+id/repeat_freq"-->
+                        <!--android:clipToPadding="false"-->
+                        <!--android:paddingLeft="100dp"-->
+                        <!--android:paddingRight="100dp"/>-->
+
+                        <com.shawnlin.numberpicker.NumberPicker
+                            android:id="@+id/repeat_interval"
+                            android:layout_width="130dp"
+                            android:layout_height="50dp"
+                            android:layout_centerHorizontal="true"
+                            android:layout_centerVertical="true"
+                            android:layout_marginLeft="10dp"
+                            android:layout_marginRight="10dp"
+                            app:np_dividerColor="@color/transparent"
+                            app:np_max="30"
+                            app:np_min="1"
+                            app:np_orientation="horizontal"
+                            app:np_selectedTextColor="@color/activity_schedule_build_foreground"
+                            app:np_selectedTextSize="20dp"
+                            app:np_textColor="@color/activity_schedule_build_foreground_alpha"
+                            app:np_textSize="20dp"
+                            app:np_value="8"
+                            />
+
+                        <TextView
+                            android:id="@+id/repeat_freq_after"
+                            android:layout_width="wrap_content"
+                            android:layout_height="35dp"
+                            android:layout_centerVertical="true"
+                            android:layout_marginEnd="16dp"
+                            android:layout_toEndOf="@id/repeat_interval"
+                            android:gravity="center_vertical"
+                            android:text="@string/schedule_repeat_frequency_days"
+                            android:textColor="@color/activity_schedule_build_foreground"
+                            android:textSize="18dp"/>
+
+                    </RelativeLayout>
+
+
+                    <RelativeLayout
+                        android:id="@+id/period_box"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp">
+
+                        <TextView
+                            android:id="@+id/period_title"
+                            android:layout_width="100dp"
+                            android:layout_height="35dp"
+                            android:layout_centerVertical="true"
+                            android:layout_toStartOf="@id/period_interval"
+                            android:gravity="center_vertical|end"
+                            android:text="@string/schedule_build_dayselect_take"
+                            android:textColor="@color/activity_schedule_build_secondary"
+                            android:textSize="16dp"/>
+
+                        <com.shawnlin.numberpicker.NumberPicker
+                            android:id="@+id/period_interval"
+                            android:layout_width="130dp"
+                            android:layout_height="50dp"
+                            android:layout_centerHorizontal="true"
+                            android:layout_centerVertical="true"
+                            android:layout_marginLeft="10dp"
+                            android:layout_marginRight="10dp"
+                            android:paddingBottom="2dp"
+                            android:paddingTop="2dp"
+                            app:np_dividerColor="@color/transparent"
+                            app:np_max="60"
+                            app:np_min="1"
+                            app:np_orientation="horizontal"
+                            app:np_selectedTextColor="@color/activity_schedule_build_foreground"
+                            app:np_selectedTextSize="20dp"
+                            app:np_textColor="@color/activity_schedule_build_foreground_alpha"
+                            app:np_textSize="20dp"
+                            app:np_value="21"/>
+
+                        <TextView
+                            android:id="@+id/period_title_after"
+                            android:layout_width="wrap_content"
+                            android:layout_height="35dp"
+                            android:layout_centerVertical="true"
+                            android:layout_toEndOf="@id/period_interval"
+                            android:gravity="center_vertical"
+                            android:text="@string/schedule_repeat_frequency_days"
+                            android:textColor="@color/activity_schedule_build_secondary"
+                            android:textSize="16dp"/>
+
+                    </RelativeLayout>
+
+
+                    <RelativeLayout
+                        android:id="@+id/rest_box"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        >
+
+                        <TextView
+                            android:id="@+id/rest_title"
+                            android:layout_width="100dp"
+                            android:layout_height="35dp"
+                            android:layout_centerVertical="true"
+                            android:layout_toStartOf="@id/rest_interval"
+                            android:gravity="center_vertical|end"
+                            android:text="@string/schedule_build_dayselect_rest"
+                            android:textColor="@color/activity_schedule_build_secondary"
+                            android:textSize="16dp"/>
+
+                        <!--<android.support.v7.widget.RecyclerView-->
+                        <!--android:id="@+id/rest_interval"-->
+                        <!--android:layout_width="130dp"-->
+                        <!--android:layout_height="35dp"-->
+                        <!--android:layout_alignTop="@+id/rest_title"-->
+                        <!--android:layout_marginLeft="10dp"-->
+                        <!--android:layout_marginRight="10dp"-->
+                        <!--android:layout_toLeftOf="@id/rest_title_after"-->
+                        <!--android:clipToPadding="false"-->
+                        <!--android:paddingLeft="100dp"-->
+                        <!--android:paddingRight="100dp"/>-->
+
+                        <com.shawnlin.numberpicker.NumberPicker
+                            android:id="@+id/rest_interval"
+                            android:layout_width="130dp"
+                            android:layout_height="50dp"
+                            android:layout_centerHorizontal="true"
+                            android:layout_centerVertical="true"
+                            android:layout_marginLeft="10dp"
+                            android:layout_marginRight="10dp"
+                            android:paddingBottom="2dp"
+                            android:paddingTop="2dp"
+                            app:np_dividerColor="@color/transparent"
+                            app:np_max="60"
+                            app:np_min="1"
+                            app:np_orientation="horizontal"
+                            app:np_selectedTextColor="@color/activity_schedule_build_foreground"
+                            app:np_selectedTextSize="20dp"
+                            app:np_textColor="@color/activity_schedule_build_foreground_alpha"
+                            app:np_textSize="20dp"
+                            app:np_value="8"/>
+
+                        <TextView
+                            android:id="@+id/rest_title_after"
+                            android:layout_width="wrap_content"
+                            android:layout_height="40dp"
+                            android:layout_centerVertical="true"
+                            android:layout_toEndOf="@id/rest_interval"
+                            android:gravity="center_vertical"
+                            android:text="@string/schedule_repeat_frequency_days"
+                            android:textColor="@color/activity_schedule_build_secondary"
+                            android:textSize="16dp"/>
+
+                    </RelativeLayout>
+
+
+                    <FrameLayout
+                        android:id="@+id/day_selection_box"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="24dp">
+
+                        <include
+                            android:id="@+id/day_selector_box"
+                            layout="@layout/schedule_weekday_selector"
+                            android:layout_width="wrap_content"
+                            android:layout_height="50dp"
+                            android:layout_marginBottom="0dp"
+                            android:layout_marginLeft="0dp"
+                            android:layout_marginRight="0dp"
+                            android:layout_marginTop="5dp"/>
+                    </FrameLayout>
+
+
+                </LinearLayout>
+
+
+            </RelativeLayout>
+
+
+        <RelativeLayout
+            android:id="@+id/dates_box"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/custom_box_content">
+
+            <TextView
+                android:id="@+id/dates_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_alignParentTop="true"
+                android:layout_marginTop="24dp"
+                android:text="@string/schedule_build_dayselect_start_and_end"
+                android:textAllCaps="true"
+                android:textColor="@color/activity_schedule_build_secondary"
+                android:textSize="14dp"/>
+
+            <TextView
+                android:id="@+id/from_title"
+                android:layout_width="wrap_content"
+                android:layout_height="35dp"
+                android:layout_below="@id/dates_title"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="16dp"
+                android:gravity="center_vertical"
+                android:text="@string/schedule_build_dayselect_from"
+                android:textColor="@color/activity_schedule_build_foreground"
+                android:textSize="18dp"/>
+
+            <TextView
+                android:id="@+id/from_date"
+                android:layout_width="match_parent"
+                android:layout_height="35dp"
+                android:layout_below="@id/dates_title"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="16dp"
+                android:layout_toStartOf="@+id/clear_from"
+                android:layout_toEndOf="@id/from_title"
+                android:capitalize="sentences"
+                android:fontFamily="sans_serif_condensed"
+                android:gravity="center_vertical"
+                android:textColor="@color/activity_schedule_build_foreground"
+                android:textSize="18dp"
+                tools:text="Lunes, 24 de Junio"/>
+
+            <ImageView
+                android:id="@+id/clear_from"
+                android:layout_width="30dp"
+                android:layout_height="35dp"
+                android:layout_alignBottom="@id/from_date"
+                android:layout_alignParentEnd="true"
+                android:layout_alignTop="@id/from_date"
+                />
+
+
+            <TextView
+                android:id="@+id/to_title"
+                android:layout_width="wrap_content"
+                android:layout_height="35dp"
+                android:layout_below="@id/from_title"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="16dp"
+                android:gravity="center_vertical"
+                android:text="@string/schedule_build_dayselect_until"
+                android:textColor="@color/activity_schedule_build_foreground"
+                android:textSize="18dp"/>
+
+            <TextView
+                android:id="@+id/to_date"
+                android:layout_width="match_parent"
+                android:layout_height="35dp"
+                android:layout_below="@id/from_title"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="16dp"
+                android:layout_toStartOf="@+id/clear_to"
+                android:layout_toEndOf="@id/from_title"
+                android:capitalize="sentences"
+                android:fontFamily="sans_serif_condensed"
+                android:gravity="center_vertical"
+                android:text="@string/schedule_build_dayselect_repeat_indefinitely"
+                android:textColor="@color/activity_schedule_build_foreground"
+                android:textSize="18dp"/>
+
+
+            <ImageView
+                android:id="@+id/clear_to"
+                android:layout_width="30dp"
+                android:layout_height="35dp"
+                android:layout_alignBottom="@id/to_date"
+                android:layout_alignParentEnd="true"
+                android:layout_alignTop="@id/to_date"
+                android:layout_below="@id/from_date"
+                />
+
+
+            <TextView
+                android:id="@+id/first_time_title"
+                android:layout_width="wrap_content"
+                android:layout_height="35dp"
+                android:layout_below="@id/to_title"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="16dp"
+                android:gravity="center_vertical"
+                android:text="@string/schedule_build_dayselect_first_time_title"
+                android:textColor="@color/activity_schedule_build_foreground"
+                android:textSize="18dp"/>
+
+
+            <TextView
+                android:id="@+id/first_time_date"
+                android:layout_width="match_parent"
+                android:layout_height="35dp"
+                android:layout_below="@id/to_date"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="16dp"
+                android:layout_toEndOf="@id/first_time_title"
+                android:fontFamily="sans_serif_condensed"
+                android:gravity="center_vertical"
+                android:textColor="@color/activity_schedule_build_foreground"
+                android:textSize="18dp"
+                tools:text="16:00h"/>
+
+
+        </RelativeLayout>
+
+
+    </RelativeLayout>
+</androidx.core.widget.NestedScrollView>

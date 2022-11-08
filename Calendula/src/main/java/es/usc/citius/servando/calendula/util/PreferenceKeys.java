@@ -1,0 +1,128 @@
+/*
+ *    Calendula - An assistant for personal medication management.
+ *    Copyright (C) 2014-2018 CiTIUS - University of Santiago de Compostela
+ *
+ *    Calendula is free software; you can redistribute it and/or modify
+ *    it under the terms of the GNU General Public License as published by
+ *    the Free Software Foundation; either version 3 of the License, or
+ *    (at your option) any later version.
+ *
+ *    This program is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU General Public License for more details.
+ *
+ *    You should have received a copy of the GNU General Public License
+ *    along with this software.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package es.usc.citius.servando.calendula.util;
+
+import androidx.annotation.StringRes;
+
+import es.usc.citius.servando.calendula.CalendulaApp;
+import es.usc.citius.servando.calendula.R;
+
+/**
+ * Keys for preferences.
+ * <p>
+ * To access the key string use {@link #key()}.
+ * <p>
+ */
+public enum PreferenceKeys {
+
+    // Allergies
+    ALLERGIES_WARNING_SHOWN(R.string.prefkey_allergies_warning_shown),
+    // ConfirmActivity
+    CONFIRM_CHECK_WINDOW_MARGIN(R.string.prefkey_confirm_check_window_margin),
+    // Drug DB
+    DRUGDB_CURRENT_DB(R.string.prefkey_drugdb_current_db),
+    DRUGDB_ENABLE_DRUGDB(R.string.prefkey_drugdb_enable_drugdb),
+    DRUGDB_LAST_VALID(R.string.prefkey_drugdb_last_valid),
+    DRUGDB_VERSION(R.string.prefkey_drugdb_version),
+    DRUGDB_DOWNLOAD_ID(R.string.prefkey_drugdb_download_id),
+    DRUGDB_DOWNLOAD_DB(R.string.prefkey_drugdb_download_db),
+    DRUGDB_DOWNLOAD_VERSION(R.string.prefkey_drugdb_download_version),
+    DRUGDB_DOWNLOAD_TYPE(R.string.prefkey_drugdb_download_type),
+    DRUGDB_DB_PROMPT(R.string.prefkey_drugdb_prompt),
+    // Home
+    HOME_INTRO_SHOWN(R.string.prefkey_home_intro_shown),
+    HOME_FIRST_SETTINGS_SHOWN(R.string.prefkey_home_first_settings_shown),
+    HOME_DAILYAGENDA_EXPANDED(R.string.prefkey_home_dailyagenda_expanded),
+    HOME_DISPLAY_NAME(R.string.prefkey_home_display_name),
+    HOME_PROFILE_BACKGROUND_INDEX(R.string.prefkey_home_profile_background_index),
+    HOME_LAST_MOOD(R.string.prefkey_home_last_mood),
+    // Login
+    LOGIN_ID(R.string.prefkey_login_id),
+    //LOGIN_AUTH_STATE(R.string.login_auth_state),
+    LOGIN_SKIP_LOGIN(R.string.prefkey_login_skip_login),
+    LOGIN_LAST_LOGGEDIN_USER(R.string.prefkey_login_last_loggedin_user),
+    // Medicines
+    MEDICINES_USE_PRESCRIPTIONS_SHOWN(R.string.prefkey_medicines_use_prescription_shown),
+    MEDICINES_LEGACY_DB_ENABLED(R.string.prefkey_medicines_db_enabled),
+    // Test data module
+    TEST_DATA_GENERATED(R.string.prefkey_testdata_generated),
+    // Patients
+    PATIENTS_ACTIVE(R.string.prefkey_patients_active),
+    PATIENTS_REMOVE_ACTIVE_ON_BOOT(R.string.prefkey_patients_remove_active_on_boot),
+    // Remote
+    /**
+     * Last active med hash code
+     */
+    REMOTE_LAST_HASH(R.string.prefkey_remote_last_hash),
+    REMOTE_LAST_GOOD_UPDATE_DATE(R.string.prefkey_remote_last_updated),
+    REMOTE_LAST_GOOD_UPDATE_SUMMARY(R.string.prefkey_remote_last_updated_summary),
+    REMOTE_UPDATE_STATUS(R.string.prefkey_remote_failed_update),
+    REMOTE_PERIODIC_JOB_ID(R.string.prefkey_remote_periodic_job_id),
+    REMOTE_PATIENT_NAME_RETRIEVED(R.string.prefkey_remote_patient_name_retrieved),
+    // Settings
+    SETTINGS_ALARM_INSISTENT(R.string.prefkey_settings_alarm_insistent),
+    SETTINGS_ALARM_REMINDER_WINDOW(R.string.prefkey_settings_alarm_reminder_window),
+    SETTINGS_ALARM_REPEAT_ENABLED(R.string.prefkey_settings_alarm_repeat_enabled),
+    SETTINGS_ALARM_REPEAT_FREQUENCY(R.string.prefkey_settings_alarm_repeat_frequency),
+    SETTINGS_ALARM_NOTIFICATIONS(R.string.prefkey_settings_alarm_notifications),
+    SETTINGS_BATTERY_SAVING(R.string.prefkey_settings_battery_saving),
+    SETTINGS_DATABASE_UPDATE(R.string.prefkey_settings_database_update),
+    SETTINGS_NOTIFICATION_TONE(R.string.prefkey_settings_notification_tone),
+    SETTINGS_INSISTENT_NOTIFICATION_TONE(R.string.prefkey_settings_insistent_notification_tone),
+    SETTINGS_STOCK_ALERT_DAYS(R.string.prefkey_settings_stock_alert_days),
+    SETTINGS_DEFAULTS_LOADED(R.string.prefkey_settings_defaults_loaded),
+    // Schedules
+    SCHEDULES_HELP_SHOWN(R.string.prefkey_schedules_help_shown),
+    // Unlock PIN
+    PRIVACY(R.string.prefkey_privacy),
+    UNLOCK_PIN(R.string.prefkey_pin_lock),
+    //UNLOCK_PIN_HASH(R.string.prefkey_unlock_pin_hash),
+    //UNLOCK_PIN_SALT(R.string.prefkey_unlock_pin_salt),
+    FINGERPRINT_ENABLED(R.string.prefkey_fingerprint_enabled),
+    UNLOCK_PIN_TIMEOUT(R.string.prefkey_pin_timeout),
+    // Locale
+    SETTINGS_PREFERRED_LANG(R.string.prefkey_settings_preferred_lang),
+    // Agenda
+    AGENDA_LAST_UPDATED(R.string.prefkey_agenda_last_updated),
+    // Last lo failed
+    LAST_LOGIN_FAILED_AUTH_LEVEL(R.string.prefkey_last_login_failed_auth_level),
+    // Secure window
+    SECURE_WINDOW(R.string.prefkey_secure_window),
+    // bundled secure preferences
+    SECURE_PREF_BUNDLE(R.string.prefkey_secure_pref_bundle),
+    MORE_INFO_URL(R.string.prefkey_about_app_info),
+    PRIVACY_URL(R.string.prefkey_about_privacy);
+
+    @StringRes
+    private final int stringId;
+
+    PreferenceKeys(int stringId) {
+        this.stringId = stringId;
+    }
+
+
+    public String key() {
+        return toString();
+    }
+
+    @Override
+    public String toString() {
+        return CalendulaApp.getContext().getString(stringId);
+    }
+}

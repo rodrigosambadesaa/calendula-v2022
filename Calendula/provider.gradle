@@ -1,0 +1,151 @@
+/*
+ *    Calendula - An assistant for personal medication management.
+ *    Copyright (C) 2014-2018 CiTIUS - University of Santiago de Compostela
+ *
+ *    Calendula is free software; you can redistribute it and/or modify
+ *    it under the terms of the GNU General Public License as published by
+ *    the Free Software Foundation; either version 3 of the License, or
+ *    (at your option) any later version.
+ *
+ *    This program is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU General Public License for more details.
+ *
+ *    You should have received a copy of the GNU General Public License
+ *    along with this software.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+apply from: 'sonar.gradle'
+//apply plugin: 'com.getkeepsafe.dexcount'
+
+android {
+    defaultConfig {
+
+        versionCode 8
+        versionName "v.01.00.0018-DES"
+        applicationId "es.usc.citius.servando.calendula.mp"
+
+        manifestPlaceholders = [
+                'appAuthRedirectScheme'       : 'es.usc.citius.servando.calendula.mp',
+                'OAUTH_LOGOUT_REDIRECT_SCHEME': 'calendula-mp', // should match buildConfigField
+                'OAUTH_LOGOUT_REDIRECT_HOST'  : 'logout' // should match buildConfigField
+        ]
+
+        // build config fields
+        // remote
+        buildConfigField 'String', 'REMOTE_DISPENSATION_BASE_URL', '"https://192.168.2.124:4676/"'
+        buildConfigField 'String', 'REMOTE_DISPENSATION_ENDPOINT', '"dispensation"'
+        // bundled database
+        buildConfigField 'String', 'BUNDLED_DB_NAME', '"AEMPS"'
+        buildConfigField 'String', 'BUNDLED_DB_VERSION', '"20200131"'
+        // login
+        // valid scopes (separated by commas, will skip check if empty)
+        buildConfigField 'String', 'LOGIN_SCOPES', '""'
+        buildConfigField 'boolean', 'LOGIN_TOKEN_VERIFY', 'true'
+        buildConfigField 'boolean', 'LOGIN_INSTANCEID_ENABLED', 'true'
+        // oauth
+        buildConfigField 'String', 'OAUTH_LOGOUT_ENDPOINT', '"https://192.168.2.124:4676/logout"'
+        buildConfigField 'String', 'OAUTH_LOGOUT_REDIRECT_SCHEME', '"calendula-mp"'
+        buildConfigField 'String', 'OAUTH_LOGOUT_REDIRECT_HOST', '"logout"'
+        buildConfigField 'String', 'OAUTH_AUTH_ENDPOINT', '"https://192.168.2.124:8443/calen_auth/openid/auth"'
+        buildConfigField 'String', 'OAUTH_TOKEN_ENDPOINT', '"https://192.168.2.124:8443/calen_auth/openid/token"'
+        buildConfigField 'String', 'OAUTH_USERINFO_ENDPOINT', '"https://192.168.2.124:8443/calen_auth/openid/userinfo"'
+        buildConfigField 'String', 'OAUTH_EXTRAINFO_ENDPOINT', '"https://192.168.2.124:8443/calen_auth/openid/extrainfo"'
+        buildConfigField 'String', 'OAUTH_CLIENT_ID', '"627303176257-pqsbkmuv8m75c0enl6uqlpc8ero1iijj.apps.googleusercontent.com"'
+        buildConfigField 'String', 'OAUTH_SCOPE', '"openid"'
+        // If this is true, HTTP will be allowed for login, which is not wise.
+        // Use with caution.
+        buildConfigField 'boolean', 'OAUTH_ALLOW_INSECURE', 'true'
+        // Set to true in order to disable host name / server's authentication scheme matching
+        // Use with caution (should be false if possible)
+        buildConfigField 'boolean', 'DISABLE_HOSTNAME_VERIFICATION', 'true'
+        // enable certificate pinning
+        buildConfigField 'boolean', 'ENABLE_CERTIFICATE_PINNING', 'false'
+        buildConfigField 'String', 'CERTIFICATE_PIN_SERVER', '"citius.usc.es"'
+    }
+
+
+    buildTypes {
+        all {
+            signingConfig signingConfigs.release
+        }
+
+        release {
+            signingConfig null
+        }
+        beta {
+            matchingFallbacks = ['debug']
+        }
+        alpha {
+            matchingFallbacks = ['debug']
+        }
+    }
+
+    productFlavors {
+        develop {
+            // wee need the normal appID for google services
+            applicationIdSuffix ""
+        }
+    }
+}
+/*
+dexcount {
+    format = "list"
+    includeClasses = false
+    includeClassCount = false
+    includeFieldCount = false
+    includeTotalMethodCount = false
+    orderByMethodCount = true
+    verbose = false
+    maxTreeDepth = Integer.MAX_VALUE
+    teamCityIntegration = false
+    teamCitySlug = null
+    runOnEachPackage = true
+}
+*/
+dependencies {
+    /********** DEBUGGING **********/
+    // interceptor for okhttp
+    debugImplementation 'com.facebook.stetho:stetho-okhttp3:1.6.0'
+
+    /********** SUPPORT **********/
+    // Support libs
+    implementation "androidx.browser:browser:1.3.0"
+
+    /********** UTILITIES **********/
+
+    // FHIR
+    implementation 'ca.uhn.hapi.fhir:hapi-fhir-base:3.1.0@jar'
+    implementation 'ca.uhn.hapi.fhir:hapi-fhir-utilities:3.1.0@jar'
+    implementation 'ca.uhn.hapi.fhir:hapi-fhir-structures-dstu3:3.1.0@jar'
+    implementation 'commons-io:commons-io:2.5'
+    implementation 'org.slf4j:slf4j-api:1.7.25@jar'
+
+    // JWT validation
+    implementation 'net.minidev:json-smart:2.3'
+    implementation ('com.nimbusds:nimbus-jose-jwt:5.1'){
+        exclude group: 'net.minidev', module: 'json-smart'
+    }
+
+
+    // OpenID authentication
+    implementation 'net.openid:appauth:0.7.1'
+
+    // Play Services (for Firebase InstanceID)
+    implementation 'com.google.firebase:firebase-core:16.0.4'
+    implementation 'com.google.firebase:firebase-auth:16.0.5'
+    implementation 'com.google.firebase:firebase-messaging:17.3.4'
+
+    // REST services
+    implementation 'com.squareup.retrofit2:retrofit:2.3.0'
+    implementation 'com.squareup.retrofit2:converter-scalars:2.1.0'
+
+    // root check
+    implementation 'com.scottyab:rootbeer-lib:0.0.7'
+
+    // pdf rendering
+    implementation 'com.github.barteksc:pdfium-android:1.9.0'
+}
+
+apply plugin: 'com.google.gms.google-services'

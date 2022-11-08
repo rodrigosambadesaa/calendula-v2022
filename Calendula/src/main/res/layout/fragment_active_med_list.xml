@@ -1,0 +1,137 @@
+<!--
+  ~    Calendula - An assistant for personal medication management.
+  ~    Copyright (C) 2016 CITIUS - USC
+  ~
+  ~    Calendula is free software; you can redistribute it and/or modify
+  ~    it under the terms of the GNU General Public License as published by
+  ~    the Free Software Foundation; either version 3 of the License, or
+  ~    (at your option) any later version.
+  ~
+  ~    This program is distributed in the hope that it will be useful,
+  ~    but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~    GNU General Public License for more details.
+  ~
+  ~    You should have received a copy of the GNU General Public License
+  ~    along with this software.  If not, see <http://www.gnu.org/licenses/>.
+  -->
+
+
+<androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/swipeRefreshLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".HomePagerActivity">
+
+
+    <ScrollView
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:nestedScrollingEnabled="false"
+        tools:background="@color/healthcare_provider_dark">
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:descendantFocusability="beforeDescendants"
+            android:focusable="true"
+            android:focusableInTouchMode="true">
+
+            <LinearLayout
+                android:id="@+id/header"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@color/transparent"
+                android:gravity="center_vertical"
+                android:orientation="vertical"
+                android:paddingBottom="@dimen/activity_vertical_margin"
+                android:paddingLeft="@dimen/activity_horizontal_margin"
+                android:paddingRight="@dimen/activity_horizontal_margin"
+                android:paddingTop="@dimen/activity_vertical_margin"
+                tools:layout_marginTop="@dimen/status_bar_height"
+                >
+
+
+                <TextView
+                    android:id="@+id/active_med_list_header_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/active_med_list_header_title"
+                    android:textAppearance="@style/TextAppearance.AppCompat.Button"
+                    android:textColor="@color/white"
+                    android:textSize="16sp"/>
+
+
+                <TextView
+                    android:id="@+id/active_med_list_header"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/active_med_list_header_text_short"
+                    android:textColor="@color/white"/>
+
+                <TextView
+                    android:id="@+id/active_med_list_time_since_update"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/active_med_not_checked_yet"
+                    android:textColor="@color/white"/>
+
+            </LinearLayout>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/active_med_list"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_below="@+id/header"
+                android:background="@color/transparent"
+                android:clipToPadding="false"
+                android:divider="#fff"
+                android:dividerHeight="0dp"
+                android:paddingBottom="60dp"
+                android:scrollbars="none"
+                android:nestedScrollingEnabled="false"
+                tools:listitem="@layout/active_medication_list_item"/>
+
+
+            <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                          android:id="@android:id/empty"
+                          android:layout_width="match_parent"
+                          android:layout_height="match_parent"
+                          android:layout_below="@+id/header"
+                          android:layout_marginTop="26dp"
+                          android:gravity="center_horizontal"
+                          android:orientation="vertical">
+
+                <com.mikepenz.iconics.view.IconicsImageView
+                    android:layout_width="150dp"
+                    android:layout_height="150dp"
+                    app:iiv_background_color="#6aaa"
+                    app:iiv_color="#9fff"
+                    app:iiv_corner_radius="75dp"
+                    app:iiv_icon="hcp-healthcare-provider"
+                    app:iiv_padding="42dp"
+                    tools:src="@drawable/ic_intro_pill"
+                    tools:visibility="visible"/>
+
+                <TextView
+                    android:id="@+id/textView10"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:alpha="0.9"
+                    android:gravity="center_horizontal"
+                    android:padding="30dp"
+                    android:text="@string/active_med_list_empty_text"
+                    android:textAlignment="center"
+                    android:textAppearance="?android:attr/textAppearanceMedium"
+                    android:textColor="#aaa"
+                    android:textSize="16sp"/>
+
+            </LinearLayout>
+
+        </RelativeLayout>
+
+    </ScrollView>
+</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>

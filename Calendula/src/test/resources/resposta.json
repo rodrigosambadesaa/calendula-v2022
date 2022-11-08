@@ -1,0 +1,509 @@
+{
+  "resourceType": "Bundle",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "MessageHeader",
+        "event": {
+          "code": "communication-request"
+        },
+        "timestamp": "2017-04-05T11:52:08.996+02:00",
+        "source": {
+          "name": "FHIR SERVER",
+          "version": "01.00.0003"
+        },
+        "response": {
+          "identifier": "5df9f63916ebf8528697b629022993e8",
+          "code": "ok"
+        },
+        "focus": [
+          {
+            "reference": "MedicationDispense/98218529"
+          },
+          {
+            "reference": "MedicationDispense/10632220"
+          },
+          {
+            "reference": "MedicationDispense/83439294"
+          },
+          {
+            "reference": "MedicationDispense/48432191"
+          },
+          {
+            "reference": "MedicationDispense/37698558"
+          },
+          {
+            "reference": "MedicationDispense/39063934"
+          },
+          {
+            "reference": "MedicationDispense/97372909"
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationDispense",
+        "id": "98218529",
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/medicationdispense-validityPeriod",
+            "valuePeriod": {
+              "start": "2017-03-25T00:00:00+01:00",
+              "end": "2017-04-15T00:00:00+02:00"
+            }
+          }
+        ],
+        "identifier": [
+          {
+            "value": "98218529"
+          }
+        ],
+        "authorizingPrescription": [
+          {
+            "reference": "MedicationRequest/00000001"
+          }
+        ],
+        "notDone": true
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationDispense",
+        "id": "10632220",
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/medicationdispense-validityPeriod",
+            "valuePeriod": {
+              "start": "2017-04-06T00:00:00+02:00",
+              "end": "2017-04-27T00:00:00+02:00"
+            }
+          }
+        ],
+        "identifier": [
+          {
+            "value": "10632220"
+          }
+        ],
+        "authorizingPrescription": [
+          {
+            "reference": "MedicationRequest/00000001"
+          }
+        ],
+        "notDone": true
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationDispense",
+        "id": "83439294",
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/medicationdispense-validityPeriod",
+            "valuePeriod": {
+              "start": "2017-04-18T00:00:00+02:00",
+              "end": "2017-05-09T00:00:00+02:00"
+            }
+          }
+        ],
+        "identifier": [
+          {
+            "value": "83439294"
+          }
+        ],
+        "authorizingPrescription": [
+          {
+            "reference": "MedicationRequest/00000001"
+          }
+        ],
+        "notDone": true
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationDispense",
+        "id": "48432191",
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/medicationdispense-validityPeriod",
+            "valuePeriod": {
+              "start": "2017-03-25T00:00:00+01:00",
+              "end": "2017-04-18T00:00:00+02:00"
+            }
+          }
+        ],
+        "identifier": [
+          {
+            "value": "48432191"
+          }
+        ],
+        "authorizingPrescription": [
+          {
+            "reference": "MedicationRequest/00000002"
+          }
+        ],
+        "notDone": true
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationDispense",
+        "id": "37698558",
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/medicationdispense-validityPeriod",
+            "valuePeriod": {
+              "start": "2017-04-09T00:00:00+02:00",
+              "end": "2017-05-03T00:00:00+02:00"
+            }
+          }
+        ],
+        "identifier": [
+          {
+            "value": "37698558"
+          }
+        ],
+        "authorizingPrescription": [
+          {
+            "reference": "MedicationRequest/00000002"
+          }
+        ],
+        "notDone": true
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationDispense",
+        "id": "39063934",
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/medicationdispense-validityPeriod",
+            "valuePeriod": {
+              "start": "2017-03-25T00:00:00+01:00",
+              "end": "2017-04-24T00:00:00+02:00"
+            }
+          }
+        ],
+        "identifier": [
+          {
+            "value": "39063934"
+          }
+        ],
+        "authorizingPrescription": [
+          {
+            "reference": "MedicationRequest/00000003"
+          }
+        ],
+        "notDone": true
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationDispense",
+        "id": "97372909",
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/medicationdispense-validityPeriod",
+            "valuePeriod": {
+              "start": "2017-06-23T00:00:00+02:00",
+              "end": "2017-07-23T00:00:00+02:00"
+            }
+          }
+        ],
+        "identifier": [
+          {
+            "value": "97372909"
+          }
+        ],
+        "authorizingPrescription": [
+          {
+            "reference": "MedicationRequest/00000003"
+          }
+        ],
+        "notDone": true
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "00000001",
+        "identifier": [
+          {
+            "value": "00000001"
+          }
+        ],
+        "intent": "order",
+        "medicationReference": {
+          "reference": "Medication/2.16.724.4.21.5.15.4.672908"
+        },
+        "subject": {
+          "reference": "Patient/000000AAAA0000"
+        },
+        "dosageInstruction": [
+          {
+            "sequence": "1",
+            "text": "2.5 COMPRIMIDOS CADA 24 HORAS",
+            "patientInstruction": "No consumir bebidas alcohólicas",
+            "timing": [
+              {
+                "repeat": [
+                  {
+                    "period": "24",
+                    "periodUnits": "h"
+                  }
+                ]
+              }
+            ],
+            "doseQuantity": [
+              {
+                "value": "2.5",
+                "unit": "COMPRIMIDOS"
+              }
+            ]
+          }
+        ],
+        "dispenseRequest": {
+          "validityPeriod": {
+            "start": "2017-01-01T00:00:00+01:00"
+          }
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "00000002",
+        "identifier": [
+          {
+            "value": "00000002"
+          }
+        ],
+        "intent": "order",
+        "medicationReference": {
+          "reference": "Medication/2.16.724.4.21.5.15.4.665477"
+        },
+        "subject": {
+          "reference": "Patient/000000AAAA0000"
+        },
+        "dosageInstruction": [
+          {
+            "sequence": "1",
+            "text": "Desayuno 1.0 COMPRIMIDOS (Antes)",
+            "patientInstruction": "No consumir bebidas alcohólicas",
+            "timing": [
+              {
+                "repeat": [
+                  {
+                    "when": "ACM"
+                  }
+                ]
+              }
+            ],
+            "doseQuantity": [
+              {
+                "value": "1.0",
+                "unit": "COMPRIMIDOS"
+              }
+            ]
+          },
+          {
+            "sequence": "2",
+            "text": "Comida 1.0 COMPRIMIDOS (Antes)",
+            "patientInstruction": "No consumir bebidas alcohólicas",
+            "timing": [
+              {
+                "repeat": [
+                  {
+                    "when": "ACD"
+                  }
+                ]
+              }
+            ],
+            "doseQuantity": [
+              {
+                "value": "1.0",
+                "unit": "COMPRIMIDOS"
+              }
+            ]
+          },
+          {
+            "sequence": "3",
+            "text": "Cena 1.0 COMPRIMIDOS (Antes)",
+            "patientInstruction": "No consumir bebidas alcohólicas",
+            "timing": [
+              {
+                "repeat": [
+                  {
+                    "when": "ACV"
+                  }
+                ]
+              }
+            ],
+            "doseQuantity": [
+              {
+                "value": "1.0",
+                "unit": "COMPRIMIDOS"
+              }
+            ]
+          },
+          {
+            "sequence": "4",
+            "text": "22:00 h 0.5 COMPRIMIDOS",
+            "patientInstruction": "No consumir bebidas alcohólicas",
+            "timing": [
+              {
+                "repeat": [
+                  {
+                    "timeOfDay": "22:00:00"
+                  }
+                ]
+              }
+            ],
+            "doseQuantity": [
+              {
+                "value": "0.5",
+                "unit": "COMPRIMIDOS"
+              }
+            ]
+          }
+        ],
+        "dispenseRequest": {
+          "validityPeriod": {
+            "start": "2017-04-04T00:00:00+02:00",
+            "end": "2017-05-03T00:00:00+02:00"
+          }
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "00000003",
+        "identifier": [
+          {
+            "value": "00000003"
+          }
+        ],
+        "intent": "order",
+        "medicationReference": {
+          "reference": "Medication/2.16.724.4.21.5.15.4.654186"
+        },
+        "subject": {
+          "reference": "Patient/000000AAAA0000"
+        },
+        "dosageInstruction": [
+          {
+            "sequence": "1",
+            "text": "DURANTE 3 MESES. Según control analítico.",
+            "patientInstruction": "No consumir bebidas alcohólicas",
+            "timing": [
+              {
+                "repeat": [
+                  {
+                    "duration": "3",
+                    "durationUnit": "mo"
+                  }
+                ]
+              }
+            ],
+            "asNeededCodeableConcept": [
+              {
+                "text": "Según control analítico"
+              }
+            ]
+          }
+        ],
+        "dispenseRequest": {
+          "validityPeriod": {
+            "start": "2017-04-04T00:00:00+02:00",
+            "end": "2017-09-30T00:00:00+02:00"
+          }
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Medication",
+        "id": "2.16.724.4.21.5.15.4.672908",
+        "code": {
+          "coding": [
+            {
+              "system": "2.16.724.4.21.5.15.4",
+              "code": "672908",
+              "display": "TARDYFERON 80MG 30 COMPRIMIDOS RECUBIERTOS"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Medication",
+        "id": "2.16.724.4.21.5.15.4.665477",
+        "code": {
+          "coding": [
+            {
+              "system": "2.16.724.4.21.5.15.4",
+              "code": "665477",
+              "display": "IBUPROFENO (ARGININA) NORMON 400MG 30 SOBRES GRANUL SOLUC ORAL EFG"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Medication",
+        "id": "2.16.724.4.21.5.15.4.654186",
+        "code": {
+          "coding": [
+            {
+              "system": "2.16.724.4.21.5.15.4",
+              "code": "654186",
+              "display": "RANITIDINA 300 MG 28 COMPRIMIDOS"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "ID_NUMBER",
+        "identifier": [
+          {
+            "type": {
+              "text": "ID_NAME"
+            },
+            "system": "urn:oid: 2.16.724.4.12.10.1",
+            "value": "ID_NUMBER",
+            "assigner": {
+              "reference": "Organization/2.16.724.4.12"
+            }
+          }
+        ],
+        "name": [
+          {
+            "text": "Nombre Apellido1 Apellido2",
+            "family": "Apellido1 Apellido2",
+            "given": [
+              "Nombre"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Organization",
+        "id": "2.16.724.4.12",
+        "identifier": [
+          {
+            "value": "2.16.724.4.12"
+          }
+        ],
+        "name": "Organization name"
+      }
+    }
+  ]
+}

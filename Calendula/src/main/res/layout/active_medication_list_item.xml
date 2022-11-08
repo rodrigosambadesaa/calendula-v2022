@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  ~    Calendula - An assistant for personal medication management.
+  ~    Copyright (C) 2017 CITIUS - USC
+  ~
+  ~    Calendula is free software; you can redistribute it and/or modify
+  ~    it under the terms of the GNU General Public License as published by
+  ~    the Free Software Foundation; either version 3 of the License, or
+  ~    (at your option) any later version.
+  ~
+  ~    This program is distributed in the hope that it will be useful,
+  ~    but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~    GNU General Public License for more details.
+  ~
+  ~    You should have received a copy of the GNU General Public License
+  ~    along with this software.  If not, see <http://www.gnu.org/licenses>.
+  -->
+<androidx.cardview.widget.CardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginLeft="@dimen/cardview_margin"
+    android:layout_marginRight="@dimen/cardview_margin"
+    android:layout_marginBottom="@dimen/cardview_margin"
+    android:id="@+id/cardView"
+    app:cardBackgroundColor="@color/healthcare_provider_dark"
+    app:cardElevation="3dp"
+    tools:context=".HomePagerActivity">
+
+    <RelativeLayout
+        android:id="@+id/medicines_list_item_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        >
+
+
+        <RelativeLayout
+            android:id="@+id/header"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="16dp">
+
+            <ImageView
+                android:id="@+id/medicine_icon"
+                android:layout_width="35dp"
+                android:layout_height="32dp"
+                android:layout_alignParentStart="true"
+                android:layout_alignParentTop="true"
+                android:background="@null"
+                android:scaleType="fitStart"
+                tools:src="@drawable/icp_pill"/>
+
+            <TextView
+                android:id="@+id/med_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="10dp"
+                android:layout_toRightOf="@+id/medicine_icon"
+                android:gravity="top"
+                android:textAllCaps="true"
+                android:textAppearance="?android:attr/textAppearanceLarge"
+                android:textColor="@color/white"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                tools:text="Medication name placeholder, possibly multiline"/>
+
+
+        </RelativeLayout>
+
+        <RelativeLayout
+            android:id="@+id/middle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/header"
+            android:background="#fff"
+            android:padding="16dp">
+
+            <ImageView
+                android:id="@+id/schedule_icon"
+                android:layout_width="25dp"
+                android:layout_height="25dp"
+                />
+
+            <TextView
+                android:id="@+id/intake_summary"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="5dp"
+                android:layout_marginStart="5dp"
+                android:layout_marginTop="1dp"
+                android:textAllCaps="true"
+                android:layout_toEndOf="@id/schedule_icon"
+                android:textColor="@color/black"
+                android:textSize="16sp"
+                tools:text="Dispensation summary placeholder, can be multiline as well"/>
+
+
+            <TextView
+                    android:id="@+id/intake_instructions"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="5dp"
+                    android:layout_marginStart="5dp"
+                    android:layout_marginTop="1dp"
+                    android:layout_toEndOf="@id/schedule_icon"
+                    android:layout_below="@+id/intake_summary"
+                    android:fontFamily="sans-serif-light"
+                    android:textColor="#222"
+                    android:textSize="14sp"
+                    tools:text="Dispensation instructions placeholder, can be multiline as well"/>
+
+            <LinearLayout
+                android:id="@+id/linear"
+                android:layout_width="fill_parent"
+                android:layout_height="wrap_content"
+                android:layout_below="@+id/intake_instructions"
+                android:orientation="vertical">
+
+
+                <RelativeLayout
+                    android:id="@+id/active_med_dates_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    tools:visibility="visible">
+
+                    <LinearLayout
+                        android:id="@+id/from_container"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentRight="false"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="3dp"
+                            android:layout_marginRight="3dp"
+                            android:text="@string/active_med_from"
+                            android:textColor="@color/black_80"
+                            android:visibility="visible"/>
+
+                        <TextView
+                            android:id="@+id/start_date"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/black"
+                            android:textStyle="bold"
+                            tools:text="23/11/16"/>
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/to_container"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentRight="false"
+                        android:layout_below="@+id/from_container"
+                        android:layout_marginTop="5dp"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/active_med_to"
+                            android:textColor="@color/black_80"
+                            android:visibility="visible"/>
+
+                        <TextView
+                            android:id="@+id/end_date"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginLeft="3dp"
+                            android:textColor="@color/black"
+                            android:textStyle="bold"
+                            tools:text="20/12/17"/>
+                    </LinearLayout>
+                </RelativeLayout>
+
+                <TextView
+                    android:id="@+id/substitution_info"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="5dp"
+                    android:textColor="@color/black"
+                    android:textStyle="italic"
+                    android:visibility="gone"
+                    tools:text="Substitution info should go here"/>
+
+            </LinearLayout>
+
+        </RelativeLayout>
+
+        <RelativeLayout
+            android:id="@+id/bottom"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/middle"
+            android:background="@color/white"
+            android:padding="5dp">
+
+
+            <Button
+                xmlns:tools="http://schemas.android.com/tools"
+                android:id="@+id/last_update_info"
+                style="@style/Widget.AppCompat.Button.Borderless"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_alignParentLeft="true"
+                android:gravity="center_vertical"
+                android:textColor="@color/android_orange"
+                android:padding="5dp"
+                android:textStyle="bold"
+                android:textSize="14dp"
+                tools:text="17/07/2017"
+                tools:visibility="visible"/>
+
+            <ImageButton
+                android:id="@+id/enable_reminders_button"
+                style="@style/Widget.AppCompat.Button.Borderless"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_alignParentRight="true"
+                android:gravity="right"
+                android:padding="5dp"
+                android:src="@null"
+                android:visibility="visible" />
+
+            <Button
+                android:id="@+id/get_info_button"
+                style="@style/Widget.AppCompat.Button.Borderless"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_alignParentRight="true"
+                android:gravity="right"
+                android:textColor="@color/android_orange"
+                android:padding="5dp"
+                android:textSize="14dp"
+                tools:text="Detailed dossage info"
+                android:visibility="visible" />
+
+        </RelativeLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1px"
+            android:layout_below="@id/middle"
+            android:background="#bcbcbc"/>
+    </RelativeLayout>
+
+</androidx.cardview.widget.CardView>

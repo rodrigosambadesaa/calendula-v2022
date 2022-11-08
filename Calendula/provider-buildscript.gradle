@@ -1,0 +1,7 @@
+repositories {
+    mavenCentral()
+}
+dependencies {
+    classpath 'com.getkeepsafe.dexcount:dexcount-gradle-plugin:1.0.3'
+    classpath "org.sonarsource.scanner.gradle:sonarqube-gradle-plugin:2.6"
+}

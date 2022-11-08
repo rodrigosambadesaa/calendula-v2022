@@ -1,0 +1,81 @@
+<!--
+  ~    Calendula - An assistant for personal medication management.
+  ~    Copyright (C) 2016 CITIUS - USC
+  ~
+  ~    Calendula is free software; you can redistribute it and/or modify
+  ~    it under the terms of the GNU General Public License as published by
+  ~    the Free Software Foundation; either version 3 of the License, or
+  ~    (at your option) any later version.
+  ~
+  ~    This program is distributed in the hope that it will be useful,
+  ~    but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~    GNU General Public License for more details.
+  ~
+  ~    You should have received a copy of the GNU General Public License
+  ~    along with this software.  If not, see <http://www.gnu.org/licenses/>.
+  -->
+
+<androidx.core.widget.NestedScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:background="@color/android_blue_darker"
+    android:layout_height="fill_parent">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="fill_parent"
+        android:padding="24dp">
+
+        <!--<Button-->
+            <!--android:id="@+id/confirm"-->
+            <!--android:layout_width="wrap_content"-->
+            <!--android:layout_height="wrap_content"-->
+            <!--android:layout_centerHorizontal="true"-->
+            <!--android:textColor="@color/android_orange_dark"-->
+            <!--style="@style/Widget.AppCompat.Button.Borderless"-->
+            <!--android:text="Crear recordatorio"/>-->
+
+
+        <RelativeLayout
+            android:id="@+id/month_indicator"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <ImageView
+                android:layout_alignParentLeft="true"
+                android:id="@+id/prev_month"
+                android:layout_width="35dp"
+                android:layout_height="35dp"/>
+
+            <TextView
+                android:id="@+id/month_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerInParent="true"
+                android:textColor="@color/activity_schedule_build_foreground"
+                android:textSize="16dp"
+                />
+
+            <ImageView
+                android:layout_alignParentRight="true"
+                android:id="@+id/next_month"
+                android:layout_width="35dp"
+                android:layout_height="35dp"/>
+        </RelativeLayout>
+
+        <RelativeLayout
+            android:id="@id/calendar"
+            android:layout_below="@id/month_indicator"
+            android:layout_marginTop="10dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+        </RelativeLayout>
+
+    </RelativeLayout>
+
+</androidx.core.widget.NestedScrollView>
+
+
+

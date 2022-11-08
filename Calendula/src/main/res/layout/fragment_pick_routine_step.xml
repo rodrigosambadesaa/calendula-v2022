@@ -1,0 +1,135 @@
+<!--
+  ~    Calendula - An assistant for personal medication management.
+  ~    Copyright (C) 2016 CITIUS - USC
+  ~
+  ~    Calendula is free software; you can redistribute it and/or modify
+  ~    it under the terms of the GNU General Public License as published by
+  ~    the Free Software Foundation; either version 3 of the License, or
+  ~    (at your option) any later version.
+  ~
+  ~    This program is distributed in the hope that it will be useful,
+  ~    but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~    GNU General Public License for more details.
+  ~
+  ~    You should have received a copy of the GNU General Public License
+  ~    along with this software.  If not, see <http://www.gnu.org/licenses/>.
+  -->
+
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+                                            xmlns:app="http://schemas.android.com/apk/res-auto"
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="match_parent"
+                                            android:fillViewport="true"
+                                            xmlns:tools="http://schemas.android.com/tools"
+                                            tools:background="@color/activity_schedule_build_primary"
+                                            android:orientation="vertical">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="24dp">
+
+
+        <TextView
+            android:id="@+id/hourly_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-condensed"
+            android:text="@string/schedule_build_pick_routine_hourly_rep_title"
+            android:textAllCaps="true"
+            android:textColor="@color/activity_schedule_build_secondary"
+            android:textSize="14dp"
+            />
+
+        <RelativeLayout
+            android:id="@+id/hourly_selection"
+            android:layout_width="match_parent"
+            android:layout_height="80dp"
+            android:layout_below="@+id/hourly_title"
+            android:layout_marginTop="10dp">
+
+            <TextView
+                android:id="@+id/every"
+                android:layout_width="wrap_content"
+                android:layout_height="fill_parent"
+                android:layout_alignParentLeft="true"
+                android:layout_marginLeft="16dp"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:maxLines="1"
+                android:singleLine="true"
+                android:text="@string/schedule_build_routine_picker_hourly_every"
+                android:textColor="@color/activity_schedule_build_foreground"
+                android:textSize="18sp"/>
+
+
+            <com.shawnlin.numberpicker.NumberPicker
+                android:id="@+id/hourly_interval"
+                android:layout_width="110dp"
+                android:layout_height="50dp"
+                android:layout_centerVertical="true"
+                android:layout_marginLeft="10dp"
+                android:layout_marginRight="10dp"
+                android:layout_toRightOf="@id/every"
+                app:np_dividerColor="@color/transparent"
+                app:np_max="48"
+                app:np_min="1"
+                app:np_orientation="horizontal"
+                app:np_selectedTextColor="@color/activity_schedule_build_foreground"
+                app:np_selectedTextSize="20dp"
+                app:np_textColor="@color/activity_schedule_build_foreground_alpha"
+                app:np_textSize="18dp"
+                app:np_value="8"
+                />
+
+
+            <TextView
+                android:id="@+id/hours"
+                android:layout_width="wrap_content"
+                android:layout_height="fill_parent"
+                android:layout_toRightOf="@+id/hourly_interval"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:maxLines="1"
+                android:singleLine="true"
+                android:text="@string/hours"
+                android:textColor="@color/activity_schedule_build_foreground"
+                android:textSize="18sp"/>
+
+
+            <ImageView
+                android:id="@+id/hourly_selection_indicator"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_alignParentRight="true"
+                android:layout_centerVertical="true"
+                android:layout_marginRight="10dp"/>
+
+        </RelativeLayout>
+
+
+        <TextView
+            android:id="@+id/routines_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/hourly_selection"
+            android:layout_marginTop="24dp"
+            android:text="@string/schedule_build_pick_routine_routine_title"
+            android:textAllCaps="true"
+            android:textColor="@color/activity_schedule_build_secondary"
+            android:textSize="14dp"/>
+
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/routines_rv"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:layout_below="@+id/routines_title"
+            android:divider="#E0EAEF"
+            android:dividerHeight="0dp"
+            android:scrollbars="none"/>
+
+    </RelativeLayout>
+</androidx.core.widget.NestedScrollView>

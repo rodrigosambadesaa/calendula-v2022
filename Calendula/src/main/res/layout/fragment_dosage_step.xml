@@ -1,0 +1,100 @@
+<!--
+  ~    Calendula - An assistant for personal medication management.
+  ~    Copyright (C) 2016 CITIUS - USC
+  ~
+  ~    Calendula is free software; you can redistribute it and/or modify
+  ~    it under the terms of the GNU General Public License as published by
+  ~    the Free Software Foundation; either version 3 of the License, or
+  ~    (at your option) any later version.
+  ~
+  ~    This program is distributed in the hope that it will be useful,
+  ~    but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~    GNU General Public License for more details.
+  ~
+  ~    You should have received a copy of the GNU General Public License
+  ~    along with this software.  If not, see <http://www.gnu.org/licenses/>.
+  -->
+
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="match_parent"
+                                            android:fillViewport="true"
+                                            android:orientation="vertical">
+
+    <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:padding="24dp"
+        >
+
+    <TextView
+        android:id="@+id/title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/hourly_selection"
+        android:text=""
+        android:textAllCaps="true"
+        android:textColor="@color/activity_schedule_build_secondary"
+        android:textSize="14dp"/>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/dosage_list"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/title"
+        android:layout_marginTop="10dp"
+        android:clipToPadding="false"
+        android:divider="#E0EAEF"
+        android:dividerHeight="0dp"
+        android:scrollbars="none"/>
+
+    <TextView
+        android:id="@+id/meals_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/dosage_list"
+        android:layout_marginTop="24dp"
+        android:text="@string/intakes_with_meals"
+        android:textAllCaps="true"
+        android:textColor="#88ffffff"
+        android:textSize="14dp"/>
+
+    <RadioGroup
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/meals_title"
+        android:orientation="horizontal">
+
+        <RadioButton
+            android:id="@+id/during"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="@string/with_lunch"
+            android:textColor="#fff"/>
+
+        <RadioButton
+            android:id="@+id/before"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="@string/before_lunch"
+            android:textColor="#fff"/>
+
+        <RadioButton
+            android:id="@+id/after"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="@string/after_lunch"
+            android:textColor="#fff"/>
+
+    </RadioGroup>
+
+
+</RelativeLayout>
+</androidx.core.widget.NestedScrollView>

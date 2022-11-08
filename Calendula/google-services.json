@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "627303176257",
+    "project_id": "calendula-mp-367908",
+    "storage_bucket": "calendula-mp-367908.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:627303176257:android:91aaa54a6754ee66028ec0",
+        "android_client_info": {
+          "package_name": "es.usc.citius.servando.calendula.mp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "627303176257-pqsbkmuv8m75c0enl6uqlpc8ero1iijj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "es.usc.citius.servando.calendula.mp",
+            "certificate_hash": "76860d1a57d3664a5b518dc1b2c533ffa20f64d2"
+          }
+        },
+        {
+          "client_id": "627303176257-ktimqkt9kc401bre5ubavub3om5s5lkn.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAdVTm8RsZfKcNrGbUOqOYjNxLuAGNFZuk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "627303176257-ktimqkt9kc401bre5ubavub3om5s5lkn.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

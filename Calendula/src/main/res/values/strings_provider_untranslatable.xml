@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string-array name="routine_offsets">
+        <item>@string/routine_offset_none</item>
+        <item>@string/routine_offset_before</item>
+        <item>@string/routine_offset_at</item>
+        <item>@string/routine_offset_after</item>
+    </string-array>
+
+    <plurals name="intakes_per_day">
+        <item quantity="one">@string/intakes_per_day_one</item>
+        <item quantity="other">@string/intakes_per_day_several</item>
+    </plurals>
+
+
+    <string-array name="schedule_build_dayselect_repeat_types">
+        <item>@string/schedule_build_dayselect_weekdays</item>
+        <item>@string/schedule_build_dayselect_daily</item>
+        <item>@string/schedule_build_dayselect_weekly</item>
+        <item>@string/schedule_build_dayselect_with_rests</item>
+    </string-array>
+
+    <string name="about_more_info_url" translatable="false">https://fake.url.to.provider</string>
+    <string name="about_privacy_url" translatable="false">https://fake.url.to.privacy.policy</string>
+</resources>
