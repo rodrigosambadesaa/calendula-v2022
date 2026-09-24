@@ -118,7 +118,7 @@ public class ExtraInfoHelper {
                     ProviderResponse vo = response.body();
                     //TODO: decodificar el resultado con Gson.
                     if (vo != null && vo.error != null) {
-                        LogUtil.e(TAG, "Error retrieving ExtraInfo " + GsonUtil.get().toJson(vo.error));
+                        LogUtil.e(TAG, "Provider returned an error while retrieving extra info");
                         status = Status.ERROR_GENERIC;
 
                     } else {
