@@ -20,6 +20,9 @@ updates:
       # legacy 3.x family until it is migrated deliberately in a dedicated PR.
       - dependency-name: "com.mikepenz:fastadapter*"
         update-types: ["version-update:semver-major"]
+      # Newer Community Material Typeface releases changed the package/API surface.
+      - dependency-name: "com.mikepenz:community-material-typeface"
+        update-types: ["version-update:semver-major"]
       # Kotlin 2.x requires a coordinated AGP/Gradle/JDK migration.
       - dependency-name: "kotlin_version"
         update-types: ["version-update:semver-major"]
