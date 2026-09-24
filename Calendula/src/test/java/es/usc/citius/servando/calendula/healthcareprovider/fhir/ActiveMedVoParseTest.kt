@@ -34,7 +34,7 @@ import java.io.InputStreamReader
 import java.util.*
 
 @RunWith(RobolectricTestRunner::class)
-@Config(constants = BuildConfig::class)
+@Config(sdk = [27])
 class ActiveMedVoParseTest {
 
 
