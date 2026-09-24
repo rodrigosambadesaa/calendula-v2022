@@ -22,6 +22,9 @@ updates:
       # Newer google-services plugin releases require a newer Java/Gradle toolchain.
       - dependency-name: "com.google.gms:google-services"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # 1.2.32 raises the Android minimum SDK to 21.
+      - dependency-name: "pl.droidsonroids.gif:android-gif-drawable"
+        versions: ["1.2.32"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
