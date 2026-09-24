@@ -254,7 +254,7 @@ dependencies {
     testImplementation 'junit:junit:4.12'
 
     // Mockito
-    testImplementation "org.mockito:mockito-inline:$libVersions.mockito"
+    testImplementation "org.mockito:mockito-core:$libVersions.mockito"
     androidTestImplementation "org.mockito:mockito-android:$libVersions.mockito"
 
     // Support testing
