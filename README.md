@@ -37,6 +37,19 @@ Development in this GitHub repository may diverge from that snapshot. When synch
 with upstream, the CiTIUS GitLab repository should be treated as the authoritative origin for
 the original `Calendula-v2022` source.
 
+### Keeping this fork synchronized
+
+A local clone can keep both remotes explicitly:
+
+```bash
+git remote add upstream https://gitlab.citius.gal/calendula-mp/calendula-mp.git
+git fetch upstream
+```
+
+Changes made in this GitHub fork are intentionally developed on separate branches. Upstream
+history should be preserved rather than rewritten, so future CiTIUS changes can be compared,
+merged or rebased deliberately.
+
 Calendula is an Android assistant for personal medication management, aimed at those who have trouble following their medication regimen, forget to take their drugs, or have complex schedules that are difficult to remember.
 
 The app is available for download in Google Play, F-Droid and Github.
