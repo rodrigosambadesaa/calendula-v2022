@@ -18,6 +18,8 @@
 
 package es.usc.citius.servando.calendula.database
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import es.usc.citius.servando.calendula.CalendulaApp
 import es.usc.citius.servando.calendula.persistence.*
 import org.joda.time.LocalDate
@@ -28,7 +30,6 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.RuntimeEnvironment
 
 
 
@@ -45,7 +46,7 @@ class DBTest {
     @Before
     fun setUp() {
         CalendulaApp.disableReceivers = true
-        DB.init(RuntimeEnvironment.application)
+        DB.init(ApplicationProvider.getApplicationContext<Context>())
         DB.dropAndCreateDatabase()
     }
 
