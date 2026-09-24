@@ -236,7 +236,7 @@ dependencies {
     implementation 'androidx.gridlayout:gridlayout:1.0.0'
     implementation 'androidx.palette:palette:1.0.0'
     implementation 'androidx.preference:preference:1.2.1'
-    implementation 'androidx.recyclerview:recyclerview:1.1.0'
+    implementation 'androidx.recyclerview:recyclerview:1.4.0'
     implementation 'androidx.annotation:annotation:1.1.0'
     implementation 'androidx.legacy:legacy-support-v4:1.0.0'
     implementation 'androidx.legacy:legacy-preference-v14:1.0.0'
@@ -245,7 +245,7 @@ dependencies {
     //  Made explicit to avoid conflicts with other testing libs
     androidTestImplementation 'androidx.appcompat:appcompat:1.1.0'
     androidTestImplementation 'com.google.android.material:material:1.0.0'
-    androidTestImplementation 'androidx.recyclerview:recyclerview:1.1.0'
+    androidTestImplementation 'androidx.recyclerview:recyclerview:1.4.0'
     androidTestImplementation 'androidx.annotation:annotation:1.1.0'
     androidTestImplementation 'androidx.legacy:legacy-support-v4:1.0.0'
 
