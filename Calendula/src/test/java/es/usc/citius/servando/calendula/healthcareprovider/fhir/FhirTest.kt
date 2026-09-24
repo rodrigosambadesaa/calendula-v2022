@@ -29,7 +29,7 @@ import java.io.InputStreamReader
 
 
 @RunWith(RobolectricTestRunner::class)
-@Config(constants = BuildConfig::class)
+@Config(sdk = [27])
 class FhirTest {
 
     @Test
