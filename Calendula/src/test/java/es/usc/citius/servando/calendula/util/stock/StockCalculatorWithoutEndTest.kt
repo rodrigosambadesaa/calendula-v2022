@@ -21,6 +21,7 @@ package es.usc.citius.servando.calendula.util.stock
 import es.usc.citius.servando.calendula.kotlinAny
 import org.joda.time.DateTime
 import org.junit.Assert
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mock
@@ -39,10 +40,17 @@ class StockCalculatorWithoutEndTest {
 
     private val baseDate = DateTime(2018, 1, 1, 0, 0).toLocalDate()
 
+    private lateinit var mocks: AutoCloseable
+
     @Before
     fun setUp() {
-        MockitoAnnotations.initMocks(this)
+        mocks = MockitoAnnotations.openMocks(this)
         Mockito.`when`(stockForDayProvider.stockNeededForDay(kotlinAny())).thenReturn(STOCK_PER_DAY)
+    }
+
+    @After
+    fun tearDownMocks() {
+        mocks.close()
     }
 
     @Test
