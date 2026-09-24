@@ -28,6 +28,9 @@ updates:
       # 4.3.0 raises the Android minimum SDK from 18 to 19.
       - dependency-name: "com.journeyapps:zxing-android-embedded"
         versions: ["4.3.0"]
+      # 1.7.11 pulls in AndroidX Core requiring newer compile SDK attributes.
+      - dependency-name: "com.squareup:android-times-square"
+        versions: ["1.7.11"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
