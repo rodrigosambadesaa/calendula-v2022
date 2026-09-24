@@ -29,6 +29,10 @@ updates:
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
       - dependency-name: "androidx.test:core"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "androidx.test.espresso:espresso-contrib"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "androidx.test.espresso:espresso-core"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
       # FastAdapter 5.x is a major API/artifact-layout migration. Keep the
       # legacy 3.x family until it is migrated deliberately in a dedicated PR.
       - dependency-name: "com.mikepenz:fastadapter*"
@@ -64,9 +68,9 @@ updates:
       # Major UI-library migrations should be handled explicitly, with source/API review.
       - dependency-name: "com.wdullaer:materialdatetimepicker"
         update-types: ["version-update:semver-major"]
-      # ORMLite 6 removes deprecated APIs and changes parts of its closeable API.
+      # ORMLite 5.7 already changes the Dao API used by this codebase; defer minor/major lines.
       - dependency-name: "com.j256.ormlite:ormlite-android"
-        update-types: ["version-update:semver-major"]
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
