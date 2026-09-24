@@ -18,6 +18,7 @@
 
 package es.usc.citius.servando.calendula.settings.notifications
 
+import android.content.Context
 import es.usc.citius.servando.calendula.R
 import org.junit.Assert
 import org.junit.Before
@@ -35,14 +36,14 @@ class RingtoneNameResolverTest {
 
     @Before
     fun setUp() {
-        resolver = RingtoneNameResolver(ApplicationProvider.getApplicationContext())
+        resolver = RingtoneNameResolver(ApplicationProvider.getApplicationContext<Context>())
     }
 
     @Test
     fun resolveNull() {
         Assert.assertEquals(
             "Wrong resolution for null",
-            ApplicationProvider.getApplicationContext().getString(R.string.ringtone_none),
+            ApplicationProvider.getApplicationContext<Context>().getString(R.string.ringtone_none),
             resolver.resolveRingtoneName(null)
         )
     }
