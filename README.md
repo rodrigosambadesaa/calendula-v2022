@@ -6,6 +6,37 @@
 > `https://gitlab.citius.gal/calendula-mp/calendula-mp`. It is not an official CiTIUS
 > or SERGAS repository. Upstream copyright and GNU GPLv3 licensing are preserved.
 
+## Purpose of this fork
+
+This repository is maintained independently by **Rodrigo Sambade** as a personal, unofficial
+development fork of the public CiTIUS `Calendula-v2022` snapshot.
+
+The goals of this fork are to:
+
+- preserve an accessible GitHub copy of the public upstream source and its history;
+- study, test and document the 2022 codebase;
+- fix defects and security/robustness issues where they can be validated safely;
+- modernize the Android project incrementally without obscuring the historical upstream code;
+- experiment with improvements such as stronger connectivity handling and automated CI;
+- prepare contributions that may be proposed back to the original CiTIUS project when appropriate.
+
+This fork does **not** claim to be an official continuation, release channel or product of
+CiTIUS, Universidade de Santiago de Compostela, SERGAS or Xunta de Galicia. Its maintainer
+does not speak on behalf of those organizations. Original authorship, copyright notices and
+GNU GPLv3 licensing remain preserved.
+
+### Original upstream
+
+The source mirrored here was originally published publicly by CiTIUS at:
+
+- **Project:** `Calendula-v2022`
+- **Upstream GitLab:** https://gitlab.citius.gal/calendula-mp/calendula-mp
+- **Organization:** CiTIUS — Universidade de Santiago de Compostela
+
+Development in this GitHub repository may diverge from that snapshot. When synchronizing
+with upstream, the CiTIUS GitLab repository should be treated as the authoritative origin for
+the original `Calendula-v2022` source.
+
 Calendula is an Android assistant for personal medication management, aimed at those who have trouble following their medication regimen, forget to take their drugs, or have complex schedules that are difficult to remember.
 
 The app is available for download in Google Play, F-Droid and Github.
