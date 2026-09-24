@@ -12,7 +12,6 @@ import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageTyp
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.RepeatType
 import es.usc.citius.servando.calendula.healthcareprovider.util.ActiveMedFilter
 import es.usc.citius.servando.calendula.healthcareprovider.util.DBUtil
-import es.usc.citius.servando.calendula.util.GsonUtil
 import es.usc.citius.servando.calendula.util.LogUtil
 import org.hl7.fhir.dstu3.model.*
 import org.hl7.fhir.dstu3.model.codesystems.MessageEvents
@@ -373,8 +372,8 @@ object FHIRUtil {
             return dosageBuilder.build()
 
         } catch (e: Exception) {
-            LogUtil.d(TAG, "Error with: " + GsonUtil.get().toJson(request))
-            LogUtil.e(TAG, "An error occurred while reading dosage info of " + med.display, e)
+            LogUtil.d(TAG, "Error while reading dosage information from FHIR request")
+            LogUtil.e(TAG, "An error occurred while reading dosage information", e)
             throw RuntimeException(e)
         }
 

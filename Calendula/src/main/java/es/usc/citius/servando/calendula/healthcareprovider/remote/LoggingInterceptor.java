@@ -4,13 +4,15 @@ import java.io.IOException;
 
 import es.usc.citius.servando.calendula.util.LogUtil;
 import okhttp3.Interceptor;
-import okhttp3.MediaType;
 import okhttp3.Request;
 import okhttp3.Response;
-import okhttp3.ResponseBody;
-import okio.Buffer;
 
-
+/**
+ * Debug network logger that intentionally avoids headers and payload bodies.
+ *
+ * Authentication headers, FHIR payloads and provider responses may contain
+ * credentials or personal/health information and must not be written to Logcat.
+ */
 public class LoggingInterceptor implements Interceptor {
 
     private static final String TAG = "LoggingInterceptor";
@@ -19,23 +21,21 @@ public class LoggingInterceptor implements Interceptor {
     public Response intercept(Interceptor.Chain chain) throws IOException {
         Request request = chain.request();
 
-        long t1 = System.nanoTime();
-        LogUtil.d(TAG, String.format("--> Sending request %s on %s%n%s", request.url(), chain.connection(), request.headers()));
-
-        Buffer requestBuffer = new Buffer();
-        request.body().writeTo(requestBuffer);
-        LogUtil.d(TAG, requestBuffer.readUtf8());
+        long started = System.nanoTime();
+        LogUtil.d(TAG, "--> " + request.method() + " " + request.url());
 
         Response response = chain.proceed(request);
 
-        long t2 = System.nanoTime();
-        LogUtil.d(TAG, String.format("<— Received response for %s in %.1fms%n%s", response.request().url(), (t2 - t1) / 1e6d, response.headers()));
+        long elapsedNanos = System.nanoTime() - started;
+        LogUtil.d(
+                TAG,
+                String.format(
+                        "<-- %d %s %s (%.1fms)",
+                        response.code(),
+                        request.method(),
+                        request.url(),
+                        elapsedNanos / 1e6d));
 
-        MediaType contentType = response.body().contentType();
-        String content = response.body().string();
-        LogUtil.d(TAG, content);
-
-        ResponseBody wrappedBody = ResponseBody.create(contentType, content);
-        return response.newBuilder().body(wrappedBody).build();
+        return response;
     }
 }

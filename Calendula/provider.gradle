@@ -54,12 +54,10 @@ android {
         buildConfigField 'String', 'OAUTH_EXTRAINFO_ENDPOINT', '"https://192.168.2.124:8443/calen_auth/openid/extrainfo"'
         buildConfigField 'String', 'OAUTH_CLIENT_ID', '"627303176257-pqsbkmuv8m75c0enl6uqlpc8ero1iijj.apps.googleusercontent.com"'
         buildConfigField 'String', 'OAUTH_SCOPE', '"openid"'
-        // If this is true, HTTP will be allowed for login, which is not wise.
-        // Use with caution.
-        buildConfigField 'boolean', 'OAUTH_ALLOW_INSECURE', 'true'
-        // Set to true in order to disable host name / server's authentication scheme matching
-        // Use with caution (should be false if possible)
-        buildConfigField 'boolean', 'DISABLE_HOSTNAME_VERIFICATION', 'true'
+        // Production-safe defaults. Development flavors can opt into the legacy
+        // permissive transport below when talking to local/self-signed test servers.
+        buildConfigField 'boolean', 'OAUTH_ALLOW_INSECURE', 'false'
+        buildConfigField 'boolean', 'DISABLE_HOSTNAME_VERIFICATION', 'false'
         // enable certificate pinning
         buildConfigField 'boolean', 'ENABLE_CERTIFICATE_PINNING', 'false'
         buildConfigField 'String', 'CERTIFICATE_PIN_SERVER', '"citius.usc.es"'
@@ -71,6 +69,10 @@ android {
             signingConfig signingConfigs.release
         }
 
+        debug {
+            // Debug/CI builds must not depend on a private release keystore.
+            signingConfig signingConfigs.debug
+        }
         release {
             signingConfig null
         }
@@ -84,8 +86,12 @@ android {
 
     productFlavors {
         develop {
-            // wee need the normal appID for google services
+            // We need the normal appID for Google services.
             applicationIdSuffix ""
+            // Legacy test infrastructure uses private/self-signed endpoints.
+            // Keep this exception scoped to the development flavor only.
+            buildConfigField 'boolean', 'OAUTH_ALLOW_INSECURE', 'true'
+            buildConfigField 'boolean', 'DISABLE_HOSTNAME_VERIFICATION', 'true'
         }
     }
 }

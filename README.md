@@ -1,5 +1,54 @@
 ![](https://tec.citius.usc.es/calendula/github-assets/calendula_promo_google_play.png)
-# Calendula [![Gitlab CI](https://gitlab.com/calendula-ci/calendula/badges/develop/build.svg)](https://gitlab.com/calendula-ci/calendula/pipelines)
+# Calendula [![Android CI](https://github.com/rodrigosambadesaa/calendula-v2022/actions/workflows/android-ci.yml/badge.svg)](https://github.com/rodrigosambadesaa/calendula-v2022/actions/workflows/android-ci.yml)
+
+> **Unofficial GitHub mirror/fork.** This repository mirrors the public `Calendula-v2022`
+> source originally published by CiTIUS, Universidade de Santiago de Compostela, at
+> `https://gitlab.citius.gal/calendula-mp/calendula-mp`. It is not an official CiTIUS
+> or SERGAS repository. Upstream copyright and GNU GPLv3 licensing are preserved.
+
+## Purpose of this fork
+
+This repository is maintained independently by **Rodrigo Sambade** as a personal, unofficial
+development fork of the public CiTIUS `Calendula-v2022` snapshot.
+
+The goals of this fork are to:
+
+- preserve an accessible GitHub copy of the public upstream source and its history;
+- study, test and document the 2022 codebase;
+- fix defects and security/robustness issues where they can be validated safely;
+- modernize the Android project incrementally without obscuring the historical upstream code;
+- experiment with improvements such as stronger connectivity handling and automated CI;
+- prepare contributions that may be proposed back to the original CiTIUS project when appropriate.
+
+This fork does **not** claim to be an official continuation, release channel or product of
+CiTIUS, Universidade de Santiago de Compostela, SERGAS or Xunta de Galicia. Its maintainer
+does not speak on behalf of those organizations. Original authorship, copyright notices and
+GNU GPLv3 licensing remain preserved.
+
+### Original upstream
+
+The source mirrored here was originally published publicly by CiTIUS at:
+
+- **Project:** `Calendula-v2022`
+- **Upstream GitLab:** https://gitlab.citius.gal/calendula-mp/calendula-mp
+- **Organization:** CiTIUS — Universidade de Santiago de Compostela
+
+Development in this GitHub repository may diverge from that snapshot. When synchronizing
+with upstream, the CiTIUS GitLab repository should be treated as the authoritative origin for
+the original `Calendula-v2022` source.
+
+### Keeping this fork synchronized
+
+A local clone can keep both remotes explicitly:
+
+```bash
+git remote add upstream https://gitlab.citius.gal/calendula-mp/calendula-mp.git
+git fetch upstream
+```
+
+Changes made in this GitHub fork are intentionally developed on separate branches. Upstream
+history should be preserved rather than rewritten, so future CiTIUS changes can be compared,
+merged or rebased deliberately.
 
 Calendula is an Android assistant for personal medication management, aimed at those who have trouble following their medication regimen, forget to take their drugs, or have complex schedules that are difficult to remember.
 
@@ -23,19 +72,19 @@ These instructions will get you a copy of the project up and running on your loc
 We use [Android Studio](https://developer.android.com/studio/index.html) (the official Android IDE) for development, so we recommend it as the IDE to use in your development environment. Once you install Android Studio, you can use the Android SDK Manager to obtain the SDK tools, platforms, and other components you will need to start developing. The most important are:
 
 * Android SDK Tools and Android SDK Platform-tools (upgrade to their last versions is usually a good idea).
-* Android SDK Build-Tools 27.0.3.
-* Android 8.1 (API Level 27) SDK Platform.
+* Android SDK Build-Tools 29.0.3.
+* Android 10 (API Level 29) SDK Platform.
 * Android Support Repository
 
-You can also install other packages like emulators for running the app, if you don't have or don't want to use a real device. The minimum supported Android version is *4.1, Jelly Bean (API level 16).*
+You can also install other packages like emulators for running the app, if you don't have or don't want to use a real device. The current Gradle configuration uses a minimum SDK of *API level 18 (Android 4.3).*
 
 ### Building and installing the app
 
 First of all you need to get the source code, so clone this repository  on your local machine:
 
 ```bash
-git clone https://github.com/citiususc/calendula.git
-cd calendula
+git clone https://github.com/rodrigosambadesaa/calendula-v2022.git
+cd calendula-v2022
 ```
 
 Android Studio uses Gradle as the foundation of the build system, but it's not necessary to install it separately. Instead, you can use the included [Gradle Wrapper](https://docs.gradle.org/current/userguide/gradle_wrapper.html). To build the app, open a terminal in the repository folder and run:
@@ -48,21 +97,18 @@ Android Studio uses Gradle as the foundation of the build system, but it's not n
 Then you may install the app on a device or emulator:
 
 ```bash
-adb install Calendula/build/apk/develop/debug/developDebug-[version].apk
+adb install Calendula/build/outputs/apk/develop/debug/Calendula-develop-debug-*.apk
 ```
 
 These tasks can also be executed from Android Studio with a few clicks.
 
-## App versions
+## Historical upstream releases
 
-We maintain releases of Calendula on Google Play, F-Droid and here on Github.
+This repository is a development mirror of the public CiTIUS `Calendula-v2022` snapshot.
+The Google Play, F-Droid and GitHub release links above refer to the historical upstream
+Calendula project and should not be interpreted as releases produced from this fork.
 
- * The latest version of the app available on those pages reflects the code of the `master` branch.
- * Release branches are usually deployed through the *Google Play BETA channel* before they are made available to everyone. If you want to be a member of the testing community, join the testing group on Google Groups, and you will automatically receive the updates from the BETA channel like normal updates from Google Play.
-
-> Join the  BETA channel: [click here!](https://play.google.com/apps/testing/es.usc.citius.servando.calendula)
-
-Check out the [contributing guidelines](CONTRIBUTING.md) for more info about the branching model.
+Check out the [contributing guidelines](CONTRIBUTING.md) for the historical upstream branching model.
 
 ## How does it look?
 

@@ -41,6 +41,7 @@ import es.usc.citius.servando.calendula.healthcareprovider.util.DBUtil;
 import es.usc.citius.servando.calendula.util.GsonUtil;
 import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.NetworkUtils;
+import es.usc.citius.servando.calendula.util.NetworkPreflightInterceptor;
 import es.usc.citius.servando.calendula.util.debug.StethoHelper;
 import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
@@ -106,7 +107,7 @@ public class ExtraInfoHelper {
             String iit = null;
             if (params != null && params.containsKey(InstanceIDHelper.PARAM_IID_TOKEN)) {
                 iit = params.get(InstanceIDHelper.PARAM_IID_TOKEN);
-                LogUtil.d(TAG, "InstanceId token: " + iit);
+                LogUtil.d(TAG, "InstanceId token available");
             }
 
             try {
@@ -117,7 +118,7 @@ public class ExtraInfoHelper {
                     ProviderResponse vo = response.body();
                     //TODO: decodificar el resultado con Gson.
                     if (vo != null && vo.error != null) {
-                        LogUtil.e(TAG, "Error retrieving ExtraInfo " + GsonUtil.get().toJson(vo.error));
+                        LogUtil.e(TAG, "Provider returned an error while retrieving extra info");
                         status = Status.ERROR_GENERIC;
 
                     } else {
@@ -176,8 +177,9 @@ public class ExtraInfoHelper {
      */
     private ExtraInfoService createExtraInfoService() {
 
-        final OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder().
-                addInterceptor(new Interceptor() {
+        final OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder()
+                .addInterceptor(new NetworkPreflightInterceptor(CalendulaApp.getContext()))
+                .addInterceptor(new Interceptor() {
                     @Override
                     public okhttp3.Response intercept(@NonNull Chain chain) throws IOException {
                         final String currentAccessToken = LoginStateManager.getInstance().getCurrentAuthState().getAccessToken();

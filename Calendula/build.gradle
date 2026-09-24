@@ -37,6 +37,8 @@ repositories {
     google()
     maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
     maven { url 'https://jitpack.io' }
+    // material-stepper 3.3.0 was historically published through this repository.
+    maven { url 'https://artifactory.appodeal.com/appodeal-public/' }
 }
 
 idea {
@@ -308,7 +310,7 @@ dependencies {
     }
 
     // Calendar views
-//    implementation 'com.roomorama:caldroid:3.0.1'
+implementation 'com.roomorama:caldroid:3.0.1'
     implementation 'com.squareup:android-times-square:1.6.4@aar'
 
     // Circular progress "pie" view
@@ -371,9 +373,8 @@ dependencies {
     // Schedule step-by-step building
     implementation 'com.stepstone.stepper:material-stepper:3.3.0'
     implementation 'com.wdullaer:materialdatetimepicker:3.2.2'
-    implementation 'com.shawnlin:number-picker:2.4.6'
+    implementation 'com.github.ShawnLin013:NumberPicker:v2.4.6'
 
-    implementation project(':caldroid')
 
 }
 

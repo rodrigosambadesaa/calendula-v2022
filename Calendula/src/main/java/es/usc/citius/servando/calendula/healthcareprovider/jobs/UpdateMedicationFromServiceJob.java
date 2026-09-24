@@ -227,8 +227,7 @@ public class UpdateMedicationFromServiceJob extends Job {
         final AuthState authState = LoginStateManager.getInstance().getCurrentAuthState();
 
         if (authState != null) {
-            LogUtil.d(TAG, "refreshTokensIfNeeded: refresh token: " + authState.getRefreshToken());
-            LogUtil.d(TAG, "refreshTokensIfNeeded: access token: " + authState.getAccessToken());
+            LogUtil.d(TAG, "refreshTokensIfNeeded: authentication state available");
         }
         if (authState != null && authState.getNeedsTokenRefresh()) {
             LogUtil.d(TAG, "refreshTokensIfNeeded: refreshing tokens");
@@ -244,9 +243,8 @@ public class UpdateMedicationFromServiceJob extends Job {
                             result.setResult(Status.ERROR_NO_CONNECTION);
                         else result.setResult(Status.ERROR_AUTHORIZATION);
                     } else {
-                        LogUtil.d(TAG, "AccessToken: " + authState.getAccessToken());
                         LoginStateManager.getInstance().updateAuthState(authState);
-                        LogUtil.d(TAG, "New accessToken: " + accessToken);
+                        LogUtil.d(TAG, "Access token refreshed successfully");
                         LogUtil.d(TAG, "AccessTokenExpirationTime: " + new DateTime(authState.getAccessTokenExpirationTime()).toString());
                     }
                     countDownLatch.countDown();

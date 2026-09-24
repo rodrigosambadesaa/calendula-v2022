@@ -29,7 +29,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(constants = BuildConfig::class)
+@Config(sdk = [27])
 class RingtoneNameResolverTest {
 
     lateinit var resolver: RingtoneNameResolver

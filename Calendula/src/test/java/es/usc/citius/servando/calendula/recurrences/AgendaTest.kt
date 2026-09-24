@@ -43,7 +43,7 @@ import org.robolectric.shadows.ShadowLog
 import java.util.*
 
 @RunWith(RobolectricTestRunner::class)
-@Config(constants = BuildConfig::class)
+@Config(sdk = [27])
 class AgendaTest {
 
     @Before

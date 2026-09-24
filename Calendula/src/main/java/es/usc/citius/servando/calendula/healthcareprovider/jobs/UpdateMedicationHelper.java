@@ -73,7 +73,7 @@ public class UpdateMedicationHelper {
             try {
                 // do call and parse active meds
                 final ResponseVO responseVO = RemoteQueryManager.instance().checkForActiveMeds(lastHash);
-                LogUtil.d(TAG, "checkForUpdates: " + GsonUtil.get().toJson(responseVO));
+                LogUtil.d(TAG, "checkForUpdates: provider response code = " + responseVO.getCode());
 
                 switch (responseVO.getCode()) {
                     case HttpURLConnection.HTTP_OK:
@@ -183,7 +183,7 @@ public class UpdateMedicationHelper {
      * @param responseVO the {@link ResponseVO} received from the service
      */
     private static Status onAuthorizationError(final ResponseVO responseVO, final Context ctx) {
-        LogUtil.d(TAG, "onAuthorizationError() called with: responseVO = [" + responseVO + "]");
+        LogUtil.d(TAG, "onAuthorizationError() called; response code = " + responseVO.getCode());
         Status status = Status.ERROR_AUTHORIZATION;
         if (responseVO.getCode() != HttpURLConnection.HTTP_UNAUTHORIZED) {
             LogUtil.e(TAG, "onAuthorizationError called with wrong code! code: " + responseVO.getCode());

@@ -19,7 +19,7 @@ buildscript {
                 butterknife: '10.2.0',
                 leakcanary: '1.5.1',
                 mockito: '2.13.0',
-                robolectric: '3.8'
+                robolectric: '4.4'
         ]
         latestAboutLibsRelease='6.2.3@aar'
     }

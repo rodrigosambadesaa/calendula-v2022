@@ -47,6 +47,7 @@ import es.usc.citius.servando.calendula.modules.ModuleManager;
 import es.usc.citius.servando.calendula.util.CloseableUtil;
 import es.usc.citius.servando.calendula.util.LocaleHelper;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.NetworkUtils;
 import es.usc.citius.servando.calendula.util.debug.StethoHelper;
 
 public class CalendulaApp extends MultiDexApplication {
@@ -145,6 +146,7 @@ public class CalendulaApp extends MultiDexApplication {
 
         final Context applicationContext = getApplicationContext();
         mContext = applicationContext;
+        NetworkUtils.startNetworkObserver(applicationContext);
 
         LogUtil.d(TAG, "Application started");
 
@@ -161,6 +163,7 @@ public class CalendulaApp extends MultiDexApplication {
 
     @Override
     public void onTerminate() {
+        NetworkUtils.stopNetworkObserver();
         DB.dispose();
         super.onTerminate();
     }

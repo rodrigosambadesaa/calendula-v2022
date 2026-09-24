@@ -38,7 +38,7 @@ import org.robolectric.shadows.ShadowLog
 
 
 @RunWith(RobolectricTestRunner::class)
-@Config(constants = BuildConfig::class)
+@Config(sdk = [27])
 class RecurringEventPersistenceTest {
 
     @Before

@@ -7,7 +7,6 @@ import es.usc.citius.servando.calendula.util.security.certificatePinning.Certifi
 import net.openid.appauth.AppAuthConfiguration
 import net.openid.appauth.AuthorizationService
 
-
 object AuthorizationServiceHelper {
 
     private const val TAG = "AuthServiceHelper"
@@ -16,23 +15,34 @@ object AuthorizationServiceHelper {
     fun createAuthorizationService(ctx: Context): AuthorizationService {
         LogUtil.d(TAG, "Creating authorization service")
 
-        val builder: AppAuthConfiguration.Builder
-
-        if (BuildConfig.ENABLE_CERTIFICATE_PINNING) {
-            builder = CertificatePinningUtils.pinnedAppAuthConfiguration()
-        } else {
-            builder = AppAuthConfiguration.Builder()
-            if (BuildConfig.OAUTH_ALLOW_INSECURE) {
+        val baseBuilder = when {
+            BuildConfig.ENABLE_CERTIFICATE_PINNING ->
+                CertificatePinningUtils.pinnedAppAuthConfiguration()
+            BuildConfig.OAUTH_ALLOW_INSECURE -> {
                 val warning = """
                 ================================= WARNING =================================
                 Allowing HTTP connections!
                 HTTP connections defeat the purpose of OAUTH. Don't use this in production!
                 ===========================================================================
-                """
+                """.trimIndent()
                 LogUtil.w(TAG, warning)
-                builder.setConnectionBuilder(TestingConnectionBuilder.getInstance())
+                AppAuthConfiguration.Builder()
+                    .setConnectionBuilder(TestingConnectionBuilder.getInstance())
             }
+            else -> AppAuthConfiguration.Builder()
         }
-        return AuthorizationService(ctx, builder.build())
+
+        val baseConfiguration = baseBuilder.build()
+        val configuration = AppAuthConfiguration.Builder()
+            .setBrowserMatcher(baseConfiguration.browserMatcher)
+            .setConnectionBuilder(
+                PreflightConnectionBuilder(
+                    ctx.applicationContext ?: ctx,
+                    baseConfiguration.connectionBuilder
+                )
+            )
+            .build()
+
+        return AuthorizationService(ctx, configuration)
     }
 }

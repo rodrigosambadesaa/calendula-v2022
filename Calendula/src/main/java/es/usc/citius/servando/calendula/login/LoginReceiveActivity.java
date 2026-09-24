@@ -127,8 +127,8 @@ public class LoginReceiveActivity extends AppCompatActivity {
         mAuthService = AuthorizationServiceHelper.createAuthorizationService(this);
 
         if (BuildConfig.DEBUG) {
-            LogUtil.d(TAG,  "AUTH_STATE: " + getIntent().getStringExtra(EXTRA_AUTH_STATE));
-            LogUtil.d(TAG,  "AUTH_RESPONSE: " + getIntent().getStringExtra(EXTRA_RESPONSE));
+            LogUtil.d(TAG, "Authorization state received");
+            LogUtil.d(TAG, "Authorization response received");
         }
 
         if (savedInstanceState != null) {

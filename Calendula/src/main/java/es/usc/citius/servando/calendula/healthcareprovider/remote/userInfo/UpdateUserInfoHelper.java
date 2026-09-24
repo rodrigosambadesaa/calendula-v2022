@@ -41,6 +41,7 @@ import es.usc.citius.servando.calendula.login.TestingConnectionBuilder;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.util.GsonUtil;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.NetworkPreflightInterceptor;
 import es.usc.citius.servando.calendula.util.debug.StethoHelper;
 import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
@@ -80,7 +81,7 @@ public class UpdateUserInfoHelper {
         String iit = null;
         if (params != null && params.containsKey(InstanceIDHelper.PARAM_IID_TOKEN)) {
             iit = params.get(InstanceIDHelper.PARAM_IID_TOKEN);
-            LogUtil.d(TAG, "InstanceId token: " + iit);
+            LogUtil.d(TAG, "InstanceId token available");
         }
         final Response<UserInfo> response = service.getUserInfo("./", iit).execute();
         final int code = response.code();
@@ -89,7 +90,7 @@ public class UpdateUserInfoHelper {
         if (response.isSuccessful()) {
             vo = response.body();
         } else {
-            LogUtil.e(TAG, "Error retrieving userInfo" + GsonUtil.get().toJson(response.errorBody()));
+            LogUtil.e(TAG, "Error retrieving user info; HTTP code = " + code);
         }
         return vo;
     }
@@ -107,7 +108,7 @@ public class UpdateUserInfoHelper {
             try {
                 LogUtil.d(TAG, "retrievePatientInfoIfNeeded: Patient name not set,  calling userInfo service");
                 UserInfo userInfo = UpdateUserInfoHelper.instance().fetchUserInfo(ctx);
-                LogUtil.d(TAG, "userInfo: " + GsonUtil.get().toJson(userInfo));
+                LogUtil.d(TAG, "User info retrieved successfully");
                 String curatedFirstName = userInfo.getFirstName().trim().replaceAll("\\s+", " ");
                 String curatedLastName = userInfo.getLastName().trim().replaceAll("\\s+", " ");
                 activePatient.setName(WordUtils.capitalize((curatedLastName + ", " + curatedFirstName).toLowerCase()));
@@ -128,8 +129,9 @@ public class UpdateUserInfoHelper {
      */
     private UserInfoService createUserInfoService() {
 
-        final OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder().
-                addInterceptor(new Interceptor() {
+        final OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder()
+                .addInterceptor(new NetworkPreflightInterceptor(CalendulaApp.getContext()))
+                .addInterceptor(new Interceptor() {
                     @Override
                     public okhttp3.Response intercept(@NonNull Chain chain) throws IOException {
                         final String currentAccessToken = LoginStateManager.getInstance().getCurrentAuthState().getAccessToken();

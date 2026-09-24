@@ -11,12 +11,14 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLSession;
 
 import es.usc.citius.servando.calendula.BuildConfig;
+import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.login.LoginStateManager;
 import es.usc.citius.servando.calendula.login.TestingConnectionBuilder;
 import es.usc.citius.servando.calendula.healthcareprovider.fhir.ResponseVO;
 import es.usc.citius.servando.calendula.healthcareprovider.fhir.FHIRUtil;
 import es.usc.citius.servando.calendula.util.GsonUtil;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.NetworkPreflightInterceptor;
 import es.usc.citius.servando.calendula.util.debug.StethoHelper;
 import es.usc.citius.servando.calendula.util.security.certificatePinning.CertificatePinningUtils;
 import okhttp3.Interceptor;
@@ -38,8 +40,9 @@ public class RemoteQueryManager {
 
     private RemoteQueryManager() {
 
-        final OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder().
-                addInterceptor(new Interceptor() {
+        final OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder()
+                .addInterceptor(new NetworkPreflightInterceptor(CalendulaApp.getContext()))
+                .addInterceptor(new Interceptor() {
                     @Override
                     public okhttp3.Response intercept(@NonNull Chain chain) throws IOException {
                         final String currentAccessToken = LoginStateManager.getInstance().getCurrentAuthState().getAccessToken();
@@ -49,7 +52,7 @@ public class RemoteQueryManager {
                         final Request request = chain.request().newBuilder()
                                 .addHeader("Authorization", String.format("%s %s", TokenResponse.TOKEN_TYPE_BEARER, currentAccessToken))
                                 .build();
-                        LogUtil.d(TAG, "Request: " + GsonUtil.get().toJson(request));
+                        LogUtil.d(TAG, "Request: " + request.method() + " " + request.url());
                         return chain.proceed(request);
                     }
                 });
@@ -103,7 +106,7 @@ public class RemoteQueryManager {
      * @return the ResponseVO
      */
     public ResponseVO checkForActiveMeds(@Nullable String lastHash) throws IOException {
-        LogUtil.d(TAG, "checkForActiveMeds() called with: lastHash = [" + lastHash + "]");
+        LogUtil.d(TAG, "checkForActiveMeds() called; previous hash present = " + (lastHash != null));
         final String url = BuildConfig.REMOTE_DISPENSATION_ENDPOINT;
         final Call<ResponseVO> call = service.getDispensationPlan(url, FHIRUtil.generateQuery(lastHash));
 
