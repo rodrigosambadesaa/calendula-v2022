@@ -40,6 +40,14 @@ updates:
       # Newer Community Material Typeface releases changed the package/API surface.
       - dependency-name: "com.mikepenz:community-material-typeface"
         update-types: ["version-update:semver-major"]
+      # jsoup 1.19.1+ raises Android support to API 21 and expects newer desugaring/toolchain support.
+      - dependency-name: "org.jsoup:jsoup"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # Mockito inline 3.5+ regressed Robolectric sandbox compatibility; keep the 3.4.x line.
+      - dependency-name: "org.mockito:mockito-inline"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "org.mockito:mockito-android"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
       # Keep debug/runtime dependencies on the versions known to build with AGP 4.0.1/R8 2.0.88.
       - dependency-name: "com.facebook.stetho:stetho"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
