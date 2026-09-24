@@ -279,8 +279,15 @@ public class WebViewActivity extends CalendulaActivity {
                     return;
                 }
                 if (Boolean.TRUE.equals(available)) {
+                    // The approval only exists while this programmatic loadUrl call is
+                    // executing. If WebView does not synchronously invoke the navigation
+                    // callback, it cannot be reused by a later navigation.
                     preflightApprovedUrl = targetUrl;
-                    webView.loadUrl(targetUrl);
+                    try {
+                        webView.loadUrl(targetUrl);
+                    } finally {
+                        preflightApprovedUrl = null;
+                    }
                 } else {
                     LogUtil.w(TAG, "Backend preflight failed for URL: " + targetUrl);
                     showErrorToast(webRequest.getConnectionErrorMessage());
