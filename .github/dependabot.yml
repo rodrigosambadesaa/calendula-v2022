@@ -5,6 +5,17 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    ignore:
+      # These AndroidX releases raise their minimum SDK to 21, while this
+      # historical branch intentionally preserves minSdk 18 for now.
+      - dependency-name: "androidx.gridlayout:gridlayout"
+        versions: ["1.1.0"]
+      - dependency-name: "androidx.constraintlayout:constraintlayout"
+        update-types: ["version-update:semver-major"]
+      # FastAdapter 5.x is a major API/artifact-layout migration. Keep the
+      # legacy 3.x family until it is migrated deliberately in a dedicated PR.
+      - dependency-name: "com.mikepenz:fastadapter*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
