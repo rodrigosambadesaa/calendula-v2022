@@ -230,7 +230,7 @@ dependencies {
     implementation 'androidx.multidex:multidex:2.0.1'
 
     // Support libs
-    implementation 'androidx.appcompat:appcompat:1.1.0'
+    implementation 'androidx.appcompat:appcompat:1.8.0'
     implementation 'androidx.cardview:cardview:1.0.0'
     implementation 'com.google.android.material:material:1.0.0'
     implementation 'androidx.gridlayout:gridlayout:1.0.0'
@@ -243,7 +243,7 @@ dependencies {
 
     // Testing dependencies
     //  Made explicit to avoid conflicts with other testing libs
-    androidTestImplementation 'androidx.appcompat:appcompat:1.1.0'
+    androidTestImplementation 'androidx.appcompat:appcompat:1.8.0'
     androidTestImplementation 'com.google.android.material:material:1.0.0'
     androidTestImplementation 'androidx.recyclerview:recyclerview:1.1.0'
     androidTestImplementation 'androidx.annotation:annotation:1.1.0'
