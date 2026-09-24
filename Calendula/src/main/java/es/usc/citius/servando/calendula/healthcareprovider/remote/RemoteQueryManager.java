@@ -106,7 +106,7 @@ public class RemoteQueryManager {
      * @return the ResponseVO
      */
     public ResponseVO checkForActiveMeds(@Nullable String lastHash) throws IOException {
-        LogUtil.d(TAG, "checkForActiveMeds() called with: lastHash = [" + lastHash + "]");
+        LogUtil.d(TAG, "checkForActiveMeds() called; previous hash present = " + (lastHash != null));
         final String url = BuildConfig.REMOTE_DISPENSATION_ENDPOINT;
         final Call<ResponseVO> call = service.getDispensationPlan(url, FHIRUtil.generateQuery(lastHash));
 
