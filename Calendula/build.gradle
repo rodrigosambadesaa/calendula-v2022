@@ -322,7 +322,7 @@ implementation 'com.roomorama:caldroid:3.0.1'
     implementation 'com.github.javiersantos:MaterialStyledDialogs:2.0'
 
     // GIF ImageView
-    implementation 'pl.droidsonroids.gif:android-gif-drawable:1.2.32'
+    implementation 'pl.droidsonroids.gif:android-gif-drawable:1.2.19'
 
     // Icons
     implementation 'com.mikepenz:community-material-typeface:5.1.0@aar'
