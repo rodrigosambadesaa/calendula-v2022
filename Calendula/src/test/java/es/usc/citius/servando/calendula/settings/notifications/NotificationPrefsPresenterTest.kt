@@ -28,6 +28,7 @@ import es.usc.citius.servando.calendula.kotlinEq
 import es.usc.citius.servando.calendula.util.PreferenceKeys
 import es.usc.citius.servando.calendula.util.PreferenceUtils
 import org.junit.Assert
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -57,10 +58,12 @@ class NotificationPrefsPresenterTest {
 
     private lateinit var presenter: NotificationPrefsContract.Presenter
 
+    private lateinit var mocks: AutoCloseable
+
     @Before
     fun setUp() {
 
-        MockitoAnnotations.initMocks(this)
+        mocks = MockitoAnnotations.openMocks(this)
 
         Mockito.`when`(resolver.resolveRingtoneName(kotlinAny<Uri>())).thenReturn("foo")
 
@@ -74,6 +77,11 @@ class NotificationPrefsPresenterTest {
         )
 
         presenter.attachView(view)
+    }
+
+    @After
+    fun tearDownMocks() {
+        mocks.close()
     }
 
     @Test
