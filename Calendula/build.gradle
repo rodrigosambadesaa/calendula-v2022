@@ -101,8 +101,15 @@ android {
     }
 
     testOptions {
-        unitTests {
-            includeAndroidResources = true
+        unitTests.includeAndroidResources = true
+        unitTests.all {
+            testLogging {
+                events "failed"
+                exceptionFormat "full"
+                showCauses true
+                showExceptions true
+                showStackTraces true
+            }
         }
     }
 
