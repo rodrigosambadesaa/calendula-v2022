@@ -25,6 +25,9 @@ updates:
       # 1.2.32 raises the Android minimum SDK to 21.
       - dependency-name: "pl.droidsonroids.gif:android-gif-drawable"
         versions: ["1.2.32"]
+      # 4.3.0 raises the Android minimum SDK from 18 to 19.
+      - dependency-name: "com.journeyapps:zxing-android-embedded"
+        versions: ["4.3.0"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
