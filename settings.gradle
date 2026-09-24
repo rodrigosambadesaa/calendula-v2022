@@ -1,2 +1,1 @@
-include ':Calendula', ':caldroid'
-project(':caldroid').projectDir = new File(settingsDir, '../../Caldroid/caldroid')
+include ':Calendula'
