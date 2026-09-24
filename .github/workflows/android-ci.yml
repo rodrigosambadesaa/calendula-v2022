@@ -42,11 +42,11 @@ jobs:
           java-version: '8'
           cache: gradle
 
-      - name: Build CI debug APK
-        run: ./gradlew assembleCiDebug --stacktrace --no-daemon
-
       - name: Run unit tests
         run: ./gradlew testCiDebugUnitTest --stacktrace --no-daemon
+
+      - name: Build CI debug APK
+        run: ./gradlew assembleCiDebug --stacktrace --no-daemon
 
       - name: Upload unit-test reports
         if: always()
