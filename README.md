@@ -1,5 +1,10 @@
 ![](https://tec.citius.usc.es/calendula/github-assets/calendula_promo_google_play.png)
-# Calendula [![Gitlab CI](https://gitlab.com/calendula-ci/calendula/badges/develop/build.svg)](https://gitlab.com/calendula-ci/calendula/pipelines)
+# Calendula [![Android CI](https://github.com/rodrigosambadesaa/calendula-v2022/actions/workflows/android-ci.yml/badge.svg)](https://github.com/rodrigosambadesaa/calendula-v2022/actions/workflows/android-ci.yml)
+
+> **Unofficial GitHub mirror/fork.** This repository mirrors the public `Calendula-v2022`
+> source originally published by CiTIUS, Universidade de Santiago de Compostela, at
+> `https://gitlab.citius.gal/calendula-mp/calendula-mp`. It is not an official CiTIUS
+> or SERGAS repository. Upstream copyright and GNU GPLv3 licensing are preserved.
 
 Calendula is an Android assistant for personal medication management, aimed at those who have trouble following their medication regimen, forget to take their drugs, or have complex schedules that are difficult to remember.
 
@@ -23,11 +28,11 @@ These instructions will get you a copy of the project up and running on your loc
 We use [Android Studio](https://developer.android.com/studio/index.html) (the official Android IDE) for development, so we recommend it as the IDE to use in your development environment. Once you install Android Studio, you can use the Android SDK Manager to obtain the SDK tools, platforms, and other components you will need to start developing. The most important are:
 
 * Android SDK Tools and Android SDK Platform-tools (upgrade to their last versions is usually a good idea).
-* Android SDK Build-Tools 27.0.3.
-* Android 8.1 (API Level 27) SDK Platform.
+* Android SDK Build-Tools 29.0.3.
+* Android 10 (API Level 29) SDK Platform.
 * Android Support Repository
 
-You can also install other packages like emulators for running the app, if you don't have or don't want to use a real device. The minimum supported Android version is *4.1, Jelly Bean (API level 16).*
+You can also install other packages like emulators for running the app, if you don't have or don't want to use a real device. The current Gradle configuration uses a minimum SDK of *API level 18 (Android 4.3).*
 
 ### Building and installing the app
 
