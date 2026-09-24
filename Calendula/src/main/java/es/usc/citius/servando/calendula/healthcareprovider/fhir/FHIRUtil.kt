@@ -373,8 +373,8 @@ object FHIRUtil {
             return dosageBuilder.build()
 
         } catch (e: Exception) {
-            LogUtil.d(TAG, "Error with: " + GsonUtil.get().toJson(request))
-            LogUtil.e(TAG, "An error occurred while reading dosage info of " + med.display, e)
+            LogUtil.d(TAG, "Error while reading dosage information from FHIR request")
+            LogUtil.e(TAG, "An error occurred while reading dosage information", e)
             throw RuntimeException(e)
         }
 
