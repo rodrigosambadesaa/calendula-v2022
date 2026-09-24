@@ -16,6 +16,12 @@ updates:
       # legacy 3.x family until it is migrated deliberately in a dedicated PR.
       - dependency-name: "com.mikepenz:fastadapter*"
         update-types: ["version-update:semver-major"]
+      # Kotlin 2.x requires a coordinated AGP/Gradle/JDK migration.
+      - dependency-name: "kotlin_version"
+        update-types: ["version-update:semver-major"]
+      # Newer google-services plugin releases require a newer Java/Gradle toolchain.
+      - dependency-name: "com.google.gms:google-services"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
