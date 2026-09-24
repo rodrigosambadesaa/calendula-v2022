@@ -35,6 +35,12 @@ updates:
       # 1.7.11 pulls in AndroidX Core requiring newer compile SDK attributes.
       - dependency-name: "com.squareup:android-times-square"
         versions: ["1.7.11"]
+      # Major UI-library migrations should be handled explicitly, with source/API review.
+      - dependency-name: "com.wdullaer:materialdatetimepicker"
+        update-types: ["version-update:semver-major"]
+      # ORMLite 6 removes deprecated APIs and changes parts of its closeable API.
+      - dependency-name: "com.j256.ormlite:ormlite-android"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
