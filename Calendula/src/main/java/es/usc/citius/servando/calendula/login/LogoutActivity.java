@@ -127,7 +127,7 @@ public class LogoutActivity extends AppCompatActivity {
 //                .appendQueryParameter("targetUrl", openIdProviderConfiguration.getLogoutRedirect())
                 .build();
 
-        LogUtil.d(TAG, "closeRemoteSession: " + logoutUri.toString());
+        LogUtil.d(TAG, "Closing remote authorization session");
         customTabsIntent.launchUrl(this, logoutUri);
 
     }
