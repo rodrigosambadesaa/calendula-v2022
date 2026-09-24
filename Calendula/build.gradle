@@ -312,7 +312,7 @@ dependencies {
 
     // Calendar views
 implementation 'com.roomorama:caldroid:3.0.1'
-    implementation 'com.squareup:android-times-square:1.6.4@aar'
+    implementation 'com.squareup:android-times-square:1.7.11@aar'
 
     // Circular progress "pie" view
     //  Used for pill picker
