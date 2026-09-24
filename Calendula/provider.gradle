@@ -69,6 +69,10 @@ android {
             signingConfig signingConfigs.release
         }
 
+        debug {
+            // Debug/CI builds must not depend on a private release keystore.
+            signingConfig signingConfigs.debug
+        }
         release {
             signingConfig null
         }
