@@ -235,7 +235,7 @@ dependencies {
     implementation 'com.google.android.material:material:1.0.0'
     implementation 'androidx.gridlayout:gridlayout:1.0.0'
     implementation 'androidx.palette:palette:1.0.0'
-    implementation 'androidx.preference:preference:1.2.1'
+    implementation 'androidx.preference:preference:1.1.0'
     implementation 'androidx.recyclerview:recyclerview:1.1.0'
     implementation 'androidx.annotation:annotation:1.1.0'
     implementation 'androidx.legacy:legacy-support-v4:1.0.0'
@@ -288,7 +288,7 @@ dependencies {
 
     // QR code scanning
     implementation 'com.google.zxing:core:3.5.4'
-    implementation 'com.journeyapps:zxing-android-embedded:4.3.0@aar'
+    implementation 'com.journeyapps:zxing-android-embedded:3.5.0@aar'
 
     // Recurrence processing
     implementation 'org.dmfs:lib-recur:0.17.1'
@@ -312,7 +312,7 @@ dependencies {
 
     // Calendar views
 implementation 'com.roomorama:caldroid:3.0.1'
-    implementation 'com.squareup:android-times-square:1.7.11@aar'
+    implementation 'com.squareup:android-times-square:1.6.4@aar'
 
     // Circular progress "pie" view
     //  Used for pill picker
@@ -322,10 +322,10 @@ implementation 'com.roomorama:caldroid:3.0.1'
     implementation 'com.github.javiersantos:MaterialStyledDialogs:2.0'
 
     // GIF ImageView
-    implementation 'pl.droidsonroids.gif:android-gif-drawable:1.2.32'
+    implementation 'pl.droidsonroids.gif:android-gif-drawable:1.2.19'
 
     // Icons
-    implementation 'com.mikepenz:community-material-typeface:5.1.0@aar'
+    implementation 'com.mikepenz:community-material-typeface:2.7.94.1@aar'
     implementation 'com.mikepenz:google-material-typeface:2.2.0.1@aar'
     implementation 'com.mikepenz:iconics-core:3.2.5@aar'
     implementation 'com.mikepenz:iconics-views:3.2.5@aar'

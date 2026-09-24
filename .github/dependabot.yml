@@ -12,9 +12,16 @@ updates:
         versions: ["1.1.0"]
       - dependency-name: "androidx.constraintlayout:constraintlayout"
         update-types: ["version-update:semver-major"]
+      # Preference 1.2.x pulls newer Activity/Core artifacts that require newer compile SDK attributes.
+      # Keep 1.1.x on the legacy compileSdk 29 baseline; patch updates remain allowed.
+      - dependency-name: "androidx.preference:preference"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
       # FastAdapter 5.x is a major API/artifact-layout migration. Keep the
       # legacy 3.x family until it is migrated deliberately in a dedicated PR.
       - dependency-name: "com.mikepenz:fastadapter*"
+        update-types: ["version-update:semver-major"]
+      # Newer Community Material Typeface releases changed the package/API surface.
+      - dependency-name: "com.mikepenz:community-material-typeface"
         update-types: ["version-update:semver-major"]
       # Kotlin 2.x requires a coordinated AGP/Gradle/JDK migration.
       - dependency-name: "kotlin_version"
@@ -22,6 +29,21 @@ updates:
       # Newer google-services plugin releases require a newer Java/Gradle toolchain.
       - dependency-name: "com.google.gms:google-services"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # 1.2.32 raises the Android minimum SDK to 21.
+      - dependency-name: "pl.droidsonroids.gif:android-gif-drawable"
+        versions: ["1.2.32"]
+      # 4.3.0 raises the Android minimum SDK from 18 to 19.
+      - dependency-name: "com.journeyapps:zxing-android-embedded"
+        versions: ["4.3.0"]
+      # 1.7.11 pulls in AndroidX Core requiring newer compile SDK attributes.
+      - dependency-name: "com.squareup:android-times-square"
+        versions: ["1.7.11"]
+      # Major UI-library migrations should be handled explicitly, with source/API review.
+      - dependency-name: "com.wdullaer:materialdatetimepicker"
+        update-types: ["version-update:semver-major"]
+      # ORMLite 6 removes deprecated APIs and changes parts of its closeable API.
+      - dependency-name: "com.j256.ormlite:ormlite-android"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
