@@ -92,7 +92,7 @@ public class LoginStateManager {
      * @return the login result
      */
     public LoginResult login(@NonNull final Context ctx, @NonNull final AuthState authState, final boolean force) {
-        LogUtil.d(TAG, "login() called with: ctx = [" + ctx + "], authState = [" + authState + "], force = [" + force + "]");
+        LogUtil.d(TAG, "login() called; force = " + force);
 
         final SignedJWT idToken = verifyIdToken(authState);
         if (idToken == null) {
@@ -121,7 +121,7 @@ public class LoginStateManager {
                 if (force) {
                     logoutAndClearData(ctx);
                 } else {
-                    LogUtil.e(TAG, "login: wrong sub! expected: " + lastUser + ", got: " + sub);
+                    LogUtil.e(TAG, "login: token subject does not match the existing user");
                     return LoginResult.FAILURE_WRONG_SUB;
                 }
             }
@@ -129,7 +129,7 @@ public class LoginStateManager {
             // set active user, create it if not present
             Patient p = DB.patients().findOneBy(Patient.COLUMN_CODE, sub);
             if (p == null) {
-                LogUtil.d(TAG, String.format("login: Patient with id %s doesn't exist. Creating.", sub));
+                LogUtil.d(TAG, "login: patient does not exist yet; creating local record");
                 p = new Patient();
                 p.setCode(sub);
                 p.setName(ctx.getString(R.string.default_user_name));
@@ -160,7 +160,7 @@ public class LoginStateManager {
 
             UpdateMedicationFromServiceJob.scheduleUniquePeriodic();
 
-            LogUtil.d(TAG, "login: logged in with id = " + sub);
+            LogUtil.d(TAG, "login: user logged in successfully");
             return LoginResult.SUCCESS;
         } catch (ParseException e) {
             LogUtil.e(TAG, "login: ", e);
