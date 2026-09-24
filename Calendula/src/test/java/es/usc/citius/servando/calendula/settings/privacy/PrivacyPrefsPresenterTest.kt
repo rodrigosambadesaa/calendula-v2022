@@ -29,6 +29,7 @@ import es.usc.citius.servando.calendula.pinlock.fingerprint.FingerprintHelper
 import es.usc.citius.servando.calendula.util.PreferenceKeys
 import es.usc.citius.servando.calendula.util.PreferenceUtils
 import es.usc.citius.servando.calendula.util.security.SecurePrefBundle
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -57,10 +58,12 @@ class PrivacyPrefsPresenterTest {
 
     private lateinit var presenter: PrivacyPrefsContract.Presenter
 
+    private lateinit var mocks: AutoCloseable
+
     @Before
     fun setUp() {
 
-        MockitoAnnotations.initMocks(this)
+        mocks = MockitoAnnotations.openMocks(this)
         // setup fpHelper mock
         `when`(fpHelper.canUseFingerPrint()).thenReturn(true)
 
@@ -79,6 +82,11 @@ class PrivacyPrefsPresenterTest {
 
         presenter = PrivacyPrefsPresenter(fpHelper)
         presenter.attachView(view)
+    }
+
+    @After
+    fun tearDownMocks() {
+        mocks.close()
     }
 
     @Test
