@@ -21,18 +21,24 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v5
 
-      - name: Set up JDK 8
+      - name: Set up JDK 17 for Android SDK tools
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '8'
-          cache: gradle
+          java-version: '17'
 
       - name: Install Android SDK 29
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-29" "build-tools;29.0.3"
+
+      - name: Set up JDK 8 for legacy Gradle
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '8'
+          cache: gradle
 
       - name: Build CI debug APK
         run: ./gradlew assembleCiDebug --stacktrace --no-daemon
