@@ -21,6 +21,9 @@ updates:
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
       - dependency-name: "androidx.recyclerview:recyclerview"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # Material Components newer minor lines require a much newer AndroidX/SDK baseline.
+      - dependency-name: "com.google.android.material:material"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
       # Newer AndroidX Test releases are coupled to a newer AndroidX/toolchain baseline.
       - dependency-name: "androidx.test:rules"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
