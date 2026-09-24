@@ -12,6 +12,10 @@ updates:
         versions: ["1.1.0"]
       - dependency-name: "androidx.constraintlayout:constraintlayout"
         update-types: ["version-update:semver-major"]
+      # Preference 1.2.x pulls newer Activity/Core artifacts that require newer compile SDK attributes.
+      # Keep 1.1.x on the legacy compileSdk 29 baseline; patch updates remain allowed.
+      - dependency-name: "androidx.preference:preference"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
       # FastAdapter 5.x is a major API/artifact-layout migration. Keep the
       # legacy 3.x family until it is migrated deliberately in a dedicated PR.
       - dependency-name: "com.mikepenz:fastadapter*"
