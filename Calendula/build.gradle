@@ -325,7 +325,7 @@ implementation 'com.roomorama:caldroid:3.0.1'
     implementation 'pl.droidsonroids.gif:android-gif-drawable:1.2.19'
 
     // Icons
-    implementation 'com.mikepenz:community-material-typeface:2.7.94.1@aar'
+    implementation 'com.mikepenz:community-material-typeface:5.1.0@aar'
     implementation 'com.mikepenz:google-material-typeface:2.2.0.1@aar'
     implementation 'com.mikepenz:iconics-core:3.2.5@aar'
     implementation 'com.mikepenz:iconics-views:3.2.5@aar'
