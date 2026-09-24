@@ -94,7 +94,7 @@ public class InstanceIDHelper {
         try {
             lock.await();
             newToken = newTokenBuilder.toString();
-            LogUtil.d(TAG, "New InstanceId token: " + newToken);
+            LogUtil.d(TAG, "New InstanceId token retrieved");
         } catch (InterruptedException e) {
             LogUtil.w(TAG, "An error occurred while retrieving InstanceID: ", e);
         }
