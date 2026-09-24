@@ -12,7 +12,6 @@ import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageTyp
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.RepeatType
 import es.usc.citius.servando.calendula.healthcareprovider.util.ActiveMedFilter
 import es.usc.citius.servando.calendula.healthcareprovider.util.DBUtil
-import es.usc.citius.servando.calendula.util.GsonUtil
 import es.usc.citius.servando.calendula.util.LogUtil
 import org.hl7.fhir.dstu3.model.*
 import org.hl7.fhir.dstu3.model.codesystems.MessageEvents
