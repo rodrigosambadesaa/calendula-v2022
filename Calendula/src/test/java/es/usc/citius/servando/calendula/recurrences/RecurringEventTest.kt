@@ -304,7 +304,7 @@ class RecurringEventTest {
                 from.toString(df) + ", dayOfWeek: " + from.toString(week) + ", has: " + has
             )
             // between start and end, if MO or TH
-            if (!from.isBefore(start) && from.isBefore(end) && (from.dayOfWeek == DateTimeConstants.MONDAY || from.dayOfWeek == DateTimeConstants.THURSDAY)) {
+            if (!from.isBefore(start) && !from.isAfter(end) && (from.dayOfWeek == DateTimeConstants.MONDAY || from.dayOfWeek == DateTimeConstants.THURSDAY)) {
                 assertEquals(true, has)
             } else {
                 assertEquals(false, has)
