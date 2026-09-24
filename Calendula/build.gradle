@@ -372,7 +372,7 @@ implementation 'com.roomorama:caldroid:3.0.1'
 
     // Schedule step-by-step building
     implementation 'com.stepstone.stepper:material-stepper:3.3.0'
-    implementation 'com.wdullaer:materialdatetimepicker:3.2.2'
+    implementation 'com.wdullaer:materialdatetimepicker:4.2.3'
     implementation 'com.github.ShawnLin013:NumberPicker:v2.4.6'
 
 
