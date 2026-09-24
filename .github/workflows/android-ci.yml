@@ -1,0 +1,40 @@
+name: Android CI
+
+on:
+  push:
+    branches:
+      - main
+      - feature/**
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 8
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
+          cache: gradle
+
+      - name: Install Android SDK 29
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-29" "build-tools;29.0.3"
+
+      - name: Build CI debug APK
+        run: ./gradlew assembleCiDebug --stacktrace --no-daemon
+
+      - name: Run unit tests
+        run: ./gradlew testCiDebugUnitTest --stacktrace --no-daemon
