@@ -294,7 +294,7 @@ dependencies {
     implementation 'org.dmfs:lib-recur:0.17.1'
 
     // SQLite ORM
-    implementation 'com.j256.ormlite:ormlite-android:5.0'
+    implementation 'com.j256.ormlite:ormlite-android:6.1'
 
     // Time and date handling
     implementation 'com.fatboyindustrial.gson-jodatime-serialisers:gson-jodatime-serialisers:1.6.0'
