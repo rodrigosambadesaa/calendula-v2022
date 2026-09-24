@@ -18,6 +18,7 @@
 
 package es.usc.citius.servando.calendula.settings.database
 
+import android.content.Context
 import android.content.Intent
 import es.usc.citius.servando.calendula.R
 import es.usc.citius.servando.calendula.drugdb.DBRegistry
@@ -61,12 +62,12 @@ class DatabasePrefsPresenterTest {
         // do not return nulls
         Mockito.`when`(dbPrefView.getIntent()).thenReturn(Intent())
         Mockito.`when`(dbPrefView.resolveString(Mockito.anyInt())).thenAnswer {
-            ApplicationProvider.getApplicationContext().getString(it.arguments[0] as Int)
+            ApplicationProvider.getApplicationContext<Context>().getString(it.arguments[0] as Int)
         }
         Mockito.`when`(dbPrefView.hasDownloadPermission()).thenReturn(true)
 
         // init DB registry so there are DB handlers
-        DBRegistry.init(ApplicationProvider.getApplicationContext())
+        DBRegistry.init(ApplicationProvider.getApplicationContext<Context>())
 
         // Reset db id
         PreferenceUtils.edit()
@@ -143,7 +144,7 @@ class DatabasePrefsPresenterTest {
     @Test
     fun selectNoneDb() {
         val updatePref: Boolean =
-            dbPrefPresenter.selectNewDb(ApplicationProvider.getApplicationContext().getString(R.string.database_none_id))
+            dbPrefPresenter.selectNewDb(ApplicationProvider.getApplicationContext<Context>().getString(R.string.database_none_id))
 
         Assert.assertEquals(
             "Calling selectDb with None should let the pref update",
@@ -170,7 +171,7 @@ class DatabasePrefsPresenterTest {
 
         Assert.assertEquals(
             "Current DB should be setting up ID",
-            ApplicationProvider.getApplicationContext().getString(R.string.database_setting_up_id),
+            ApplicationProvider.getApplicationContext<Context>().getString(R.string.database_setting_up_id),
             PreferenceUtils.getString(PreferenceKeys.DRUGDB_CURRENT_DB, null)
         )
     }
@@ -178,7 +179,7 @@ class DatabasePrefsPresenterTest {
     @Test
     fun checkDatabaseUpdate() {
         //right now, just see it doesn't crash
-        dbPrefPresenter.checkDatabaseUpdate(ApplicationProvider.getApplicationContext())
+        dbPrefPresenter.checkDatabaseUpdate(ApplicationProvider.getApplicationContext<Context>())
     }
 
 
