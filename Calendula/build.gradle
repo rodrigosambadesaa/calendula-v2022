@@ -288,7 +288,7 @@ dependencies {
 
     // QR code scanning
     implementation 'com.google.zxing:core:3.5.4'
-    implementation 'com.journeyapps:zxing-android-embedded:4.3.0@aar'
+    implementation 'com.journeyapps:zxing-android-embedded:3.5.0@aar'
 
     // Recurrence processing
     implementation 'org.dmfs:lib-recur:0.17.1'
