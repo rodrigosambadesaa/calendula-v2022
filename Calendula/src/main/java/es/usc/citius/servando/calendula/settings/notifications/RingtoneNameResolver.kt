@@ -25,11 +25,11 @@ import es.usc.citius.servando.calendula.R
 import java.lang.ref.WeakReference
 
 
-class RingtoneNameResolver(context: Context) {
+open class RingtoneNameResolver(context: Context) {
 
     private val contextRef = WeakReference(context)
 
-    fun resolveRingtoneName(uri: Uri?): String = when (uri) {
+    open fun resolveRingtoneName(uri: Uri?): String = when (uri) {
         null -> contextRef.get()!!.getString(R.string.ringtone_none)
         else -> RingtoneManager.getRingtone(contextRef.get(), uri).getTitle(contextRef.get())
     }
