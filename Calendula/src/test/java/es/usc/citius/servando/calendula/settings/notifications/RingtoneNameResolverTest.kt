@@ -18,14 +18,13 @@
 
 package es.usc.citius.servando.calendula.settings.notifications
 
-import es.usc.citius.servando.calendula.BuildConfig
 import es.usc.citius.servando.calendula.R
 import org.junit.Assert
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.RuntimeEnvironment
+import androidx.test.core.app.ApplicationProvider
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
@@ -36,14 +35,14 @@ class RingtoneNameResolverTest {
 
     @Before
     fun setUp() {
-        resolver = RingtoneNameResolver(RuntimeEnvironment.application)
+        resolver = RingtoneNameResolver(ApplicationProvider.getApplicationContext())
     }
 
     @Test
     fun resolveNull() {
         Assert.assertEquals(
             "Wrong resolution for null",
-            RuntimeEnvironment.application.getString(R.string.ringtone_none),
+            ApplicationProvider.getApplicationContext().getString(R.string.ringtone_none),
             resolver.resolveRingtoneName(null)
         )
     }
