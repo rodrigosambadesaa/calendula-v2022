@@ -232,7 +232,7 @@ dependencies {
     // Support libs
     implementation 'androidx.appcompat:appcompat:1.1.0'
     implementation 'androidx.cardview:cardview:1.0.0'
-    implementation 'com.google.android.material:material:1.0.0'
+    implementation 'com.google.android.material:material:1.14.0'
     implementation 'androidx.gridlayout:gridlayout:1.0.0'
     implementation 'androidx.palette:palette:1.0.0'
     implementation 'androidx.preference:preference:1.1.0'
@@ -244,7 +244,7 @@ dependencies {
     // Testing dependencies
     //  Made explicit to avoid conflicts with other testing libs
     androidTestImplementation 'androidx.appcompat:appcompat:1.1.0'
-    androidTestImplementation 'com.google.android.material:material:1.0.0'
+    androidTestImplementation 'com.google.android.material:material:1.14.0'
     androidTestImplementation 'androidx.recyclerview:recyclerview:1.1.0'
     androidTestImplementation 'androidx.annotation:annotation:1.1.0'
     androidTestImplementation 'androidx.legacy:legacy-support-v4:1.0.0'
