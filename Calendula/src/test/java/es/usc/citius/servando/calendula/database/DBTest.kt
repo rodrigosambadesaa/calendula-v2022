@@ -28,7 +28,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.RuntimeEnvironment
+import androidx.test.core.app.ApplicationProvider
 
 
 
@@ -45,7 +45,7 @@ class DBTest {
     @Before
     fun setUp() {
         CalendulaApp.disableReceivers = true
-        DB.init(RuntimeEnvironment.application)
+        DB.init(ApplicationProvider.getApplicationContext())
         DB.dropAndCreateDatabase()
     }
 
