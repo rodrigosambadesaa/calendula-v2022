@@ -265,7 +265,7 @@ class RecurringEventTest {
     @Throws(Exception::class)
     fun testHasOccurrencesWrongStart() {
         hasOccurrences(LocalDate.parse("2017/05/31", df)) //WED
-        hasOccurrences(LocalDate.parse("2017/05/03", df)) // SAT
+        hasOccurrences(LocalDate.parse("2017/05/03", df)) // WED
     }
 
     @Test
@@ -303,12 +303,12 @@ class RecurringEventTest {
                 TAG,
                 from.toString(df) + ", dayOfWeek: " + from.toString(week) + ", has: " + has
             )
-            // between start and end, if MO or TH
-            if (!from.isBefore(start) && from.isBefore(end) && (from.dayOfWeek == DateTimeConstants.MONDAY || from.dayOfWeek == DateTimeConstants.THURSDAY)) {
-                assertEquals(true, has)
-            } else {
-                assertEquals(false, has)
-            }
+            // Builder.to(LocalDate) makes the whole end date inclusive.
+            val expected = !from.isBefore(start) &&
+                !from.isAfter(end) &&
+                (from.dayOfWeek == DateTimeConstants.MONDAY ||
+                    from.dayOfWeek == DateTimeConstants.THURSDAY)
+            assertEquals("Unexpected occurrence state for ${from.toString(df)}", expected, has)
             from = from.plusDays(1)
         }
     }
