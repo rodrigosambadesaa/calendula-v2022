@@ -39,8 +39,8 @@ You can also install other packages like emulators for running the app, if you d
 First of all you need to get the source code, so clone this repository  on your local machine:
 
 ```bash
-git clone https://github.com/citiususc/calendula.git
-cd calendula
+git clone https://github.com/rodrigosambadesaa/calendula-v2022.git
+cd calendula-v2022
 ```
 
 Android Studio uses Gradle as the foundation of the build system, but it's not necessary to install it separately. Instead, you can use the included [Gradle Wrapper](https://docs.gradle.org/current/userguide/gradle_wrapper.html). To build the app, open a terminal in the repository folder and run:
@@ -53,21 +53,18 @@ Android Studio uses Gradle as the foundation of the build system, but it's not n
 Then you may install the app on a device or emulator:
 
 ```bash
-adb install Calendula/build/apk/develop/debug/developDebug-[version].apk
+adb install Calendula/build/outputs/apk/develop/debug/Calendula-develop-debug-*.apk
 ```
 
 These tasks can also be executed from Android Studio with a few clicks.
 
-## App versions
+## Historical upstream releases
 
-We maintain releases of Calendula on Google Play, F-Droid and here on Github.
+This repository is a development mirror of the public CiTIUS `Calendula-v2022` snapshot.
+The Google Play, F-Droid and GitHub release links above refer to the historical upstream
+Calendula project and should not be interpreted as releases produced from this fork.
 
- * The latest version of the app available on those pages reflects the code of the `master` branch.
- * Release branches are usually deployed through the *Google Play BETA channel* before they are made available to everyone. If you want to be a member of the testing community, join the testing group on Google Groups, and you will automatically receive the updates from the BETA channel like normal updates from Google Play.
-
-> Join the  BETA channel: [click here!](https://play.google.com/apps/testing/es.usc.citius.servando.calendula)
-
-Check out the [contributing guidelines](CONTRIBUTING.md) for more info about the branching model.
+Check out the [contributing guidelines](CONTRIBUTING.md) for the historical upstream branching model.
 
 ## How does it look?
 
