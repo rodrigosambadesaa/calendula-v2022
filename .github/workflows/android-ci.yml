@@ -2,9 +2,6 @@ name: Android CI
 
 on:
   push:
-    branches:
-      - main
-      - feature/**
   pull_request:
     branches:
       - main
@@ -13,7 +10,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: android-ci-${{ github.ref }}
+  # A push and the corresponding pull_request event should share the same group.
+  group: android-ci-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -49,3 +47,23 @@ jobs:
 
       - name: Run unit tests
         run: ./gradlew testCiDebugUnitTest --stacktrace --no-daemon
+
+      - name: Upload unit-test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-unit-test-reports
+          path: |
+            Calendula/build/reports/tests/testCiDebugUnitTest/
+            Calendula/build/test-results/testCiDebugUnitTest/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload CI debug APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Calendula-ci-debug
+          path: Calendula/build/outputs/apk/ci/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
