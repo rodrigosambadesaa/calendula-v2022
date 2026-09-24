@@ -192,8 +192,7 @@ public class GetExtraInfoFromServiceJob extends Job {
         final AuthState authState = LoginStateManager.getInstance().getCurrentAuthState();
 
         if (authState != null) {
-            LogUtil.d(TAG, "refreshTokensIfNeeded: refresh token: " + authState.getRefreshToken());
-            LogUtil.d(TAG, "refreshTokensIfNeeded: access token: " + authState.getAccessToken());
+            LogUtil.d(TAG, "refreshTokensIfNeeded: authentication state available");
         }
         if (authState != null && authState.getNeedsTokenRefresh()) {
             LogUtil.d(TAG, "refreshTokensIfNeeded: refreshing tokens");
