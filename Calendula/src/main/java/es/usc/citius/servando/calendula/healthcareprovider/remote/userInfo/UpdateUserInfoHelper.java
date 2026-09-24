@@ -90,7 +90,7 @@ public class UpdateUserInfoHelper {
         if (response.isSuccessful()) {
             vo = response.body();
         } else {
-            LogUtil.e(TAG, "Error retrieving userInfo" + GsonUtil.get().toJson(response.errorBody()));
+            LogUtil.e(TAG, "Error retrieving user info; HTTP code = " + code);
         }
         return vo;
     }
