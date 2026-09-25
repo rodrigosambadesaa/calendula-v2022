@@ -74,7 +74,6 @@ public class RoutinesActivityEditTest {
         // set edit intent
         Intent i = new Intent();
         i.putExtra(CalendulaApp.INTENT_EXTRA_ROUTINE_ID, created.getId());
-        setActivityIntent(i);
 
         mActivity = activityRule.launchActivity(i);
         TestUtils.unlockScreen(mActivity);
