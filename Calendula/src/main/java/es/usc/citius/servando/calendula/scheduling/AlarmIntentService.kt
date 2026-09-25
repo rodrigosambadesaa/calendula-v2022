@@ -21,6 +21,7 @@ package es.usc.citius.servando.calendula.scheduling
 import android.content.Context
 import android.content.Intent
 import android.os.Handler
+import android.os.Looper
 import androidx.core.app.JobIntentService
 import android.widget.Toast
 
@@ -45,7 +46,7 @@ class AlarmIntentService : JobIntentService() {
     }
 
 
-    internal var handler: Handler = Handler()
+    internal var handler: Handler = Handler(Looper.getMainLooper())
 
     override fun onHandleWork(intent: Intent) {
 
