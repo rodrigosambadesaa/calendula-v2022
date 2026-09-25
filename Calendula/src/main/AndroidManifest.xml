@@ -120,9 +120,6 @@
             android:name=".scheduling.PickupAlarmReceiver"
             android:exported="false"/>
         <receiver
-            android:name=".scheduling.NotificationEventReceiver"
-            android:exported="false"/>
-        <receiver
             android:name=".scheduling.BootReceiver"
             android:exported="true">
             <intent-filter>
