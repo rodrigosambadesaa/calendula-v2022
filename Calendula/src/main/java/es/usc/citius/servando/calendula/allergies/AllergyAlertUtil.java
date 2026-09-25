@@ -44,7 +44,7 @@ public class AllergyAlertUtil {
 
 
     public static List<PatientAlert> getAlertsForMedicine(final Medicine m) throws SQLException {
-        LogUtil.d(TAG, "getAlertsForMedicine() called with: m = [" + m + "]");
+        LogUtil.d(TAG, "getAlertsForMedicine: lookup started");
         HashMap<String, Object> query = new HashMap<String, Object>() {{
             put(PatientAlert.COLUMN_TYPE, AllergyPatientAlert.class.getCanonicalName());
             put(PatientAlert.COLUMN_PATIENT, m.getPatient());
@@ -60,7 +60,7 @@ public class AllergyAlertUtil {
      */
     public static void removeAllergyAlerts(final Medicine m) throws SQLException {
 
-        LogUtil.d(TAG, "removeAllergyAlerts() called with: m = [" + m + "]");
+        LogUtil.d(TAG, "removeAllergyAlerts: medicine lookup started");
         final List<PatientAlert> alerts = getAlertsForMedicine(m);
         DB.transaction(new Callable<Object>() {
             @Override
@@ -76,7 +76,7 @@ public class AllergyAlertUtil {
     }
 
     public static void removeAllergyAlerts(final Context c, final PatientAllergen allergen) throws SQLException {
-        LogUtil.d(TAG, "removeAllergyAlerts() called with: allergen = [" + allergen + "]");
+        LogUtil.d(TAG, "removeAllergyAlerts: allergen cleanup started");
         final AllergenVO vo = new AllergenVO(allergen);
 
         final List<PatientAlert> removed = new ArrayList<>();
@@ -118,7 +118,7 @@ public class AllergyAlertUtil {
      * @throws SQLException
      */
     public static boolean hasAllergyAlerts(final Medicine m) throws SQLException {
-        LogUtil.d(TAG, "hasAllergyAlerts() called with: m = [" + m + "]");
+        LogUtil.d(TAG, "hasAllergyAlerts: checking medicine");
 
         return getAlertsForMedicine(m).size() > 0;
     }
