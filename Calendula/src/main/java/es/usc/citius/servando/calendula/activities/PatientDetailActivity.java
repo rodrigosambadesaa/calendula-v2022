@@ -75,6 +75,7 @@ import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 import es.usc.citius.servando.calendula.util.ScreenUtils;
 import es.usc.citius.servando.calendula.util.Snack;
+import es.usc.citius.servando.calendula.util.security.SecurePrefBundle;
 
 public class PatientDetailActivity extends CalendulaActivity implements GridView.OnItemClickListener {
 
@@ -223,10 +224,18 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
         String qrData = i.getStringExtra("qr_data");
         if (qrData != null) {
             PatientLinkWrapper p = new Gson().fromJson(qrData, PatientLinkWrapper.class);
+            if (p == null || TextUtils.isEmpty(p.token)) {
+                LogUtil.w(TAG, "Ignoring patient link QR without a token");
+                return;
+            }
             Snack.show("Usuario vinculado correctamente!", this, Snackbar.LENGTH_LONG);
-            SharedPreferences prefs = PreferenceUtils.instance().preferences();
-            prefs.edit().putString("remote_token" + patientId, p.token).apply();
-            LogUtil.d(TAG, p.toString());
+            SecurePrefBundle.INSTANCE.setPatientLinkToken(patientId, p.token).apply();
+            PreferenceUtils.instance().preferences()
+                    .edit()
+                    .remove(legacyRemoteTokenKey(patientId))
+                    .apply();
+            token = p.token;
+            LogUtil.d(TAG, "Patient link token stored securely");
         }
     }
 
@@ -270,8 +279,7 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
             patient = DB.patients().findById(patientId);
             addRoutinesCheckBox.setVisibility(View.GONE);
 
-            SharedPreferences prefs = PreferenceUtils.instance().preferences();
-            token = prefs.getString("remote_token" + patientId, null);
+            token = loadPatientLinkToken(patientId);
             if (token != null) {
                 linkButton.setVisibility(View.VISIBLE);
                 linkButton.setText("Desvincular");
@@ -330,8 +338,11 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
                 .setPositiveButton("Si, desvincular", new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int id) {
                         token = null;
-                        SharedPreferences prefs = PreferenceUtils.instance().preferences();
-                        prefs.edit().remove("remote_token" + patientId).apply();
+                        SecurePrefBundle.INSTANCE.clearPatientLinkToken(patientId).apply();
+                        PreferenceUtils.instance().preferences()
+                                .edit()
+                                .remove(legacyRemoteTokenKey(patientId))
+                                .apply();
                         linkButton.setText("Vincular");
                     }
                 })
@@ -342,6 +353,27 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
                 });
         AlertDialog alert = builder.create();
         alert.show();
+    }
+
+    private static String legacyRemoteTokenKey(long patientId) {
+        return "remote_token" + patientId;
+    }
+
+    private String loadPatientLinkToken(long patientId) {
+        String secureToken = SecurePrefBundle.INSTANCE.getPatientLinkToken(patientId);
+        if (secureToken != null) {
+            return secureToken;
+        }
+
+        // One-time migration for installs that stored link tokens before the secure vault was used.
+        SharedPreferences prefs = PreferenceUtils.instance().preferences();
+        String legacyToken = prefs.getString(legacyRemoteTokenKey(patientId), null);
+        if (legacyToken != null) {
+            SecurePrefBundle.INSTANCE.setPatientLinkToken(patientId, legacyToken).apply();
+            prefs.edit().remove(legacyRemoteTokenKey(patientId)).apply();
+            LogUtil.d(TAG, "Migrated patient link token to encrypted preferences");
+        }
+        return legacyToken;
     }
 
     private void startScanActivity() {
@@ -545,7 +577,7 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
             return "PatientLinkWrapper{" +
                     "name='" + name + '\'' +
                     ", id='" + id + '\'' +
-                    ", token='" + token + '\'' +
+                    ", token=<redacted>" +
                     '}';
         }
     }
