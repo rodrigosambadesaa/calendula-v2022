@@ -168,7 +168,7 @@ public class HomeProfileMgr {
             @Override
             public void onLayoutChange(View v, int left, int top, int right, int bottom, int oldLeft, int oldTop, int oldRight, int oldBottom) {
                 if(right-left != oldRight-oldLeft || bottom - top != oldBottom-oldTop) {
-                    Picasso.with(context)
+                    Picasso.get()
                             .load("file:///android_asset/" + getBackgroundPath())
                             .memoryPolicy(MemoryPolicy.NO_STORE)
                             .centerCrop()
@@ -201,7 +201,7 @@ public class HomeProfileMgr {
     }
 
     public void updateBackground() {
-        Picasso.with(context)
+        Picasso.get()
                 .load("file:///android_asset/" + getRandomBackgroundPath())
                 .memoryPolicy(MemoryPolicy.NO_STORE)
                 .centerCrop()
