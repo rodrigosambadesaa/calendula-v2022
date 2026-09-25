@@ -48,6 +48,9 @@ updates:
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
       - dependency-name: "org.mockito:mockito-android"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # android-job 1.4.3 resolves a newer AndroidX Core line that requires a newer compile SDK.
+      - dependency-name: "com.evernote:android-job"
+        versions: ["1.4.3"]
       # Keep debug/runtime dependencies on the versions known to build with AGP 4.0.1/R8 2.0.88.
       - dependency-name: "com.facebook.stetho:stetho"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
