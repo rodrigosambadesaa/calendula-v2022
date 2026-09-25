@@ -100,7 +100,6 @@ public class ExtraInfoHelper {
                 params = InstanceIDHelper.getAdditionalParams(ctx);
             } catch (InstanceIDHelper.NoInstanceIDException e) {
                 LogUtil.e(TAG, "Could not fetch Extra info because there is no InstanceID", e);
-                e.printStackTrace();
                 return new GetExtraInfoEvent(Status.ERROR_GENERIC, null);
             }
 

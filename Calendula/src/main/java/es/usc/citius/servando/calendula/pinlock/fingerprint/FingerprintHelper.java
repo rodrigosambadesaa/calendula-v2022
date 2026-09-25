@@ -174,7 +174,7 @@ public class FingerprintHelper {
         try {
             keyStore = KeyStore.getInstance("AndroidKeyStore");
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new RuntimeException("Failed to load AndroidKeyStore", e);
         }
 
         try {
