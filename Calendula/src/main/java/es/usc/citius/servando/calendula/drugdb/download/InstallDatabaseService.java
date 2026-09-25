@@ -100,6 +100,10 @@ public class InstallDatabaseService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent == null) {
+            LogUtil.w(TAG, "Ignoring null service intent");
+            return Service.START_NOT_STICKY;
+        }
         final String action = intent.getAction();
         if (ACTION_SETUP.equals(action) || ACTION_UPDATE.equals(action)) {
             startForeground(NOTIFICATION_ID, getNotification(100, 0, null));
@@ -225,8 +229,8 @@ public class InstallDatabaseService extends Service {
 
             getNotificationManager().notify(NOTIFICATION_ID, mBuilder.build());
         }
-        Intent bcIntent = new Intent();
-        bcIntent.setAction(ACTION_COMPLETE);
+        Intent bcIntent = new Intent(ACTION_COMPLETE);
+        bcIntent.setPackage(getPackageName());
         sendBroadcast(bcIntent);
 
         // TODO: 11/01/18 maybe move to a better place?
