@@ -19,10 +19,11 @@
 package es.usc.citius.servando.calendula.activities;
 
 import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.rule.ActivityTestRule;
 import androidx.test.espresso.action.ViewActions;
-import android.test.ActivityInstrumentationTestCase2;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import es.usc.citius.servando.calendula.CalendulaApp;
@@ -34,6 +35,8 @@ import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 import es.usc.citius.servando.calendula.util.TestUtils;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.action.ViewActions.typeText;
@@ -41,22 +44,21 @@ import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withTagValue;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
-public class MedicinesActivityCreateTest extends ActivityInstrumentationTestCase2<MedicinesActivity> {
+public class MedicinesActivityCreateTest {
 
     public static final String NAME = "aspirin";
 
+    @Rule
+    public ActivityTestRule<MedicinesActivity> activityRule =
+            new ActivityTestRule<>(MedicinesActivity.class, true, false);
+
     private MedicinesActivity mActivity;
 
-    public MedicinesActivityCreateTest() {
-        super(MedicinesActivity.class);
-    }
 
     @Before
     public void setUp() throws Exception {
-        super.setUp();
         CalendulaApp.disableReceivers = true;
-        injectInstrumentation(InstrumentationRegistry.getInstrumentation());
-        DB.init(getInstrumentation().getContext());
+        DB.init(InstrumentationRegistry.getInstrumentation().getTargetContext());
         TestUtils.resetDatabase();
 
         // reset preferences
@@ -67,7 +69,7 @@ public class MedicinesActivityCreateTest extends ActivityInstrumentationTestCase
                 .remove(PreferenceKeys.DRUGDB_LAST_VALID.key())
                 .commit();
 
-        mActivity = getActivity();
+        mActivity = activityRule.launchActivity(null);
         TestUtils.unlockScreen(mActivity);
     }
 
