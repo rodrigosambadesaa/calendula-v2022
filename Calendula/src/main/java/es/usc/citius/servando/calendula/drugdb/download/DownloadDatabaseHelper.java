@@ -106,8 +106,8 @@ public class DownloadDatabaseHelper {
         edit.putString(PreferenceKeys.DRUGDB_LAST_VALID.key(), context.getString(R.string.database_none_id));
         edit.putString(PreferenceKeys.DRUGDB_CURRENT_DB.key(), context.getString(R.string.database_none_id));
         edit.apply();
-        Intent bcIntent = new Intent();
-        bcIntent.setAction(InstallDatabaseService.ACTION_ERROR);
+        Intent bcIntent = new Intent(InstallDatabaseService.ACTION_ERROR);
+        bcIntent.setPackage(context.getPackageName());
         context.sendBroadcast(bcIntent);
     }
 
@@ -115,27 +115,35 @@ public class DownloadDatabaseHelper {
         final DownloadManager dMgr = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
         LogUtil.d(TAG, "Checking download status for id: " + downloadId);
         // Verify if download was successful
-        Cursor c = dMgr.query(new DownloadManager.Query().setFilterById(downloadId));
-        if (c.moveToFirst()) {
-            int status = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_STATUS));
-            String title = c.getString(c.getColumnIndex(DownloadManager.COLUMN_TITLE));
-            String path = c.getString(c.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
-            if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                LogUtil.d(TAG, "File was downloading properly. " + title);
-                try {
-                    // convert uri to file path
-                    path = new File(new URI(path).getPath()).getAbsolutePath();
-                } catch (Exception e) {
-                    path = null;
-                }
-                return new Pair<>(status, path);
-            } else {
-                int reason = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_REASON));
-                LogUtil.d(TAG, "Download not correct, status [" + status + "] reason [" + reason + "]  " + title);
-                return new Pair<>(status, null);
-            }
+        Cursor cursor = dMgr.query(new DownloadManager.Query().setFilterById(downloadId));
+        if (cursor == null) {
+            return null;
         }
-        return null;
+        try {
+            if (cursor.moveToFirst()) {
+                int status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+                String title = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TITLE));
+                String path = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI));
+                if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                    LogUtil.d(TAG, "File was downloading properly. " + title);
+                    try {
+                        // convert uri to file path
+                        path = path != null ? new File(new URI(path).getPath()).getAbsolutePath() : null;
+                    } catch (Exception e) {
+                        LogUtil.w(TAG, "Unable to resolve downloaded database path");
+                        path = null;
+                    }
+                    return new Pair<>(status, path);
+                } else {
+                    int reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
+                    LogUtil.d(TAG, "Download not correct, status [" + status + "] reason [" + reason + "]  " + title);
+                    return new Pair<>(status, null);
+                }
+            }
+            return null;
+        } finally {
+            cursor.close();
+        }
     }
 
     public boolean isDBDownloadingOrInstalling(Context context) {
@@ -155,6 +163,10 @@ public class DownloadDatabaseHelper {
 
     private void removePreviousDownloads(Context ctx, String dbName) {
         File downloads = ctx.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+        if (downloads == null) {
+            LogUtil.w(TAG, "External files directory is unavailable; no previous download to remove");
+            return;
+        }
         final String path = downloads.getAbsolutePath() + "/" + dbName + downloadSuffix;
         File f = new File(path);
         if (f.exists()) {
