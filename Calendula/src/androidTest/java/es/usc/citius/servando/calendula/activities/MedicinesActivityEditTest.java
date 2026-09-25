@@ -20,9 +20,10 @@ package es.usc.citius.servando.calendula.activities;
 
 import android.content.Intent;
 import androidx.test.platform.app.InstrumentationRegistry;
-import android.test.ActivityInstrumentationTestCase2;
+import androidx.test.rule.ActivityTestRule;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import es.usc.citius.servando.calendula.CalendulaApp;
@@ -32,28 +33,29 @@ import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.util.TestUtils;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withTagValue;
 
 
-public class MedicinesActivityEditTest extends ActivityInstrumentationTestCase2<MedicinesActivity> {
+public class MedicinesActivityEditTest {
 
     public static final String MEDICINE_NAME = "Aspirin";
 
+    @Rule
+    public ActivityTestRule<MedicinesActivity> activityRule =
+            new ActivityTestRule<>(MedicinesActivity.class, true, false);
+
     private MedicinesActivity mActivity;
 
-    public MedicinesActivityEditTest() {
-        super(MedicinesActivity.class);
-    }
 
     @Before
     public void setUp() throws Exception {
-        super.setUp();
         CalendulaApp.disableReceivers = true;
-        injectInstrumentation(InstrumentationRegistry.getInstrumentation());
-        DB.init(getInstrumentation().getContext());
+        DB.init(InstrumentationRegistry.getInstrumentation().getTargetContext());
         TestUtils.resetDatabase();
         // create medicine
         Medicine created = new Medicine(MEDICINE_NAME, Presentation.EFFERVESCENT);
@@ -66,7 +68,7 @@ public class MedicinesActivityEditTest extends ActivityInstrumentationTestCase2<
         setActivityIntent(i);
 
 
-        mActivity = getActivity();
+        mActivity = activityRule.launchActivity(i);
         TestUtils.unlockScreen(mActivity);
     }
 
