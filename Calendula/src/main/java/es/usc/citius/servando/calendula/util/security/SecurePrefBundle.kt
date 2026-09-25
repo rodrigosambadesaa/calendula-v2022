@@ -18,7 +18,6 @@
 
 package es.usc.citius.servando.calendula.util.security
 
-import android.util.Log
 import es.usc.citius.servando.calendula.util.GsonUtil
 import es.usc.citius.servando.calendula.util.LogUtil
 import es.usc.citius.servando.calendula.util.PreferenceKeys
@@ -113,9 +112,10 @@ object SecurePrefBundle {
      */
     fun delete() {
         SecuredVault.edit().remove(PreferenceKeys.SECURE_PREF_BUNDLE.key()).apply()
-//        clearAuthState()
+        clearAuthState()
         clearPinHash()
         clearPinSalt()
+        clearInstanceId()
         bundle.patientLinkTokens?.clear()
         bundle.patientLinkTokens = null
     }
