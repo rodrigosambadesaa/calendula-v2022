@@ -64,7 +64,7 @@ import es.usc.citius.servando.calendula.util.LogUtil;
 public class DatabaseHelper extends OrmLiteSqliteOpenHelper {
 
     // any time you make changes to your database objects, you may have to increase the database version
-    public static final int DATABASE_VERSION = 2;
+    public static final int DATABASE_VERSION = 3;
     private static final String TAG = "DatabaseHelper";
     // name of the database file for our application
     private static final String DATABASE_NAME = DB.DB_NAME;
@@ -150,6 +150,15 @@ public class DatabaseHelper extends OrmLiteSqliteOpenHelper {
             if (oldVersion < 2) {
                 // we added the VisualizationType column in version 2
                 dao.executeRaw("ALTER TABLE `" + ActiveMedEntity.TABLENAME + "` ADD COLUMN " + ActiveMedEntity.COLUMN_VISUALIZATION_TYPE + " INTEGER;");
+            }
+            if (oldVersion < 3) {
+                // Version 3 stores the original URL alongside its legacy 32-bit
+                // hash so cache lookups can reject String.hashCode() collisions.
+                Dao<HtmlCacheEntry, Long> htmlCacheDao = getDao(HtmlCacheEntry.class);
+                htmlCacheDao.executeRaw(
+                        "ALTER TABLE `HtmlCache` ADD COLUMN `"
+                                + HtmlCacheEntry.COLUMN_URL
+                                + "` VARCHAR;");
             }
         } catch (Exception e) {
             LogUtil.e(TAG, "Can't upgrade databases", e);
