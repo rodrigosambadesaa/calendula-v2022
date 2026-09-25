@@ -1,52 +1,77 @@
-# How to contribute
+# Contributing to this fork
 
-We love contributions from everyone! There are only a few guidelines that we encourage contributors to follow so that we can accept and maintain third party changes.
+Contributions are welcome. This repository is an **unofficial GitHub fork/mirror** of the public
+CiTIUS `Calendula-v2022` source. It is maintained independently and is not an official CiTIUS,
+USC, SERGAS or Xunta de Galicia repository.
 
-Notice that Calendula is licensed under the terms of the [GNU General Public License, version 3](LICENSE.md), so by submitting content to the Calendula repository, you release your work under the terms of this license.
+Calendula is licensed under the terms of the [GNU General Public License v3](LICENSE.md).
+By submitting code to this repository, you agree that your contribution is distributed under
+the same applicable GPL terms.
 
-Since this repository contains the code for an Android app published in Google Play, which could include part of your contributions in future updates, we’re required to have agreements ([CLA](https://www.clahub.com/agreements/citiususc/calendula)) with everyone who takes part. This is the easiest way for you to give us permission to use your contributions (in effect, you’re giving us a license, but you still own the copyright, so you retain the right to modify your code and use it in other projects).
+## Before you start
 
-## Getting Started
+Please check the open issues and pull requests before starting substantial work so duplicate
+changes can be avoided.
 
-Make sure you have a [GitHub account](https://github.com/signup/free) and have signed our [Contributor License Agreement](https://www.clahub.com/agreements/citiususc/calendula). Once that's ready, you can:
+For this GitHub fork:
 
-* [Submit an issue](https://github.com/citiususc/calendula/issues/new) to propose enhancements or report bugs. Make sure there isn't another isue with the same subject already!
+- `main` is the integration branch and should remain buildable.
+- Create a focused topic branch from the current `main`.
+- Keep unrelated changes in separate pull requests.
+- Do not rewrite or squash away historical upstream authorship.
+- Preserve existing copyright and license notices.
+- Run the relevant Gradle checks before requesting review.
 
-    Try to keep the issue descriptive and include the steps to reproduce the bug if that's the case.
+A typical workflow is:
 
-* [Fork the repository](https://github.com/citiususc/calendula/fork), make some changes, and then submit a [pull request](https://github.com/citiususc/calendula/compare). Please see [Making changes](#making-changes) for this.
+```bash
+git checkout main
+git pull --ff-only origin main
+git checkout -b feature/my-change
+```
 
-### Making Changes
+After making changes, open a pull request back to `main`.
 
-We follow the branching model proposed by [Vincent
-Driessen](http://nvie.com/about/) on [this article](http://nvie.com/posts/a-successful-git-branching-model/), so we have two main branches: `master` and `develop`.
+## Validation
 
- * The `master` branch reflects the code of the latest version of the app available on Google Play.
- * The `develop` branch reflects the code of the latest delivered development changes for the next release.
- * Furthermore, when a development version (almost) reflects the desired state of the new release, a release branch is created. Release branches are usually deployed through the *Google Play BETA channel* before they are made available to everyone
+The repository CI currently validates the legacy Android baseline used by this fork. Before
+submitting a pull request, run as much of the following as your local environment supports:
 
-Create a topic branch from where you want to work. This may be usually the `master` or `release` branch for bug fixes or `develop` for adding new features. Please avoid working directly on the master branch.
+```bash
+./gradlew assembleCiDebug
+./gradlew testCiDebugUnitTest
+./gradlew assembleCiDebugAndroidTest
+./gradlew lintCiDebug
+```
 
-## I would like to contribute, but I'm not a developer...
+The project intentionally preserves a legacy compatibility baseline while modernization is
+performed incrementally. Avoid dependency or toolchain upgrades that silently raise
+`minSdk`, require a newer `compileSdk`, or change library APIs without updating and testing
+the affected code.
 
-Non-code contributions are also welcome!. You can do a lot of things:
+## Upstream relationship
 
- * Comment on a issue or start your own to suggest ideas or give your opinion.
- * Fix typos, comments or clarify language to improve the quality of the app.
- * Propose [an icon](assets/icons), a better drawable for an specific action, or even a new material app logo ;-).
- * Be a member of the testing community by joining the testing group on Google Groups. You will automatically receive the updates from the BETA channel like normal updates from Google Play. This helps us find bugs before the public release!
+The original public source is hosted by CiTIUS at:
 
-> Join the  BETA channel: [click here!](https://play.google.com/apps/testing/es.usc.citius.servando.calendula)
+- https://gitlab.citius.gal/calendula-mp/calendula-mp
 
-### Help with app translations
+A local clone may keep that repository as an `upstream` remote:
 
-Contributing translations is now easier than ever! Just join us at POEditor using [this link](https://poeditor.com/join/project/kIdyqFodDn) and start translating Calendula to one of the existing languages, or suggest a new one. **This is the recommended method for translations**.
-You can also contribute with better translations for particular words or sentences.
+```bash
+git remote add upstream https://gitlab.citius.gal/calendula-mp/calendula-mp.git
+git fetch upstream
+```
 
-Alternatively, you can contribute translations via pull request:
+Changes developed here may later be proposed upstream when appropriate, but this fork does
+not imply that CiTIUS has reviewed, endorsed or adopted them.
 
-* Add a new folder named `values-{LANG}/` at `Calendula/src/main/res/`.
-* Translate the `strings_translatable.xml` file from `Calendula/src/main/res/values` to your desired language.
-* Send a pull request to the `translations` branch.
+## Historical contribution model
 
-You can also improve an existing `strings_translatable.xml` file and make a PR with that!
+The original Calendula project used a `master` / `develop` / release-branch workflow and
+referenced the historical `citiususc/calendula` GitHub repository, CLAHub, Google Play beta
+testing and POEditor. Those instructions belong to the historical upstream project and should
+not be treated as the contribution workflow for this fork.
+
+If you are preparing a contribution specifically for an upstream CiTIUS repository, follow
+the contribution and governance requirements published by that upstream at the time you
+submit it.
