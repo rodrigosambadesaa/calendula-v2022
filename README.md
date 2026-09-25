@@ -108,7 +108,7 @@ This repository is a development mirror of the public CiTIUS `Calendula-v2022` s
 The Google Play, F-Droid and GitHub release links above refer to the historical upstream
 Calendula project and should not be interpreted as releases produced from this fork.
 
-Check out the [contributing guidelines](CONTRIBUTING.md) for the historical upstream branching model.
+Check out the [contributing guidelines](CONTRIBUTING.md) for the current workflow of this fork. The historical upstream used a different `master`/`develop` branching model.
 
 ## How does it look?
 
