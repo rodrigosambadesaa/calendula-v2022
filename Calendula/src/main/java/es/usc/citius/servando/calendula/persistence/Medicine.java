@@ -248,14 +248,11 @@ public class Medicine implements Comparable<Medicine> {
     public String toString() {
         return "Medicine{" +
                 "id=" + id +
-                ", name='" + name + '\'' +
                 ", presentation=" + presentation +
-                ", cn='" + cn + '\'' +
-                ", stock=" + stock +
-                ", homogeneousGroup=" + homogeneousGroup +
-                ", patient=" + patient +
-                ", database='" + database + '\'' +
-                ", activeMedId=" + activeMedId +
+                ", hasPatient=" + (patient != null) +
+                ", hasPrescriptionCode=" + (cn != null) +
+                ", hasStock=" + (stock != null) +
+                ", activeMed=" + (activeMedId != null) +
                 '}';
     }
 }
