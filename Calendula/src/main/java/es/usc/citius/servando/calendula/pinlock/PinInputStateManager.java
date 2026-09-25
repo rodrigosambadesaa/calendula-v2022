@@ -70,7 +70,7 @@ public class PinInputStateManager {
      * @return <code>true</code> if input was successful, <code>false</code> otherwise
      */
     public boolean putNumber(Integer theNumber) {
-        LogUtil.v(TAG, "putNumber() called with: theNumber = [" + theNumber + "]");
+        LogUtil.v(TAG, "putNumber() called");
         boolean inserted = false;
         if (mBuffer.size() < PIN_SIZE) {
             LogUtil.v(TAG, "putNumber: inserted");
@@ -95,7 +95,7 @@ public class PinInputStateManager {
         boolean deleted = false;
         if (!mBuffer.isEmpty()) {
             final Integer pop = mBuffer.pop();
-            LogUtil.v(TAG, "delete: deleted " + pop);
+            LogUtil.v(TAG, "delete: digit deleted");
             deleted = true;
             notifyChange();
         }
@@ -121,7 +121,7 @@ public class PinInputStateManager {
             b.append(iterator.next());
         }
         final String thePin = b.toString();
-        LogUtil.v(TAG, "getCurrent() returned: " + thePin);
+        LogUtil.v(TAG, "getCurrent() returned PIN length=" + thePin.length());
         return thePin;
     }
 
