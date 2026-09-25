@@ -19,10 +19,11 @@
 package es.usc.citius.servando.calendula.activities;
 
 import androidx.test.platform.app.InstrumentationRegistry;
-import android.test.ActivityInstrumentationTestCase2;
+import androidx.test.rule.ActivityTestRule;
 
 import org.joda.time.LocalTime;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import es.usc.citius.servando.calendula.CalendulaApp;
@@ -32,6 +33,8 @@ import es.usc.citius.servando.calendula.fragments.RoutineCreateOrEditFragment;
 import es.usc.citius.servando.calendula.persistence.Routine;
 import es.usc.citius.servando.calendula.util.TestUtils;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.action.ViewActions.typeText;
@@ -40,24 +43,23 @@ import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
 
-public class RoutinesActivityCreateTest extends ActivityInstrumentationTestCase2<RoutinesActivity> {
+public class RoutinesActivityCreateTest {
 
     public static final String NAME = "breakfast";
 
+    @Rule
+    public ActivityTestRule<RoutinesActivity> activityRule =
+            new ActivityTestRule<>(RoutinesActivity.class, true, false);
+
     private RoutinesActivity mActivity;
 
-    public RoutinesActivityCreateTest() {
-        super(RoutinesActivity.class);
-    }
 
     @Before
     public void setUp() throws Exception {
-        super.setUp();
         CalendulaApp.disableReceivers = true;
-        injectInstrumentation(InstrumentationRegistry.getInstrumentation());
-        DB.init(getInstrumentation().getContext());
+        DB.init(InstrumentationRegistry.getInstrumentation().getTargetContext());
         TestUtils.resetDatabase();
-        mActivity = getActivity();
+        mActivity = activityRule.launchActivity(null);
         TestUtils.unlockScreen(mActivity);
     }
 
