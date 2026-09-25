@@ -27,7 +27,7 @@
                 tools:background="@color/android_blue_darker">
 
 
-    <com.makeramen.RoundedImageView xmlns:app="http://schemas.android.com/apk/res-auto"
+    <com.makeramen.roundedimageview.RoundedImageView xmlns:app="http://schemas.android.com/apk/res-auto"
                                     android:id="@+id/imageView2"
                                     android:layout_width="55dp"
                                     android:layout_height="55dp"
@@ -52,7 +52,7 @@
         android:src="@drawable/ic_autorenew_white_48dp"/>
 
 
-    <com.makeramen.RoundedImageView xmlns:app="http://schemas.android.com/apk/res-auto"
+    <com.makeramen.roundedimageview.RoundedImageView xmlns:app="http://schemas.android.com/apk/res-auto"
                                     android:id="@+id/imageView3"
                                     android:layout_width="55dp"
                                     android:layout_height="55dp"
@@ -75,7 +75,7 @@
         android:src="@drawable/ic_history_white_48dp"/>
 
 
-    <com.makeramen.RoundedImageView xmlns:app="http://schemas.android.com/apk/res-auto"
+    <com.makeramen.roundedimageview.RoundedImageView xmlns:app="http://schemas.android.com/apk/res-auto"
                                     android:id="@+id/imageView4"
                                     android:layout_width="55dp"
                                     android:layout_height="55dp"
