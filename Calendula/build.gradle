@@ -284,7 +284,7 @@ dependencies {
     // Lang utilities
     //  Used for Levenshtein distance, etc
     implementation 'org.apache.commons:commons-lang3:3.6'
-    implementation 'org.apache.commons:commons-text:1.1'
+    implementation 'org.apache.commons:commons-text:1.15.0'
 
     // QR code scanning
     implementation 'com.google.zxing:core:3.3.0'
