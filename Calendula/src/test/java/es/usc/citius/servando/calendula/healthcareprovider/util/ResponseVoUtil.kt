@@ -110,7 +110,7 @@ object ResponseVoUtil {
         )
         // 6. patient
         assertNotNull("Patient is null", vo.patient)
-        assertEquals("Wrong patient ID", "Patient/000000AAAA0000", vo.patient!!.id)
+        assertEquals("Wrong patient ID", "Patient/ID_NUMBER", vo.patient!!.id)
         assertEquals(
             "Wrong patient name",
             "Nombre Apellido1 Apellido2",

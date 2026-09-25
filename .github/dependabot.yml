@@ -16,6 +16,23 @@ updates:
       # Keep 1.1.x on the legacy compileSdk 29 baseline; patch updates remain allowed.
       - dependency-name: "androidx.preference:preference"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # AppCompat/Recyclerview newer minor lines pull a substantially newer AndroidX stack.
+      - dependency-name: "androidx.appcompat:appcompat"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "androidx.recyclerview:recyclerview"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # Material Components newer minor lines require a much newer AndroidX/SDK baseline.
+      - dependency-name: "com.google.android.material:material"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # Newer AndroidX Test releases are coupled to a newer AndroidX/toolchain baseline.
+      - dependency-name: "androidx.test:rules"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "androidx.test:core"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "androidx.test.espresso:espresso-contrib"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "androidx.test.espresso:espresso-core"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
       # FastAdapter 5.x is a major API/artifact-layout migration. Keep the
       # legacy 3.x family until it is migrated deliberately in a dedicated PR.
       - dependency-name: "com.mikepenz:fastadapter*"
@@ -23,6 +40,24 @@ updates:
       # Newer Community Material Typeface releases changed the package/API surface.
       - dependency-name: "com.mikepenz:community-material-typeface"
         update-types: ["version-update:semver-major"]
+      # jsoup 1.19.1+ raises Android support to API 21 and expects newer desugaring/toolchain support.
+      - dependency-name: "org.jsoup:jsoup"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # Mockito inline 3.5+ regressed Robolectric sandbox compatibility; keep the 3.4.x line.
+      - dependency-name: "org.mockito:mockito-inline"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "org.mockito:mockito-android"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # Keep debug/runtime dependencies on the versions known to build with AGP 4.0.1/R8 2.0.88.
+      - dependency-name: "com.facebook.stetho:stetho"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "org.apache.commons:commons-lang3"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "com.google.zxing:core"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # lib-recur uses 0.x versioning; minor jumps can include breaking API/runtime changes.
+      - dependency-name: "org.dmfs:lib-recur"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
       # Kotlin 2.x requires a coordinated AGP/Gradle/JDK migration.
       - dependency-name: "kotlin_version"
         update-types: ["version-update:semver-major"]
@@ -41,9 +76,9 @@ updates:
       # Major UI-library migrations should be handled explicitly, with source/API review.
       - dependency-name: "com.wdullaer:materialdatetimepicker"
         update-types: ["version-update:semver-major"]
-      # ORMLite 6 removes deprecated APIs and changes parts of its closeable API.
+      # ORMLite 5.7 already changes the Dao API used by this codebase; defer minor/major lines.
       - dependency-name: "com.j256.ormlite:ormlite-android"
-        update-types: ["version-update:semver-major"]
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"

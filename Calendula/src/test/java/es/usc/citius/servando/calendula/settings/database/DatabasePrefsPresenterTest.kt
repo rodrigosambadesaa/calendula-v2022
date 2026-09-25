@@ -30,6 +30,7 @@ import es.usc.citius.servando.calendula.settings.CalendulaSettingsActivity
 import es.usc.citius.servando.calendula.util.PreferenceKeys
 import es.usc.citius.servando.calendula.util.PreferenceUtils
 import org.junit.Assert
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -56,9 +57,11 @@ class DatabasePrefsPresenterTest {
     private lateinit var dbPrefPresenter: DatabasePrefsContract.Presenter
 
 
+    private lateinit var mocks: AutoCloseable
+
     @Before
     fun setUp() {
-        MockitoAnnotations.initMocks(this)
+        mocks = MockitoAnnotations.openMocks(this)
 
         // do not return nulls
         Mockito.`when`(dbPrefView.getIntent()).thenReturn(Intent())
@@ -78,6 +81,11 @@ class DatabasePrefsPresenterTest {
 
         dbPrefPresenter = DatabasePrefsPresenter(INITIAL_DB_ID)
         dbPrefPresenter.attachView(dbPrefView)
+    }
+
+    @After
+    fun tearDownMocks() {
+        mocks.close()
     }
 
     @Test
