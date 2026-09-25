@@ -61,6 +61,27 @@ class SecurePrefBundleTest {
     }
 
     @Test
+    fun deletingSecureBundleClearsAuthenticationSecretsInMemory() {
+        SecurePrefBundle
+            .setAuthState("serialized-auth-state")
+            .setInstanceId("instance-id-token")
+            .apply()
+
+        SecurePrefBundle.delete()
+
+        assertNull(SecurePrefBundle.getAuthState())
+        assertNull(SecurePrefBundle.getInstanceId())
+
+        // A later write must not resurrect values left in the singleton bundle.
+        SecurePrefBundle
+            .setPinHash("new-pin-hash")
+            .apply()
+
+        assertNull(SecurePrefBundle.getAuthState())
+        assertNull(SecurePrefBundle.getInstanceId())
+    }
+
+    @Test
     fun deletingSecureBundleClearsPatientLinkTokensInMemory() {
         SecurePrefBundle
             .setPatientLinkToken(7L, "token-seven")
