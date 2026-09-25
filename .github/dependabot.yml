@@ -84,6 +84,9 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "com.mikepenz:iconics-views"
         update-types: ["version-update:semver-major"]
+      # RoundedImageView 2.x changes the Java/XML package and requires source/layout migration.
+      - dependency-name: "com.makeramen:roundedimageview"
+        update-types: ["version-update:semver-major"]
       # Major UI-library migrations should be handled explicitly, with source/API review.
       - dependency-name: "com.wdullaer:materialdatetimepicker"
         update-types: ["version-update:semver-major"]
