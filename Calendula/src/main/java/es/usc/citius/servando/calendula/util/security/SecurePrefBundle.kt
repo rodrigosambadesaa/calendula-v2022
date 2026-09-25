@@ -116,6 +116,8 @@ object SecurePrefBundle {
 //        clearAuthState()
         clearPinHash()
         clearPinSalt()
+        bundle.patientLinkTokens?.clear()
+        bundle.patientLinkTokens = null
     }
 
     /**
