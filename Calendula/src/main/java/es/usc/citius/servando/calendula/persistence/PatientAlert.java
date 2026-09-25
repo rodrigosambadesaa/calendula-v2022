@@ -155,10 +155,10 @@ public class PatientAlert<P extends PatientAlert<P, T>, T> {
         return "PatientAlert{" +
                 "id=" + id +
                 ", type=" + type +
-                ", patient=" + patient +
-                ", medicine=" + medicine +
                 ", level=" + level +
-                ", jsonDetails='" + jsonDetails + '\'' +
+                ", hasPatient=" + (patient != null) +
+                ", hasMedicine=" + (medicine != null) +
+                ", hasDetails=" + (jsonDetails != null) +
                 '}';
     }
 
