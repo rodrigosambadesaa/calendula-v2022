@@ -49,7 +49,7 @@
             android:background="@drawable/select_medicines_selected_background"
             android:visibility="invisible"/>
 
-        <com.makeramen.RoundedImageView xmlns:app="http://schemas.android.com/apk/res-auto"
+        <com.makeramen.roundedimageview.RoundedImageView xmlns:app="http://schemas.android.com/apk/res-auto"
                                         android:id="@+id/imageView2"
                                         android:layout_width="55dp"
                                         android:layout_height="55dp"
