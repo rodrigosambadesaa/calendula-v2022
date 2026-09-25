@@ -52,14 +52,12 @@ public class HtmlCacheManager {
     }
 
     public boolean isCached(final String url) {
-        final int hashCode = url.hashCode();
-        HtmlCacheEntry entry = retrieve(hashCode);
+        HtmlCacheEntry entry = retrieve(url);
         return entry != null;
     }
 
     public String get(final String url) {
-        final int hashCode = url.hashCode();
-        HtmlCacheEntry entry = retrieve(hashCode);
+        HtmlCacheEntry entry = retrieve(url);
         if (entry != null)
             return entry.getData();
         return null;
@@ -68,11 +66,16 @@ public class HtmlCacheManager {
     public boolean put(final String url, final String data, final Duration ttlDuration) {
         final Long ttl = ttlDuration == null ? DEFAULT_TTL_MILLIS : ttlDuration.getMillis();
         final int hashCode = url.hashCode();
-        HtmlCacheEntry entry = retrieve(hashCode);
+        HtmlCacheEntry entry = retrieveByHash(hashCode);
         if (entry != null)
             remove(entry);
 
-        HtmlCacheEntry newEntry = new HtmlCacheEntry(hashCode, new Date(DateTime.now().getMillis()), data, ttl);
+        HtmlCacheEntry newEntry = new HtmlCacheEntry(
+                hashCode,
+                url,
+                new Date(DateTime.now().getMillis()),
+                data,
+                ttl);
         try {
             LogUtil.d(TAG, "put: writing entry: " + newEntry);
             return getDao().create(newEntry) == 1;
@@ -84,8 +87,7 @@ public class HtmlCacheManager {
     }
 
     public boolean remove(final String url) {
-        final int hashCode = url.hashCode();
-        HtmlCacheEntry entry = retrieve(hashCode);
+        HtmlCacheEntry entry = retrieve(url);
         if (entry != null) {
             LogUtil.d(TAG, "remove: removing entry: " + entry);
             return remove(entry);
@@ -126,29 +128,58 @@ public class HtmlCacheManager {
         }
     }
 
-    private HtmlCacheEntry retrieve(final int hashCode) {
+    private HtmlCacheEntry retrieve(final String url) {
+        if (url == null) {
+            return null;
+        }
+
+        final int hashCode = url.hashCode();
+        HtmlCacheEntry entry = retrieveByHash(hashCode);
+        if (entry == null) {
+            return null;
+        }
+
+        // Version 2 and older cache rows did not persist the URL. They cannot be
+        // safely distinguished from a Java String.hashCode() collision, so treat
+        // them as stale and rebuild them on demand.
+        if (entry.getUrl() == null) {
+            LogUtil.d(TAG, "retrieve: Removing legacy cache entry without URL");
+            remove(entry);
+            return null;
+        }
+
+        if (!url.equals(entry.getUrl())) {
+            LogUtil.w(TAG, "HTML cache hash collision detected; ignoring mismatched entry");
+            return null;
+        }
+
+        if (checkTtl(entry)) {
+            return entry;
+        }
+
+        LogUtil.d(TAG, "retrieve: Deleting expired entry with hashCode: " + hashCode);
+        remove(entry);
+        return null;
+    }
+
+    private HtmlCacheEntry retrieveByHash(final int hashCode) {
         final Dao<HtmlCacheEntry, Long> dao = getDao();
         try {
-            List<HtmlCacheEntry> htmlCacheEntries = dao.queryForEq(HtmlCacheEntry.COLUMN_HASHCODE, hashCode);
+            List<HtmlCacheEntry> htmlCacheEntries =
+                    dao.queryForEq(HtmlCacheEntry.COLUMN_HASHCODE, hashCode);
             if (htmlCacheEntries.isEmpty()) {
                 return null;
             } else if (htmlCacheEntries.size() > 1) {
-                LogUtil.w(TAG, "Inconsistent state of cache: hashcode" + hashCode + " is not unique. Deleting all copies.");
+                LogUtil.w(TAG, "Inconsistent state of cache: hashcode " + hashCode
+                        + " is not unique. Deleting all copies.");
                 for (HtmlCacheEntry entry : htmlCacheEntries) {
                     remove(entry);
                 }
                 return null;
-            } else {
-                if (checkTtl(htmlCacheEntries.get(0))) {
-                    return htmlCacheEntries.get(0);
-                } else {
-                    LogUtil.d(TAG, "retrieve: Deleting invalid entry with hashCode: " + hashCode);
-                    remove(htmlCacheEntries.get(0));
-                    return null;
-                }
             }
+            return htmlCacheEntries.get(0);
         } catch (SQLException e) {
-            LogUtil.e(TAG, "retrieve: ", e);
+            LogUtil.e(TAG, "retrieveByHash: ", e);
             return null;
         }
     }
