@@ -64,7 +64,7 @@ public class DBDownloadReceiver extends BroadcastReceiver {
                 DownloadDatabaseHelper.instance().downloadStatus(completedId, context);
 
         // ACTION_DOWNLOAD_COMPLETE should normally arrive only for terminal states, but the
-        // receiver is exported for the system DownloadManager broadcast. An unexpected or
+        // receiver only accepts the system DownloadManager broadcast. An unexpected or
         // spoofed matching-id broadcast must not be able to cancel a legitimate in-progress
         // database download.
         if (status == null) {
