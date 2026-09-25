@@ -32,7 +32,6 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StringWriter;
-import java.util.Arrays;
 import java.util.zip.GZIPInputStream;
 
 import es.usc.citius.servando.calendula.CalendulaActivity;
@@ -48,16 +47,6 @@ public class ScanActivity extends CalendulaActivity {
     String afterScanPkg;
     String afterScanCls;
     Long patientId;
-
-    public static String[] byteArrayToHex(byte[] a) {
-        String[] arr = new String[a.length];
-        int i = 0;
-        for (byte b : a) {
-            arr[i++] = String.format("%02x", b & 0xff);
-
-        }
-        return arr;
-    }
 
     public void doScan() {
         IntentIntegrator integrator = new IntentIntegrator(this);
@@ -100,7 +89,6 @@ public class ScanActivity extends CalendulaActivity {
 
         if (result != null && requestCode == IntentIntegrator.REQUEST_CODE && data != null) {
 
-            byte[] dataBytes = data.getByteArrayExtra("SCAN_RESULT_BYTE_SEGMENTS_0");
 
             if (result.getContents() == null) {
                 Toast.makeText(this, "Cancelled", Toast.LENGTH_LONG).show();
@@ -109,13 +97,13 @@ public class ScanActivity extends CalendulaActivity {
                 boolean gziped = false;
                 String content = result.getContents();
 
-                LogUtil.d(TAG, "SCAN_RESULT_BYTE_SEGMENTS_0 : " + Arrays.toString(byteArrayToHex(dataBytes)));
-                LogUtil.d(TAG, "CONTENTS: " + Arrays.toString(byteArrayToHex(content.getBytes())));
+                // Never write scanned payloads to Logcat: they may contain patient/medical data.
+                LogUtil.d(TAG, "QR scan received; encoded length=" + content.length());
 
                 // first, decode base64 QR content
                 byte[] raw = Base64.decode(content.getBytes(), Base64.DEFAULT);
 
-                LogUtil.d(TAG, "Raw length:" + raw.length + " contents: " + content);
+                LogUtil.d(TAG, "Decoded QR payload length=" + raw.length);
 
                 // now, try decompress GZIP
                 if (raw[0] == (byte) 0x1f && raw[1] == (byte) 0x8b) {
@@ -135,7 +123,7 @@ public class ScanActivity extends CalendulaActivity {
                         }
 
                         content = writer.toString();
-                        LogUtil.d(TAG, "Unzipped qr contents: " + content);
+                        LogUtil.d(TAG, "Unzipped QR payload length=" + content.length());
 
                     } catch (Exception e) {
                         LogUtil.e(TAG, "Error unzipping qr contents", e);
