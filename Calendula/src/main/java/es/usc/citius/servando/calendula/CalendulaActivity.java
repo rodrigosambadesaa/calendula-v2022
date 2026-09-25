@@ -182,7 +182,7 @@ public abstract class CalendulaActivity extends AppCompatActivity {
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        if (permissionRequestListeners.containsKey(requestCode)) {
+        if (permissionRequestListeners != null && permissionRequestListeners.containsKey(requestCode)) {
             PermissionUtils.PermissionRequest req = permissionRequestListeners.get(requestCode);
             for (String p : req.permissions()) {
                 PermissionUtils.markPermissionAsAsked(this, p);
@@ -193,7 +193,10 @@ public abstract class CalendulaActivity extends AppCompatActivity {
                 req.onPermissionDenied();
             }
             permissionRequestListeners.remove(requestCode);
+            return;
         }
+
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 
     private void showManualPermissionGrantDialog() {
