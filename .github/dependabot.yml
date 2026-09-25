@@ -27,6 +27,9 @@ updates:
       # Newer AndroidX Test releases are coupled to a newer AndroidX/toolchain baseline.
       - dependency-name: "androidx.test:rules"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # androidx.test.ext:junit 1.3.x raises the test APK minimum SDK to 21.
+      - dependency-name: "androidx.test.ext:junit"
+        versions: ["1.3.0"]
       - dependency-name: "androidx.test:core"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
       - dependency-name: "androidx.test.espresso:espresso-contrib"
