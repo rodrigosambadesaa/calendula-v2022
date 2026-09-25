@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Calendula - An assistant for personal medication management.
+  ~ Copyright (C) 2014-2018 CiTIUS - University of Santiago de Compostela
+  ~
+  ~ Licensed under the GNU General Public License v3 or later.
+  -->
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+
+    <string name="recurrence_end_continously">Indefinitely</string>
+    <string name="recurrence_end_date_label">Until a date</string>
+    <string name="recurrence_end_date">Until <xliff:g id="date">%s</xliff:g></string>
+    <string name="recurrence_end_count_label">For a number of doses</string>
+
+    <plurals name="recurrence_interval_daily">
+        <item quantity="one">Every <xliff:g id="count">%d</xliff:g> day</item>
+        <item quantity="other">Every <xliff:g id="count">%d</xliff:g> days</item>
+    </plurals>
+
+    <plurals name="recurrence_interval_weekly">
+        <item quantity="one">Every <xliff:g id="count">%d</xliff:g> week</item>
+        <item quantity="other">Every <xliff:g id="count">%d</xliff:g> weeks</item>
+    </plurals>
+
+    <plurals name="recurrence_interval_monthly">
+        <item quantity="one">Every <xliff:g id="count">%d</xliff:g> month</item>
+        <item quantity="other">Every <xliff:g id="count">%d</xliff:g> months</item>
+    </plurals>
+
+    <plurals name="recurrence_interval_yearly">
+        <item quantity="one">Every <xliff:g id="count">%d</xliff:g> year</item>
+        <item quantity="other">Every <xliff:g id="count">%d</xliff:g> years</item>
+    </plurals>
+
+    <plurals name="recurrence_end_count">
+        <item quantity="one"> Until <xliff:g id="event_count">%d</xliff:g> dose</item>
+        <item quantity="other"> Until <xliff:g id="event_count">%d</xliff:g> doses</item>
+    </plurals>
+
+    <string name="endByDate"> (until <xliff:g id="date">%s</xliff:g>)</string>
+
+    <plurals name="endByCount">
+        <item quantity="one"> (once)</item>
+        <item quantity="other"> (<xliff:g id="number">%d</xliff:g> times)</item>
+    </plurals>
+
+    <plurals name="daily">
+        <item quantity="one">Every day</item>
+        <item quantity="other">Every <xliff:g id="number">%d</xliff:g> days</item>
+    </plurals>
+
+    <string name="every_weekday">Monday through Friday</string>
+
+    <plurals name="weekly">
+        <item quantity="one">Weekly on <xliff:g id="days_of_week">%2$s</xliff:g></item>
+        <item quantity="other">Every <xliff:g id="number">%1$d</xliff:g> weeks on <xliff:g id="days_of_week">%2$s</xliff:g></item>
+    </plurals>
+
+    <string name="monthly">Monthly</string>
+    <string name="yearly_plain">Yearly</string>
+    <string name="recurrence_month_pattern_by_day">on the same day each month</string>
+
+    <string-array name="recurrence_freq">
+        <item>Repeat daily</item>
+        <item>Repeat weekly</item>
+        <item>Repeat monthly</item>
+        <item>Repeat yearly</item>
+    </string-array>
+
+    <string-array name="repeat_by_nth_sun">
+        <item>every first Sunday</item>
+        <item>every second Sunday</item>
+        <item>every third Sunday</item>
+        <item>every fourth Sunday</item>
+        <item>every last Sunday</item>
+    </string-array>
+
+    <string-array name="repeat_by_nth_mon">
+        <item>every first Monday</item>
+        <item>every second Monday</item>
+        <item>every third Monday</item>
+        <item>every fourth Monday</item>
+        <item>every last Monday</item>
+    </string-array>
+
+    <string-array name="repeat_by_nth_tues">
+        <item>every first Tuesday</item>
+        <item>every second Tuesday</item>
+        <item>every third Tuesday</item>
+        <item>every fourth Tuesday</item>
+        <item>every last Tuesday</item>
+    </string-array>
+
+    <string-array name="repeat_by_nth_wed">
+        <item>every first Wednesday</item>
+        <item>every second Wednesday</item>
+        <item>every third Wednesday</item>
+        <item>every fourth Wednesday</item>
+        <item>every last Wednesday</item>
+    </string-array>
+
+    <string-array name="repeat_by_nth_thurs">
+        <item>every first Thursday</item>
+        <item>every second Thursday</item>
+        <item>every third Thursday</item>
+        <item>every fourth Thursday</item>
+        <item>every last Thursday</item>
+    </string-array>
+
+    <string-array name="repeat_by_nth_fri">
+        <item>every first Friday</item>
+        <item>every second Friday</item>
+        <item>every third Friday</item>
+        <item>every fourth Friday</item>
+        <item>every last Friday</item>
+    </string-array>
+
+    <string-array name="repeat_by_nth_sat">
+        <item>every first Saturday</item>
+        <item>every second Saturday</item>
+        <item>every third Saturday</item>
+        <item>every fourth Saturday</item>
+        <item>every last Saturday</item>
+    </string-array>
+
+</resources>
