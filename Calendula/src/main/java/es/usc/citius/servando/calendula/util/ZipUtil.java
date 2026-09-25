@@ -35,32 +35,48 @@ public class ZipUtil {
     private static final String TAG = "ZipUtil";
 
     public static void unzip(File archive, File path) throws IOException {
-        ZipInputStream zip = null;
-        BufferedInputStream buffer = null;
-        FileOutputStream output = null;
-        String fileName = null;
-        try {
-            if (!path.exists()) {
-                path.mkdirs();
-            }
-            zip = new ZipInputStream(new FileInputStream(archive));
+        if (!path.exists() && !path.mkdirs()) {
+            throw new IOException("Could not create ZIP destination directory");
+        }
+
+        final String rootPath = path.getCanonicalPath();
+        final String rootPrefix = rootPath.endsWith(File.separator)
+                ? rootPath
+                : rootPath + File.separator;
+
+        try (ZipInputStream zip = new ZipInputStream(
+                new BufferedInputStream(new FileInputStream(archive)))) {
             ZipEntry zipEntry;
             while ((zipEntry = zip.getNextEntry()) != null) {
-                fileName = zipEntry.getName();
-                final File outputFile = new File(path, fileName);
-                String canonicalPath = outputFile.getCanonicalPath();
-                if (!canonicalPath.startsWith(path.getCanonicalPath())) {
-                    throw new IOException("Zip Path Traversal Vulnerability blocked.");
+                final File outputFile = new File(path, zipEntry.getName());
+                final String outputPath = outputFile.getCanonicalPath();
+
+                // A plain startsWith(rootPath) check is insufficient: a sibling such
+                // as "/cache/db-evil" also starts with "/cache/db". Require the
+                // canonical destination itself or a child path separated by the
+                // platform path separator.
+                if (!outputPath.equals(rootPath) && !outputPath.startsWith(rootPrefix)) {
+                    throw new IOException("ZIP entry escapes destination directory");
                 }
-                buffer = new BufferedInputStream(zip);
-                output = new FileOutputStream(outputFile);
-                writeToStream(buffer, output, false);
+
+                if (zipEntry.isDirectory()) {
+                    if (!outputFile.exists() && !outputFile.mkdirs()) {
+                        throw new IOException(
+                                "Could not create ZIP directory: " + zipEntry.getName());
+                    }
+                } else {
+                    File parent = outputFile.getParentFile();
+                    if (parent != null && !parent.exists() && !parent.mkdirs()) {
+                        throw new IOException(
+                                "Could not create ZIP parent directory: " + zipEntry.getName());
+                    }
+                    try (FileOutputStream output = new FileOutputStream(outputFile)) {
+                        writeToStream(zip, output, false);
+                    }
+                }
+
                 zip.closeEntry();
             }
-            zip.close();
-            zip = null;
-        } finally {
-            CloseableUtil.closeQuietly(zip, buffer, output);
         }
     }
 
