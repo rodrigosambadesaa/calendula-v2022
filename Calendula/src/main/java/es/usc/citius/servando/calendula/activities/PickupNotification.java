@@ -70,7 +70,7 @@ public class PickupNotification {
                 context,
                 0,
                 intent,
-                PendingIntent.FLAG_CANCEL_CURRENT);
+                PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         final NotificationCompat.Builder builder = new NotificationCompat.Builder(context, NotificationHelper.CHANNEL_DEFAULT_ID)
 
