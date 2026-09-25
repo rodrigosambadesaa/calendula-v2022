@@ -61,7 +61,7 @@ public class PickupReminderMgr {
         Intent intent = new Intent(ctx, PickupAlarmReceiver.class);
         intent.putExtra(CalendulaApp.INTENT_EXTRA_ACTION, CalendulaApp.ACTION_CHECK_PICKUPS_ALARM);
         int intent_id = "ACTION_CHECK_PICKUPS_ALARM".hashCode();
-        return PendingIntent.getBroadcast(ctx, intent_id, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        return PendingIntent.getBroadcast(ctx, intent_id, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 
 
