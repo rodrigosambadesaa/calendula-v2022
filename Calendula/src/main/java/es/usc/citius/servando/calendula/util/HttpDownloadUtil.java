@@ -26,6 +26,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Reader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
@@ -37,6 +38,8 @@ public class HttpDownloadUtil {
     private static final String TAG = "HttpDownloadUtil";
     private static final int CONNECT_TIMEOUT_MS = 8000;
     private static final int READ_TIMEOUT_MS = 8000;
+    // versions.json is tiny; cap text responses to avoid unbounded memory growth on bad servers.
+    static final int MAX_TEXT_DOWNLOAD_CHARS = 256 * 1024;
 
     /**
      * Backwards-compatible overload. New code should pass a Context explicitly so the request
@@ -95,14 +98,13 @@ public class HttpDownloadUtil {
         HttpURLConnection connection = null;
         try {
             connection = openBackendConnection(context, fileUrl);
-            in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-
-            String str;
-            StringBuilder sb = new StringBuilder();
-            while ((str = in.readLine()) != null) {
-                sb.append(str);
+            final int contentLength = connection.getContentLength();
+            if (contentLength > MAX_TEXT_DOWNLOAD_CHARS) {
+                throw new IOException("Text response exceeds maximum allowed size");
             }
-            return sb.toString();
+
+            in = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8"));
+            return readLimitedText(in, MAX_TEXT_DOWNLOAD_CHARS);
         } catch (IOException e) {
             LogUtil.e(TAG, "downloadFileToText: ", e);
             return null;
@@ -112,6 +114,23 @@ public class HttpDownloadUtil {
                 connection.disconnect();
             }
         }
+    }
+
+    static String readLimitedText(Reader reader, int maxChars) throws IOException {
+        if (maxChars < 0) {
+            throw new IllegalArgumentException("maxChars must be >= 0");
+        }
+
+        StringBuilder sb = new StringBuilder(Math.min(maxChars, 4096));
+        char[] buffer = new char[4096];
+        int read;
+        while ((read = reader.read(buffer)) != -1) {
+            if (sb.length() + read > maxChars) {
+                throw new IOException("Text response exceeds maximum allowed size");
+            }
+            sb.append(buffer, 0, read);
+        }
+        return sb.toString();
     }
 
     private static HttpURLConnection openBackendConnection(
