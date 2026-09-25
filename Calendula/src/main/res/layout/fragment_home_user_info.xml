@@ -141,7 +141,7 @@
 
         </LinearLayout>
 
-        <com.makeramen.RoundedImageView xmlns:app="http://schemas.android.com/apk/res-auto"
+        <com.makeramen.roundedimageview.RoundedImageView xmlns:app="http://schemas.android.com/apk/res-auto"
                                         android:id="@+id/mod_circle"
                                         android:layout_width="45dp"
                                         android:layout_height="45dp"
