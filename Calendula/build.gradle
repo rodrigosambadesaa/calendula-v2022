@@ -68,10 +68,10 @@ def getCustomProguardFiles() {
 }
 
 android {
-    compileSdkVersion 29
+    compileSdkVersion 30
     defaultConfig {
         minSdkVersion 18
-        targetSdkVersion 29
+        targetSdkVersion 30
         versionCode 39
         versionName "2.5.8"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
