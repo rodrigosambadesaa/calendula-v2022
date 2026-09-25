@@ -60,7 +60,7 @@ public class ActiveMedNotification {
 
         Intent intent = new Intent(context, HomePagerActivity.class);
         intent.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_SHOW_ACTIVE_MEDS);
-        PendingIntent pendingIntent = PendingIntent.getActivity(context, NOTIFICATION_ID, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        PendingIntent pendingIntent = PendingIntent.getActivity(context, NOTIFICATION_ID, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         NotificationCompat.InboxStyle inboxStyle = new NotificationCompat.InboxStyle();
 

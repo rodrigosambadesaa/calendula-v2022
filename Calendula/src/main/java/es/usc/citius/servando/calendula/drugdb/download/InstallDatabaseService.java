@@ -197,7 +197,7 @@ public class InstallDatabaseService extends Service {
         PendingIntent pIntent = null;
         if (!silent) {
             Intent activity = new Intent(this, MedicinesActivity.class);
-            pIntent = PendingIntent.getActivity(this, 0, activity, PendingIntent.FLAG_CANCEL_CURRENT);
+            pIntent = PendingIntent.getActivity(this, 0, activity, PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         }
         final Notification notification = getNotification(max, prog, pIntent);
         getNotificationManager().notify(NOTIFICATION_ID, notification);

@@ -200,7 +200,7 @@ public class Agenda {
         // intent our receiver will receive
         Intent intent = new Intent(ctx, AlarmReceiver.class);
         intent.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_DAILY_UPDATE);
-        PendingIntent dailyAlarm = PendingIntent.getBroadcast(ctx, IntentParams.DAILY_UPDATE_ID, intent, PendingIntent.FLAG_CANCEL_CURRENT);
+        PendingIntent dailyAlarm = PendingIntent.getBroadcast(ctx, IntentParams.DAILY_UPDATE_ID, intent, PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         AlarmManager alarmManager = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
         if (alarmManager != null) {
             alarmManager.setRepeating(
@@ -413,7 +413,7 @@ public class Agenda {
                 context,
                 reminder.hashCode(),
                 intent,
-                PendingIntent.FLAG_CANCEL_CURRENT);
+                PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 
     private void cancelAlarm(Context context, EventReminder reminder) {
