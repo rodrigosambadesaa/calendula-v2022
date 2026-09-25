@@ -18,7 +18,6 @@
 
 package es.usc.citius.servando.calendula.pinlock;
 
-import android.content.SharedPreferences;
 import android.util.Base64;
 
 import java.security.GeneralSecurityException;
@@ -31,8 +30,8 @@ import javax.crypto.spec.PBEKeySpec;
 
 import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
+import es.usc.citius.servando.calendula.util.PreferenceUtils;
 import es.usc.citius.servando.calendula.util.security.SecurePrefBundle;
-import es.usc.citius.servando.calendula.util.security.SecuredVault;
 
 
 public class PINManager {
@@ -93,9 +92,9 @@ public class PINManager {
      * Clears PIN info from prefs.
      */
     public static void clearPIN() {
-        SharedPreferences.Editor edit = SecuredVault.INSTANCE.edit();
-        edit.remove(PreferenceKeys.FINGERPRINT_ENABLED.key());
-        edit.apply();
+        PreferenceUtils.edit()
+                .remove(PreferenceKeys.FINGERPRINT_ENABLED.key())
+                .apply();
 
         SecurePrefBundle.INSTANCE
                 .clearPinHash()
