@@ -9,6 +9,8 @@
  */
 package es.usc.citius.servando.calendula.util;
 
+import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -1989,6 +1991,8 @@ public final class ConnectivityAndInternetAccess {
 
     // Low-level capability check only. Call isEffectivelyUsable() when the
     // result must represent application connectivity, including VPN handling.
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    @SuppressLint("WrongConstant")
     private static boolean isUsable(NetworkCapabilities capabilities) {
         if (capabilities == null
                 || !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
@@ -2088,6 +2092,7 @@ public final class ConnectivityAndInternetAccess {
         return false;
     }
 
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     private static boolean isFast(NetworkCapabilities capabilities) {
         return isUsable(capabilities)
                 && capabilities.getLinkDownstreamBandwidthKbps() >= MINIMUM_FAST_KBPS
