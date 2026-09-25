@@ -55,6 +55,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
 import com.mikepenz.community_material_typeface_library.CommunityMaterial;
 import com.mikepenz.iconics.IconicsDrawable;
 
@@ -223,9 +224,15 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
     void lookForQrData(Intent i) {
         String qrData = i.getStringExtra("qr_data");
         if (qrData != null) {
-            PatientLinkWrapper p = new Gson().fromJson(qrData, PatientLinkWrapper.class);
-            if (p == null || TextUtils.isEmpty(p.token)) {
-                LogUtil.w(TAG, "Ignoring patient link QR without a token");
+            final PatientLinkWrapper p;
+            try {
+                p = new Gson().fromJson(qrData, PatientLinkWrapper.class);
+            } catch (JsonParseException e) {
+                LogUtil.w(TAG, "Ignoring malformed patient link QR");
+                return;
+            }
+            if (patientId < 0 || p == null || TextUtils.isEmpty(p.token)) {
+                LogUtil.w(TAG, "Ignoring patient link QR without a valid patient or token");
                 return;
             }
             Snack.show("Usuario vinculado correctamente!", this, Snackbar.LENGTH_LONG);
