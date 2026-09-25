@@ -291,7 +291,7 @@ dependencies {
     implementation 'com.journeyapps:zxing-android-embedded:3.5.0@aar'
 
     // Recurrence processing
-    implementation 'org.dmfs:lib-recur:0.10'
+    implementation 'org.dmfs:lib-recur:0.10.3'
 
     // SQLite ORM
     implementation 'com.j256.ormlite:ormlite-android:5.0'
