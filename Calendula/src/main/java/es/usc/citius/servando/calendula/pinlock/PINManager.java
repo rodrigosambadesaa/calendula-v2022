@@ -19,11 +19,15 @@
 package es.usc.citius.servando.calendula.pinlock;
 
 import android.content.SharedPreferences;
+import android.util.Base64;
 
+import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.util.Random;
+
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 
 import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
@@ -35,7 +39,11 @@ public class PINManager {
 
     private static final String TAG = "PINManager";
     private static final String SALT_PATTERN = "%1$s%2$s";
-    private static Random random;
+    private static final String PBKDF2_PREFIX = "pbkdf2-sha1$";
+    private static final int PBKDF2_ITERATIONS = 100000;
+    private static final int PBKDF2_KEY_LENGTH_BITS = 256;
+    private static final int SALT_LENGTH_BYTES = 20;
+    private static SecureRandom random;
 
     /**
      * Checks if the PIN number matches the currently stored one.
@@ -47,18 +55,29 @@ public class PINManager {
     public static boolean checkPIN(final String pin) throws IllegalStateException {
 
         final String salt = SecurePrefBundle.INSTANCE.getPinSalt();
-        if (salt != null) {
-            final String salted = String.format(SALT_PATTERN, salt, pin);
-            final String hash = calculateHash(salted);
-            if (hash != null) {
-                final String storedHash = SecurePrefBundle.INSTANCE.getPinHash();
-                return storedHash != null && storedHash.equals(hash);
-            } else {
-                throw new RuntimeException("Failed to check PIN number");
-            }
-        } else {
+        final String storedHash = SecurePrefBundle.INSTANCE.getPinHash();
+        if (salt == null || storedHash == null) {
             throw new IllegalStateException("No PIN currently stored!");
         }
+
+        if (storedHash.startsWith(PBKDF2_PREFIX)) {
+            return checkPbkdf2Pin(pin, salt, storedHash);
+        }
+
+        // Legacy versions stored raw SHA-256 bytes and random salt bytes directly
+        // as Java Strings. Preserve that exact derivation only long enough to
+        // validate an existing PIN, then migrate it transparently.
+        final String salted = String.format(SALT_PATTERN, salt, pin);
+        final String legacyHash = calculateLegacyHash(salted);
+        if (legacyHash == null) {
+            throw new RuntimeException("Failed to check PIN number");
+        }
+
+        final boolean matches = storedHash.equals(legacyHash);
+        if (matches) {
+            savePIN(pin);
+        }
+        return matches;
     }
 
     /**
@@ -92,41 +111,86 @@ public class PINManager {
      */
     public static boolean savePIN(final String pin) {
 
-        byte[] saltBytes = new byte[20];
+        byte[] saltBytes = new byte[SALT_LENGTH_BYTES];
         getRandom().nextBytes(saltBytes);
-        final String salt = new String(saltBytes);
+        final String salt = Base64.encodeToString(saltBytes, Base64.NO_WRAP);
 
-        final String salted = String.format(SALT_PATTERN, salt, pin);
+        try {
+            final byte[] derived = derivePbkdf2(pin, saltBytes);
+            final String hash = PBKDF2_PREFIX
+                    + PBKDF2_ITERATIONS
+                    + "$"
+                    + Base64.encodeToString(derived, Base64.NO_WRAP);
 
-        final String hash = calculateHash(salted);
-        if (hash != null) {
             SecurePrefBundle.INSTANCE
                     .setPinHash(hash)
                     .setPinSalt(salt)
                     .apply();
             return true;
-        } else {
+        } catch (GeneralSecurityException e) {
+            LogUtil.e(TAG, "savePIN: failed to derive PIN hash", e);
             return false;
         }
     }
 
-    private static Random getRandom() {
+    private static SecureRandom getRandom() {
         if (random == null) {
             random = new SecureRandom();
         }
         return random;
     }
 
-    private static String calculateHash(String message) {
-
-        MessageDigest md = null;
+    private static boolean checkPbkdf2Pin(
+            String pin,
+            String encodedSalt,
+            String storedHash) {
         try {
-            md = MessageDigest.getInstance("SHA-256");
+            final String[] parts = storedHash.split("\\$", -1);
+            if (parts.length != 3 || !parts[0].equals("pbkdf2-sha1")) {
+                return false;
+            }
+
+            final int iterations = Integer.parseInt(parts[1]);
+            if (iterations != PBKDF2_ITERATIONS) {
+                return false;
+            }
+
+            final byte[] salt = Base64.decode(encodedSalt, Base64.NO_WRAP);
+            final byte[] expected = Base64.decode(parts[2], Base64.NO_WRAP);
+            final byte[] actual = derivePbkdf2(pin, salt);
+            return MessageDigest.isEqual(expected, actual);
+        } catch (IllegalArgumentException | GeneralSecurityException e) {
+            LogUtil.e(TAG, "checkPIN: malformed or unsupported PIN hash", e);
+            return false;
+        }
+    }
+
+    private static byte[] derivePbkdf2(String pin, byte[] salt)
+            throws GeneralSecurityException {
+        final PBEKeySpec spec =
+                new PBEKeySpec(
+                        pin.toCharArray(),
+                        salt,
+                        PBKDF2_ITERATIONS,
+                        PBKDF2_KEY_LENGTH_BITS);
+        try {
+            return SecretKeyFactory
+                    .getInstance("PBKDF2WithHmacSHA1")
+                    .generateSecret(spec)
+                    .getEncoded();
+        } finally {
+            spec.clearPassword();
+        }
+    }
+
+    private static String calculateLegacyHash(String message) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
             md.update(message.getBytes());
             byte byteData[] = md.digest();
             return new String(byteData);
         } catch (NoSuchAlgorithmException e) {
-            LogUtil.e(TAG, "calculateHash: ", e);
+            LogUtil.e(TAG, "calculateLegacyHash: ", e);
             return null;
         }
     }
