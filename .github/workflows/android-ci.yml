@@ -48,6 +48,12 @@ jobs:
       - name: Run unit tests
         run: ./gradlew testCiDebugUnitTest --stacktrace --no-daemon
 
+      - name: Build instrumentation test APK
+        run: ./gradlew -Dorg.gradle.jvmargs=-Xmx3072m assembleCiDebugAndroidTest --stacktrace --no-daemon
+
+      - name: Run Android lint
+        run: ./gradlew lintCiDebug --stacktrace --no-daemon
+
       - name: Upload unit-test reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -56,6 +62,15 @@ jobs:
           path: |
             Calendula/build/reports/tests/testCiDebugUnitTest/
             Calendula/build/test-results/testCiDebugUnitTest/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload lint reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-lint-reports
+          path: Calendula/build/reports/lint-results-*
           if-no-files-found: ignore
           retention-days: 7
 

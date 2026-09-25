@@ -20,10 +20,11 @@ package es.usc.citius.servando.calendula.activities;
 
 import android.content.Intent;
 import androidx.test.platform.app.InstrumentationRegistry;
-import android.test.ActivityInstrumentationTestCase2;
+import androidx.test.rule.ActivityTestRule;
 
 import org.joda.time.LocalTime;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import es.usc.citius.servando.calendula.CalendulaApp;
@@ -34,6 +35,8 @@ import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Routine;
 import es.usc.citius.servando.calendula.util.TestUtils;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.clearText;
 import static androidx.test.espresso.action.ViewActions.click;
@@ -43,23 +46,22 @@ import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
 
-public class RoutinesActivityEditTest extends ActivityInstrumentationTestCase2<RoutinesActivity> {
+public class RoutinesActivityEditTest {
 
     public static final String NAME_BEFORE_EDIT = "breakfast";
     public static final String NAME_AFTER_EDIT = "lunch";
 
+    @Rule
+    public ActivityTestRule<RoutinesActivity> activityRule =
+            new ActivityTestRule<>(RoutinesActivity.class, true, false);
+
     private RoutinesActivity mActivity;
 
-    public RoutinesActivityEditTest() {
-        super(RoutinesActivity.class);
-    }
 
     @Before
     public void setUp() throws Exception {
-        super.setUp();
         CalendulaApp.disableReceivers = true;
-        injectInstrumentation(InstrumentationRegistry.getInstrumentation());
-        DB.init(getInstrumentation().getContext());
+        DB.init(InstrumentationRegistry.getInstrumentation().getTargetContext());
         TestUtils.resetDatabase();
 
         // create routine
@@ -72,9 +74,8 @@ public class RoutinesActivityEditTest extends ActivityInstrumentationTestCase2<R
         // set edit intent
         Intent i = new Intent();
         i.putExtra(CalendulaApp.INTENT_EXTRA_ROUTINE_ID, created.getId());
-        setActivityIntent(i);
 
-        mActivity = getActivity();
+        mActivity = activityRule.launchActivity(i);
         TestUtils.unlockScreen(mActivity);
     }
 

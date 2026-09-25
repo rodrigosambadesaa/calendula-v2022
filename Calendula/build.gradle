@@ -166,20 +166,6 @@ android {
     }
 
 
-    productFlavors {
-        develop {
-            applicationIdSuffix ".dev"
-            dimension "buildType"
-            minSdkVersion 18
-        }
-        product {
-            dimension "buildType"
-        }
-        ci {
-            dimension "buildType"
-            minSdkVersion 18
-        }
-    }
     compileOptions {
         sourceCompatibility = 1.8
         targetCompatibility = 1.8
