@@ -298,12 +298,6 @@ public class WebViewActivity extends CalendulaActivity {
         }.execute();
     }
 
-    private static boolean isRemoteHttpUrl(String targetUrl) {
-        return targetUrl != null
-                && (targetUrl.regionMatches(true, 0, "http://", 0, 7)
-                || targetUrl.regionMatches(true, 0, "https://", 0, 8));
-    }
-
     private boolean consumePreflightApproval(String targetUrl) {
         if (targetUrl != null && targetUrl.equals(preflightApprovedUrl)) {
             preflightApprovedUrl = null;
@@ -425,34 +419,51 @@ public class WebViewActivity extends CalendulaActivity {
         }
 
         @Override
-        public boolean shouldOverrideUrlLoading(WebView view, String url) {
-            // Keep internal navigation in Calendula; delegate external links to another app.
-            if (!pageLoaded || url.contains(WebViewActivity.this.url)) {
-                if (isRemoteHttpUrl(url) && !consumePreflightApproval(url)) {
-                    loadBackendUrl(url, request);
-                    return true;
-                }
-                return false;
-            } else {
-                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
-                return true;
-            }
+        public boolean shouldOverrideUrlLoading(WebView view, String targetUrl) {
+            return handleTopLevelNavigation(targetUrl, Uri.parse(targetUrl));
         }
 
         @RequiresApi(api = Build.VERSION_CODES.N)
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest resourceRequest) {
-            final String targetUrl = resourceRequest.getUrl().toString();
-            if (targetUrl.contains(WebViewActivity.this.url) || resourceRequest.isRedirect()) {
-                if (isRemoteHttpUrl(targetUrl) && !consumePreflightApproval(targetUrl)) {
+            if (resourceRequest == null || resourceRequest.getUrl() == null) {
+                return false;
+            }
+            final Uri targetUri = resourceRequest.getUrl();
+            return handleTopLevelNavigation(targetUri.toString(), targetUri);
+        }
+
+        private boolean handleTopLevelNavigation(String targetUrl, Uri targetUri) {
+            if (WebViewNavigationPolicy.isWebViewLocalUrl(targetUrl)) {
+                return false;
+            }
+
+            if (WebViewNavigationPolicy.shouldOpenInsideWebView(
+                    originalUrl,
+                    targetUrl,
+                    request.isExternalLinksEnabled())) {
+                if (!consumePreflightApproval(targetUrl)) {
                     loadBackendUrl(targetUrl, request);
                     return true;
                 }
                 return false;
-            } else {
-                startActivity(new Intent(Intent.ACTION_VIEW, resourceRequest.getUrl()));
-                return true;
             }
+
+            // Preserve legacy handling for non-HTTP navigation that occurs while the
+            // initial document is still loading. Once a page is visible, delegate
+            // external schemes and cross-origin HTTP(S) links to another app.
+            if (!pageLoaded && !WebViewNavigationPolicy.isRemoteHttpUrl(targetUrl)) {
+                return false;
+            }
+
+            Intent externalIntent = new Intent(Intent.ACTION_VIEW, targetUri);
+            if (externalIntent.resolveActivity(getPackageManager()) != null) {
+                startActivity(externalIntent);
+            } else {
+                LogUtil.w(TAG, "No activity can handle external WebView URI: " + targetUrl);
+                showErrorToast(request.getConnectionErrorMessage());
+            }
+            return true;
         }
 
         @Override
@@ -472,7 +483,7 @@ public class WebViewActivity extends CalendulaActivity {
         }
 
         private WebResourceResponse preflightWebResource(String targetUrl) {
-            if (!isRemoteHttpUrl(targetUrl)) {
+            if (!WebViewNavigationPolicy.isRemoteHttpUrl(targetUrl)) {
                 return null;
             }
             if (NetworkUtils.isBackendAvailable(getApplicationContext(), targetUrl)) {
