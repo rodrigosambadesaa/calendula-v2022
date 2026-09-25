@@ -298,7 +298,7 @@ dependencies {
 
     // Time and date handling
     implementation 'com.fatboyindustrial.gson-jodatime-serialisers:gson-jodatime-serialisers:1.8.0'
-    implementation 'joda-time:joda-time:2.9.7'
+    implementation 'joda-time:joda-time:2.14.4'
 
     // View/resource binding
     kapt "com.jakewharton:butterknife-compiler:$libVersions.butterknife"
