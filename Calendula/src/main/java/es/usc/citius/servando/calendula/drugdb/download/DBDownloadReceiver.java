@@ -60,47 +60,68 @@ public class DBDownloadReceiver extends BroadcastReceiver {
             return;
         }
 
+        final Pair<Integer, String> status =
+                DownloadDatabaseHelper.instance().downloadStatus(completedId, context);
+
+        // ACTION_DOWNLOAD_COMPLETE should normally arrive only for terminal states, but the
+        // receiver is exported for the system DownloadManager broadcast. An unexpected or
+        // spoofed matching-id broadcast must not be able to cancel a legitimate in-progress
+        // database download.
+        if (status == null) {
+            LogUtil.w(TAG, "Ignoring completion broadcast with unavailable download status: " + completedId);
+            return;
+        }
+
+        if (status.first == DownloadManager.STATUS_PENDING
+                || status.first == DownloadManager.STATUS_RUNNING
+                || status.first == DownloadManager.STATUS_PAUSED) {
+            LogUtil.w(TAG, "Ignoring premature completion broadcast for active download: " + completedId);
+            return;
+        }
+
+        if (status.first == DownloadManager.STATUS_FAILED) {
+            LogUtil.d(TAG, "Tracked database download failed: " + completedId);
+            DownloadDatabaseHelper.instance().onDownloadFailed(context);
+            clearTrackedDownload(preferences);
+            return;
+        }
+
+        if (status.first != DownloadManager.STATUS_SUCCESSFUL) {
+            LogUtil.w(TAG, "Ignoring completion broadcast with unknown download status: " + status.first);
+            return;
+        }
+
         final String downloadDb = preferences.getString(PreferenceKeys.DRUGDB_DOWNLOAD_DB.key(), null);
         final String dbVersion = preferences.getString(PreferenceKeys.DRUGDB_DOWNLOAD_VERSION.key(), null);
         final String type = preferences.getString(PreferenceKeys.DRUGDB_DOWNLOAD_TYPE.key(), null);
 
-        try {
-            if (downloadDb == null || dbVersion == null || type == null) {
-                LogUtil.w(TAG, "Tracked database download is missing metadata");
-                DownloadDatabaseHelper.instance().onDownloadFailed(context);
-                return;
-            }
-
-            final Pair<Integer, String> status =
-                    DownloadDatabaseHelper.instance().downloadStatus(completedId, context);
-
-            if (status == null || status.first != DownloadManager.STATUS_SUCCESSFUL || status.second == null) {
-                LogUtil.d(TAG, "Database download failed or has no local path: " + completedId);
-                DownloadDatabaseHelper.instance().onDownloadFailed(context);
-                return;
-            }
-
-            final DBInstallType dbInstallType;
-            try {
-                dbInstallType = DBInstallType.valueOf(type);
-            } catch (IllegalArgumentException e) {
-                LogUtil.e(TAG, "Invalid database install type: " + type, e);
-                DownloadDatabaseHelper.instance().onDownloadFailed(context);
-                return;
-            }
-
-            final androidx.core.util.Pair<String, String> databaseInfo =
-                    new androidx.core.util.Pair<>(downloadDb, dbVersion);
-
-            LogUtil.d(TAG, "Valid database download completed: " + completedId);
-            InstallDatabaseService.startSetup(
-                    context,
-                    status.second,
-                    databaseInfo,
-                    dbInstallType);
-        } finally {
+        if (downloadDb == null || dbVersion == null || type == null || status.second == null) {
+            LogUtil.w(TAG, "Successful tracked database download is missing metadata or local path");
+            DownloadDatabaseHelper.instance().onDownloadFailed(context);
             clearTrackedDownload(preferences);
+            return;
         }
+
+        final DBInstallType dbInstallType;
+        try {
+            dbInstallType = DBInstallType.valueOf(type);
+        } catch (IllegalArgumentException e) {
+            LogUtil.e(TAG, "Invalid database install type: " + type, e);
+            DownloadDatabaseHelper.instance().onDownloadFailed(context);
+            clearTrackedDownload(preferences);
+            return;
+        }
+
+        final androidx.core.util.Pair<String, String> databaseInfo =
+                new androidx.core.util.Pair<>(downloadDb, dbVersion);
+
+        LogUtil.d(TAG, "Valid database download completed: " + completedId);
+        clearTrackedDownload(preferences);
+        InstallDatabaseService.startSetup(
+                context,
+                status.second,
+                databaseInfo,
+                dbInstallType);
     }
 
     private static void clearTrackedDownload(SharedPreferences preferences) {
