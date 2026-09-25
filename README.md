@@ -78,6 +78,29 @@ We use [Android Studio](https://developer.android.com/studio/index.html) (the of
 
 You can also install other packages like emulators for running the app, if you don't have or don't want to use a real device. The current Gradle configuration uses a minimum SDK of *API level 18 (Android 4.3).*
 
+### Maintenance baseline
+
+This fork currently preserves the historical Android compatibility of the 2022 codebase while
+modernizing it incrementally. The validated baseline is:
+
+- **minSdk:** API 18 (Android 4.3)
+- **compileSdk / targetSdk:** API 29
+- **Android Gradle Plugin:** 4.0.1
+- **Gradle:** 6.5.1
+- **Java for the legacy Gradle build:** JDK 8
+
+GitHub Actions uses a newer JDK only for the current Android SDK command-line tools, then switches
+back to JDK 8 for the actual legacy Gradle build.
+
+Dependency updates are therefore intentionally conservative. Dependabot is enabled, but versions
+known to raise the Android minimum SDK, require newer Android resource attributes, change major
+library APIs, or require a newer AGP/Gradle/JDK stack are deferred in `.github/dependabot.yml`.
+Those updates should be handled as coordinated modernization work rather than merged as isolated
+version bumps.
+
+The long-term direction is to modernize the toolchain in explicit, testable stages while keeping
+the app buildable and preserving the provenance of the upstream source.
+
 ### Building and installing the app
 
 First of all you need to get the source code, so clone this repository  on your local machine:
