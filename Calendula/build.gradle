@@ -101,7 +101,9 @@ android {
 
 
     lintOptions {
-        abortOnError false
+        // Keep the legacy warning backlog visible, but never allow new lint
+        // Error/Fatal findings to pass CI silently.
+        abortOnError true
         checkReleaseBuilds false
     }
 
