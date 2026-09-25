@@ -120,6 +120,7 @@ public class AllergiesActivity extends CalendulaActivity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == AllergiesSearchActivity.REQUEST_NEW_ALLERGIES && resultCode == Activity.RESULT_OK) {
             final ArrayList<AllergenGroupWrapper> result = data.getParcelableArrayListExtra("result");
             new SaveAllergiesTask().execute(result);
