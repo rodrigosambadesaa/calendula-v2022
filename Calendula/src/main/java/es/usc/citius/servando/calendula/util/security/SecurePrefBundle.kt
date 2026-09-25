@@ -60,6 +60,14 @@ object SecurePrefBundle {
         return this
     }
 
+    fun setPatientLinkToken(patientId: Long, token: String): SecurePrefBundle {
+        if (bundle.patientLinkTokens == null) {
+            bundle.patientLinkTokens = mutableMapOf()
+        }
+        bundle.patientLinkTokens!![patientId.toString()] = token
+        return this
+    }
+
     fun clearAuthState(): SecurePrefBundle {
         bundle.authState = null
         return this
@@ -80,10 +88,17 @@ object SecurePrefBundle {
         return this
     }
 
+    fun clearPatientLinkToken(patientId: Long): SecurePrefBundle {
+        bundle.patientLinkTokens?.remove(patientId.toString())
+        return this
+    }
+
     fun getAuthState(): String? = bundle.authState
     fun getPinSalt(): String? = bundle.pinSalt
     fun getPinHash(): String? = bundle.pinHash
     fun getInstanceId(): String? = bundle.instanceId
+    fun getPatientLinkToken(patientId: Long): String? =
+        bundle.patientLinkTokens?.get(patientId.toString())
 
     /**
      * Persists the current bundle values to secured shared preferences
@@ -123,6 +138,7 @@ object SecurePrefBundle {
         var pinSalt: String? = null
         var pinHash: String? = null
         var instanceId: String? = null
+        var patientLinkTokens: MutableMap<String, String>? = null
     }
 
 
