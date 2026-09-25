@@ -33,17 +33,23 @@ public class BootReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        LogUtil.d(TAG, "onReceive: " + intent.getAction());
-
-        if (intent.getAction().equals("android.intent.action.BOOT_COMPLETED")) {
-            LogUtil.d(TAG, "Boot completed intent received");
-            // Update alarms
-            Agenda.instance().updateAllAlarms(context);
-            LogUtil.d(TAG, "Alarms updated!");
-        } else if ("android.intent.action.MY_PACKAGE_REPLACED".equals(intent.getAction())) {
-            LogUtil.d(TAG, "Package received intent received");
-            Agenda.instance().updateAllAlarms(context);
+        if (intent == null) {
+            LogUtil.w(TAG, "Ignoring null broadcast intent");
+            return;
         }
 
+        final String action = intent.getAction();
+        LogUtil.d(TAG, "onReceive: " + action);
+
+        if (Intent.ACTION_BOOT_COMPLETED.equals(action)) {
+            LogUtil.d(TAG, "Boot completed intent received");
+            Agenda.instance().updateAllAlarms(context);
+            LogUtil.d(TAG, "Alarms updated!");
+        } else if (Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
+            LogUtil.d(TAG, "Package replaced intent received");
+            Agenda.instance().updateAllAlarms(context);
+        } else {
+            LogUtil.w(TAG, "Ignoring unexpected broadcast action: " + action);
+        }
     }
 }
