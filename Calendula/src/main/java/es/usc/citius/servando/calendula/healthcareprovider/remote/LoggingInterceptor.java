@@ -22,7 +22,7 @@ public class LoggingInterceptor implements Interceptor {
         Request request = chain.request();
 
         long started = System.nanoTime();
-        LogUtil.d(TAG, "--> " + request.method() + " " + request.url());
+        LogUtil.d(TAG, "--> " + request.method() + " " + NetworkLogSanitizer.origin(request.url()));
 
         Response response = chain.proceed(request);
 
@@ -33,7 +33,7 @@ public class LoggingInterceptor implements Interceptor {
                         "<-- %d %s %s (%.1fms)",
                         response.code(),
                         request.method(),
-                        request.url(),
+                        NetworkLogSanitizer.origin(request.url()),
                         elapsedNanos / 1e6d));
 
         return response;

@@ -52,7 +52,7 @@ public class RemoteQueryManager {
                         final Request request = chain.request().newBuilder()
                                 .addHeader("Authorization", String.format("%s %s", TokenResponse.TOKEN_TYPE_BEARER, currentAccessToken))
                                 .build();
-                        LogUtil.d(TAG, "Request: " + request.method() + " " + request.url());
+                        LogUtil.d(TAG, "Request: " + request.method() + " " + NetworkLogSanitizer.origin(request.url()));
                         return chain.proceed(request);
                     }
                 });
