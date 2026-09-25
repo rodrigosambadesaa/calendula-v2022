@@ -29,11 +29,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android SDK 29
+      - name: Install Android SDK 30
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platforms;android-29" "build-tools;29.0.3"
+          "$SDKMANAGER" "platforms;android-30" "build-tools;30.0.3"
 
       - name: Set up JDK 8 for legacy Gradle
         uses: actions/setup-java@v6
