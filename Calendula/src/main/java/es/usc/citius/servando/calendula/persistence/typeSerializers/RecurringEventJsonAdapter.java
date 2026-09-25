@@ -39,6 +39,8 @@ import es.usc.citius.servando.calendula.scheduling.model.recur.RecurringEvent;
 
 public class RecurringEventJsonAdapter extends TypeAdapter<RecurringEvent> {
 
+    private static final String TAG = "RecurringEventJsonAdapter";
+
     private static DateTimeFormatter timeFormat = DateTimeFormat.forPattern("HH:mm");
     private static DateTimeFormatter dateFormat = ISODateTimeFormat.dateTimeNoMillis();
 
