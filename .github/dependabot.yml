@@ -70,9 +70,9 @@ updates:
       # Newer google-services plugin releases require a newer Java/Gradle toolchain.
       - dependency-name: "com.google.gms:google-services"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
-      # 1.2.31+ declares Android minSdk 21, while this baseline preserves API 18.
+      # 1.2.29+ declares Android minSdk 21, while this baseline preserves API 18.
       - dependency-name: "pl.droidsonroids.gif:android-gif-drawable"
-        versions: [">=1.2.31"]
+        versions: [">=1.2.29"]
       # 4.3.0 raises the Android minimum SDK from 18 to 19.
       - dependency-name: "com.journeyapps:zxing-android-embedded"
         versions: ["4.3.0"]
