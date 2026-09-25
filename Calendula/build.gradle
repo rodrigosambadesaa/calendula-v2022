@@ -317,7 +317,7 @@ implementation 'com.roomorama:caldroid:3.0.1'
     implementation 'com.mikepenz:iconics-views:3.2.5@aar'
 
     // Image loading
-    implementation 'com.squareup.picasso:picasso:2.5.2'
+    implementation 'com.squareup.picasso:picasso:2.71828'
 
     // Intro slides
     implementation 'com.heinrichreimersoftware:material-intro:1.5.8'
