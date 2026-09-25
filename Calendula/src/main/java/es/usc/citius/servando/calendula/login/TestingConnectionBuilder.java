@@ -21,6 +21,8 @@ import androidx.annotation.Nullable;
 import android.util.Log;
 
 import net.openid.appauth.Preconditions;
+
+import es.usc.citius.servando.calendula.BuildConfig;
 import net.openid.appauth.connectivity.ConnectionBuilder;
 
 import java.io.IOException;
@@ -73,6 +75,7 @@ public final class TestingConnectionBuilder implements ConnectionBuilder {
     };
 
     public static TestingConnectionBuilder getInstance() {
+        requireDebugBuild();
         if (theInstance == null) {
             theInstance = new TestingConnectionBuilder();
         }
@@ -136,11 +139,20 @@ public final class TestingConnectionBuilder implements ConnectionBuilder {
     }
 
     public static X509TrustManager getTrustManager(){
+        requireDebugBuild();
         return (X509TrustManager)ANY_CERT_MANAGER[0];
     }
 
     public static SSLContext getTrustingContext(){
+        requireDebugBuild();
         return TRUSTING_CONTEXT;
+    }
+
+    private static void requireDebugBuild() {
+        if (!BuildConfig.DEBUG) {
+            throw new IllegalStateException(
+                    "Insecure test transport is forbidden in non-debuggable builds");
+        }
     }
 
 }
