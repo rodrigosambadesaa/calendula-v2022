@@ -59,6 +59,9 @@ updates:
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
       - dependency-name: "org.apache.commons:commons-lang3"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # Newer Commons Text releases trigger an internal crash in the legacy R8 2.0.88 shrinker.
+      - dependency-name: "org.apache.commons:commons-text"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
       - dependency-name: "com.google.zxing:core"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
       # lib-recur uses 0.x versioning; minor jumps can include breaking API/runtime changes.
@@ -67,15 +70,18 @@ updates:
       # Kotlin 2.x requires a coordinated AGP/Gradle/JDK migration.
       - dependency-name: "kotlin_version"
         update-types: ["version-update:semver-major"]
+      # Gradle 7+ belongs to the coordinated AGP/JDK migration; Gradle 9 additionally requires JDK 17.
+      - dependency-name: "gradle-wrapper"
+        versions: [">=7.0"]
       # Newer google-services plugin releases require a newer Java/Gradle toolchain.
       - dependency-name: "com.google.gms:google-services"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
       # 1.2.29+ declares Android minSdk 21, while this baseline preserves API 18.
       - dependency-name: "pl.droidsonroids.gif:android-gif-drawable"
         versions: [">=1.2.29"]
-      # 4.3.0 raises the Android minimum SDK from 18 to 19.
+      # ZXing embedded 4.x raises the Android minimum SDK beyond this API-18 baseline.
       - dependency-name: "com.journeyapps:zxing-android-embedded"
-        versions: ["4.3.0"]
+        update-types: ["version-update:semver-major"]
       # 1.7.11 pulls in AndroidX Core requiring newer compile SDK attributes.
       - dependency-name: "com.squareup:android-times-square"
         versions: ["1.7.11"]
