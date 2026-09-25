@@ -40,7 +40,7 @@ public class AllergenFacade {
 
 
     public static List<AllergenVO> searchForAllergens(final String name) {
-        LogUtil.d(TAG, "searchForAllergens: query received; length=" + (name != null ? name.length() : 0));
+        LogUtil.d(TAG, "searchForAllergens() called with: name = [" + name + "]");
 
         final String pattern = "%" + name + "%";
 
@@ -56,7 +56,7 @@ public class AllergenFacade {
             ret.add(new AllergenVO(excipient));
         }
 
-        LogUtil.d(TAG, "searchForAllergens: returning " + ret.size() + " matches");
+        LogUtil.d(TAG, "searchForAllergens() returned: " + ret);
         return ret;
     }
 
@@ -66,7 +66,7 @@ public class AllergenFacade {
     }
 
     public static List<AllergenVO> findAllergensForPrescription(final String code) {
-        LogUtil.d(TAG, "findAllergensForPrescription: lookup started");
+        LogUtil.d(TAG, "getAllergensForPrescription() called with: p = [" + code + "]");
         List<AllergenVO> ret = new ArrayList<>();
         // active ingredients
         List<PrescriptionActiveIngredient> pais = DB.drugDB().prescriptionActiveIngredients().findBy(PrescriptionActiveIngredient.COLUMN_PRESCRIPTION_CODE, code);
@@ -91,7 +91,7 @@ public class AllergenFacade {
         }
 
 
-        LogUtil.d(TAG, "findAllergensForPrescription: returning " + ret.size() + " allergens");
+        LogUtil.d(TAG, "getAllergensForPrescription() returned: " + ret);
         return ret;
     }
 
@@ -119,7 +119,7 @@ public class AllergenFacade {
      * @return the medicines
      */
     public static List<Medicine> checkNewMedicineAllergies(Context ctx, AllergenVO newAllergen) {
-        LogUtil.d(TAG, "checkNewMedicineAllergies: checking active patient medicines");
+        LogUtil.d(TAG, "checkNewMedicineAllergies() called with: ctx = [" + ctx + "], newAllergen = [" + newAllergen + "]");
 
         List<Medicine> medicines = new ArrayList<>();
 
@@ -132,7 +132,7 @@ public class AllergenFacade {
             }
         }
 
-        LogUtil.d(TAG, "checkNewMedicineAllergies: matched " + medicines.size() + " medicines");
+        LogUtil.d(TAG, "checkNewMedicineAllergies() returned: " + medicines);
         return medicines;
     }
 

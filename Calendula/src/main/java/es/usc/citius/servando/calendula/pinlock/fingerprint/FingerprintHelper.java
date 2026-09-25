@@ -27,7 +27,6 @@ import android.hardware.fingerprint.FingerprintManager;
 import android.os.Build;
 import android.os.CancellationSignal;
 import android.security.keystore.KeyGenParameterSpec;
-import android.security.keystore.KeyPermanentlyInvalidatedException;
 import android.security.keystore.KeyProperties;
 import androidx.annotation.RequiresApi;
 import androidx.core.app.ActivityCompat;
@@ -152,11 +151,20 @@ public class FingerprintHelper {
                     null);
             cipher.init(Cipher.ENCRYPT_MODE, key);
             return true;
-        } catch (KeyPermanentlyInvalidatedException e) {
-            return false;
+        } catch (InvalidKeyException e) {
+            // KeyPermanentlyInvalidatedException was added in API 23. Referencing that
+            // class directly from an API-18-compatible class can make older runtimes
+            // attempt to resolve a type that does not exist. It subclasses
+            // InvalidKeyException, so identify it without a hard class reference.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                    && "android.security.keystore.KeyPermanentlyInvalidatedException"
+                    .equals(e.getClass().getName())) {
+                return false;
+            }
+            throw new RuntimeException("Failed to init Cipher", e);
         } catch (KeyStoreException | CertificateException
                 | UnrecoverableKeyException | IOException
-                | NoSuchAlgorithmException | InvalidKeyException e) {
+                | NoSuchAlgorithmException e) {
             throw new RuntimeException("Failed to init Cipher", e);
         }
     }

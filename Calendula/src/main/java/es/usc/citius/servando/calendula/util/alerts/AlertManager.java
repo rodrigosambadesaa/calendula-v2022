@@ -38,7 +38,7 @@ public class AlertManager {
     private static final String TAG = "AlertManager";
 
     public static void createAlert(final PatientAlert alert) {
-        LogUtil.d(TAG, "createAlert: creating level " + alert.getLevel() + " patient alert");
+        LogUtil.d(TAG, "createAlert() called with: alert = [" + alert + "]");
         DB.alerts().save(alert);
 
         switch (alert.getLevel()) {

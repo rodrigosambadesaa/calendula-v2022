@@ -30,7 +30,7 @@
     <string name="scan_review_text">Please check carefully the scanned prescriptions, modify them if necessary, and confirm when you agree.</string>
     <string name="scan_review_title">Review</string>
     <string name="scan_schedule_changed">This schedule has changed:</string>
-    <string name="scan_schedule_ends_msg">This schedule lasts %1$s days. Check the start and end dates.</string>
+    <string name="scan_schedule_ends_msg">Esta pauta dura %1$s días. Compruebe las fechas de inicio y fin</string>
     <string name="scan_schedules_to_create">%1$s schedules will be created</string>
     <string name="scan_schedules_to_update">%1$s schedules will be updated</string>
 </resources>
