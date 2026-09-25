@@ -18,6 +18,7 @@
 
 package es.usc.citius.servando.calendula.activities;
 
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
@@ -457,9 +458,12 @@ public class WebViewActivity extends CalendulaActivity {
             }
 
             Intent externalIntent = new Intent(Intent.ACTION_VIEW, targetUri);
-            if (externalIntent.resolveActivity(getPackageManager()) != null) {
+            try {
+                // Android 11 limits package visibility for resolver queries. Starting
+                // an implicit activity does not require package visibility, so attempt
+                // the launch directly and handle the no-handler case explicitly.
                 startActivity(externalIntent);
-            } else {
+            } catch (ActivityNotFoundException e) {
                 LogUtil.w(TAG, "No activity can handle external WebView URI: " + targetUrl);
                 showErrorToast(request.getConnectionErrorMessage());
             }
