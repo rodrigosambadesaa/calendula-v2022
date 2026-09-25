@@ -21,6 +21,7 @@ package es.usc.citius.servando.calendula.settings.database
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.annotation.StringRes
 import androidx.core.app.ActivityCompat
@@ -164,11 +165,18 @@ class DatabasePrefsFragment :
     }
 
     override fun hasDownloadPermission(): Boolean {
+        // Files are downloaded with setDestinationInExternalFilesDir(). Android 4.4+
+        // grants apps access to their own external-files directory without storage permission.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            LogUtil.d(TAG, "hasDownloadPermission: app-specific external storage needs no permission")
+            return true
+        }
+
         val hasPermission = ActivityCompat.checkSelfPermission(
                 context!!,
                 android.Manifest.permission.WRITE_EXTERNAL_STORAGE
         ) == PackageManager.PERMISSION_GRANTED
-        LogUtil.d(TAG, "hasDownloadPermission: result is $hasPermission")
+        LogUtil.d(TAG, "hasDownloadPermission: API 18 permission result is $hasPermission")
         return hasPermission
     }
 
