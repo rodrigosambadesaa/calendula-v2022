@@ -19,7 +19,8 @@
 package es.usc.citius.servando.calendula.settings.database
 
 import android.content.Context
-import android.os.AsyncTask
+import android.os.Handler
+import android.os.Looper
 import es.usc.citius.servando.calendula.R
 import es.usc.citius.servando.calendula.drugdb.DBRegistry
 import es.usc.citius.servando.calendula.jobs.CheckDatabaseUpdatesJob
@@ -28,6 +29,7 @@ import es.usc.citius.servando.calendula.settings.CalendulaSettingsActivity
 import es.usc.citius.servando.calendula.util.LogUtil
 import es.usc.citius.servando.calendula.util.PreferenceKeys
 import es.usc.citius.servando.calendula.util.PreferenceUtils
+import kotlin.concurrent.thread
 
 class DatabasePrefsPresenter(
     private var currentDbId: String
@@ -36,7 +38,7 @@ class DatabasePrefsPresenter(
 
 
     companion object {
-        private val TAG = "DatabasePrefsPresenter"
+        private const val TAG = "DatabasePrefsPresenter"
     }
 
     private lateinit var noneId: String
@@ -118,7 +120,15 @@ class DatabasePrefsPresenter(
     }
 
     override fun checkDatabaseUpdate(ctx: Context) {
-        CheckDbUpdateTask(this).execute(ctx)
+        val appContext = ctx.applicationContext
+        thread(name = "database-update-check") {
+            val updateAvailable = CheckDatabaseUpdatesJob().checkForUpdate(appContext)
+            Handler(Looper.getMainLooper()).post {
+                if (!updateAvailable) {
+                    notifyNoUpdate()
+                }
+            }
+        }
     }
 
 
@@ -130,25 +140,5 @@ class DatabasePrefsPresenter(
         view.showDatabaseUpdateNotAvailable()
     }
 
-    class CheckDbUpdateTask(private val presenter: DatabasePrefsPresenter) :
-        AsyncTask<Context, Void, Boolean>() {
-
-
-        override fun doInBackground(vararg params: Context?): Boolean {
-            if (params.size == 1) {
-                val ctx: Context = params[0]!!
-                return CheckDatabaseUpdatesJob().checkForUpdate(ctx)
-            } else {
-                throw IllegalArgumentException("CheckDatabaseTag needs a Context!")
-            }
-        }
-
-        override fun onPostExecute(update: Boolean?) {
-            if (!update!!) {
-                presenter.notifyNoUpdate()
-            }
-        }
-
-    }
 
 }
