@@ -31,6 +31,7 @@ import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
 
+import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime;
 import es.usc.citius.servando.calendula.scheduling.model.recur.RecurringEvent;
@@ -137,7 +138,7 @@ public class RecurringEventJsonAdapter extends TypeAdapter<RecurringEvent> {
             }
             in.endObject();
         } catch (InvalidRecurrenceRuleException e) {
-            e.printStackTrace();
+            LogUtil.e(TAG, "Invalid recurrence rule while deserializing event", e);
         }
         return event;
     }
