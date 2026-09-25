@@ -39,6 +39,8 @@ import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withTagValue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 
 public class MedicinesActivityEditTest {
@@ -65,7 +67,6 @@ public class MedicinesActivityEditTest {
         // set edit intent
         Intent i = new Intent();
         i.putExtra(CalendulaApp.INTENT_EXTRA_MEDICINE_ID, created.getId());
-        setActivityIntent(i);
 
 
         mActivity = activityRule.launchActivity(i);
