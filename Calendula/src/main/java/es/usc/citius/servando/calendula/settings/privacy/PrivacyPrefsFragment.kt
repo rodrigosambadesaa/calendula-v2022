@@ -21,11 +21,13 @@ package es.usc.citius.servando.calendula.settings.privacy
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
+import android.widget.Toast
 import androidx.preference.SwitchPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
 import com.github.javiersantos.materialstyleddialogs.MaterialStyledDialog
 import com.github.javiersantos.materialstyleddialogs.enums.Style
+import com.mikepenz.community_material_typeface_library.CommunityMaterial
 import com.mikepenz.google_material_typeface_library.GoogleMaterial
 import es.usc.citius.servando.calendula.R
 import es.usc.citius.servando.calendula.pinlock.PinLockActivity
@@ -163,7 +165,33 @@ class PrivacyPrefsFragment :
 
 
     override fun showEnableFingerprintDialog() {
-        //TODO
+        MaterialStyledDialog.Builder(context)
+            .setTitle(R.string.fingerprint_setup_dialog_title)
+            .setDescription(R.string.fingerprint_setup_dialog_message)
+            .setHeaderColor(R.color.android_blue)
+            .setStyle(Style.HEADER_WITH_ICON)
+            .withDialogAnimation(true)
+            .setIcon(
+                IconUtils.icon(
+                    context,
+                    CommunityMaterial.Icon.cmd_fingerprint,
+                    R.color.white,
+                    100
+                )
+            )
+            .setPositiveText(R.string.dialog_yes_option)
+            .setNegativeText(R.string.dialog_no_option)
+            .onPositive { dialog, _ ->
+                fingerprintPref?.isChecked = true
+                Toast.makeText(
+                    context,
+                    R.string.fingerprint_setup_dialog_success,
+                    Toast.LENGTH_SHORT
+                ).show()
+                dialog.dismiss()
+            }
+            .onNegative { dialog, _ -> dialog.dismiss() }
+            .show()
     }
 
     override fun verifyPIN(requestCode: Int) {
