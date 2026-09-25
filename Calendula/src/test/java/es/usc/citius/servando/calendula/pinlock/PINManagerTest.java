@@ -15,6 +15,8 @@ import org.robolectric.annotation.Config;
 
 import java.security.MessageDigest;
 
+import es.usc.citius.servando.calendula.util.PreferenceKeys;
+import es.usc.citius.servando.calendula.util.PreferenceUtils;
 import es.usc.citius.servando.calendula.util.security.SecurePrefBundle;
 
 import static org.junit.Assert.assertFalse;
@@ -33,6 +35,18 @@ public class PINManagerTest {
     @After
     public void tearDown() {
         PINManager.clearPIN();
+    }
+
+    @Test
+    public void clearPinAlsoDisablesFingerprintUnlock() {
+        PreferenceUtils.edit()
+                .putBoolean(PreferenceKeys.FINGERPRINT_ENABLED.key(), true)
+                .commit();
+        assertTrue(PreferenceUtils.getBoolean(PreferenceKeys.FINGERPRINT_ENABLED, false));
+
+        PINManager.clearPIN();
+
+        assertFalse(PreferenceUtils.getBoolean(PreferenceKeys.FINGERPRINT_ENABLED, false));
     }
 
     @Test
