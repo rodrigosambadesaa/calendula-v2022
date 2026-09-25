@@ -55,22 +55,22 @@
 
         <activity
             android:name=".activities.MaterialIntroActivity"
-            android:theme="@style/Theme.Intro"/>
+            android:exported="false"\n            android:theme="@style/Theme.Intro"/>
 
         <activity
             android:name=".activities.CheckBatterySavingActivity"
-            android:screenOrientation="portrait"
+            android:exported="false"\n            android:screenOrientation="portrait"
             android:theme="@style/Theme.ModalIntro"/>
 
         <activity
             android:name=".activities.RoutinesActivity"
-            android:label="@string/title_activity_routines"
+            android:exported="false"\n            android:label="@string/title_activity_routines"
             android:screenOrientation="portrait"
             android:theme="@style/AppTheme"
             android:windowSoftInputMode="adjustResize"/>
         <activity
             android:name=".HomePagerActivity"
-            android:label="@string/app_name"
+            android:exported="false"\n            android:label="@string/app_name"
             android:launchMode="singleTask"
             android:screenOrientation="portrait"
             android:theme="@style/AppTheme">
@@ -82,21 +82,22 @@
 
         <activity
             android:name=".activities.MedicineInfoActivity"
-            android:label="@string/title_activity_medicines"
+            android:exported="false"\n            android:label="@string/title_activity_medicines"
             android:screenOrientation="portrait"
             android:theme="@style/AppTheme"/>
         <activity
             android:name=".activities.MedicinesActivity"
-            android:label="@string/title_activity_medicines"
+            android:exported="false"\n            android:label="@string/title_activity_medicines"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustPan"/>
         <activity
             android:name=".activities.MedicinesSearchActivity"
-            android:label="@string/title_activity_medicines_search"
+            android:exported="false"\n            android:label="@string/title_activity_medicines_search"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="stateVisible"/>
         <activity
             android:name=".activities.StartActivity"
+            android:exported="true"
             android:screenOrientation="portrait"
             android:theme="@style/SplashTheme">
             <intent-filter>
@@ -105,16 +106,26 @@
             </intent-filter>
         </activity>
 
-        <receiver android:name=".scheduling.AlarmReceiver"/>
-        <receiver android:name=".scheduling.PickupAlarmReceiver"/>
-        <receiver android:name=".scheduling.NotificationEventReceiver"/>
-        <receiver android:name=".scheduling.BootReceiver">
+        <receiver
+            android:name=".scheduling.AlarmReceiver"
+            android:exported="false"/>
+        <receiver
+            android:name=".scheduling.PickupAlarmReceiver"
+            android:exported="false"/>
+        <receiver
+            android:name=".scheduling.NotificationEventReceiver"
+            android:exported="false"/>
+        <receiver
+            android:name=".scheduling.BootReceiver"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
             </intent-filter>
         </receiver>
-        <receiver android:name=".drugdb.download.DBDownloadReceiver">
+        <receiver
+            android:name=".drugdb.download.DBDownloadReceiver"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.DOWNLOAD_COMPLETE"/>
             </intent-filter>
@@ -126,30 +137,31 @@
 
         <activity
             android:name=".activities.CalendarActivity"
-            android:configChanges="orientation|screenSize"
+            android:exported="false"\n            android:configChanges="orientation|screenSize"
             android:label="@string/title_activity_calendar"/>
         <activity
             android:name=".activities.ScanActivity"
-            android:configChanges="orientation|screenSize"
+            android:exported="false"\n            android:configChanges="orientation|screenSize"
             android:label="ScanActivity" />
 
         <activity
             android:name=".activities.PatientDetailActivity"
-            android:label="@string/title_activity_patient_detail"
+            android:exported="false"\n            android:label="@string/title_activity_patient_detail"
             android:screenOrientation="portrait"
             android:theme="@style/AppTheme"
             android:windowSoftInputMode="adjustResize">
         </activity>
         <activity
             android:name=".activities.AboutActivity"
-            android:label="@string/title_activity_about"/>
+            android:exported="false"\n            android:label="@string/title_activity_about"/>
         <activity
             android:name=".activities.ConfirmActivity"
-            android:launchMode="singleTask"
+            android:exported="false"\n            android:launchMode="singleTask"
             android:theme="@style/AppTheme"/>
 
         <service
             android:name=".scheduling.AlarmIntentService"
+            android:exported="false"
             android:label="AlarmIntentService"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
 
@@ -165,59 +177,61 @@
 
         <activity
             android:name=".activities.WebViewActivity"
-            android:configChanges="orientation|screenSize"
+            android:exported="false"\n            android:configChanges="orientation|screenSize"
             android:label="@string/title_activity_webview"/>
 
         <activity
             android:name=".activities.PdfViewActivity"
-            android:configChanges="orientation|screenSize"
+            android:exported="false"\n            android:configChanges="orientation|screenSize"
             android:label="@string/title_activity_pdfview"/>
 
         <activity
             android:name=".activities.AllergiesActivity"
-            android:label="@string/title_activity_allergies"/>
+            android:exported="false"\n            android:label="@string/title_activity_allergies"/>
         <activity
             android:name=".activities.AllergiesSearchActivity"
-            android:label="@string/title_activity_allergies_search"/>
+            android:exported="false"\n            android:label="@string/title_activity_allergies_search"/>
 
         <activity
             android:name=".notifications.LockScreenAlarmActivity"
-            android:label="@string/title_activity_lock_screen_alarm"
+            android:exported="false"\n            android:label="@string/title_activity_lock_screen_alarm"
             android:launchMode="singleInstance"
             android:noHistory="true"
             android:screenOrientation="portrait"
             android:showOnLockScreen="true"/>
 
         <activity android:name=".pinlock.PinLockActivity"
-            android:screenOrientation="portrait"/>
+            android:exported="false"\n            android:screenOrientation="portrait"/>
 
         <activity
             android:name="es.usc.citius.servando.calendula.settings.CalendulaSettingsActivity"
-            android:theme="@style/SettingsActivityTheme"/>
+            android:exported="false"\n            android:theme="@style/SettingsActivityTheme"/>
 
         <activity
             android:name=".login.LoginActivity"
-            android:screenOrientation="portrait">
+            android:exported="false"\n            android:screenOrientation="portrait">
         </activity>
         <activity
             android:name=".login.LoginReceiveActivity"
-            android:label="@string/app_name"
+            android:exported="false"\n            android:label="@string/app_name"
             android:windowSoftInputMode="stateHidden">
         </activity>
 
         <activity
             android:name=".activities.schedules.ScheduleBuildActivity"
-            android:label="@string/app_name"
+            android:exported="false"\n            android:label="@string/app_name"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="stateHidden">
         </activity>
 
         <activity
             android:name=".login.LogoutActivity"
-            android:screenOrientation="portrait">
+            android:exported="false"\n            android:screenOrientation="portrait">
         </activity>
 
-        <activity android:name=".login.LogoutReceiveActivity">
+        <activity
+            android:name=".login.LogoutReceiveActivity"
+            android:exported="true">
             <intent-filter android:label="calendula_logout_filter">
                 <action android:name="android.intent.action.VIEW"/>
 
@@ -232,6 +246,7 @@
 
         <service
             android:name=".login.InstanceIDService"
+            android:exported="true"
             android:stopWithTask="false">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT"/>
