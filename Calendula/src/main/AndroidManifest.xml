@@ -124,7 +124,7 @@
             android:exported="false"/>
         <receiver
             android:name=".scheduling.BootReceiver"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
@@ -132,7 +132,7 @@
         </receiver>
         <receiver
             android:name=".drugdb.download.DBDownloadReceiver"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.DOWNLOAD_COMPLETE"/>
             </intent-filter>
