@@ -160,7 +160,7 @@ public class PinLockActivity extends CalendulaActivity {
 
             @Override
             public void onPinChange(String currentPin, int pinLength) {
-                LogUtil.v(TAG, "onPinChange() called with: currentPin = [" + currentPin + "], pinLength = [" + pinLength + "]");
+                LogUtil.v(TAG, "onPinChange() called with pinLength = [" + pinLength + "]");
                 indicatorDotView.setMarked(pinLength);
             }
         });
