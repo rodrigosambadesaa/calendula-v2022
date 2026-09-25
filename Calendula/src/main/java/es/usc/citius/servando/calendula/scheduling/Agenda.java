@@ -135,7 +135,7 @@ public class Agenda {
         alarmParams.putLong("reminder_id", reminder.getId());
         // millis to set the alarm
         DateTime dateTime = reminder.getNextTime();
-        LogUtil.d(TAG, "Creating reminder for : " + reminder.getEventType() + " at " + dateTime.toString("dd/MM HH:mm"));
+        LogUtil.d(TAG, "Creating scheduled reminder");
         // intent we should receive on millis
         PendingIntent pendingIntent = getReminderIntent(context, reminder);
         // set the alarm
@@ -159,7 +159,7 @@ public class Agenda {
         // get the r from db
         EventReminder r = DB.eventReminders().findById(reminderId);
         if (r != null) {
-            LogUtil.d(TAG, "Received reminder: " + r.getId() + ", " + r.getDateTime());
+            LogUtil.d(TAG, "Received scheduled reminder");
             sendReminderToReceiver(ctx, r);
         } else {
             LogUtil.w(TAG, "Reminder with id " + reminderId + " not found");
@@ -331,18 +331,7 @@ public class Agenda {
     }
 
     private void logReminders() {
-        LogUtil.d(TAG, "Current reminders -------------------------------");
-        for (EventReminder r : DB.eventReminders().findAll()) {
-            LogUtil.d(TAG, r.getId() + "\t"
-                    + r.getEventType() + "\t"
-                    + r.getPatient().getId() + "\t"
-                    + r.getDateTime().toString(ISODateTimeFormat.dateHourMinute()) + "\t"
-                    + r.getNextTime().toString(ISODateTimeFormat.dateHourMinute())
-            );
-
-        }
-        LogUtil.d(TAG, "-------------------------------------------------");
-
+        LogUtil.d(TAG, "Current reminder count: " + DB.eventReminders().count());
     }
 
     private void onBeforeUpdate(Context context, LocalDate today) {
