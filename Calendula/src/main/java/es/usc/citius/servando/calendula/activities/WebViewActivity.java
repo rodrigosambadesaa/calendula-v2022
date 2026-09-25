@@ -461,6 +461,7 @@ public class WebViewActivity extends CalendulaActivity {
             return blocked != null ? blocked : super.shouldInterceptRequest(view, url);
         }
 
+        @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
         @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest resourceRequest) {
             String targetUrl = resourceRequest != null && resourceRequest.getUrl() != null
