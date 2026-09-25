@@ -331,6 +331,7 @@ public class WebViewActivity extends CalendulaActivity {
                     public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
                         LogUtil.d(TAG, "setupWebView: Unsetting WebViewClient");
                         webView.setWebViewClient(null);
+                        webView.removeJavascriptInterface("HtmlCache");
                         webView.stopLoading();
                         loadingDialog.dismiss();
                         finish();
@@ -534,6 +535,7 @@ public class WebViewActivity extends CalendulaActivity {
         @Override
         public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
             LogUtil.e(TAG, "Received SSL Error when trying to load page");
+            handler.cancel();
             if (!loadError) showErrorToast(request.getConnectionErrorMessage());
             hideLoading();
             loadError=true;
@@ -578,6 +580,7 @@ public class WebViewActivity extends CalendulaActivity {
             handler.post(new Runnable() {
                 @Override
                 public void run() {
+                    webView.removeJavascriptInterface("HtmlCache");
                     webView.setWebViewClient(new CustomWebViewClient(request) {
                                                  @Override
                                                  public void onPageFinished(WebView view, String url) {
