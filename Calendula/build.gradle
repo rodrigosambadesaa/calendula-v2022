@@ -276,7 +276,7 @@ dependencies {
     implementation 'org.greenrobot:eventbus:3.0.0'
 
     // Jobs
-    implementation 'com.evernote:android-job:1.4.3'
+    implementation 'com.evernote:android-job:1.4.2'
 
     // JSON serializing-deserializing
     implementation 'com.google.code.gson:gson:2.8.5'
