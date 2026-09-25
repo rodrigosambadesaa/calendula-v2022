@@ -11,10 +11,11 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
+import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -45,9 +46,19 @@ public class ZipUtilTest {
 
         File extracted = new File(destination, "nested/file.txt");
         assertTrue(extracted.isFile());
-        assertEquals(
-                "safe",
-                new String(Files.readAllBytes(extracted.toPath()), StandardCharsets.UTF_8));
+        assertEquals("safe", readUtf8(extracted));
+    }
+
+    private static String readUtf8(File file) throws IOException {
+        try (FileInputStream input = new FileInputStream(file);
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[256];
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+                output.write(buffer, 0, read);
+            }
+            return new String(output.toByteArray(), StandardCharsets.UTF_8);
+        }
     }
 
     @Test
