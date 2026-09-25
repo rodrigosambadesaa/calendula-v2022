@@ -7,7 +7,7 @@
  *    the Free Software Foundation; either version 3 of the License, or
  *    (at your option) any later version.
  *
- *    This program is distributed in the hope that it will be useful,
+ *    Calendula is distributed in the hope that it will be useful,
  *    but WITHOUT ANY WARRANTY; without even the implied warranty of
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *    GNU General Public License for more details.
@@ -30,8 +30,8 @@ import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
 /**
- * This class receives broadcasts sent from the Android Download Manager
- * when a database download is completed
+ * Receives DownloadManager completion broadcasts for the database download
+ * currently tracked by Calendula.
  */
 public class DBDownloadReceiver extends BroadcastReceiver {
 
@@ -39,29 +39,71 @@ public class DBDownloadReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-
-        long id = intent.getExtras().getLong(DownloadManager.EXTRA_DOWNLOAD_ID);
-        SharedPreferences preferences = PreferenceUtils.instance().preferences();
-        long downloadId = preferences.getLong(PreferenceKeys.DRUGDB_DOWNLOAD_ID.key(), -1);
-        String downloadDb = preferences.getString(PreferenceKeys.DRUGDB_DOWNLOAD_DB.key(), null);
-        String dbVersion = preferences.getString(PreferenceKeys.DRUGDB_DOWNLOAD_VERSION.key(), null);
-        String type = preferences.getString(PreferenceKeys.DRUGDB_DOWNLOAD_TYPE.key(), null);
-
-        androidx.core.util.Pair<String, String> databaseInfo = new androidx.core.util.Pair<>(downloadDb, dbVersion);
-
-        if (downloadId != -1 && downloadDb != null && id == downloadId && dbVersion != null && type != null) {
-            Pair<Integer, String> status = DownloadDatabaseHelper.instance().downloadStatus(id, context);
-            if (status != null && status.first == DownloadManager.STATUS_SUCCESSFUL) {
-                String path = status.second;
-                LogUtil.d(TAG, "onReceive: valid download " + id + ", " + path + ", " + intent.getExtras().getString(DownloadManager.COLUMN_URI));
-                final DBInstallType dbInstallType = DBInstallType.valueOf(type);
-                InstallDatabaseService.startSetup(context, path, databaseInfo, dbInstallType);
-
-            } else {
-                LogUtil.d(TAG, "onReceive: invalid download " + id);
-                DownloadDatabaseHelper.instance().onDownloadFailed(context);
-            }
+        if (intent == null || !DownloadManager.ACTION_DOWNLOAD_COMPLETE.equals(intent.getAction())) {
+            LogUtil.w(TAG, "Ignoring unexpected download broadcast");
+            return;
         }
+
+        final long completedId = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L);
+        if (completedId == -1L) {
+            LogUtil.w(TAG, "Ignoring download completion without a valid download id");
+            return;
+        }
+
+        final SharedPreferences preferences = PreferenceUtils.instance().preferences();
+        final long trackedId = preferences.getLong(PreferenceKeys.DRUGDB_DOWNLOAD_ID.key(), -1L);
+
+        // DownloadManager may deliver completion broadcasts unrelated to the database
+        // currently tracked by Calendula. Never discard our state for a different id.
+        if (trackedId == -1L || completedId != trackedId) {
+            LogUtil.d(TAG, "Ignoring unrelated download completion: " + completedId);
+            return;
+        }
+
+        final String downloadDb = preferences.getString(PreferenceKeys.DRUGDB_DOWNLOAD_DB.key(), null);
+        final String dbVersion = preferences.getString(PreferenceKeys.DRUGDB_DOWNLOAD_VERSION.key(), null);
+        final String type = preferences.getString(PreferenceKeys.DRUGDB_DOWNLOAD_TYPE.key(), null);
+
+        try {
+            if (downloadDb == null || dbVersion == null || type == null) {
+                LogUtil.w(TAG, "Tracked database download is missing metadata");
+                DownloadDatabaseHelper.instance().onDownloadFailed(context);
+                return;
+            }
+
+            final Pair<Integer, String> status =
+                    DownloadDatabaseHelper.instance().downloadStatus(completedId, context);
+
+            if (status == null || status.first != DownloadManager.STATUS_SUCCESSFUL || status.second == null) {
+                LogUtil.d(TAG, "Database download failed or has no local path: " + completedId);
+                DownloadDatabaseHelper.instance().onDownloadFailed(context);
+                return;
+            }
+
+            final DBInstallType dbInstallType;
+            try {
+                dbInstallType = DBInstallType.valueOf(type);
+            } catch (IllegalArgumentException e) {
+                LogUtil.e(TAG, "Invalid database install type: " + type, e);
+                DownloadDatabaseHelper.instance().onDownloadFailed(context);
+                return;
+            }
+
+            final androidx.core.util.Pair<String, String> databaseInfo =
+                    new androidx.core.util.Pair<>(downloadDb, dbVersion);
+
+            LogUtil.d(TAG, "Valid database download completed: " + completedId);
+            InstallDatabaseService.startSetup(
+                    context,
+                    status.second,
+                    databaseInfo,
+                    dbInstallType);
+        } finally {
+            clearTrackedDownload(preferences);
+        }
+    }
+
+    private static void clearTrackedDownload(SharedPreferences preferences) {
         preferences.edit()
                 .remove(PreferenceKeys.DRUGDB_DOWNLOAD_ID.key())
                 .remove(PreferenceKeys.DRUGDB_DOWNLOAD_DB.key())
@@ -69,5 +111,4 @@ public class DBDownloadReceiver extends BroadcastReceiver {
                 .remove(PreferenceKeys.DRUGDB_DOWNLOAD_TYPE.key())
                 .apply();
     }
-
 }
