@@ -61,7 +61,7 @@ public class ScanActivity extends CalendulaActivity {
 
     public void doScan() {
         IntentIntegrator integrator = new IntentIntegrator(this);
-        integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE_TYPES);
+        integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE);
         integrator.setPrompt(getString(R.string.scan_qr));
         //integrator.setResultDisplayDuration(500);
         integrator.initiateScan();
