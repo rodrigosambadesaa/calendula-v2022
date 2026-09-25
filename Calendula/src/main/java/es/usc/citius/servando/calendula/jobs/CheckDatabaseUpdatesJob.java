@@ -93,7 +93,7 @@ public class CheckDatabaseUpdatesJob extends CalendulaJob {
 
         Intent i = new Intent(ctx, UpdateDatabaseService.class);
         i.putExtra(UpdateDatabaseService.EXTRA_DATABASE_ID, database);
-        PendingIntent updateIntent = PendingIntent.getService(ctx, 0, i, 0);
+        PendingIntent updateIntent = PendingIntent.getService(ctx, 0, i, PendingIntent.FLAG_IMMUTABLE);
 
 
         NotificationManagerCompat nManager = NotificationManagerCompat.from(ctx);
