@@ -29,6 +29,7 @@ public class HtmlCacheEntry {
 
     public static final String COLUMN_ID = "_id";
     public static final String COLUMN_HASHCODE = "HashCode";
+    public static final String COLUMN_URL = "Url";
     public static final String COLUMN_TIMESTAMP = "Timestamp";
     public static final String COLUMN_DATA = "Data";
     public static final String COLUMN_TTL = "ttl";
@@ -37,6 +38,9 @@ public class HtmlCacheEntry {
     private Long id;
     @DatabaseField(columnName = COLUMN_HASHCODE, unique = true)
     private Integer hashCode;
+
+    @DatabaseField(columnName = COLUMN_URL)
+    private String url;
 
     @DatabaseField(dataType = DataType.DATE, columnName = COLUMN_TIMESTAMP)
     private Date timestamp;
@@ -50,8 +54,9 @@ public class HtmlCacheEntry {
     public HtmlCacheEntry() {
     }
 
-    public HtmlCacheEntry(Integer hashCode, Date timestamp, String data, Long ttl) {
+    public HtmlCacheEntry(Integer hashCode, String url, Date timestamp, String data, Long ttl) {
         this.hashCode = hashCode;
+        this.url = url;
         this.timestamp = timestamp;
         this.data = data;
         this.ttl = ttl;
@@ -71,6 +76,14 @@ public class HtmlCacheEntry {
 
     public void setHashCode(Integer hashCode) {
         this.hashCode = hashCode;
+    }
+
+    public String getUrl() {
+        return url;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
     }
 
     public Date getTimestamp() {
