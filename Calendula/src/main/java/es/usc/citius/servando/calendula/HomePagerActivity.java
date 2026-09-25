@@ -431,6 +431,7 @@ public class HomePagerActivity extends CalendulaActivity implements
 
     @Override
     public void onNewIntent(Intent newIntent) {
+        super.onNewIntent(newIntent);
         this.setIntent(newIntent);
         processIntent();
     }

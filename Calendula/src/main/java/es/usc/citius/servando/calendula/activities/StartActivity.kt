@@ -23,6 +23,7 @@ import android.app.Activity
 import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import com.afollestad.materialdialogs.DialogAction
 import com.afollestad.materialdialogs.MaterialDialog
@@ -31,6 +32,7 @@ import com.mikepenz.community_material_typeface_library.CommunityMaterial
 import com.mikepenz.iconics.IconicsDrawable
 import es.usc.citius.servando.calendula.R
 import es.usc.citius.servando.calendula.login.LoginActivity
+import es.usc.citius.servando.calendula.login.LogoutHelper
 import es.usc.citius.servando.calendula.pinlock.PINManager
 import es.usc.citius.servando.calendula.pinlock.PinLockActivity
 import es.usc.citius.servando.calendula.pinlock.UnlockStateManager
@@ -103,8 +105,14 @@ class StartActivity : Activity() {
             getString(R.string.vulnerable_environment_dialog_description) + "\n",
             { dialog, _ ->
                 dialog.dismiss()
-                // Clear app data and finish
-                (application.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).clearApplicationUserData()
+                // Clear app data and finish. clearApplicationUserData() was added in API 19;
+                // keep the API-18 compatibility contract with the app's own secure cleanup.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                    (application.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager)
+                        .clearApplicationUserData()
+                } else {
+                    LogoutHelper.clearData(applicationContext)
+                }
                 finish()
             }, null
         )

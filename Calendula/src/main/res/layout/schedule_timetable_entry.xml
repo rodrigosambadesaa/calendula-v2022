@@ -45,7 +45,7 @@
         android:layout_weight="0"
         android:gravity="center_vertical|left"
         tools:text="00"
-        android:textAlignment="center"
+        android:textAlignment="gravity"
         android:textAppearance="?android:attr/textAppearanceMedium"
         android:textColor="@color/android_blue"
         android:textSize="@dimen/routine_label_from_schedule_creation"/>
