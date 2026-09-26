@@ -48,14 +48,16 @@ import es.usc.citius.servando.calendula.healthcareprovider.persistence.RepeatTyp
 import es.usc.citius.servando.calendula.util.LogUtil;
 
 /**
- *
+ * Maps provider dosage data to local schedules.
  */
 public class ScheduleCreator {
 
     private static final String TAG = "ScheduleCreator";
 
-    private static EnumSet after = EnumSet.of(RepeatType.ACD, RepeatType.ACM, RepeatType.ACV);
-    private static EnumSet before = EnumSet.of(RepeatType.PCD, RepeatType.PCM, RepeatType.PCV);
+    private static final EnumSet<RepeatType> BEFORE_MEAL =
+            EnumSet.of(RepeatType.ACD, RepeatType.ACM, RepeatType.ACV);
+    private static final EnumSet<RepeatType> AFTER_MEAL =
+            EnumSet.of(RepeatType.PCD, RepeatType.PCM, RepeatType.PCV);
 
     public static Pair<ScheduleMappingResult, Schedule> fromActiveMed(Long activeMedId) {
         try {
@@ -86,13 +88,17 @@ public class ScheduleCreator {
                 case GENERAL:
                     DB.healthcareProviderDB().dosages().refresh(dosage.entity());
                     Collection<DosageEntryEntity> entries = dosage.entity().getEntries();
-                    LogUtil.d(TAG, "General schedule, entries: " + entries.size());
-                    if (entries == null || entries.size() == 0) {
+                    final int entryCount = entries != null ? entries.size() : 0;
+                    LogUtil.d(TAG, "General schedule, entries: " + entryCount);
+                    if (entries == null || entries.isEmpty()) {
                         throw new IllegalArgumentException("Dosage has no entries!");
                     }
                     DosageEntryEntity e = entries.iterator().next();
                     dosages = new HashMap<>();
                     Timing.UnitsOfTime units = e.getRepeatUnits();
+                    if (units == null) {
+                        throw new IllegalArgumentException("General dosage has no repeat units");
+                    }
                     Freq freq;
                     switch (units) {
                         case H:
@@ -108,10 +114,16 @@ public class ScheduleCreator {
                             throw new IllegalArgumentException("Unsupported repeat units " + units + " for general schedules");
                     }
 
+                    if (e.getRepeatValue() == null || e.getRepeatValue() <= 0) {
+                        throw new IllegalArgumentException("General dosage has invalid repeat value");
+                    }
                     rb.repeatEvery(e.getRepeatValue().intValue(), freq);
 
                     if (freq != Freq.HOURLY) {
                         Routine r = DB.routines().findByPatientAndDailyEvent(patient, RepeatType.CD);
+                        if (r == null) {
+                            throw new IllegalStateException("Lunch routine is unavailable for general schedule");
+                        }
                         rb.atFixedTime(new DailyFixedTime(r.getId(), DailyFixedTime.ReferenceType.ROUTINE));
                         dosages.put(r.getId(), e.getQuantityValue());
                     } else {
@@ -186,6 +198,11 @@ public class ScheduleCreator {
 
     private static void handleDetailedEntry(Patient patient, DosageEntryEntity d, Map<Long, Double> dosages, RecurringEvent.Builder rb) {
 
+        if (d == null || d.getRepeatType() == null) {
+            LogUtil.w(TAG, "Ignoring detailed dosage entry without repeat type");
+            return;
+        }
+
         Routine r = null;
         RepeatType repeatType = d.getRepeatType();
         switch (repeatType) {
@@ -205,33 +222,41 @@ public class ScheduleCreator {
                 r = DB.routines().findByPatientAndDailyEvent(patient, RepeatType.CV);
                 break;
             case TIME_OF_DAY:
-                // ignore
+                if (d.getAt() == null) {
+                    LogUtil.w(TAG, "Ignoring time-of-day dosage entry without a time");
+                    return;
+                }
                 r = DB.routines().findByPatientAndTime(patient, d.getAt());
                 if (r == null) {
                     r = new Routine(d.getAt(), null);
                     r.setPatient(patient);
-                    //r.setAuto(true);
                     DB.routines().save(r);
                 }
                 break;
             default:
-                // ignore
                 break;
         }
 
         if (r != null) {
             DailyFixedTime time = new DailyFixedTime(r.getId(), DailyFixedTime.ReferenceType.ROUTINE);
-            if (after.contains(repeatType)) {
-                time.setOffset(EventInstance.EventOffset.AFTER);
-            } else if (before.contains(repeatType)) {
-                time.setOffset(EventInstance.EventOffset.BEFORE);
-            } else {
-                time.setOffset(EventInstance.EventOffset.NONE);
-            }
+            time.setOffset(eventOffsetForRepeatType(repeatType));
             dosages.put(r.getId(), d.getQuantityValue());
             rb.atFixedTime(time);
         }
 
+    }
+
+    static EventInstance.EventOffset eventOffsetForRepeatType(RepeatType repeatType) {
+        if (repeatType == null) {
+            return EventInstance.EventOffset.NONE;
+        }
+        if (BEFORE_MEAL.contains(repeatType)) {
+            return EventInstance.EventOffset.BEFORE;
+        }
+        if (AFTER_MEAL.contains(repeatType)) {
+            return EventInstance.EventOffset.AFTER;
+        }
+        return EventInstance.EventOffset.NONE;
     }
 
     /**
