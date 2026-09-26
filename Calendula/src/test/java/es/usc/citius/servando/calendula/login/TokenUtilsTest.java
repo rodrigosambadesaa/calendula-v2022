@@ -92,6 +92,19 @@ public class TokenUtilsTest {
     }
 
     @Test
+    public void presentAuthorizedPartyMustMatchEvenWithSingleAudience() throws Exception {
+        JWTClaimsSet mismatchedAzp = baseClaims()
+                .claim("azp", "different-client")
+                .build();
+        JWTClaimsSet matchingAzp = baseClaims()
+                .claim("azp", CLIENT_ID)
+                .build();
+
+        assertFalse(TokenUtils.validateIdTokenClaims(mismatchedAzp, CLIENT_ID, NOW));
+        assertTrue(TokenUtils.validateIdTokenClaims(matchingAzp, CLIENT_ID, NOW));
+    }
+
+    @Test
     public void notBeforeTooFarInFutureIsRejected() throws Exception {
         JWTClaimsSet claims = baseClaims()
                 .notBeforeTime(new Date(NOW_MS + TokenUtils.ID_TOKEN_CLOCK_SKEW_MS + 1L))
