@@ -111,11 +111,12 @@ public class TokenUtils {
             return false;
         }
 
-        if (audience.size() > 1) {
-            final String authorizedParty = claims.getStringClaim("azp");
-            if (!expectedClientId.equals(authorizedParty)) {
-                return false;
-            }
+        final String authorizedParty = claims.getStringClaim("azp");
+        if (authorizedParty != null && !expectedClientId.equals(authorizedParty)) {
+            return false;
+        }
+        if (audience.size() > 1 && authorizedParty == null) {
+            return false;
         }
 
         return true;
