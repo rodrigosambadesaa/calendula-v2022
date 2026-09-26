@@ -29,6 +29,7 @@ import android.text.style.StyleSpan;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.Collection;
+import java.util.Locale;
 
 public class Strings {
 
@@ -46,7 +47,7 @@ public class Strings {
 
     public static String toProperCase(String s) {
         final StringBuilder result = new StringBuilder(s.length());
-        String[] words = s.toLowerCase().split("\\s");
+        String[] words = s.toLowerCase(Locale.ROOT).split("\\s");
         for (int i = 0, l = words.length; i < l; ++i) {
             if (i > 0) result.append(" ");
             String word = words[i];
@@ -62,7 +63,7 @@ public class Strings {
     public static String firstPart(String str) {
         try {
             String[] parts = str.split(" ");
-            String s = parts[0].toLowerCase();
+            String s = parts[0].toLowerCase(Locale.ROOT);
             if ((s.contains("acido") || s.contains("ácido")) && parts.length > 1) {
                 return Strings.toCamelCase(s + " " + parts[1], " ");
             }
@@ -75,7 +76,7 @@ public class Strings {
 
     public static SpannableStringBuilder getHighlighted(String text, String match, int color) {
         final SpannableStringBuilder sb = new SpannableStringBuilder(Strings.toProperCase(text));
-        String t = text.toLowerCase(), m = match.toLowerCase();
+        String t = text.toLowerCase(Locale.ROOT), m = match.toLowerCase(Locale.ROOT);
         int start = t.indexOf(m);
         if (start >= 0) {
             int end = start + match.length();
