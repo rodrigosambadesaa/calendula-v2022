@@ -38,6 +38,7 @@ public class HttpDownloadUtil {
     private static final String TAG = "HttpDownloadUtil";
     private static final int CONNECT_TIMEOUT_MS = 8000;
     private static final int READ_TIMEOUT_MS = 8000;
+    static final int MAX_REDIRECTS = 5;
     // versions.json is tiny; cap text responses to avoid unbounded memory growth on bad servers.
     static final int MAX_TEXT_DOWNLOAD_CHARS = 256 * 1024;
 
@@ -136,26 +137,74 @@ public class HttpDownloadUtil {
     private static HttpURLConnection openBackendConnection(
             Context context,
             String fileUrl) throws IOException {
-        if (!NetworkUtils.isBackendAvailable(context, fileUrl)) {
-            throw new IOException(
-                    "No usable Internet route or backend DNS resolution failed for " + fileUrl);
+        String currentUrl = fileUrl;
+
+        for (int redirects = 0; redirects <= MAX_REDIRECTS; redirects++) {
+            if (!NetworkUtils.isBackendAvailable(context, currentUrl)) {
+                throw new IOException(
+                        "No usable Internet route or backend DNS resolution failed");
+            }
+
+            URL url = new URL(currentUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setInstanceFollowRedirects(false);
+            connection.setRequestMethod("GET");
+            connection.setDoInput(true);
+            connection.setUseCaches(false);
+            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            connection.setReadTimeout(READ_TIMEOUT_MS);
+            connection.connect();
+
+            int responseCode = connection.getResponseCode();
+            if (isRedirectCode(responseCode)) {
+                String location = connection.getHeaderField("Location");
+                connection.disconnect();
+
+                if (location == null || location.trim().isEmpty()) {
+                    throw new IOException("Backend redirect is missing Location header");
+                }
+                if (redirects >= MAX_REDIRECTS) {
+                    throw new IOException("Too many backend redirects");
+                }
+
+                String nextUrl = resolveRedirectUrl(currentUrl, location);
+                if (isHttpsDowngrade(currentUrl, nextUrl)) {
+                    throw new IOException("Refusing HTTPS to HTTP backend redirect");
+                }
+
+                // Do not open the redirected URL here. Loop first so every actual
+                // request destination passes the mandatory VPN-aware backend preflight.
+                currentUrl = nextUrl;
+                continue;
+            }
+
+            if (responseCode < HttpURLConnection.HTTP_OK
+                    || responseCode >= HttpURLConnection.HTTP_MULT_CHOICE) {
+                connection.disconnect();
+                throw new IOException("Backend returned HTTP " + responseCode);
+            }
+            return connection;
         }
 
-        URL url = new URL(fileUrl);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setRequestMethod("GET");
-        connection.setDoInput(true);
-        connection.setUseCaches(false);
-        connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
-        connection.setReadTimeout(READ_TIMEOUT_MS);
-        connection.connect();
+        throw new IOException("Too many backend redirects");
+    }
 
-        int responseCode = connection.getResponseCode();
-        if (responseCode >= HttpURLConnection.HTTP_BAD_REQUEST) {
-            connection.disconnect();
-            throw new IOException(
-                    "Backend returned HTTP " + responseCode + " for " + fileUrl);
-        }
-        return connection;
+    static boolean isRedirectCode(int responseCode) {
+        return responseCode == HttpURLConnection.HTTP_MOVED_PERM
+                || responseCode == HttpURLConnection.HTTP_MOVED_TEMP
+                || responseCode == HttpURLConnection.HTTP_SEE_OTHER
+                || responseCode == 307
+                || responseCode == 308;
+    }
+
+    static String resolveRedirectUrl(String currentUrl, String location) throws IOException {
+        return new URL(new URL(currentUrl), location).toString();
+    }
+
+    static boolean isHttpsDowngrade(String currentUrl, String nextUrl) throws IOException {
+        URL current = new URL(currentUrl);
+        URL next = new URL(nextUrl);
+        return "https".equalsIgnoreCase(current.getProtocol())
+                && "http".equalsIgnoreCase(next.getProtocol());
     }
 }
