@@ -43,7 +43,9 @@ public class WebViewRequest implements Parcelable {
 
     public WebViewRequest(String url) {
         this.url = url;
-        this.customCss = new ArrayList<>();
+        // Null means that no CSS injection is requested. WebViewActivity uses this distinction
+        // to avoid enabling JavaScript during remote page loading unless it is truly needed.
+        this.customCss = null;
         this.customCssOverrides = new HashMap<>();
         this.cacheTTL = new Duration(0);
     }
@@ -66,7 +68,8 @@ public class WebViewRequest implements Parcelable {
             customCss = new ArrayList<>();
             customCss.addAll(Arrays.asList(cssFiles));
         }
-        cacheTTL = Duration.parse(in.readString());
+        final String cacheTtlValue = in.readString();
+        cacheTTL = cacheTtlValue != null ? Duration.parse(cacheTtlValue) : null;
         // read overrides map
         customCssOverrides = new HashMap<>();
         int size = in.readInt();
@@ -89,14 +92,18 @@ public class WebViewRequest implements Parcelable {
         dest.writeByte((byte) (javaScriptEnabled ? 1 : 0));
         dest.writeByte((byte) (externalLinksEnabled ? 1 : 0));
         dest.writeString(cacheType.toString());
-        dest.writeInt(customCss.size());
-        if (customCss.size() > 0) {
-            dest.writeStringArray(customCss.toArray(new String[customCss.size()]));
+        final int cssNumber = customCss != null ? customCss.size() : 0;
+        dest.writeInt(cssNumber);
+        if (cssNumber > 0) {
+            dest.writeStringArray(customCss.toArray(new String[cssNumber]));
         }
-        dest.writeString(cacheTTL.toString());
+        dest.writeString(cacheTTL != null ? cacheTTL.toString() : null);
         // write overrides map
-        dest.writeInt(customCssOverrides.size());
-        for (Map.Entry<String, String> entry : customCssOverrides.entrySet()) {
+        final Map<String, String> overrides = customCssOverrides != null
+                ? customCssOverrides
+                : new HashMap<String, String>();
+        dest.writeInt(overrides.size());
+        for (Map.Entry<String, String> entry : overrides.entrySet()) {
             dest.writeString(entry.getKey());
             dest.writeString(entry.getValue());
         }
@@ -195,7 +202,9 @@ public class WebViewRequest implements Parcelable {
     }
 
     public void setCustomCss(List<String> customCss) {
-        this.customCss = customCss;
+        this.customCss = customCss == null || customCss.isEmpty()
+                ? null
+                : new ArrayList<>(customCss);
     }
 
     public Map<String, String> getCustomCssOverrides() {
@@ -254,7 +263,9 @@ public class WebViewRequest implements Parcelable {
 
 
     public void setCustomCssOverrides(Map<String, String> customCssOverrides) {
-        this.customCssOverrides = customCssOverrides;
+        this.customCssOverrides = customCssOverrides == null
+                ? new HashMap<String, String>()
+                : new HashMap<>(customCssOverrides);
     }
 
     public enum CacheType {
