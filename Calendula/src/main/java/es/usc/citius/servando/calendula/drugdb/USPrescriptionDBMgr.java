@@ -30,6 +30,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
+import java.util.Locale;
 import java.util.concurrent.Callable;
 
 import es.usc.citius.servando.calendula.database.DB;
@@ -51,7 +52,9 @@ public class USPrescriptionDBMgr extends PrescriptionDBMgr {
 
     public Prescription fromCsv(String csvLine, String separator) {
 
-        String[] values = csvLine.split(separator);
+        // Preserve an intentionally empty trailing content column instead of letting
+        // String.split discard it and turning a valid three-column row into two columns.
+        String[] values = csvLine.split(separator, -1);
 
         if (values.length != 3) {
             throw new RuntimeException("Invalid CSV. Input string must contain exactly 3 members. " + csvLine);
@@ -76,15 +79,18 @@ public class USPrescriptionDBMgr extends PrescriptionDBMgr {
 
     @Override
     public Presentation expectedPresentation(Prescription p) {
-        String name = p.getName();
-        String content = p.getContent();
-        return expectedPresentation(name, content);
+        if (p == null) {
+            return null;
+        }
+        return expectedPresentation(p.getName(), p.getContent());
     }
 
     @Override
     public Presentation expectedPresentation(String name, String content) {
 
-        String n = name.toLowerCase() + " " + content.toLowerCase();
+        final String safeName = name != null ? name : "";
+        final String safeContent = content != null ? content : "";
+        final String n = (safeName + " " + safeContent).toLowerCase(Locale.ROOT);
         if (n.contains("tablet")) {
             return Presentation.PILLS;
         } else if (n.contains("capsule")) {
@@ -101,7 +107,7 @@ public class USPrescriptionDBMgr extends PrescriptionDBMgr {
             return Presentation.POMADE;
         } else if (n.contains("spray")) {
             return Presentation.SPRAY;
-        } else if (!n.contains("liquid")) {
+        } else if (n.contains("liquid")) {
             return Presentation.SYRUP;
         }
 
@@ -154,17 +160,16 @@ public class USPrescriptionDBMgr extends PrescriptionDBMgr {
                                 int progress = (int) (((float) i / lines) * 100);
                                 l.onProgressUpdate(progress);
                             }
-                            // exec line content as raw sql
                             Prescription prescription = fromCsv(line, "\\|");
-                            DB.drugDB().prescriptions().save(prescription);
+                            if (prescription != null) {
+                                DB.drugDB().prescriptions().save(prescription);
+                            }
                             i++;
                         }
                     } else {
                         LogUtil.e(TAG, "setup:  database file is empty");
                         throw new IllegalArgumentException("Database file is empty");
                     }
-                } catch (Exception e) {
-                    throw e;
                 } finally {
                     if (br != null) {
                         br.close();
