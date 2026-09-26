@@ -10,9 +10,7 @@ import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.TaskStackBuilder;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-
+import net.openid.appauth.AuthState;
 import net.openid.appauth.TokenResponse;
 
 import org.apache.commons.io.FileUtils;
@@ -32,16 +30,17 @@ import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.events.GetExtraInfoEvent;
 import es.usc.citius.servando.calendula.events.GetExtraInfoEvent.Status;
+import es.usc.citius.servando.calendula.healthcareprovider.util.DBUtil;
 import es.usc.citius.servando.calendula.login.InstanceIDHelper;
 import es.usc.citius.servando.calendula.login.LoginActivity;
 import es.usc.citius.servando.calendula.login.LoginStateManager;
 import es.usc.citius.servando.calendula.login.TestingConnectionBuilder;
 import es.usc.citius.servando.calendula.notifications.NotificationHelper;
-import es.usc.citius.servando.calendula.healthcareprovider.util.DBUtil;
 import es.usc.citius.servando.calendula.util.GsonUtil;
 import es.usc.citius.servando.calendula.util.LogUtil;
-import es.usc.citius.servando.calendula.util.NetworkUtils;
 import es.usc.citius.servando.calendula.util.NetworkPreflightInterceptor;
+import es.usc.citius.servando.calendula.util.NetworkUtils;
+import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 import es.usc.citius.servando.calendula.util.debug.StethoHelper;
 import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
@@ -81,13 +80,14 @@ public class ExtraInfoHelper {
         Status status;
         String url = null;
 
+        final AuthState authState = LoginStateManager.getInstance().getCurrentAuthState();
         // check patient count: there may be a split second when the user is logged in, the DB is installed, but the Patient object hasn't been created yet
-        if (!DBUtil.isValidDB() || !LoginStateManager.getInstance().isLoggedIn() || DB.patients().count() == 0) {
+        if (!DBUtil.isValidDB() || authState == null || DB.patients().count() == 0) {
             LogUtil.w(TAG, "onRunJob: no database or no user logged in");
             status = Status.ERROR_NO_USER_OR_DB;
         } else if (!NetworkUtils.isNetworkAvailable(ctx)) {
             status = Status.ERROR_NO_CONNECTION;
-        } else if (LoginStateManager.getInstance().getCurrentAuthState().getAccessToken() == null) {
+        } else if (authState.getAccessToken() == null) {
             // user is logged in but has not an access token
             // force login next time the user opens the app
             status = Status.ERROR_AUTHORIZATION;
@@ -114,33 +114,22 @@ public class ExtraInfoHelper {
                 final int code = response.code();
                 LogUtil.d(TAG, "ExtraInfoService response code is: " + code);
                 if (response.isSuccessful()) {
-                    ProviderResponse vo = response.body();
-                    //TODO: decodificar el resultado con Gson.
-                    if (vo != null && vo.error != null) {
-                        LogUtil.e(TAG, "Provider returned an error while retrieving extra info");
-                        status = Status.ERROR_GENERIC;
-
-                    } else {
-                          GsonBuilder builder = new GsonBuilder();
-                          Gson gson = builder.create();
-                          ExtraInfo info = gson.fromJson(vo.result, ExtraInfo.class);
-                        if (info.pdf != null) {
-                            byte[] byteStream = Base64.decode(info.pdf, DEFAULT);
-                            try {
-                                File tmpFile = File.createTempFile(FILE_NAME, ".pdf", ctx.getCacheDir());
-                                tmpFile.deleteOnExit();
-                                FileUtils.copyInputStreamToFile(new ByteArrayInputStream(byteStream), tmpFile);
-                                status = Status.SUCCESS;
-                                url = tmpFile.toString();
-                            } catch (IOException e) {
-                                LogUtil.e(TAG, "Error retrieving ExtraInfo:", e);
-                                status = Status.ERROR_GENERIC;
-                            }
-                        }
-                        else{
-                            LogUtil.e(TAG, "Error retrieving ExtraInfo: pdf not present in response");
+                    final ExtraInfo info = parseExtraInfo(response.body());
+                    if (info != null && info.pdf != null && !info.pdf.trim().isEmpty()) {
+                        byte[] byteStream = Base64.decode(info.pdf, DEFAULT);
+                        try {
+                            File tmpFile = File.createTempFile(FILE_NAME, ".pdf", ctx.getCacheDir());
+                            tmpFile.deleteOnExit();
+                            FileUtils.copyInputStreamToFile(new ByteArrayInputStream(byteStream), tmpFile);
+                            status = Status.SUCCESS;
+                            url = tmpFile.toString();
+                        } catch (IOException e) {
+                            LogUtil.e(TAG, "Error retrieving ExtraInfo:", e);
                             status = Status.ERROR_GENERIC;
                         }
+                    } else {
+                        LogUtil.e(TAG, "Error retrieving ExtraInfo: response contains no PDF");
+                        status = Status.ERROR_GENERIC;
                     }
                 } else {
                     LogUtil.e(TAG, "Error retrieving ExtraInfo.");
@@ -169,6 +158,18 @@ public class ExtraInfoHelper {
         return new GetExtraInfoEvent(status, url);
     }
 
+    static ExtraInfo parseExtraInfo(ProviderResponse response) {
+        if (response == null || response.error != null || response.result == null) {
+            return null;
+        }
+        try {
+            return GsonUtil.get().fromJson(response.result, ExtraInfo.class);
+        } catch (RuntimeException e) {
+            LogUtil.e(TAG, "Unable to parse provider extra-info payload", e);
+            return null;
+        }
+    }
+
     /**
      * Creates a retrofit service that is allows to fetch data from the userInfo endpoint
      *
@@ -181,9 +182,10 @@ public class ExtraInfoHelper {
                 .addInterceptor(new Interceptor() {
                     @Override
                     public okhttp3.Response intercept(@NonNull Chain chain) throws IOException {
-                        final String currentAccessToken = LoginStateManager.getInstance().getCurrentAuthState().getAccessToken();
+                        final AuthState state = LoginStateManager.getInstance().getCurrentAuthState();
+                        final String currentAccessToken = state != null ? state.getAccessToken() : null;
                         if (currentAccessToken == null) {
-                            throw new IllegalStateException("Access token is null!");
+                            throw new IOException("Access token is unavailable");
                         }
                         final Request request = chain.request().newBuilder()
                                 .addHeader("Authorization", String.format("%s %s", TokenResponse.TOKEN_TYPE_BEARER, currentAccessToken))
@@ -227,19 +229,22 @@ public class ExtraInfoHelper {
     /**
      * Sends events to notify other parts of the app of a failure
      *
-     * @param status
+     * @param status status to post
+     * @param url optional local URL
      */
     public static void notifyStatusUpdate(GetExtraInfoEvent.Status status, String url) {
         CalendulaApp.eventBus().post(new GetExtraInfoEvent(status, url));
     }
 
     /**
-     * Sends events to notify other parts of the app of a failure
+     * Sends a pre-built event to notify other parts of the app.
      *
-     * @param event
+     * @param event event to post
      */
     public static void notifyStatusUpdate(GetExtraInfoEvent event) {
-
+        if (event != null) {
+            CalendulaApp.eventBus().post(event);
+        }
     }
 
     public static void showLogoutNotification(final Context ctx) {
@@ -257,13 +262,15 @@ public class ExtraInfoHelper {
         PendingIntent resultPendingIntent =
                 stackBuilder.getPendingIntent(
                         0,
-                        PendingIntent.FLAG_UPDATE_CURRENT
+                        PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT)
                 );
         mBuilder.setContentIntent(resultPendingIntent);
         NotificationManager mNotificationManager =
                 (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
 
-        mNotificationManager.notify(NOTIFICATION_LOGIN_REQUIRED, mBuilder.build());
+        if (mNotificationManager != null) {
+            mNotificationManager.notify(NOTIFICATION_LOGIN_REQUIRED, mBuilder.build());
+        }
     }
 }
 
