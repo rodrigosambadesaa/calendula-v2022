@@ -24,6 +24,8 @@ import android.content.Context;
 import org.hl7.fhir.dstu3.model.Timing;
 import org.hl7.fhir.exceptions.FHIRException;
 
+import java.util.Locale;
+
 import es.usc.citius.servando.calendula.R;
 
 /**
@@ -49,15 +51,15 @@ public enum RepeatType {
     /**
      * Used with dosages that are linked to daily events like meals
      */
-    CM("CM"),   // CM	event occurs at breakfast
-    CD("CD"),   // CD	event occurs at lunch
-    CV("CV"),   // CV	event occurs at dinner
-    ACM("ACM"), // ACM	event occurs [offset] before breakfast
-    ACD("ACD"), // ACD	event occurs [offset] before lunch
-    ACV("ACV"), // ACV	event occurs [offset] before dinner
-    PCM("PCM"), // PCM	event occurs [offset] after breakfast
-    PCD("PCD"), // PCD	event occurs [offset] after lunch
-    PCV("PCV"); // PCV	event occurs [offset] after dinner
+    CM("CM"),   // CM event occurs at breakfast
+    CD("CD"),   // CD event occurs at lunch
+    CV("CV"),   // CV event occurs at dinner
+    ACM("ACM"), // ACM event occurs [offset] before breakfast
+    ACD("ACD"), // ACD event occurs [offset] before lunch
+    ACV("ACV"), // ACV event occurs [offset] before dinner
+    PCM("PCM"), // PCM event occurs [offset] after breakfast
+    PCD("PCD"), // PCD event occurs [offset] after lunch
+    PCV("PCV"); // PCV event occurs [offset] after dinner
 
     private final String name;
 
@@ -66,6 +68,9 @@ public enum RepeatType {
     }
 
     public static RepeatType fromEventTiming(Timing.EventTiming timing) {
+        if (timing == null) {
+            throw new IllegalArgumentException("EventTiming cannot be null");
+        }
         String code = timing.toCode();
         switch (code) {
             case "CM":
@@ -79,7 +84,7 @@ public enum RepeatType {
             case "ACD":
                 return ACD;
             case "ACV":
-                return PCV;
+                return ACV;
             case "PCM":
                 return PCM;
             case "PCD":
@@ -137,15 +142,15 @@ public enum RepeatType {
             case CM:
             case ACM:
             case PCM:
-                return context.getString(R.string.routine_breakfast).toLowerCase();
+                return context.getString(R.string.routine_breakfast).toLowerCase(Locale.getDefault());
             case CD:
             case ACD:
             case PCD:
-                return context.getString(R.string.routine_lunch).toLowerCase();
+                return context.getString(R.string.routine_lunch).toLowerCase(Locale.getDefault());
             case CV:
             case ACV:
             case PCV:
-                return context.getString(R.string.routine_dinner).toLowerCase();
+                return context.getString(R.string.routine_dinner).toLowerCase(Locale.getDefault());
             default:
                 return null;
 
