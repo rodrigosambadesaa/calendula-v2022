@@ -7,7 +7,7 @@
  *    the Free Software Foundation; either version 3 of the License, or
  *    (at your option) any later version.
  *
- *    This program is distributed in the hope that it will be useful,
+ *    Calendula is distributed in the hope that it will be useful,
  *    but WITHOUT ANY WARRANTY; without even the implied warranty of
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *    GNU General Public License for more details.
@@ -28,6 +28,7 @@ import org.joda.time.LocalDate;
 
 import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 
 public class PickupReminderMgr {
 
@@ -61,7 +62,11 @@ public class PickupReminderMgr {
         Intent intent = new Intent(ctx, PickupAlarmReceiver.class);
         intent.putExtra(CalendulaApp.INTENT_EXTRA_ACTION, CalendulaApp.ACTION_CHECK_PICKUPS_ALARM);
         int intent_id = "ACTION_CHECK_PICKUPS_ALARM".hashCode();
-        return PendingIntent.getBroadcast(ctx, intent_id, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        return PendingIntent.getBroadcast(
+                ctx,
+                intent_id,
+                intent,
+                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
     }
 
 
