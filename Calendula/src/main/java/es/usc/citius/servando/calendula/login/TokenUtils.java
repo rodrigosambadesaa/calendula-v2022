@@ -33,21 +33,27 @@ public class TokenUtils {
     static final long ID_TOKEN_CLOCK_SKEW_MS = 60_000L;
 
     /**
-     * Verifies the JWT signature against the bundled provider keys.
+     * Verifies the ID token signature and the claims Calendula can validate from its
+     * static legacy OpenID configuration.
      */
     public static boolean verifyToken(final SignedJWT signedJWT) {
-
+        final boolean signatureValid;
         if (!BuildConfig.LOGIN_TOKEN_VERIFY) {
             LogUtil.d(TAG, "verifyToken: Skipping token signature verification.");
-            return true;
+            signatureValid = true;
+        } else {
+            final List<JWTPublicKey> publicKeys = getPublicKeys();
+            signatureValid = verifyWithKeyList(signedJWT, publicKeys);
         }
 
-        final List<JWTPublicKey> publicKeys = getPublicKeys();
+        if (!signatureValid) {
+            LogUtil.d(TAG, "verifyToken() returned false: invalid signature");
+            return false;
+        }
 
-        final boolean ret = verifyWithKeyList(signedJWT, publicKeys);
-
-        LogUtil.d(TAG, "verifyToken() returned: " + ret);
-        return ret;
+        final boolean claimsValid = validateIdTokenClaims(signedJWT);
+        LogUtil.d(TAG, "verifyToken() claims valid = " + claimsValid);
+        return claimsValid;
     }
 
     /**
