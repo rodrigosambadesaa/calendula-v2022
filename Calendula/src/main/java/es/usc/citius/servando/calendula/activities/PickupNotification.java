@@ -32,6 +32,7 @@ import androidx.core.app.NotificationManagerCompat;
 
 import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.notifications.NotificationHelper;
+import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
@@ -70,7 +71,7 @@ public class PickupNotification {
                 context,
                 0,
                 intent,
-                PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                PendingIntentFlags.immutable(PendingIntent.FLAG_CANCEL_CURRENT));
 
         final NotificationCompat.Builder builder = new NotificationCompat.Builder(context, NotificationHelper.CHANNEL_DEFAULT_ID)
 

@@ -41,6 +41,7 @@ import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.healthcareprovider.jobs.UpdateSummary;
 import es.usc.citius.servando.calendula.util.AvatarMgr;
 import es.usc.citius.servando.calendula.util.IntentParams;
+import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
@@ -60,7 +61,11 @@ public class ActiveMedNotification {
 
         Intent intent = new Intent(context, HomePagerActivity.class);
         intent.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_SHOW_ACTIVE_MEDS);
-        PendingIntent pendingIntent = PendingIntent.getActivity(context, NOTIFICATION_ID, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+                context,
+                NOTIFICATION_ID,
+                intent,
+                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
 
         NotificationCompat.InboxStyle inboxStyle = new NotificationCompat.InboxStyle();
 

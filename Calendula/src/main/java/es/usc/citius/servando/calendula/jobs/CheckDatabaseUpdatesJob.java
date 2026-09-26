@@ -36,6 +36,7 @@ import es.usc.citius.servando.calendula.drugdb.download.UpdateDatabaseService;
 import es.usc.citius.servando.calendula.notifications.NotificationHelper;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
@@ -93,7 +94,11 @@ public class CheckDatabaseUpdatesJob extends CalendulaJob {
 
         Intent i = new Intent(ctx, UpdateDatabaseService.class);
         i.putExtra(UpdateDatabaseService.EXTRA_DATABASE_ID, database);
-        PendingIntent updateIntent = PendingIntent.getService(ctx, 0, i, PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent updateIntent = PendingIntent.getService(
+                ctx,
+                0,
+                i,
+                PendingIntentFlags.immutable(0));
 
 
         NotificationManagerCompat nManager = NotificationManagerCompat.from(ctx);
