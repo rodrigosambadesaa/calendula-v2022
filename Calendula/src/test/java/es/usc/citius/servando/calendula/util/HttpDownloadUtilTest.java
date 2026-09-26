@@ -12,6 +12,8 @@ import java.io.IOException;
 import java.io.StringReader;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class HttpDownloadUtilTest {
 
@@ -37,5 +39,48 @@ public class HttpDownloadUtilTest {
     @Test(expected = IllegalArgumentException.class)
     public void readLimitedTextRejectsNegativeLimit() throws Exception {
         HttpDownloadUtil.readLimitedText(new StringReader(""), -1);
+    }
+
+    @Test
+    public void redirectCodesIncludePermanentTemporarySeeOtherAnd307308() {
+        assertTrue(HttpDownloadUtil.isRedirectCode(301));
+        assertTrue(HttpDownloadUtil.isRedirectCode(302));
+        assertTrue(HttpDownloadUtil.isRedirectCode(303));
+        assertTrue(HttpDownloadUtil.isRedirectCode(307));
+        assertTrue(HttpDownloadUtil.isRedirectCode(308));
+        assertFalse(HttpDownloadUtil.isRedirectCode(300));
+        assertFalse(HttpDownloadUtil.isRedirectCode(304));
+        assertFalse(HttpDownloadUtil.isRedirectCode(200));
+    }
+
+    @Test
+    public void relativeRedirectIsResolvedAgainstCurrentBackend() throws Exception {
+        assertEquals(
+                "https://example.test/dbs/versions.json",
+                HttpDownloadUtil.resolveRedirectUrl(
+                        "https://example.test/download/current.json",
+                        "../dbs/versions.json"));
+    }
+
+    @Test
+    public void absoluteRedirectMayChangeHostBeforeNextPreflight() throws Exception {
+        assertEquals(
+                "https://cdn.example.test/db/archive.zip",
+                HttpDownloadUtil.resolveRedirectUrl(
+                        "https://example.test/db/archive.zip",
+                        "https://cdn.example.test/db/archive.zip"));
+    }
+
+    @Test
+    public void httpsToHttpRedirectIsRejectedAsDowngrade() throws Exception {
+        assertTrue(HttpDownloadUtil.isHttpsDowngrade(
+                "https://example.test/db/archive.zip",
+                "http://example.test/db/archive.zip"));
+        assertFalse(HttpDownloadUtil.isHttpsDowngrade(
+                "http://example.test/db/archive.zip",
+                "https://example.test/db/archive.zip"));
+        assertFalse(HttpDownloadUtil.isHttpsDowngrade(
+                "https://example.test/db/archive.zip",
+                "https://cdn.example.test/db/archive.zip"));
     }
 }
