@@ -128,13 +128,6 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
             </intent-filter>
         </receiver>
-        <receiver
-            android:name=".drugdb.download.DBDownloadReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.DOWNLOAD_COMPLETE"/>
-            </intent-filter>
-        </receiver>
 
         <meta-data
             android:name="AEMPS_DB_VERSION"
