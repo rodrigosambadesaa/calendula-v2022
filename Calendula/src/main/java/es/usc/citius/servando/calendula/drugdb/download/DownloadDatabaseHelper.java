@@ -23,6 +23,8 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.Toast;
 
 import es.usc.citius.servando.calendula.R;
@@ -85,9 +87,17 @@ public class DownloadDatabaseHelper {
         builder.create().show();
     }
 
-    public void onDownloadFailed(Context context) {
+    public void onDownloadFailed(final Context context) {
         InstallDatabaseService.isRunning = false;
-        Toast.makeText(context, R.string.download_db_unexpected_error, Toast.LENGTH_LONG).show();
+        new Handler(Looper.getMainLooper()).post(new Runnable() {
+            @Override
+            public void run() {
+                Toast.makeText(context.getApplicationContext(),
+                        R.string.download_db_unexpected_error,
+                        Toast.LENGTH_LONG).show();
+            }
+        });
+
         SharedPreferences settings = PreferenceUtils.instance().preferences();
         settings.edit()
                 .putString(PreferenceKeys.DRUGDB_LAST_VALID.key(),
