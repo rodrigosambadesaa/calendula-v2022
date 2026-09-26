@@ -53,6 +53,7 @@ import es.usc.citius.servando.calendula.scheduling.model.EventReminderReceiver;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.util.IntentParams;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
@@ -200,7 +201,11 @@ public class Agenda {
         // intent our receiver will receive
         Intent intent = new Intent(ctx, AlarmReceiver.class);
         intent.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_DAILY_UPDATE);
-        PendingIntent dailyAlarm = PendingIntent.getBroadcast(ctx, IntentParams.DAILY_UPDATE_ID, intent, PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent dailyAlarm = PendingIntent.getBroadcast(
+                ctx,
+                IntentParams.DAILY_UPDATE_ID,
+                intent,
+                PendingIntentFlags.immutable(PendingIntent.FLAG_CANCEL_CURRENT));
         AlarmManager alarmManager = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
         if (alarmManager != null) {
             alarmManager.setRepeating(
@@ -402,7 +407,7 @@ public class Agenda {
                 context,
                 reminder.hashCode(),
                 intent,
-                PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                PendingIntentFlags.immutable(PendingIntent.FLAG_CANCEL_CURRENT));
     }
 
     private void cancelAlarm(Context context, EventReminder reminder) {
