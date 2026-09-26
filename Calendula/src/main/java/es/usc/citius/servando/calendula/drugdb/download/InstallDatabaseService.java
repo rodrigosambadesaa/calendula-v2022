@@ -54,6 +54,7 @@ import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.util.HttpDownloadUtil;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
@@ -338,7 +339,7 @@ public class InstallDatabaseService extends Service {
         if (!silent) {
             Intent activity = new Intent(this, MedicinesActivity.class);
             pIntent = PendingIntent.getActivity(this, 0, activity,
-                    PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                    PendingIntentFlags.immutable(PendingIntent.FLAG_CANCEL_CURRENT));
         }
         final Notification notification = getNotification(max, prog, pIntent);
         getNotificationManager().notify(NOTIFICATION_ID, notification);
