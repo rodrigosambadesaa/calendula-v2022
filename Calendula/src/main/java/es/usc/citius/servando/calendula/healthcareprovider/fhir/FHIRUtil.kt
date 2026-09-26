@@ -319,10 +319,7 @@ object FHIRUtil {
                             repeat.hasTimeOfDay() -> {
                                 val timeType = repeat.timeOfDay[0]
                                 val timeStr = timeType.asStringValue()
-                                val timePattern = if (timeStr.length > 5) "kk:mm:ss" else "kk:mm"
-                                val time =
-                                    LocalTime.parse(timeStr, DateTimeFormat.forPattern(timePattern))
-                                entryBuilder.repeatAt(time)
+                                entryBuilder.repeatAt(parseFhirLocalTime(timeStr))
                             }
                             else -> throw RuntimeException("Detailed dosage instructions must have 'when' or 'timeOfDay'")
                         }
@@ -377,6 +374,13 @@ object FHIRUtil {
             throw RuntimeException(e)
         }
 
+    }
+
+    internal fun parseFhirLocalTime(timeStr: String): LocalTime {
+        // FHIR time uses a 00-23 hour. Joda's `kk` pattern uses clock-hour-of-day 1-24,
+        // which rejects a valid midnight value such as 00:00. Use `HH` instead.
+        val timePattern = if (timeStr.length > 5) "HH:mm:ss" else "HH:mm"
+        return LocalTime.parse(timeStr, DateTimeFormat.forPattern(timePattern))
     }
 
     @Throws(FHIRException::class)
