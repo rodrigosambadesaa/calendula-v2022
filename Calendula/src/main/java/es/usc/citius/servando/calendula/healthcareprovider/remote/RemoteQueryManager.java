@@ -40,8 +40,8 @@ public class RemoteQueryManager {
 
     private RemoteQueryManager() {
 
-        final OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder()
-                .addInterceptor(new NetworkPreflightInterceptor(CalendulaApp.getContext()))
+        final OkHttpClient.Builder clientBuilder = NetworkPreflightInterceptor.installOn(
+                new OkHttpClient.Builder(), CalendulaApp.getContext())
                 .addInterceptor(new Interceptor() {
                     @Override
                     public okhttp3.Response intercept(@NonNull Chain chain) throws IOException {
