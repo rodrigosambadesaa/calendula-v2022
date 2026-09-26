@@ -87,7 +87,11 @@ public class DownloadDatabaseHelper {
         builder.create().show();
     }
 
-    public void onDownloadFailed(final Context context) {
+    public void onDownloadFailed(Context context) {
+        onDownloadFailed(context, true);
+    }
+
+    public void onDownloadFailed(final Context context, boolean clearDatabaseSelection) {
         InstallDatabaseService.isRunning = false;
         new Handler(Looper.getMainLooper()).post(new Runnable() {
             @Override
@@ -98,13 +102,16 @@ public class DownloadDatabaseHelper {
             }
         });
 
-        SharedPreferences settings = PreferenceUtils.instance().preferences();
-        settings.edit()
-                .putString(PreferenceKeys.DRUGDB_LAST_VALID.key(),
-                        context.getString(R.string.database_none_id))
-                .putString(PreferenceKeys.DRUGDB_CURRENT_DB.key(),
-                        context.getString(R.string.database_none_id))
-                .apply();
+        if (clearDatabaseSelection) {
+            SharedPreferences settings = PreferenceUtils.instance().preferences();
+            settings.edit()
+                    .putString(PreferenceKeys.DRUGDB_LAST_VALID.key(),
+                            context.getString(R.string.database_none_id))
+                    .putString(PreferenceKeys.DRUGDB_CURRENT_DB.key(),
+                            context.getString(R.string.database_none_id))
+                    .apply();
+        }
+
         Intent bcIntent = new Intent(InstallDatabaseService.ACTION_ERROR);
         bcIntent.setPackage(context.getPackageName());
         context.sendBroadcast(bcIntent);
