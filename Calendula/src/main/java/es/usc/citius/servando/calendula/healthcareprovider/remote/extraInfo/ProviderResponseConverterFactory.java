@@ -5,6 +5,7 @@ import androidx.annotation.Nullable;
 import org.hl7.fhir.dstu3.model.Bundle;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 
@@ -47,11 +48,20 @@ public class ProviderResponseConverterFactory extends Converter.Factory {
 
         @Override
         public ProviderResponse convert(ResponseBody value) throws IOException {
-            final String theBody = value.string();
-//            StringReader reader = new StringReader(theBody);
-            ProviderResponse response = GsonUtil.get().fromJson(theBody, ProviderResponse.class);
-            return response;
-
+            Reader reader = null;
+            try {
+                // Parse directly from the response stream. Calling ResponseBody.string()
+                // materializes another full copy of the JSON/Base64 payload before Gson
+                // creates the ProviderResponse, which is especially expensive for PDF data.
+                reader = value.charStream();
+                return GsonUtil.get().fromJson(reader, ProviderResponse.class);
+            } finally {
+                if (reader != null) {
+                    reader.close();
+                } else {
+                    value.close();
+                }
+            }
         }
     }
 
