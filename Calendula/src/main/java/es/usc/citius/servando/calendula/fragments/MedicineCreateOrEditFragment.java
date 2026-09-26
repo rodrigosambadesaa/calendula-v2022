@@ -324,7 +324,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
     }
 
     public void setMedicne(Medicine r) {
-        LogUtil.d(TAG, "Medicine set: " + r.getName());
+        LogUtil.d(TAG, "Medicine selected for editing");
         mMedicine = r;
         mNameTextView.setText(mMedicine.getName());
         mPresentationTv.setText(": " + mMedicine.getPresentation().getName(getResources()));
@@ -654,7 +654,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
             boolean ret = false;
             if (others != null && others.size() > 0) {
                 if (others.size() > 1) //should not happen
-                    LogUtil.e(TAG, "checkIfDuplicate: multiple duplicates detected for medicine: " + m);
+                    LogUtil.e(TAG, "checkIfDuplicate: multiple duplicate medicine records detected");
                 final Medicine other = others.get(0);
                 ret = !other.getId().equals(m.getId());
             }

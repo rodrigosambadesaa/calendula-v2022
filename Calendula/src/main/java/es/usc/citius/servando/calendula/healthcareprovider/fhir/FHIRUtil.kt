@@ -195,7 +195,7 @@ object FHIRUtil {
                             if (g != null) {
                                 dcpfvo.homogeneousGroup = g
                             } else {
-                                LogUtil.e(TAG, "genVOsFromResponse: DCPF not found in database: " + code)
+                                LogUtil.e(TAG, "genVOsFromResponse: DCPF not found in database")
                             }
                         } else {
                             LogUtil.e(TAG, "genVOsFromResponse: No valid database!")
@@ -209,7 +209,7 @@ object FHIRUtil {
                             if (p != null) {
                                 cnvo.prescription = p
                             } else {
-                                LogUtil.e(TAG, "genVOsFromResponse: Prescription not found in database: " + code)
+                                LogUtil.e(TAG, "genVOsFromResponse: Prescription not found in database")
                             }
                         } else {
                             LogUtil.e(TAG, "genVOsFromResponse: No valid database!")

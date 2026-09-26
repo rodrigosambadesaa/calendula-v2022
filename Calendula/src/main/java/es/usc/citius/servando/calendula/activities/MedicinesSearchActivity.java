@@ -261,7 +261,7 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
 
             @Override
             public void afterTextChanged(Editable s) {
-                LogUtil.d(TAG, "afterTextChanged: " + s.toString());
+                LogUtil.d(TAG, "Medicine search query changed; length=" + s.length());
                 clearSearchButton.setVisibility(s.length() > 0 ? View.VISIBLE : View.GONE);
                 progressBar.setVisibility(View.VISIBLE);
                 addCustomMedFooter.setVisibility(View.GONE);
@@ -344,7 +344,7 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
             String contents = data.getStringExtra(Intents.Scan.RESULT);
             String format = data.getStringExtra(Intents.Scan.RESULT_FORMAT);
             // Handle successful scan
-            LogUtil.d(TAG, "onActivityResult: " + contents + ", " + format);
+            LogUtil.d(TAG, "Barcode scan completed; format present=" + (format != null));
             if (contents != null) {
                 final Prescription p = getPrescriptionFromBarcode(contents);
                 if (p != null) {
@@ -357,7 +357,7 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
                         }
                     });
                 } else {
-                    LogUtil.d(TAG, "onCreate: " + p);
+                    LogUtil.d(TAG, "No prescription matched scanned barcode");
                     Toast.makeText(this, R.string.medicine_not_found_error, Toast.LENGTH_SHORT).show();
                 }
             } else {
@@ -395,7 +395,7 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
     private Prescription getPrescriptionFromBarcode(String barcode) {
         int len = barcode.length();
         String cn = len > 6 ? barcode.substring(len - 7, len - 1) : null;
-        LogUtil.d(TAG, "getPrescriptionFromBarcode: " + cn);
+        LogUtil.d(TAG, "Looking up prescription from scanned barcode");
         return DB.drugDB().prescriptions().findByCn(cn);
     }
 
