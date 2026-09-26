@@ -37,7 +37,6 @@ import es.usc.citius.servando.calendula.settings.CalendulaPrefsFragment
 import es.usc.citius.servando.calendula.util.LogUtil
 import es.usc.citius.servando.calendula.util.PreferenceKeys
 import es.usc.citius.servando.calendula.util.PreferenceUtils
-import kotlinx.android.synthetic.main.fragment_schedule_import.*
 
 
 /**
