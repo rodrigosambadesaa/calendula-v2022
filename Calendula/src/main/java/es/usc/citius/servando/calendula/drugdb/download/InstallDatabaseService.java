@@ -7,7 +7,7 @@
  *    the Free Software Foundation; either version 3 of the License, or
  *    (at your option) any later version.
  *
- *    This program is distributed in the hope that it will be useful,
+ *    Calendula is distributed in the hope that it will be useful,
  *    but WITHOUT ANY WARRANTY; without even the implied warranty of
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *    GNU General Public License for more details.
@@ -26,12 +26,14 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.IBinder;
-import androidx.core.app.JobIntentService;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.util.Pair;
 
 import com.mikepenz.google_material_typeface_library.GoogleMaterial;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.R;
@@ -50,7 +52,11 @@ import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
 /**
- * An {@link JobIntentService} subclass for handling asynchronous database setup tasks
+ * Foreground service for prescription database setup/update work.
+ *
+ * Heavy ZIP/SQLite work must never run directly from {@link #onStartCommand}, which is
+ * invoked on the application's main thread. A single-thread executor also preserves the
+ * historical serialization of database install/update operations.
  */
 public class InstallDatabaseService extends Service {
 
@@ -65,11 +71,11 @@ public class InstallDatabaseService extends Service {
     private static final String EXTRA_SILENT = "calendula.persistence.medDatabases.extra.SILENT";
     public static int NOTIFICATION_ID = "InstallDatabaseService".hashCode();
     public static boolean isRunning = false;
+
+    private final ExecutorService databaseExecutor = Executors.newSingleThreadExecutor();
     private NotificationCompat.Builder mBuilder;
     private NotificationManagerCompat mNotifyManager;
-
     private boolean silent = false;
-    private static final int JOB_ID = 1;
 
     public static void startSetup(Context context, String dbPath, Pair<String, String> databaseInfo, DBInstallType type) {
         startSetup(context, dbPath, databaseInfo, type, false);
@@ -99,24 +105,46 @@ public class InstallDatabaseService extends Service {
     }
 
     @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
+    public int onStartCommand(Intent intent, int flags, final int startId) {
         if (intent == null) {
             LogUtil.w(TAG, "Ignoring null service intent");
+            stopSelf(startId);
             return Service.START_NOT_STICKY;
         }
+
         final String action = intent.getAction();
-        if (ACTION_SETUP.equals(action) || ACTION_UPDATE.equals(action)) {
-            startForeground(NOTIFICATION_ID, getNotification(100, 0, null));
-            final String dbPath = intent.getStringExtra(EXTRA_DB_PATH);
-            final String dbPref = intent.getStringExtra(EXTRA_DB_PREF_VALUE);
-            final String dbVersion = intent.getStringExtra(EXTRA_DB_VERSION);
-            this.silent = intent.getBooleanExtra(EXTRA_SILENT, false);
-            handleSetup(dbPath, dbPref, dbVersion);
-            if (ACTION_UPDATE.equals(action)) {
-                checkForInvalidData();
-                CalendulaApp.eventBus().post(new PersistenceEvents.DatabaseUpdateEvent());
-            }
+        if (!ACTION_SETUP.equals(action) && !ACTION_UPDATE.equals(action)) {
+            LogUtil.w(TAG, "Ignoring unsupported database service action");
+            stopSelf(startId);
+            return Service.START_NOT_STICKY;
         }
+
+        // Foreground-service requirements are satisfied immediately on the main thread;
+        // expensive database work is dispatched only after the notification is active.
+        startForeground(NOTIFICATION_ID, getNotification(100, 0, null));
+
+        final String dbPath = intent.getStringExtra(EXTRA_DB_PATH);
+        final String dbPref = intent.getStringExtra(EXTRA_DB_PREF_VALUE);
+        final String dbVersion = intent.getStringExtra(EXTRA_DB_VERSION);
+        final boolean requestSilent = intent.getBooleanExtra(EXTRA_SILENT, false);
+
+        databaseExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    silent = requestSilent;
+                    handleSetup(dbPath, dbPref, dbVersion);
+                    if (ACTION_UPDATE.equals(action)) {
+                        checkForInvalidData();
+                        CalendulaApp.eventBus().post(new PersistenceEvents.DatabaseUpdateEvent());
+                    }
+                } finally {
+                    // stopSelf(startId) does not terminate a newer queued start request.
+                    stopSelf(startId);
+                }
+            }
+        });
+
         return Service.START_NOT_STICKY;
     }
 
@@ -137,12 +165,9 @@ public class InstallDatabaseService extends Service {
         if (anyMissing) {
             notifyDataMissing();
         }
-
     }
 
-
     private void notifyDataMissing() {
-
         mBuilder = new NotificationCompat.Builder(this, NotificationHelper.CHANNEL_DEFAULT_ID)
                 .setTicker("")
                 .setSmallIcon(R.drawable.ic_launcher_white)
@@ -158,9 +183,10 @@ public class InstallDatabaseService extends Service {
     private void handleSetup(final String dbPath, final String dbPref, final String dbVersion) {
         try {
             isRunning = true;
-            // get a reference to  the selected dbManager
             final PrescriptionDBMgr mgr = DBRegistry.instance().db(dbPref);
-            // call mgr setup in order to let it insert prescriptions data
+            if (mgr == null) {
+                throw new IllegalArgumentException("Unknown prescription database");
+            }
             mgr.setup(InstallDatabaseService.this, dbPath, new PrescriptionDBMgr.SetupProgressListener() {
                 @Override
                 public void onProgressUpdate(int progress) {
@@ -191,9 +217,7 @@ public class InstallDatabaseService extends Service {
         }
     }
 
-
     private void showNotification(int max, int prog) {
-
         PendingIntent pIntent = null;
         if (!silent) {
             Intent activity = new Intent(this, MedicinesActivity.class);
@@ -206,7 +230,7 @@ public class InstallDatabaseService extends Service {
     private Notification getNotification(int max, int prog, PendingIntent pIntent) {
         mBuilder = new NotificationCompat.Builder(this, NotificationHelper.CHANNEL_SETUP_ID)
                 .setTicker("")
-                .setSmallIcon(android.R.drawable.stat_sys_download) //stat_notify_sync
+                .setSmallIcon(android.R.drawable.stat_sys_download)
                 .setTicker(getString(R.string.install_db_notification_ticker))
                 .setAutoCancel(false)
                 .setContentIntent(pIntent)
@@ -264,8 +288,13 @@ public class InstallDatabaseService extends Service {
     }
 
     @Override
+    public void onDestroy() {
+        databaseExecutor.shutdownNow();
+        super.onDestroy();
+    }
+
+    @Override
     public IBinder onBind(Intent intent) {
-        // Used only in case of bound services.
         return null;
     }
 }
