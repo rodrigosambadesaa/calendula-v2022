@@ -162,7 +162,7 @@ public class InstallDatabaseService extends Service {
                         success = type != null && handleDownloadAndSetup(dbPref, type);
                     } else {
                         type = ACTION_UPDATE.equals(action) ? DBInstallType.UPDATE : DBInstallType.SETUP;
-                        success = handleSetup(dbPath, dbPref, dbVersion);
+                        success = handleSetup(dbPath, dbPref, dbVersion, type);
                     }
 
                     if (success) {
@@ -172,7 +172,7 @@ public class InstallDatabaseService extends Service {
                         }
                         onComplete();
                     } else if (type == null) {
-                        failDatabaseOperation("Invalid database install type", null);
+                        failDatabaseOperation("Invalid database install type", null, DBInstallType.SETUP);
                     }
                 } finally {
                     stopSelf(startId);
@@ -234,7 +234,7 @@ public class InstallDatabaseService extends Service {
             }
 
             final boolean setupSucceeded =
-                    handleSetup(destination.getAbsolutePath(), dbName, dbVersion);
+                    handleSetup(destination.getAbsolutePath(), dbName, dbVersion, type);
             if (!setupSucceeded && destination.exists() && !destination.delete()) {
                 LogUtil.w(TAG, "Unable to remove failed database download");
             }
@@ -243,12 +243,13 @@ public class InstallDatabaseService extends Service {
             if (destination != null && destination.exists() && !destination.delete()) {
                 LogUtil.w(TAG, "Unable to remove partial database download");
             }
-            failDatabaseOperation("Database download/setup failed", e);
+            failDatabaseOperation("Database download/setup failed", e, type);
             return false;
         }
     }
 
-    private boolean handleSetup(final String dbPath, final String dbPref, final String dbVersion) {
+    private boolean handleSetup(final String dbPath, final String dbPref,
+                                final String dbVersion, final DBInstallType type) {
         try {
             if (dbPath == null || dbPref == null || dbVersion == null) {
                 throw new IllegalArgumentException("Missing database setup metadata");
@@ -278,7 +279,6 @@ public class InstallDatabaseService extends Service {
             try {
                 DB.drugDB().prescriptions().executeRaw("VACUUM;");
             } catch (Exception e) {
-                // The imported database remains valid even if this optional maintenance step fails.
                 LogUtil.w(TAG, "Database installed but VACUUM failed");
             }
 
@@ -286,18 +286,19 @@ public class InstallDatabaseService extends Service {
                     + DB.drugDB().prescriptions().count() + " prescriptions");
             return true;
         } catch (Exception e) {
-            failDatabaseOperation("Error while saving prescription data", e);
+            failDatabaseOperation("Error while saving prescription data", e, type);
             return false;
         }
     }
 
-    private void failDatabaseOperation(String message, Exception error) {
+    private void failDatabaseOperation(String message, Exception error, DBInstallType type) {
         if (error != null) {
             LogUtil.e(TAG, message, error);
         } else {
             LogUtil.e(TAG, message);
         }
-        DownloadDatabaseHelper.instance().onDownloadFailed(this);
+        final boolean clearDatabaseSelection = type != DBInstallType.UPDATE;
+        DownloadDatabaseHelper.instance().onDownloadFailed(this, clearDatabaseSelection);
         onFailure();
     }
 
@@ -307,8 +308,7 @@ public class InstallDatabaseService extends Service {
         for (Medicine m : DB.medicines().findAll()) {
             if (m.isBoundToPrescription()) {
                 final String cn = m.getCn();
-                final Prescription byCn =
-                        DB.drugDB().prescriptions().findByCn(cn);
+                final Prescription byCn = DB.drugDB().prescriptions().findByCn(cn);
                 if (byCn == null) {
                     anyMissing = true;
                     m.setCn(null);
