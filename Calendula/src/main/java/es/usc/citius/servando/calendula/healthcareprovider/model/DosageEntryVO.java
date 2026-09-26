@@ -20,6 +20,7 @@ package es.usc.citius.servando.calendula.healthcareprovider.model;
 
 
 import android.content.Context;
+import android.text.TextUtils;
 
 import org.hl7.fhir.dstu3.model.Timing;
 import org.joda.time.LocalTime;
@@ -130,23 +131,64 @@ public class DosageEntryVO {
     public String toReadableString(Context ctx) {
 
         final RepeatType repeatType = getRepeatType();
-        if (repeatType.isMeal()) {
-            return ctx.getString(R.string.dosage_string_meal_template, Strings.prettyDouble(getQuantityValue()), getQuantityUnits(), repeatType.getMealContextString(ctx));
-        } else {
-            switch (repeatType) {
-                case PERIOD:
-                    final String repeatUnitsDispl = StringUtils.timeUnitDisplayName(ctx, getRepeatUnits());
-                    return ctx.getString(R.string.dosage_string_period, Strings.prettyDouble(getQuantityValue()), getQuantityUnits(), Strings.prettyDouble(getRepeatValue()), repeatUnitsDispl);
-                case DURATION:
-                    final String repeatUnitsDisp = StringUtils.timeUnitDisplayName(ctx, getRepeatUnits());
-                    return ctx.getString(R.string.dosage_string_duration, Strings.prettyDouble(getRepeatValue()), repeatUnitsDisp);
-                case TIME_OF_DAY:
-                    return ctx.getString(R.string.dosage_string_time_of_day, Strings.prettyDouble(getQuantityValue()), getQuantityUnits(), getAt().toString("H:mm"));
-                default:
-                    LogUtil.w(TAG, "toReadableString: Unknown repeatType " + repeatType);
-                    return ctx.getString(R.string.dosage_string_not_available);
-            }
+        if (repeatType == null) {
+            LogUtil.w(TAG, "toReadableString: missing repeatType");
+            return notAvailable(ctx);
         }
+
+        if (repeatType.isMeal()) {
+            if (!hasQuantity()) {
+                return notAvailable(ctx);
+            }
+            return ctx.getString(
+                    R.string.dosage_string_meal_template,
+                    Strings.prettyDouble(getQuantityValue()),
+                    getQuantityUnits(),
+                    repeatType.getMealContextString(ctx));
+        }
+
+        switch (repeatType) {
+            case PERIOD:
+                if (!hasQuantity() || getRepeatValue() == null || getRepeatUnits() == null) {
+                    return notAvailable(ctx);
+                }
+                final String repeatUnitsDispl = StringUtils.timeUnitDisplayName(ctx, getRepeatUnits());
+                return ctx.getString(
+                        R.string.dosage_string_period,
+                        Strings.prettyDouble(getQuantityValue()),
+                        getQuantityUnits(),
+                        Strings.prettyDouble(getRepeatValue()),
+                        repeatUnitsDispl);
+            case DURATION:
+                if (getRepeatValue() == null || getRepeatUnits() == null) {
+                    return notAvailable(ctx);
+                }
+                final String repeatUnitsDisp = StringUtils.timeUnitDisplayName(ctx, getRepeatUnits());
+                return ctx.getString(
+                        R.string.dosage_string_duration,
+                        Strings.prettyDouble(getRepeatValue()),
+                        repeatUnitsDisp);
+            case TIME_OF_DAY:
+                if (!hasQuantity() || getAt() == null) {
+                    return notAvailable(ctx);
+                }
+                return ctx.getString(
+                        R.string.dosage_string_time_of_day,
+                        Strings.prettyDouble(getQuantityValue()),
+                        getQuantityUnits(),
+                        getAt().toString("H:mm"));
+            default:
+                LogUtil.w(TAG, "toReadableString: Unknown repeatType " + repeatType);
+                return notAvailable(ctx);
+        }
+    }
+
+    private boolean hasQuantity() {
+        return getQuantityValue() != null && !TextUtils.isEmpty(getQuantityUnits());
+    }
+
+    private String notAvailable(Context ctx) {
+        return ctx.getString(R.string.dosage_string_not_available);
     }
 
     public static class Builder {

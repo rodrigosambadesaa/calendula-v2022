@@ -20,13 +20,17 @@ package es.usc.citius.servando.calendula.healthcareprovider.model;
 
 
 import android.content.Context;
+import android.text.TextUtils;
 import androidx.annotation.NonNull;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageEntity;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageEntryEntity;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageType;
 import es.usc.citius.servando.calendula.healthcareprovider.util.DBUtil;
 
@@ -74,7 +78,8 @@ public class DosageVO {
     }
 
     public List<DosageEntryVO> getEntries() {
-       return DBUtil.toDosageEntryList(backingEntity.getEntries());
+        final Collection<DosageEntryEntity> entries = backingEntity.getEntries();
+        return entries == null ? new ArrayList<DosageEntryVO>() : DBUtil.toDosageEntryList(entries);
     }
 
     public void setEntries(List<DosageEntryVO> entries) {
@@ -117,17 +122,24 @@ public class DosageVO {
 
         public DosageVO build(){
             dosageVO.setEntries(entries);
-            return  dosageVO;
+            return dosageVO;
         }
 
     }
 
     public String toReadableString(Context ctx){
         StringBuilder out = new StringBuilder();
-        for(DosageEntryVO de : getEntries()){
+        for (DosageEntryVO de : getEntries()) {
+            if (de == null) {
+                continue;
+            }
             String readableInfo = de.toReadableString(ctx);
-            readableInfo = readableInfo.substring(0, 1).toUpperCase() +
-                    readableInfo.substring(1).toLowerCase();
+            if (TextUtils.isEmpty(readableInfo)) {
+                continue;
+            }
+            final Locale locale = Locale.getDefault();
+            readableInfo = readableInfo.substring(0, 1).toUpperCase(locale) +
+                    readableInfo.substring(1).toLowerCase(locale);
             out.append("● ").append(readableInfo).append("\n");
         }
         return out.toString();
