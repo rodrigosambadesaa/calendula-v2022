@@ -8,9 +8,13 @@ package es.usc.citius.servando.calendula.drugdb;
 
 import org.junit.Test;
 
+import java.util.Locale;
+
+import es.usc.citius.servando.calendula.drugdb.model.persistence.Prescription;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 public class AEMPSPrescriptionDBMgrTest {
 
@@ -42,5 +46,47 @@ public class AEMPSPrescriptionDBMgrTest {
         assertEquals(
                 Presentation.EFFERVESCENT,
                 manager.expectedPresentation("suspensión oral en sobres", "granulado"));
+    }
+
+    @Test
+    public void nullNameAndContentReturnUnknown() {
+        assertEquals(Presentation.UNKNOWN, manager.expectedPresentation(null, null));
+    }
+
+    @Test
+    public void missingPresentationFormFallsBackToTextInference() {
+        Prescription prescription = new Prescription();
+        prescription.setPresentationForm(null);
+        prescription.setName("Medicamento en comprimidos");
+        prescription.setContent("");
+
+        assertEquals(Presentation.PILLS, manager.expectedPresentation(prescription));
+    }
+
+    @Test
+    public void inferenceDoesNotDependOnDefaultLocale() {
+        Locale original = Locale.getDefault();
+        try {
+            Locale.setDefault(new Locale("tr", "TR"));
+            assertEquals(
+                    Presentation.INJECTIONS,
+                    manager.expectedPresentation("INYECTABLE", null));
+        } finally {
+            Locale.setDefault(original);
+        }
+    }
+
+    @Test
+    public void shortNameHandlesMissingDose() {
+        Prescription prescription = new Prescription();
+        prescription.setName("Medicamento de prueba");
+        prescription.setDose(null);
+
+        assertEquals("Medicamento de prueba", manager.shortName(prescription));
+    }
+
+    @Test
+    public void shortNameHandlesMissingPrescription() {
+        assertNull(manager.shortName(null));
     }
 }

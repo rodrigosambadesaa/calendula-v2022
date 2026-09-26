@@ -20,7 +20,6 @@ package es.usc.citius.servando.calendula.drugdb;
 
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
-import androidx.annotation.NonNull;
 
 import com.j256.ormlite.misc.TransactionManager;
 import com.j256.ormlite.support.ConnectionSource;
@@ -31,6 +30,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
+import java.util.Locale;
 import java.util.concurrent.Callable;
 
 import es.usc.citius.servando.calendula.database.DB;
@@ -52,21 +52,24 @@ public class AEMPSPrescriptionDBMgr extends PrescriptionDBMgr {
 
     @Override
     public Presentation expectedPresentation(Prescription p) {
+        if (p == null) {
+            return Presentation.UNKNOWN;
+        }
         // try to get presentation directly from database
         final Presentation presentation = expectedPresentation(p.getPresentationForm());
         if (!presentation.equals(Presentation.UNKNOWN)) {
             return presentation;
         }
-        // if not successful, try to infer it from the name
-        String name = p.getName();
-        String content = p.getContent();
-        return expectedPresentation(name, content);
+        // if not successful, try to infer it from the name/content
+        return expectedPresentation(p.getName(), p.getContent());
     }
 
     @Override
     public Presentation expectedPresentation(String name, String content) {
 
-        String n = name.toLowerCase() + " " + content.toLowerCase();
+        final String safeName = name != null ? name : "";
+        final String safeContent = content != null ? content : "";
+        final String n = (safeName + " " + safeContent).toLowerCase(Locale.ROOT);
         if (n.contains("comprimidos")) {
             return Presentation.PILLS;
         } else if (n.contains("capsulas") || n.contains("cápsulas")) {
@@ -101,11 +104,19 @@ public class AEMPSPrescriptionDBMgr extends PrescriptionDBMgr {
 
     @Override
     public String shortName(Prescription p) {
-        String dose = p.getDose().trim();
-        String originalName = p.getName();
-        String doseFirstPart = dose.contains(" ") ? dose.split(" ")[0] : dose;
+        if (p == null || p.getName() == null) {
+            return null;
+        }
+        final String originalName = p.getName();
+        final String rawDose = p.getDose();
+        if (rawDose == null || rawDose.trim().isEmpty()) {
+            return originalName;
+        }
 
-        if (doseFirstPart != null && originalName.contains(doseFirstPart)) {
+        final String dose = rawDose.trim();
+        final String doseFirstPart = dose.contains(" ") ? dose.split(" ")[0] : dose;
+
+        if (originalName.contains(doseFirstPart)) {
             int index = originalName.indexOf(doseFirstPart);
             return originalName.substring(0, index);
         }
@@ -116,11 +127,15 @@ public class AEMPSPrescriptionDBMgr extends PrescriptionDBMgr {
     public void setup(final Context ctx, final String downloadPath, final SetupProgressListener l) throws Exception {
 
         final ConnectionSource connection = DB.helper().getConnectionSource();
-        final String basePath = downloadPath.replaceAll("/[^/]*$", "");
-        final String uncompressedPath = basePath + "/AEMPS.sql";
+        final File downloadFile = new File(downloadPath);
+        final File baseDirectory = downloadFile.getParentFile();
+        if (baseDirectory == null) {
+            throw new IllegalArgumentException("Database download has no parent directory");
+        }
+        final File uncompressedFile = new File(baseDirectory, "AEMPS.sql");
 
-        LogUtil.d(TAG, "setup: uncompressing " + downloadPath + " into " + uncompressedPath);
-        ZipUtil.unzip(new File(downloadPath), new File(basePath));
+        LogUtil.d(TAG, "setup: uncompressing downloaded database");
+        ZipUtil.unzip(downloadFile, baseDirectory);
 
         TransactionManager.callInTransaction(connection, new Callable<Object>() {
             @Override
@@ -136,7 +151,8 @@ public class AEMPSPrescriptionDBMgr extends PrescriptionDBMgr {
                     int lines = 0;
                     int i = 0;
 
-                    br = new BufferedReader(new InputStreamReader(new FileInputStream(uncompressedPath)));
+                    br = new BufferedReader(new InputStreamReader(
+                            new FileInputStream(uncompressedFile), "UTF-8"));
                     // count file lines (for progress updating)
                     while (br.readLine() != null) {
                         lines++;
@@ -147,8 +163,9 @@ public class AEMPSPrescriptionDBMgr extends PrescriptionDBMgr {
                         progressUpdateBy = lines / 20;
                         updateProgress(l, 0);
 
-                        LogUtil.d(TAG, "call: reading from " + uncompressedPath);
-                        br = new BufferedReader(new InputStreamReader(new FileInputStream(uncompressedPath)));
+                        LogUtil.d(TAG, "call: reading extracted AEMPS database");
+                        br = new BufferedReader(new InputStreamReader(
+                                new FileInputStream(uncompressedFile), "UTF-8"));
 
                         SQLiteDatabase database = DB.helper().getWritableDatabase();
                         while ((line = br.readLine()) != null) {
@@ -161,14 +178,13 @@ public class AEMPSPrescriptionDBMgr extends PrescriptionDBMgr {
                             i++;
                         }
                     } else {
-                        LogUtil.e(TAG, "setup:  database file is empty");
+                        LogUtil.e(TAG, "setup: database file is empty");
                         throw new IllegalArgumentException("Database file is empty");
                     }
-                } catch (Exception e) {
-                    throw e;
                 } finally {
-                    if (br != null)
+                    if (br != null) {
                         br.close();
+                    }
                 }
                 return null;
             }
@@ -178,20 +194,23 @@ public class AEMPSPrescriptionDBMgr extends PrescriptionDBMgr {
 
         LogUtil.d(TAG, "setup: cleaning up...");
         try {
-            boolean delete = new File(downloadPath).delete();
+            boolean delete = downloadFile.delete();
             if (!delete) {
-                LogUtil.i(TAG, "setup: couldn't delete file " + downloadPath);
+                LogUtil.i(TAG, "setup: couldn't delete downloaded database");
             }
-            delete = new File(uncompressedPath).delete();
+            delete = uncompressedFile.delete();
             if (!delete) {
-                LogUtil.i(TAG, "setup: couldn't delete file " + uncompressedPath);
+                LogUtil.i(TAG, "setup: couldn't delete extracted database");
             }
         } catch (Exception e) {
             LogUtil.e(TAG, "setup: couldn't finish cleanup: ", e);
         }
     }
 
-    private Presentation expectedPresentation(@NonNull final String presentationFormId) {
+    private Presentation expectedPresentation(final String presentationFormId) {
+        if (presentationFormId == null) {
+            return Presentation.UNKNOWN;
+        }
 
         switch (presentationFormId) {
             case "4": // Capsula
