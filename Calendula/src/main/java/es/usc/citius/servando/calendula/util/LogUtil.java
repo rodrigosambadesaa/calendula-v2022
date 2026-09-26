@@ -25,34 +25,42 @@ import es.usc.citius.servando.calendula.BuildConfig;
 
 public class LogUtil {
 
-    private static final boolean ENABLE_LOGS = !BuildConfig.BUILD_TYPE.equalsIgnoreCase("release");
+    // Calendula handles medication and healthcare-provider data. Do not emit app-owned
+    // Logcat output from release builds: exception messages and stack traces can contain
+    // request URLs, SQL details, identifiers or other context that should not persist in
+    // production diagnostics.
+    private static final boolean ENABLE_LOGS = logsEnabledForBuildType(BuildConfig.BUILD_TYPE);
 
 
     private LogUtil() {
     }
 
+    static boolean logsEnabledForBuildType(String buildType) {
+        return !"release".equalsIgnoreCase(buildType);
+    }
+
 
     public static void d(final String tag, String message) {
         if (ENABLE_LOGS) {
-                Log.d(tag, message);
+            Log.d(tag, message);
         }
     }
 
     public static void d(final String tag, String message, Throwable cause) {
         if (ENABLE_LOGS) {
-                Log.d(tag, message, cause);
+            Log.d(tag, message, cause);
         }
     }
 
     public static void v(final String tag, String message) {
         if (ENABLE_LOGS) {
-                Log.v(tag, message);
+            Log.v(tag, message);
         }
     }
 
     public static void v(final String tag, String message, Throwable cause) {
         if (ENABLE_LOGS) {
-                Log.v(tag, message, cause);
+            Log.v(tag, message, cause);
         }
     }
 
@@ -69,26 +77,38 @@ public class LogUtil {
     }
 
     public static void w(final String tag, String message) {
-        Log.w(tag, message);
+        if (ENABLE_LOGS) {
+            Log.w(tag, message);
+        }
     }
 
     public static void w(final String tag, String message, Throwable cause) {
-        Log.w(tag, message, cause);
+        if (ENABLE_LOGS) {
+            Log.w(tag, message, cause);
+        }
     }
 
     public static void wtf(final String tag, String message) {
-        Log.wtf(tag, message);
+        if (ENABLE_LOGS) {
+            Log.wtf(tag, message);
+        }
     }
 
     public static void wtf(final String tag, String message, Throwable cause) {
-        Log.wtf(tag, message, cause);
+        if (ENABLE_LOGS) {
+            Log.wtf(tag, message, cause);
+        }
     }
 
     public static void e(final String tag, String message) {
-        Log.e(tag, message);
+        if (ENABLE_LOGS) {
+            Log.e(tag, message);
+        }
     }
 
     public static void e(final String tag, String message, Throwable cause) {
-        Log.e(tag, message, cause);
+        if (ENABLE_LOGS) {
+            Log.e(tag, message, cause);
+        }
     }
 }
