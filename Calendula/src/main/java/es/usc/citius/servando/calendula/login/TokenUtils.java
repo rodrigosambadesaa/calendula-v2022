@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jose.util.Base64;
+import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
 import java.io.IOException;
@@ -13,6 +14,7 @@ import java.math.BigInteger;
 import java.security.KeyFactory;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.RSAPublicKeySpec;
+import java.util.Date;
 import java.util.List;
 
 import es.usc.citius.servando.calendula.BuildConfig;
@@ -27,20 +29,16 @@ import es.usc.citius.servando.calendula.util.LogUtil;
 public class TokenUtils {
 
     private static final String TAG = "TokenUtils";
-    private static final String SETTING_EXPECTED_VALUE = "yes";
     private static final String SERVER_KEY_FILENAME = "server_keys.json";
-    private static Boolean verifyToken;
+    static final long ID_TOKEN_CLOCK_SKEW_MS = 60_000L;
 
     /**
-     * Verifies a signed JWT
-     *
-     * @param signedJWT the jwt
-     * @return <code>true</code> if correctly verified, <code>false</code> otherwise
+     * Verifies the JWT signature against the bundled provider keys.
      */
     public static boolean verifyToken(final SignedJWT signedJWT) {
 
         if (!BuildConfig.LOGIN_TOKEN_VERIFY) {
-            LogUtil.d(TAG, "verifyToken: Skipping token verification.");
+            LogUtil.d(TAG, "verifyToken: Skipping token signature verification.");
             return true;
         }
 
@@ -50,6 +48,71 @@ public class TokenUtils {
 
         LogUtil.d(TAG, "verifyToken() returned: " + ret);
         return ret;
+    }
+
+    /**
+     * Validates the ID-token claims that can be checked from Calendula's static legacy
+     * OpenID configuration. Signature verification alone is insufficient: an otherwise
+     * correctly signed token may be expired, not yet valid, or minted for another client.
+     *
+     * The legacy provider configuration does not expose a canonical issuer value, so `iss`
+     * cannot be compared safely here without inventing configuration. Audience and temporal
+     * claims are nevertheless validated strictly.
+     */
+    public static boolean validateIdTokenClaims(final SignedJWT signedJWT) {
+        if (signedJWT == null) {
+            return false;
+        }
+        try {
+            return validateIdTokenClaims(
+                    signedJWT.getJWTClaimsSet(),
+                    OpenIdProviderConfiguration.instance().getClientId(),
+                    new Date());
+        } catch (Exception e) {
+            LogUtil.e(TAG, "validateIdTokenClaims: malformed claims", e);
+            return false;
+        }
+    }
+
+    static boolean validateIdTokenClaims(
+            final JWTClaimsSet claims,
+            final String expectedClientId,
+            final Date now) throws Exception {
+        if (claims == null || expectedClientId == null || expectedClientId.isEmpty() || now == null) {
+            return false;
+        }
+
+        final Date expiration = claims.getExpirationTime();
+        if (expiration == null
+                || expiration.getTime() + ID_TOKEN_CLOCK_SKEW_MS < now.getTime()) {
+            return false;
+        }
+
+        final Date notBefore = claims.getNotBeforeTime();
+        if (notBefore != null
+                && notBefore.getTime() - ID_TOKEN_CLOCK_SKEW_MS > now.getTime()) {
+            return false;
+        }
+
+        final Date issuedAt = claims.getIssueTime();
+        if (issuedAt != null
+                && issuedAt.getTime() - ID_TOKEN_CLOCK_SKEW_MS > now.getTime()) {
+            return false;
+        }
+
+        final List<String> audience = claims.getAudience();
+        if (audience == null || audience.isEmpty() || !audience.contains(expectedClientId)) {
+            return false;
+        }
+
+        if (audience.size() > 1) {
+            final String authorizedParty = claims.getStringClaim("azp");
+            if (!expectedClientId.equals(authorizedParty)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static boolean verifyWithKeyList(final SignedJWT signedJWT, final List<JWTPublicKey> publicKeys) {
