@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!--
+        Cleartext traffic is denied by default. The legacy medication-database
+        service is the only production endpoint that still requires HTTP until
+        the server can be migrated to HTTPS or provide an authenticated archive.
+    -->
+    <base-config cleartextTrafficPermitted="false" />
+
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">tec.citius.usc.es</domain>
+    </domain-config>
+</network-security-config>
