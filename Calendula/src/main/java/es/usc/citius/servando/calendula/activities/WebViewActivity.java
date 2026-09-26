@@ -56,6 +56,8 @@ import com.mikepenz.iconics.IconicsDrawable;
 import org.joda.time.Duration;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
@@ -347,22 +349,41 @@ public class WebViewActivity extends CalendulaActivity {
         return HtmlCacheManager.getInstance().isCached(url);
     }
 
+    static byte[] readFully(InputStream inputStream) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        byte[] chunk = new byte[4096];
+        int read;
+        while ((read = inputStream.read(chunk)) != -1) {
+            output.write(chunk, 0, read);
+        }
+        return output.toByteArray();
+    }
+
+    static String applyCssOverrides(String css, Map<String, String> overrides) {
+        if (css == null || overrides == null || overrides.isEmpty()) {
+            return css;
+        }
+        String result = css;
+        for (Map.Entry<String, String> entry : overrides.entrySet()) {
+            if (entry.getKey() != null && entry.getValue() != null) {
+                result = result.replace(entry.getKey(), entry.getValue());
+            }
+        }
+        return result;
+    }
+
     private void injectCSS(final List<String> files, Map<String, String> overrides) {
         for (String file : files) {
+            InputStream inputStream = null;
             try {
-                // read CSS from file
+                // read the complete CSS asset; InputStream.available() is not a byte-count contract
                 LogUtil.d(TAG, "injectCSS: injecting file " + file);
-                InputStream inputStream = getAssets().open(file);
-                byte[] buffer = new byte[inputStream.available()];
-                inputStream.read(buffer);
-                inputStream.close();
-                // perform css replacements if any
-                if (overrides != null && overrides.size() > 0) {
-                    String css = new String(buffer);
-                    for (Map.Entry<String, String> entry : overrides.entrySet()) {
-                        css = css.replaceAll(entry.getKey(), entry.getValue());
-                    }
-                    buffer = css.getBytes();
+                inputStream = getAssets().open(file);
+                byte[] buffer = readFully(inputStream);
+                // perform literal css replacements if any
+                if (overrides != null && !overrides.isEmpty()) {
+                    String css = applyCssOverrides(new String(buffer, "UTF-8"), overrides);
+                    buffer = css.getBytes("UTF-8");
                 }
                 //encode CSS string in base64
                 String encoded = Base64.encodeToString(buffer, Base64.NO_WRAP);
@@ -376,6 +397,14 @@ public class WebViewActivity extends CalendulaActivity {
                         "})()");
             } catch (Exception e) {
                 LogUtil.w(TAG, "injectCSS:" + file);
+            } finally {
+                if (inputStream != null) {
+                    try {
+                        inputStream.close();
+                    } catch (IOException ignored) {
+                        // Nothing useful to do after the asset has already been consumed.
+                    }
+                }
             }
         }
     }
@@ -505,8 +534,9 @@ public class WebViewActivity extends CalendulaActivity {
         public void onPageFinished(WebView view, String url) {
 
             pageLoaded = true;
-            if (loadError || view.getTitle().matches(HTTP_ERROR_REGEXP)) {
-                LogUtil.e(TAG, "Received HTTP error, page title is: " + view.getTitle());
+            final String pageTitle = view.getTitle();
+            if (loadError || (pageTitle != null && pageTitle.matches(HTTP_ERROR_REGEXP))) {
+                LogUtil.e(TAG, "Received HTTP error, page title is: " + pageTitle);
                 showErrorToast(request.getNotFoundErrorMessage());
                 hideLoading();
                 WebViewActivity.this.finish();
