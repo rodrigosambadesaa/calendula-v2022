@@ -15,6 +15,8 @@ import org.robolectric.annotation.Config;
 
 import java.util.Locale;
 
+import es.usc.citius.servando.calendula.drugdb.model.persistence.Prescription;
+
 import static org.junit.Assert.assertEquals;
 
 @RunWith(RobolectricTestRunner.class)
@@ -42,5 +44,13 @@ public class StringsLocaleTest {
     @Test
     public void firstPartDoesNotDependOnDeviceLocale() {
         assertEquals("Insulina", Strings.firstPart("INSULINA RETARD"));
+    }
+
+    @Test
+    public void prescriptionShortNameDoesNotDependOnDeviceLocale() {
+        Prescription prescription = new Prescription();
+        prescription.setName("INSULINA RETARD");
+
+        assertEquals("Insulina", prescription.shortName());
     }
 }
