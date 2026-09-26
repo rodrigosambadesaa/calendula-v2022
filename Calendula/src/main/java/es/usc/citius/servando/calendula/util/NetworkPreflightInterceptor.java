@@ -11,6 +11,7 @@ import android.content.Context;
 import java.io.IOException;
 
 import okhttp3.Interceptor;
+import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 
@@ -28,6 +29,22 @@ public final class NetworkPreflightInterceptor implements Interceptor {
         }
         Context app = context.getApplicationContext();
         this.applicationContext = app != null ? app : context;
+    }
+
+    /**
+     * Installs the guard as a network interceptor, not an application interceptor.
+     *
+     * OkHttp invokes application interceptors once for a logical call, while redirects and
+     * retries can perform additional network exchanges underneath that call. A network
+     * interceptor runs for each exchange, which is required by Calendula's rule that every
+     * real HTTP(S) request must pass connectivity/backend preflight immediately before it.
+     */
+    public static OkHttpClient.Builder installOn(OkHttpClient.Builder builder, Context context) {
+        if (builder == null) {
+            throw new IllegalArgumentException("builder == null");
+        }
+        builder.addNetworkInterceptor(new NetworkPreflightInterceptor(context));
+        return builder;
     }
 
     @Override
