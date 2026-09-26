@@ -19,7 +19,6 @@
 package es.usc.citius.servando.calendula.drugdb;
 
 import android.content.Context;
-import android.text.TextUtils;
 
 import com.j256.ormlite.misc.TransactionManager;
 import com.j256.ormlite.support.ConnectionSource;
@@ -60,7 +59,7 @@ public class USPrescriptionDBMgr extends PrescriptionDBMgr {
             throw new RuntimeException("Invalid CSV. Input string must contain exactly 3 members. " + csvLine);
         }
 
-        if (TextUtils.isEmpty(values[1])) {
+        if (values[1] == null || values[1].isEmpty()) {
             return null;
         }
 
