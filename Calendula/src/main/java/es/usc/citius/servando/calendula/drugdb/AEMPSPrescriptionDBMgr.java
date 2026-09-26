@@ -89,15 +89,11 @@ public class AEMPSPrescriptionDBMgr extends PrescriptionDBMgr {
             return Presentation.SYRUP;
         } else if (n.contains("parche")) {
             return Presentation.PATCHES;
-        } else if (n.contains("suspension oral")) {
-            //FIXME
-            if (!n.contains("polvo") && !n.contains("granulado")) {
-                return Presentation.SYRUP;
-            } else if (!n.contains("polvo")) {
-                // granulado
-            } else {
-                // sobres
+        } else if (n.contains("suspension oral") || n.contains("suspensión oral")) {
+            if (n.contains("polvo") || n.contains("granulado")) {
+                return Presentation.POWDER;
             }
+            return Presentation.SYRUP;
         }
 
         return Presentation.UNKNOWN;
