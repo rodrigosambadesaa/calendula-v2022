@@ -19,6 +19,7 @@
 package es.usc.citius.servando.calendula.util.security.verifier.verifications
 
 import android.content.Context
+import android.os.Build
 import es.usc.citius.servando.calendula.BuildConfig
 import es.usc.citius.servando.calendula.util.LogUtil
 import es.usc.citius.servando.calendula.util.security.verifier.Verification
@@ -45,12 +46,29 @@ class InstallerVerification : Verification {
      * Verifies thar the app installer is Google Play (or null in DEBUG)
      */
     private fun verifyInstaller(c: Context): Boolean {
-        val installer = c.packageManager.getInstallerPackageName(c.packageName)
+        val installer = installerPackageName(c)
         if (BuildConfig.DEBUG || (installer != null && installer.startsWith("com.android.vending"))) {
             return true
         }
         LogUtil.w(TAG, "Invalid app installer '$installer'")
         return false
     }
+
+    private fun installerPackageName(c: Context): String? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                c.packageManager.getInstallSourceInfo(c.packageName).installingPackageName
+            } catch (e: Exception) {
+                LogUtil.w(TAG, "Could not resolve app install source", e)
+                null
+            }
+        } else {
+            legacyInstallerPackageName(c)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun legacyInstallerPackageName(c: Context): String? =
+        c.packageManager.getInstallerPackageName(c.packageName)
 
 }
