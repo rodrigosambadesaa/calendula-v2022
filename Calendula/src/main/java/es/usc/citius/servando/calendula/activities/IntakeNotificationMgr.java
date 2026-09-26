@@ -57,6 +57,7 @@ import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.util.AvatarMgr;
 import es.usc.citius.servando.calendula.util.IntentParams;
+import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
@@ -198,15 +199,31 @@ public class IntakeNotificationMgr {
 
         final Resources res = context.getResources();
         // prepare notification intents
-        PendingIntent defaultIntent = PendingIntent.getActivity(context, random.nextInt(), intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent defaultIntent = PendingIntent.getActivity(
+                context,
+                random.nextInt(),
+                intent,
+                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
         PendingIntent delayIntent = null;
         PendingIntent cancelIntent = null;
         PendingIntent confirmAllIntent = null;
 
         if (!options.lost) {
-            delayIntent = PendingIntent.getBroadcast(context, random.nextInt(), actionIntents.first, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-            cancelIntent = PendingIntent.getBroadcast(context, random.nextInt(), actionIntents.second, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-            confirmAllIntent = PendingIntent.getBroadcast(context, random.nextInt(), confirmIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            delayIntent = PendingIntent.getBroadcast(
+                    context,
+                    random.nextInt(),
+                    actionIntents.first,
+                    PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+            cancelIntent = PendingIntent.getBroadcast(
+                    context,
+                    random.nextInt(),
+                    actionIntents.second,
+                    PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+            confirmAllIntent = PendingIntent.getBroadcast(
+                    context,
+                    random.nextInt(),
+                    confirmIntent,
+                    PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
         }
 
         int ic = options.lost ? R.drawable.ic_pill_small_lost : R.drawable.ic_pill_small;
