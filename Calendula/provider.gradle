@@ -17,7 +17,6 @@
  */
 
 apply from: 'sonar.gradle'
-//apply plugin: 'com.getkeepsafe.dexcount'
 
 android {
     defaultConfig {
@@ -95,21 +94,6 @@ android {
         }
     }
 }
-/*
-dexcount {
-    format = "list"
-    includeClasses = false
-    includeClassCount = false
-    includeFieldCount = false
-    includeTotalMethodCount = false
-    orderByMethodCount = true
-    verbose = false
-    maxTreeDepth = Integer.MAX_VALUE
-    teamCityIntegration = false
-    teamCitySlug = null
-    runOnEachPackage = true
-}
-*/
 dependencies {
     /********** DEBUGGING **********/
     // interceptor for okhttp
