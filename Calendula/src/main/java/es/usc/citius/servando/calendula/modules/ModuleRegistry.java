@@ -22,6 +22,7 @@ import org.apache.commons.lang3.ArrayUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import es.usc.citius.servando.calendula.modules.modules.AllergiesModule;
 import es.usc.citius.servando.calendula.modules.modules.BaseModule;
@@ -41,7 +42,10 @@ public class ModuleRegistry {
     }
 
     public static List<CalendulaModule> getModulesForConfig(String configName) {
-        return getModulesForConfig(ModuleConfig.valueOf(configName));
+        if (configName == null) {
+            throw new IllegalArgumentException("Module config name cannot be null");
+        }
+        return getModulesForConfig(ModuleConfig.valueOf(configName.toUpperCase(Locale.ROOT)));
     }
 
     public static List<CalendulaModule> getModulesForConfig(ModuleConfig config) {
