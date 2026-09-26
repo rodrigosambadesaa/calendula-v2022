@@ -39,6 +39,7 @@ import java.io.OutputStream;
 import java.lang.ref.WeakReference;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
+import java.util.Locale;
 
 import javax.net.ssl.SSLContext;
 
@@ -152,7 +153,9 @@ public class CalendulaApp extends MultiDexApplication {
 
         try {
             LogUtil.d(TAG, "Application flavor is \"" + BuildConfig.FLAVOR + "\"");
-            final String flavor = BuildConfig.FLAVOR.toUpperCase();
+            // Build flavors are program identifiers, not natural-language text. Locale-sensitive
+            // casing can turn "ci" into "Cİ" on Turkish devices and break enum lookup.
+            final String flavor = BuildConfig.FLAVOR.toUpperCase(Locale.ROOT);
             ModuleManager.getInstance().runModules(flavor, applicationContext);
         } catch (IllegalArgumentException | IllegalStateException e) {
             LogUtil.e(TAG, "onCreate: Error loading module configuration", e);
