@@ -3,6 +3,7 @@ package es.usc.citius.servando.calendula.healthcareprovider.remote;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import net.openid.appauth.AuthState;
 import net.openid.appauth.TokenResponse;
 
 import java.io.IOException;
@@ -45,9 +46,10 @@ public class RemoteQueryManager {
                 .addInterceptor(new Interceptor() {
                     @Override
                     public okhttp3.Response intercept(@NonNull Chain chain) throws IOException {
-                        final String currentAccessToken = LoginStateManager.getInstance().getCurrentAuthState().getAccessToken();
+                        final AuthState state = LoginStateManager.getInstance().getCurrentAuthState();
+                        final String currentAccessToken = state != null ? state.getAccessToken() : null;
                         if (currentAccessToken == null) {
-                            throw new IllegalStateException("Access token is null!");
+                            throw new IOException("Access token is unavailable");
                         }
                         final Request request = chain.request().newBuilder()
                                 .addHeader("Authorization", String.format("%s %s", TokenResponse.TOKEN_TYPE_BEARER, currentAccessToken))
