@@ -51,7 +51,7 @@
                     android:id="@+id/ic_med_large_name"
                     android:layout_width="30dp"
                     android:layout_height="30dp"
-                    android:layout_alignTop="@+id/textView"
+                    android:layout_alignParentTop="true"
                     android:layout_marginLeft="16dp"
                     android:src="@drawable/ic_edit_black_48dp"/>
 
@@ -114,7 +114,7 @@
                     android:id="@+id/ic_provider"
                     android:layout_width="30dp"
                     android:layout_height="30dp"
-                    android:layout_alignTop="@+id/textView"
+                    android:layout_alignParentTop="true"
                     android:layout_marginLeft="16dp"
                     android:src="@drawable/ic_edit_black_48dp"
                     app:iiv_icon="hcp-healthcare-provider"
@@ -167,7 +167,7 @@
                     android:id="@+id/ic_med_stock"
                     android:layout_width="30dp"
                     android:layout_height="30dp"
-                    android:layout_alignTop="@+id/textView"
+                    android:layout_alignParentTop="true"
                     android:layout_marginLeft="16dp"
                     android:src="@drawable/ic_edit_black_48dp"/>
 
@@ -215,7 +215,7 @@
                     android:id="@+id/ic_schedule_info"
                     android:layout_width="30dp"
                     android:layout_height="30dp"
-                    android:layout_alignTop="@+id/textView"
+                    android:layout_alignParentTop="true"
                     android:layout_marginLeft="16dp"
                     android:src="@drawable/ic_edit_black_48dp"/>
 
@@ -248,7 +248,7 @@
                     android:id="@+id/ic_prospect"
                     android:layout_width="30dp"
                     android:layout_height="30dp"
-                    android:layout_alignTop="@+id/textView"
+                    android:layout_alignParentTop="true"
                     android:layout_marginLeft="16dp"
                     android:src="@drawable/ic_edit_black_48dp"/>
 
