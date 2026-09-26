@@ -24,6 +24,8 @@ import android.os.Parcelable;
 import com.j256.ormlite.table.DatabaseTable;
 import com.j256.ormlite.field.DatabaseField;
 
+import java.util.Locale;
+
 import es.usc.citius.servando.calendula.util.Strings;
 
 /**
@@ -229,7 +231,7 @@ public class Prescription implements Parcelable {
     public String shortName() {
         try {
             String[] parts = name.split(" ");
-            String s = parts[0].toLowerCase();
+            String s = parts[0].toLowerCase(Locale.ROOT);
             if ((s.contains("acido") || s.contains("ácido")) && parts.length > 1) {
                 return Strings.toCamelCase(s + " " + parts[1], " ");
             }
