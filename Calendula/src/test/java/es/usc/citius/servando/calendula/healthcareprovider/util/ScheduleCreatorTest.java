@@ -8,10 +8,13 @@ package es.usc.citius.servando.calendula.healthcareprovider.util;
 
 import org.junit.Test;
 
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageEntryEntity;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.RepeatType;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class ScheduleCreatorTest {
 
@@ -59,5 +62,45 @@ public class ScheduleCreatorTest {
                 ScheduleCreator.eventOffsetForRepeatType(RepeatType.ACV));
         assertEquals(EventInstance.EventOffset.AFTER,
                 ScheduleCreator.eventOffsetForRepeatType(RepeatType.PCV));
+    }
+
+    @Test
+    public void detailedMappingNeedsAtLeastOneMappedEntry() {
+        assertEquals(ScheduleCreator.ScheduleMappingResult.NONE,
+                ScheduleCreator.detailedMappingResult(0, 0));
+        assertEquals(ScheduleCreator.ScheduleMappingResult.NONE,
+                ScheduleCreator.detailedMappingResult(0, 3));
+    }
+
+    @Test
+    public void detailedMappingIsPartialWhenAnyEntryIsSkipped() {
+        assertEquals(ScheduleCreator.ScheduleMappingResult.PARTIAL,
+                ScheduleCreator.detailedMappingResult(1, 2));
+        assertEquals(ScheduleCreator.ScheduleMappingResult.PARTIAL,
+                ScheduleCreator.detailedMappingResult(2, 3));
+    }
+
+    @Test
+    public void detailedMappingIsCompleteOnlyWhenEveryEntryMaps() {
+        assertEquals(ScheduleCreator.ScheduleMappingResult.COMPLETE,
+                ScheduleCreator.detailedMappingResult(1, 1));
+        assertEquals(ScheduleCreator.ScheduleMappingResult.COMPLETE,
+                ScheduleCreator.detailedMappingResult(3, 3));
+    }
+
+    @Test
+    public void scheduleQuantityMustBePresentAndPositive() {
+        DosageEntryEntity entry = new DosageEntryEntity();
+
+        assertFalse(ScheduleCreator.hasUsableQuantity(entry));
+
+        entry.setQuantityValue(0d);
+        assertFalse(ScheduleCreator.hasUsableQuantity(entry));
+
+        entry.setQuantityValue(-1d);
+        assertFalse(ScheduleCreator.hasUsableQuantity(entry));
+
+        entry.setQuantityValue(0.5d);
+        assertTrue(ScheduleCreator.hasUsableQuantity(entry));
     }
 }

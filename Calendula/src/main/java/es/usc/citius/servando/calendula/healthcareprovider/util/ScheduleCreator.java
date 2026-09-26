@@ -117,6 +117,9 @@ public class ScheduleCreator {
                     if (e.getRepeatValue() == null || e.getRepeatValue() <= 0) {
                         throw new IllegalArgumentException("General dosage has invalid repeat value");
                     }
+                    if (!hasUsableQuantity(e)) {
+                        throw new IllegalArgumentException("General dosage has invalid quantity");
+                    }
                     rb.repeatEvery(e.getRepeatValue().intValue(), freq);
 
                     if (freq != Freq.HOURLY) {
@@ -136,10 +139,19 @@ public class ScheduleCreator {
                     rb.repeatEvery(1, Freq.DAILY);
                     DB.healthcareProviderDB().dosages().refresh(dosage.entity());
                     List<DosageEntryEntity> dEntries = DB.healthcareProviderDB().dosageEntries().findBy(DosageEntryEntity.COLUMN_DOSAGE, dosage.entity().getId());
-                    for (DosageEntryEntity d : dEntries) {
-                        handleDetailedEntry(patient, d, dosages, rb);
+                    if (dEntries == null || dEntries.isEmpty()) {
+                        throw new IllegalArgumentException("Detailed dosage has no entries");
                     }
-                    result = ScheduleMappingResult.COMPLETE;
+                    int mappedEntries = 0;
+                    for (DosageEntryEntity d : dEntries) {
+                        if (handleDetailedEntry(patient, d, dosages, rb)) {
+                            mappedEntries++;
+                        }
+                    }
+                    result = detailedMappingResult(mappedEntries, dEntries.size());
+                    if (result == ScheduleMappingResult.NONE) {
+                        throw new IllegalArgumentException("No detailed dosage entries could be mapped");
+                    }
                     break;
                 default:
                     // set a default schedule
@@ -196,11 +208,15 @@ public class ScheduleCreator {
         }
     }
 
-    private static void handleDetailedEntry(Patient patient, DosageEntryEntity d, Map<Long, Double> dosages, RecurringEvent.Builder rb) {
+    private static boolean handleDetailedEntry(Patient patient, DosageEntryEntity d, Map<Long, Double> dosages, RecurringEvent.Builder rb) {
 
         if (d == null || d.getRepeatType() == null) {
             LogUtil.w(TAG, "Ignoring detailed dosage entry without repeat type");
-            return;
+            return false;
+        }
+        if (!hasUsableQuantity(d)) {
+            LogUtil.w(TAG, "Ignoring detailed dosage entry without a positive quantity");
+            return false;
         }
 
         Routine r = null;
@@ -224,7 +240,7 @@ public class ScheduleCreator {
             case TIME_OF_DAY:
                 if (d.getAt() == null) {
                     LogUtil.w(TAG, "Ignoring time-of-day dosage entry without a time");
-                    return;
+                    return false;
                 }
                 r = DB.routines().findByPatientAndTime(patient, d.getAt());
                 if (r == null) {
@@ -234,16 +250,37 @@ public class ScheduleCreator {
                 }
                 break;
             default:
-                break;
+                LogUtil.w(TAG, "Ignoring unsupported detailed dosage repeat type: " + repeatType);
+                return false;
         }
 
-        if (r != null) {
-            DailyFixedTime time = new DailyFixedTime(r.getId(), DailyFixedTime.ReferenceType.ROUTINE);
-            time.setOffset(eventOffsetForRepeatType(repeatType));
-            dosages.put(r.getId(), d.getQuantityValue());
-            rb.atFixedTime(time);
+        if (r == null) {
+            LogUtil.w(TAG, "Ignoring detailed dosage entry because its routine is unavailable");
+            return false;
+        }
+        if (dosages.containsKey(r.getId())) {
+            LogUtil.w(TAG, "Ignoring detailed dosage entry that collides with an existing routine reference");
+            return false;
         }
 
+        DailyFixedTime time = new DailyFixedTime(r.getId(), DailyFixedTime.ReferenceType.ROUTINE);
+        time.setOffset(eventOffsetForRepeatType(repeatType));
+        dosages.put(r.getId(), d.getQuantityValue());
+        rb.atFixedTime(time);
+        return true;
+    }
+
+    static boolean hasUsableQuantity(DosageEntryEntity entry) {
+        return entry != null && entry.getQuantityValue() != null && entry.getQuantityValue() > 0;
+    }
+
+    static ScheduleMappingResult detailedMappingResult(int mappedEntries, int totalEntries) {
+        if (mappedEntries <= 0 || totalEntries <= 0) {
+            return ScheduleMappingResult.NONE;
+        }
+        return mappedEntries == totalEntries
+                ? ScheduleMappingResult.COMPLETE
+                : ScheduleMappingResult.PARTIAL;
     }
 
     static EventInstance.EventOffset eventOffsetForRepeatType(RepeatType repeatType) {
