@@ -266,7 +266,7 @@ public class LoginReceiveActivity extends AppCompatActivity {
     }
 
     @UiThread
-    private void fade(View v, long ms, boolean fadeIn, final Callable c) {
+    private void fade(final View v, long ms, boolean fadeIn, final Callable c) {
         if (fadeIn) {
             v.setAlpha(0);
             v.setVisibility(View.VISIBLE);
@@ -297,7 +297,7 @@ public class LoginReceiveActivity extends AppCompatActivity {
         finish();
     }
 
-    private void exchangeAuthorizationCode(AuthorizationResponse authorizationResponse) {
+    private void  exchangeAuthorizationCode(AuthorizationResponse authorizationResponse) {
         try {
             Map<String, String> additionalParams = InstanceIDHelper.getAdditionalParams(this);
             if (additionalParams != null) {
