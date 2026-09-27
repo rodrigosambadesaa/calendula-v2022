@@ -101,6 +101,19 @@ android {
         unitTests {
             includeAndroidResources = true
         }
+        unitTests.all {
+            jvmArgs += [
+                    '--add-opens=java.base/java.lang=ALL-UNNAMED',
+                    '--add-opens=java.base/java.util=ALL-UNNAMED',
+                    '--add-opens=java.base/java.io=ALL-UNNAMED',
+                    '--add-opens=java.base/java.net=ALL-UNNAMED',
+                    '--add-opens=java.base/java.security=ALL-UNNAMED',
+                    '--add-opens=java.base/java.text=ALL-UNNAMED',
+                    '--add-opens=java.base/jdk.internal.access=ALL-UNNAMED',
+                    '--add-opens=java.desktop/java.awt.font=ALL-UNNAMED',
+                    '--add-opens=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED'
+            ]
+        }
     }
 
 
@@ -250,9 +263,8 @@ dependencies {
     androidTestImplementation 'androidx.test:rules:1.2.0'
     androidTestImplementation 'androidx.test.ext:junit:1.1.1'
 
-    // Roboelectric
+    // Robolectric
     testImplementation "org.robolectric:robolectric:$libVersions.robolectric"
-    testImplementation "org.robolectric:shadows-multidex:$libVersions.robolectric"
 
     /********** UTILITIES **********/
     // HTML parsing
