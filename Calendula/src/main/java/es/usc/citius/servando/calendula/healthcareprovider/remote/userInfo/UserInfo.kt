@@ -40,9 +40,9 @@ class UserInfo {
             UserInfoConverter()
 
         override fun responseBodyConverter(
-            type: Type?,
-            annotations: Array<Annotation>?,
-            retrofit: Retrofit?
+            type: Type,
+            annotations: Array<out Annotation>,
+            retrofit: Retrofit
         ): Converter<ResponseBody, *>? {
             return userInfoConverter
         }
