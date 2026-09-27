@@ -7,7 +7,7 @@
  *    the Free Software Foundation; either version 3 of the License, or
  *    (at your option) any later version.
  *
- *    This program is distributed in the hope that it will be useful,
+ *    Calendula is distributed in the hope that it will be useful,
  *    but WITHOUT ANY WARRANTY; without even the implied warranty of
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *    GNU General Public License for more details.
@@ -64,6 +64,7 @@ import es.usc.citius.servando.calendula.activities.StartActivity;
 import es.usc.citius.servando.calendula.healthcareprovider.jobs.UpdateMedicationHelper;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 
 /**
  * A sample activity to serve as a client to the Native Oauth library.
@@ -101,7 +102,11 @@ public class LoginReceiveActivity extends AppCompatActivity {
             intent.putExtra(EXTRA_AUTH_SERVICE_DISCOVERY, discoveryDoc.docJson.toString());
         }
 
-        return PendingIntent.getActivity(context, request.hashCode(), intent, 0);
+        return PendingIntent.getActivity(
+                context,
+                request.hashCode(),
+                intent,
+                PendingIntentFlags.immutable(0));
     }
 
 
