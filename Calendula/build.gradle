@@ -67,6 +67,11 @@ def getCustomProguardFiles() {
 
 android {
     compileSdkVersion 33
+
+    buildFeatures {
+        buildConfig true
+    }
+
     defaultConfig {
         minSdkVersion 18
         targetSdkVersion 33
