@@ -7,7 +7,7 @@
  *    the Free Software Foundation; either version 3 of the License, or
  *    (at your option) any later version.
  *
- *    This program is distributed in the hope that it will be useful,
+ *    Calendula is distributed in the hope that it will be useful,
  *    but WITHOUT ANY WARRANTY; without even the implied warranty of
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *    GNU General Public License for more details.
@@ -18,6 +18,7 @@
 
 package es.usc.citius.servando.calendula.scheduling;
 
+import android.app.AlarmManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -47,6 +48,9 @@ public class BootReceiver extends BroadcastReceiver {
             LogUtil.d(TAG, "Alarms updated!");
         } else if (Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
             LogUtil.d(TAG, "Package replaced intent received");
+            Agenda.instance().updateAllAlarms(context);
+        } else if (AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED.equals(action)) {
+            LogUtil.d(TAG, "Exact alarm access granted; rescheduling reminders");
             Agenda.instance().updateAllAlarms(context);
         } else {
             LogUtil.w(TAG, "Ignoring unexpected broadcast action: " + action);
