@@ -130,24 +130,29 @@ public class Agenda {
     }
 
     public void setAlarm(Context context, EventReminder reminder) {
-        // build a bundle with the alarm params
         Bundle alarmParams = new Bundle();
         alarmParams.putString("action", "reminder");
         alarmParams.putLong("reminder_id", reminder.getId());
-        // millis to set the alarm
         DateTime dateTime = reminder.getNextTime();
         LogUtil.d(TAG, "Creating scheduled reminder");
-        // intent we should receive on millis
         PendingIntent pendingIntent = getReminderIntent(context, reminder);
-        // set the alarm
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (alarmManager != null) {
-            if (Build.VERSION.SDK_INT >= 23) {
-                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, dateTime.getMillis(), pendingIntent);
-                LogUtil.d(TAG, "Calling alarm manager");
-            } else if (Build.VERSION.SDK_INT >= 19) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+                alarmManager.setAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        dateTime.getMillis(),
+                        pendingIntent);
+                LogUtil.w(TAG, "Exact alarm access unavailable; scheduled inexact reminder fallback");
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        dateTime.getMillis(),
+                        pendingIntent);
+                LogUtil.d(TAG, "Calling exact alarm manager");
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                 alarmManager.setExact(AlarmManager.RTC_WAKEUP, dateTime.getMillis(), pendingIntent);
-                LogUtil.d(TAG, "Calling alarm manager");
+                LogUtil.d(TAG, "Calling exact alarm manager");
             } else {
                 alarmManager.set(AlarmManager.RTC_WAKEUP, dateTime.getMillis(), pendingIntent);
                 LogUtil.d(TAG, "Calling alarm manager");
@@ -157,7 +162,6 @@ public class Agenda {
 
     // called from broadcast receiver
     public void onReceiveAlarm(Context ctx, Long reminderId) {
-        // get the r from db
         EventReminder r = DB.eventReminders().findById(reminderId);
         if (r != null) {
             LogUtil.d(TAG, "Received scheduled reminder");
@@ -198,7 +202,6 @@ public class Agenda {
     }
 
     public void setDailyUpdateAlarm(Context ctx) {
-        // intent our receiver will receive
         Intent intent = new Intent(ctx, AlarmReceiver.class);
         intent.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_DAILY_UPDATE);
         PendingIntent dailyAlarm = PendingIntent.getBroadcast(
@@ -225,18 +228,13 @@ public class Agenda {
     public void onDailyUpdate(final Context context) {
         final LocalDate today = LocalDate.now();
         if (needsToBeUpdated(today)) {
-            // Start transaction
             try {
                 TransactionManager.callInTransaction(DB.helper().getConnectionSource(), new Callable<Object>() {
                     @Override
                     public Object call() throws Exception {
-                        // remove old reminders
                         removeRemindersBefore(today.minusDays(1));
-                        // fire before update event
                         onBeforeUpdate(context, today);
-                        // create reminders for events
                         Agenda.instance().createReminders(context);
-                        // Save last date to prefs
                         PreferenceUtils.edit()
                                 .putString(PreferenceKeys.AGENDA_LAST_UPDATED.key(), today.toString(localDateFmt))
                                 .apply();
@@ -246,7 +244,6 @@ public class Agenda {
             } catch (SQLException e) {
                 LogUtil.e(TAG, "Error updating agenda", e);
             }
-            // Update alarms
             Agenda.instance().updateAllAlarms(context);
             CalendulaApp.eventBus().post(new AgendaUpdatedEvent());
         } else {
@@ -256,7 +253,6 @@ public class Agenda {
     }
 
     public void cleanReminderIfPossible(Context context, Patient patient, EventType type, DateTime time) {
-        // look for not incomplete events linked to this reminder
         if (!DB.eventInstances().exists(type, time, patient, false)) {
             EventReminder r = DB.eventReminders().findBy(type, time, patient);
             IntakeNotificationMgr.cancel(context, r);
@@ -296,7 +292,6 @@ public class Agenda {
                     reminder.getDateTime(),
                     reminder.getPatient(),
                     DateTime.now());
-            // cancel the alarm and remove the reminder
             cancelAlarm(context, reminder);
             DB.eventReminders().remove(reminder);
         }
@@ -316,7 +311,6 @@ public class Agenda {
                 reminder.getDateTime(),
                 reminder.getPatient(),
                 DateTime.now());
-        // cancel the alarm and remove the reminder
         cancelAlarm(context, reminder);
         DB.eventReminders().remove(reminder);
     }
@@ -365,12 +359,9 @@ public class Agenda {
         boolean eventExist = DB.eventInstances().exists(r.getEventType(), r.getDateTime());
         LogUtil.d(TAG, "There are events to remind!");
         if (eventExist) {
-            // get the appropriate receiver
             EventReminderReceiver receiver = receivers.get(r.getEventType());
-            // and send the event to it
             LogUtil.d(TAG, "Sending event to " + r.getEventType() + " receiver");
             receiver.onEvent(ctx, r);
-            // auto repeat
             if (r.autoRepeat()) {
                 LogUtil.d(TAG, "Auto repeat enabled, try to reschedule repeat");
                 DateTime now = DateTime.now();
@@ -385,7 +376,6 @@ public class Agenda {
                 }
             }
         } else {
-            // remove the reminder
             LogUtil.d(TAG, "Cancelling reminder with id " + r.getId());
             cancelAlarm(ctx, r);
             DB.eventReminders().remove(r);
