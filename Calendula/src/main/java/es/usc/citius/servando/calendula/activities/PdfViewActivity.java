@@ -343,7 +343,6 @@ public class PdfViewActivity extends CalendulaActivity {
 
     private void enableAppCache() {
         webView.getSettings().setDomStorageEnabled(true);
-        webView.getSettings().setAppCachePath(getFilesDir().getPath() + "data/" + getPackageName() + "/cache");
         // Remote/cached content does not require direct access to app/device files or
         // content providers. Keep these capabilities disabled to reduce WebView attack surface.
         webView.getSettings().setAllowFileAccess(false);
@@ -351,7 +350,6 @@ public class PdfViewActivity extends CalendulaActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             webView.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         }
-        webView.getSettings().setAppCacheEnabled(true);
         webView.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT);
     }
 

@@ -29,11 +29,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android SDK 32
+      - name: Install Android SDK 33
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platforms;android-32" "build-tools;30.0.3"
+          "$SDKMANAGER" "platforms;android-33" "build-tools;30.0.3"
 
       - name: Set up JDK 11 for Gradle and KAPT
         uses: actions/setup-java@v6

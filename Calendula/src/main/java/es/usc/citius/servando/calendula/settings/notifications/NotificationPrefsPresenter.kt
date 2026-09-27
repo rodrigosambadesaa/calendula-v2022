@@ -21,6 +21,7 @@ package es.usc.citius.servando.calendula.settings.notifications
 import android.content.Intent
 import android.media.RingtoneManager
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import es.usc.citius.servando.calendula.modules.ModuleManager
 import es.usc.citius.servando.calendula.modules.modules.StockModule
@@ -53,7 +54,12 @@ class NotificationPrefsPresenter(
     override fun onResult(reqCode: Int, result: Int, data: Intent?) {
         LogUtil.d(TAG, "onResult() called with reqCode=$reqCode, result=$result, data=$data")
         if ((reqCode == REQ_CODE_INSIST_RINGTONE || reqCode == REQ_CODE_NOTIF_RINGTONE) && data != null) {
-            val ringtone: Uri? = data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            val ringtone: Uri? = if (Build.VERSION.SDK_INT >= 33) {
+                data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            }
             val prefKey: PreferenceKeys = when (reqCode) {
                 REQ_CODE_NOTIF_RINGTONE -> PreferenceKeys.SETTINGS_NOTIFICATION_TONE
                 REQ_CODE_INSIST_RINGTONE -> PreferenceKeys.SETTINGS_INSISTENT_NOTIFICATION_TONE

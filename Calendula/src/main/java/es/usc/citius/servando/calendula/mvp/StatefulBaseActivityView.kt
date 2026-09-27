@@ -18,7 +18,9 @@
 
 package es.usc.citius.servando.calendula.mvp
 
+import android.os.Build
 import android.os.Bundle
+import android.os.Parcelable
 
 abstract class StatefulBaseActivityView<in V : IView, out P : StatefulPresenter<V>> :
     BaseActivityView<V, P>() {
@@ -34,7 +36,13 @@ abstract class StatefulBaseActivityView<in V : IView, out P : StatefulPresenter<
 
     override fun onRestoreInstanceState(savedState: Bundle) {
         super.onRestoreInstanceState(savedState)
-        presenter.setState(savedState.getParcelable(SAVED_STATE_KEY))
+        val state: Parcelable? = if (Build.VERSION.SDK_INT >= 33) {
+            savedState.getParcelable(SAVED_STATE_KEY, Parcelable::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            savedState.getParcelable(SAVED_STATE_KEY)
+        }
+        presenter.setState(state)
     }
 
 }
