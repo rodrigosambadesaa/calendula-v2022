@@ -23,24 +23,18 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Set up JDK 17 for Android SDK tools
+      - name: Set up JDK 17 for Android SDK tools and Gradle
         uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
 
       - name: Install Android SDK 33
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platforms;android-33" "build-tools;30.0.3"
-
-      - name: Set up JDK 11 for Gradle and KAPT
-        uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: '11'
-          cache: gradle
+          "$SDKMANAGER" "platforms;android-33" "build-tools;33.0.1"
 
       - name: Build CI debug APK
         run: ./gradlew assembleCiDebug --stacktrace --no-daemon
