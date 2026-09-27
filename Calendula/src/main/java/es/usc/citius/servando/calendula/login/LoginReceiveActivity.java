@@ -7,7 +7,7 @@
  *    the Free Software Foundation; either version 3 of the License, or
  *    (at your option) any later version.
  *
- *    Calendula is distributed in the hope that it will be useful,
+ *    This program is distributed in the hope that it will be useful,
  *    but WITHOUT ANY WARRANTY; without even the implied warranty of
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *    GNU General Public License for more details.
@@ -266,7 +266,7 @@ public class LoginReceiveActivity extends AppCompatActivity {
     }
 
     @UiThread
-    private void fade(final View v, long ms, boolean fadeIn, final Callable c) {
+    private void fade(View v, long ms, boolean fadeIn, final Callable c) {
         if (fadeIn) {
             v.setAlpha(0);
             v.setVisibility(View.VISIBLE);
@@ -297,7 +297,7 @@ public class LoginReceiveActivity extends AppCompatActivity {
         finish();
     }
 
-    private void  exchangeAuthorizationCode(AuthorizationResponse authorizationResponse) {
+    private void exchangeAuthorizationCode(AuthorizationResponse authorizationResponse) {
         try {
             Map<String, String> additionalParams = InstanceIDHelper.getAdditionalParams(this);
             if (additionalParams != null) {
