@@ -43,18 +43,7 @@ jobs:
           cache: gradle
 
       - name: Build CI debug APK
-        run: |
-          set -o pipefail
-          ./gradlew assembleCiDebug --stacktrace --no-daemon 2>&1 | tee gradle-build.log
-
-      - name: Upload Gradle build log
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ci-gradle-build-log
-          path: gradle-build.log
-          if-no-files-found: error
-          retention-days: 7
+        run: ./gradlew assembleCiDebug --stacktrace --no-daemon
 
       - name: Run unit tests
         run: ./gradlew testCiDebugUnitTest --stacktrace --no-daemon
