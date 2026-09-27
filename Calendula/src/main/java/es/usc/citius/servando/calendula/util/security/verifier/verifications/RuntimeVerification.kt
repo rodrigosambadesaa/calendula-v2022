@@ -19,7 +19,9 @@
 package es.usc.citius.servando.calendula.util.security.verifier.verifications
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.os.Build
 import es.usc.citius.servando.calendula.util.LogUtil
 import es.usc.citius.servando.calendula.util.security.verifier.Verification
 import es.usc.citius.servando.calendula.util.security.verifier.VerificationResult
@@ -54,7 +56,14 @@ class RuntimeVerification : Verification {
 
 
     private fun suspiciousAppsFound(c: Context): Boolean {
-        val apps = c.packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
+        val apps: List<ApplicationInfo> = if (Build.VERSION.SDK_INT >= 33) {
+            c.packageManager.getInstalledApplications(
+                PackageManager.ApplicationInfoFlags.of(PackageManager.GET_META_DATA.toLong())
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            c.packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
+        }
         for (applicationInfo in apps) {
             if (SUSPICIOUS_APPS.contains(applicationInfo.packageName)) {
                 return true
