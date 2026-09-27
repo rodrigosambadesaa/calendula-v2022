@@ -35,11 +35,11 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-31" "build-tools;30.0.3"
 
-      - name: Set up JDK 8 for legacy Gradle
+      - name: Set up JDK 11 for Gradle and KAPT
         uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: '8'
+          java-version: '11'
           cache: gradle
 
       - name: Build CI debug APK
