@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: modernization/compile-sdk-33
 
       - name: Apply API 33 WebView compatibility cleanup
         if: github.head_ref == 'modernization/compile-sdk-33' || github.ref_name == 'modernization/compile-sdk-33'
