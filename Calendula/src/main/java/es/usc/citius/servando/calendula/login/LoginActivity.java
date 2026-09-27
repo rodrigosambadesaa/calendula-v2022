@@ -18,9 +18,11 @@
 
 package es.usc.citius.servando.calendula.login;
 
+import android.Manifest;
 import android.app.Dialog;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -67,6 +69,7 @@ import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PermissionUtils;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 import es.usc.citius.servando.calendula.util.Snack;
@@ -79,6 +82,7 @@ public class LoginActivity extends AppCompatActivity {
     public static final String LOGIN_FAIL_REASON_AUTH_LEVEL = "AUTH_LEVEL";
 
     private static final String TAG = "LoginActivity";
+    private static final int REQ_CODE_POST_NOTIFICATIONS = 33;
 
     @BindView(R.id.login_button)
     Button loginBtn;
@@ -104,8 +108,7 @@ public class LoginActivity extends AppCompatActivity {
                 DB.patients().setActive(patient);
             }
             LoginStateManager.getInstance().skipLogin();
-            startActivity(new Intent(this, HomePagerActivity.class));
-            finish();
+            launchHomeWithNotificationPermission();
         }
     }
 
@@ -123,8 +126,7 @@ public class LoginActivity extends AppCompatActivity {
 
         if (action == null && !LoginStateManager.getInstance().shouldAskForLogin()) {
             LogUtil.d(TAG, "onCreate: user is already logged in. Forwarding to home activity");
-            startActivity(new Intent(this, HomePagerActivity.class));
-            finish();
+            launchHomeWithNotificationPermission();
         } else {
 
             setContentView(R.layout.activity_login);
@@ -150,6 +152,33 @@ public class LoginActivity extends AppCompatActivity {
             checkGooglePlayServicesAvailability();
             checkSSL();
         }
+    }
+
+    private void launchHomeWithNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                && !PermissionUtils.hasAskedForPermission(this, Manifest.permission.POST_NOTIFICATIONS)) {
+            requestPermissions(
+                    new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                    REQ_CODE_POST_NOTIFICATIONS);
+            return;
+        }
+        launchHome();
+    }
+
+    private void launchHome() {
+        startActivity(new Intent(this, HomePagerActivity.class));
+        finish();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        if (requestCode == REQ_CODE_POST_NOTIFICATIONS) {
+            PermissionUtils.markPermissionAsAsked(this, Manifest.permission.POST_NOTIFICATIONS);
+            launchHome();
+            return;
+        }
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 
     private void checkGooglePlayServicesAvailability() {

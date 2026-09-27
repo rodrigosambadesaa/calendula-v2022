@@ -58,7 +58,6 @@ import java.util.concurrent.Callable;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 import es.usc.citius.servando.calendula.BuildConfig;
-import es.usc.citius.servando.calendula.HomePagerActivity;
 import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.activities.StartActivity;
 import es.usc.citius.servando.calendula.healthcareprovider.jobs.UpdateMedicationHelper;
@@ -241,7 +240,7 @@ public class LoginReceiveActivity extends AppCompatActivity {
         //cancel "login required" notification if present
         NotificationManagerCompat.from(this).cancel(UpdateMedicationHelper.NOTIFICATION_LOGIN_REQUIRED);
 
-        final Intent i = new Intent(this, HomePagerActivity.class);
+        final Intent i = new Intent(this, LoginActivity.class);
         fade(loggingInLayout, 200, false, null);
         fade(loggedInLayout, 1000, true, new Callable() {
             @Override
