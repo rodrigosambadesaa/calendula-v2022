@@ -251,17 +251,17 @@ dependencies {
     /********** TESTING **********/
     // JUnit
     testImplementation 'junit:junit:4.13.2'
-    testImplementation 'androidx.test:core:1.2.0'
+    testImplementation 'androidx.test:core:1.4.0'
 
     // Mockito
     testImplementation "org.mockito:mockito-inline:$libVersions.mockito"
     androidTestImplementation "org.mockito:mockito-android:$libVersions.mockito"
 
     // Support testing
-    androidTestImplementation 'androidx.test.espresso:espresso-contrib:3.2.0'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
-    androidTestImplementation 'androidx.test:rules:1.2.0'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-contrib:3.4.0'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0'
+    androidTestImplementation 'androidx.test:rules:1.4.0'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.3'
 
     // Robolectric
     testImplementation "org.robolectric:robolectric:$libVersions.robolectric"
