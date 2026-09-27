@@ -7,7 +7,6 @@ buildscript {
 
     ext {
         kotlin_version = '1.9.20'
-        jacoco_plugin_version = '0.16.0'
         google_services_version = '4.2.0'
         libVersions = [
                 butterknife: '10.2.0',
@@ -21,12 +20,9 @@ buildscript {
     dependencies {
         classpath 'com.android.tools.build:gradle:8.1.1'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-        classpath "com.vanniktech:gradle-android-junit-jacoco-plugin:$jacoco_plugin_version"
         classpath "com.google.gms:google-services:$google_services_version"
     }
 }
-
-apply plugin: 'com.vanniktech.android.junit.jacoco'
 
 allprojects {
     repositories {
