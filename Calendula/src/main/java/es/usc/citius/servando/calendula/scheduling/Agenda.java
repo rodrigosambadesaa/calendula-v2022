@@ -142,7 +142,13 @@ public class Agenda {
         // set the alarm
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (alarmManager != null) {
-            if (Build.VERSION.SDK_INT >= 23) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+                alarmManager.setAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        dateTime.getMillis(),
+                        pendingIntent);
+                LogUtil.w(TAG, "Exact alarm access unavailable; scheduled inexact reminder fallback");
+            } else if (Build.VERSION.SDK_INT >= 23) {
                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, dateTime.getMillis(), pendingIntent);
                 LogUtil.d(TAG, "Calling alarm manager");
             } else if (Build.VERSION.SDK_INT >= 19) {
