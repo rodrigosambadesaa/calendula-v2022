@@ -74,7 +74,7 @@ android {
     }
 
     defaultConfig {
-        minSdkVersion 18
+        minSdkVersion 23
         targetSdkVersion 35
         versionCode 39
         versionName "2.5.8"
@@ -130,14 +130,14 @@ android {
         develop {
             applicationIdSuffix ".dev"
             dimension "buildType"
-            minSdkVersion 18
+            minSdkVersion 23
         }
         product {
             dimension "buildType"
         }
         ci {
             dimension "buildType"
-            minSdkVersion 18
+            minSdkVersion 23
         }
     }
 
