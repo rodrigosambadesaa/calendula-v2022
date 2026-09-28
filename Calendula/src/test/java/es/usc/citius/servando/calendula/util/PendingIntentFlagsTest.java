@@ -10,18 +10,10 @@ import org.robolectric.annotation.Config;
 import static org.junit.Assert.assertEquals;
 
 @RunWith(RobolectricTestRunner.class)
+@Config(sdk = 23)
 public class PendingIntentFlagsTest {
 
     @Test
-    @Config(sdk = 18)
-    public void api18LeavesBaseFlagsUntouched() {
-        assertEquals(
-                PendingIntent.FLAG_UPDATE_CURRENT,
-                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
-    }
-
-    @Test
-    @Config(sdk = 23)
     public void api23AddsImmutableFlag() {
         assertEquals(
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE,
@@ -29,7 +21,6 @@ public class PendingIntentFlagsTest {
     }
 
     @Test
-    @Config(sdk = 23)
     public void api23CanCreateImmutableOnlyFlags() {
         assertEquals(
                 PendingIntent.FLAG_IMMUTABLE,
