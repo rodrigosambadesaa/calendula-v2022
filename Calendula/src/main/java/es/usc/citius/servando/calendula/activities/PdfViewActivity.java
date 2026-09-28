@@ -6,7 +6,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.pdf.PdfRenderer;
 import android.net.http.SslError;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.ParcelFileDescriptor;
@@ -31,8 +30,6 @@ import com.afollestad.materialdialogs.MaterialDialog;
 import com.github.javiersantos.materialstyleddialogs.MaterialStyledDialog;
 import com.github.javiersantos.materialstyleddialogs.enums.Style;
 import com.mikepenz.community_material_typeface_library.CommunityMaterial;
-import com.shockwave.pdfium.PdfDocument;
-import com.shockwave.pdfium.PdfiumCore;
 
 import org.greenrobot.eventbus.Subscribe;
 import org.joda.time.Duration;
@@ -68,8 +65,6 @@ public class PdfViewActivity extends CalendulaActivity {
 
     private WebView webView;
     private String url;
-    // switch to disable JavaScript in API<17
-    private boolean isJavaScriptInsecure = false;
 
     @Override
     protected void onDestroy() {
@@ -135,40 +130,21 @@ public class PdfViewActivity extends CalendulaActivity {
                     File pdfFile = new File(url);
                     ParcelFileDescriptor parcelFileDescriptor = ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_WRITE);
                     if (parcelFileDescriptor != null) {
-                        int page_width = 0;
-                        int page_height = 0;
                         Bitmap bitmap = null;
-                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-                            com.shockwave.pdfium.PdfiumCore core = new PdfiumCore(this);
-                            PdfDocument doc = core.newDocument(parcelFileDescriptor);
-                            final int pageCount = core.getPageCount(doc);
-                            core.openPage(doc,0);
-                            if (pageCount > 0) {
-                                page_width = core.getPageWidthPoint(doc, 0);
-                                page_height = core.getPageHeightPoint(doc, 0);
-                                bitmap = Bitmap.createBitmap(2 * page_width, 2 * page_height, Bitmap.Config.ARGB_8888);
-                                Canvas canvas = new Canvas(bitmap);
-                                canvas.drawColor(Color.WHITE);
-                                core.renderPageBitmap(doc, bitmap, 0, 0, 0, 2 * page_width, 2 * page_height);
-                                core.closeDocument(doc);
-                            }
+                        PdfRenderer renderer = new PdfRenderer(parcelFileDescriptor);
+                        final int pageCount = renderer.getPageCount();
+                        if (pageCount > 0) {
+                            PdfRenderer.Page page = renderer.openPage(0);
+                            int pageWidth = page.getWidth();
+                            int pageHeight = page.getHeight();
+                            bitmap = Bitmap.createBitmap(2 * pageWidth, 2 * pageHeight,
+                                    Bitmap.Config.ARGB_8888);
+                            Canvas canvas = new Canvas(bitmap);
+                            canvas.drawColor(Color.WHITE);
+                            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+                            page.close();
                         }
-                        else {
-                            PdfRenderer renderer = new PdfRenderer(parcelFileDescriptor);
-                            final int pageCount = renderer.getPageCount();
-                            if (pageCount > 0) {
-                                PdfRenderer.Page page = renderer.openPage(0);
-                                page_width = page.getWidth();
-                                page_height = page.getHeight();
-                                bitmap = Bitmap.createBitmap(2*page_width, 2*page_height,
-                                        Bitmap.Config.ARGB_8888);
-                                Canvas canvas = new Canvas(bitmap);
-                                canvas.drawColor(Color.WHITE);
-                                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
-                                page.close();
-                            }
-                            renderer.close();
-                        }
+                        renderer.close();
                         if (bitmap != null) {
 
                             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
@@ -199,7 +175,7 @@ public class PdfViewActivity extends CalendulaActivity {
                         public void run() {
                             LogUtil.d(TAG, "Opening URL: " + url);
                             webView.setWebViewClient(new PdfViewActivity.CustomWebViewClient(request));
-                                LogUtil.d(TAG, "handleExtraInfo: Loading resource from URL");
+                            LogUtil.d(TAG, "handleExtraInfo: Loading resource from URL");
                             webView.loadUrl(imageUrl);
 
                         }
@@ -215,10 +191,6 @@ public class PdfViewActivity extends CalendulaActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_webview);
         handler = new Handler();
-        //check api version to see if we can use JavaScript
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1) {
-            isJavaScriptInsecure = true;
-        }
 
         //check for request and URL and finish if not present
         request = getIntent().getParcelableExtra(PARAM_PDFVIEW_REQUEST);
@@ -347,9 +319,7 @@ public class PdfViewActivity extends CalendulaActivity {
         // content providers. Keep these capabilities disabled to reduce WebView attack surface.
         webView.getSettings().setAllowFileAccess(false);
         webView.getSettings().setAllowContentAccess(false);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            webView.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        }
+        webView.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         webView.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT);
     }
 
@@ -374,7 +344,7 @@ public class PdfViewActivity extends CalendulaActivity {
 
         public CustomWebViewClient(WebViewRequest request) {
             this.request = request;
-            this.customCssSheets = isJavaScriptInsecure ? null : request.getCustomCss();
+            this.customCssSheets = request.getCustomCss();
         }
 
 //        @Override

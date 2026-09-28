@@ -28,12 +28,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import androidx.annotation.NonNull;
 
-import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
-import com.google.android.gms.common.GooglePlayServicesRepairableException;
-import com.google.android.gms.security.ProviderInstaller;
 import com.google.android.material.snackbar.Snackbar;
 import androidx.core.content.ContextCompat;
-import androidx.core.content.res.ResourcesCompat;
 import androidx.appcompat.app.AppCompatActivity;
 import android.text.TextUtils;
 import android.view.View;
@@ -45,8 +41,6 @@ import com.afollestad.materialdialogs.MaterialDialog;
 import com.github.javiersantos.materialstyleddialogs.MaterialStyledDialog;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
-import com.mikepenz.community_material_typeface_library.CommunityMaterial;
-import com.mikepenz.iconics.IconicsDrawable;
 
 import net.openid.appauth.AuthState;
 import net.openid.appauth.AuthorizationRequest;
@@ -54,11 +48,7 @@ import net.openid.appauth.AuthorizationService;
 import net.openid.appauth.AuthorizationServiceConfiguration;
 import net.openid.appauth.ResponseTypeValues;
 
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
-
-import javax.net.ssl.SSLContext;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -148,9 +138,7 @@ public class LoginActivity extends AppCompatActivity {
                 }
             }
 
-            // check google play services availability
             checkGooglePlayServicesAvailability();
-            checkSSL();
         }
     }
 
@@ -201,55 +189,11 @@ public class LoginActivity extends AppCompatActivity {
         }
     }
 
-    private void checkSSL() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-            try {
-                ProviderInstaller.installIfNeeded(getApplicationContext());
-                SSLContext sslContext;
-                sslContext = SSLContext.getInstance("TLSv1.2");
-                sslContext.init(null, null, null);
-                sslContext.createSSLEngine();
-            } catch (GooglePlayServicesRepairableException | GooglePlayServicesNotAvailableException
-                    | NoSuchAlgorithmException | KeyManagementException e) {
-                LogUtil.e(TAG, "System does not support TLSv1.2, device not supported.", e);
-                showInvalidSSLDialog();
-            }
-        }
-    }
-
     @Override
     protected void onResume() {
         super.onResume();
         LogUtil.d(TAG, "onResume");
         showInvalidAuthLevelDialogIfNeeded();
-    }
-
-    private void showInvalidSSLDialog(){
-
-        new Handler().post(new Runnable() {
-            @Override
-            public void run() {
-                IconicsDrawable icon = new IconicsDrawable(LoginActivity.this)
-                        .icon(CommunityMaterial.Icon2.cmd_security)
-                        .colorRes(R.color.white)
-                        .sizeDp(130)
-                        .paddingDp(4);
-                    new MaterialStyledDialog.Builder(LoginActivity.this)
-                            .setIcon(icon)
-                            .setTitle(R.string.login_failed_invalid_SSL_version_title)
-                            .setDescription(R.string.login_failed_invalid_SSL_version)
-                            .setCancelable(false)
-                            .setPositiveText(R.string.ok)
-                            .onPositive(new MaterialDialog.SingleButtonCallback() {
-                                @Override
-                                public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
-                                    dialog.dismiss();
-                                    finish();
-                                }
-                            })
-                            .build().show();
-            }
-        });
     }
 
     private void showInvalidAuthLevelDialogIfNeeded(){
