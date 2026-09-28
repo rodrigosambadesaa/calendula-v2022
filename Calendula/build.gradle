@@ -255,7 +255,6 @@ dependencies {
 
     // Mockito
     testImplementation "org.mockito:mockito-inline:$libVersions.mockito"
-    androidTestImplementation "org.mockito:mockito-android:$libVersions.mockito"
 
     // Support testing
     androidTestImplementation 'androidx.test.espresso:espresso-contrib:3.4.0'
