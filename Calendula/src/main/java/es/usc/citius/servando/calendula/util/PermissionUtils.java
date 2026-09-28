@@ -31,10 +31,6 @@ import androidx.fragment.app.Fragment;
  */
 public class PermissionUtils {
 
-    public static boolean useRunTimePermissions() {
-        return true;
-    }
-
     public static boolean hasPermission(Activity activity, String permission) {
         return activity.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED;
     }

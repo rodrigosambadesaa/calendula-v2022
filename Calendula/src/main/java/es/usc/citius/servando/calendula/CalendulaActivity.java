@@ -145,36 +145,33 @@ public abstract class CalendulaActivity extends AppCompatActivity {
         super.applyOverrideConfiguration(overrideConfiguration);
     }
 
-    @Override    protected void onDestroy() {
+    @Override
+    protected void onDestroy() {
         super.onDestroy();
         unsubscribeFromEvents();
     }
 
 
     public void requestPermission(PermissionUtils.PermissionRequest req) {
-        if (PermissionUtils.useRunTimePermissions()) {
-            boolean shouldAsk = true;
-            boolean missingPermissions = false;
-            for (String p : req.permissions()) {
-                if (!PermissionUtils.hasPermission(this, p)) {
-                    missingPermissions = true;
-                    if (!PermissionUtils.shouldAskForPermission(this, p)) {
-                        shouldAsk = false;
-                    }
+        boolean shouldAsk = true;
+        boolean missingPermissions = false;
+        for (String p : req.permissions()) {
+            if (!PermissionUtils.hasPermission(this, p)) {
+                missingPermissions = true;
+                if (!PermissionUtils.shouldAskForPermission(this, p)) {
+                    shouldAsk = false;
                 }
             }
-            if (missingPermissions && shouldAsk) {
-                if (permissionRequestListeners == null) {
-                    permissionRequestListeners = new HashMap<>();
-                }
-                permissionRequestListeners.put(req.reqCode(), req);
-                PermissionUtils.requestPermissions(this, req.permissions(), req.reqCode());
-            } else if (missingPermissions) {
-                showManualPermissionGrantDialog();
-            }else{
-                req.onPermissionGranted();
+        }
+        if (missingPermissions && shouldAsk) {
+            if (permissionRequestListeners == null) {
+                permissionRequestListeners = new HashMap<>();
             }
-        }else{
+            permissionRequestListeners.put(req.reqCode(), req);
+            PermissionUtils.requestPermissions(this, req.permissions(), req.reqCode());
+        } else if (missingPermissions) {
+            showManualPermissionGrantDialog();
+        } else {
             req.onPermissionGranted();
         }
     }
