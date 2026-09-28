@@ -44,7 +44,7 @@ object StringUtils {
             Freq.HOURLY -> c.resources.getString(R.string.hours)
             Freq.MONTHLY -> c.resources.getString(R.string.months)
             Freq.MINUTELY -> c.resources.getString(R.string.minutes)
-            Freq.SECONDLY -> c.resources.getString(R.string.seconds_label)
+            Freq.SECONDLY -> c.resources.getString(R.string.seconds)
             Freq.YEARLY -> c.resources.getString(R.string.years)
             else -> throw IllegalArgumentException("Unsupported frequency " + f)
         }
