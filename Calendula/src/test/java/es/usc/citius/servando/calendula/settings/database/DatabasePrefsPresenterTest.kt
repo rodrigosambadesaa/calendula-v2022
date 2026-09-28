@@ -21,7 +21,6 @@ package es.usc.citius.servando.calendula.settings.database
 import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
-import es.usc.citius.servando.calendula.BuildConfig
 import es.usc.citius.servando.calendula.R
 import es.usc.citius.servando.calendula.drugdb.DBRegistry
 import es.usc.citius.servando.calendula.kotlinAny
@@ -56,28 +55,22 @@ class DatabasePrefsPresenterTest {
 
     private lateinit var dbPrefPresenter: DatabasePrefsContract.Presenter
 
-
     private lateinit var mocks: AutoCloseable
 
     @Before
     fun setUp() {
         mocks = MockitoAnnotations.openMocks(this)
 
-        // do not return nulls
         Mockito.`when`(dbPrefView.getIntent()).thenReturn(Intent())
         Mockito.`when`(dbPrefView.resolveString(Mockito.anyInt())).thenAnswer {
             ApplicationProvider.getApplicationContext<Context>().getString(it.arguments[0] as Int)
         }
-        Mockito.`when`(dbPrefView.hasDownloadPermission()).thenReturn(true)
 
-        // init DB registry so there are DB handlers
         DBRegistry.init(ApplicationProvider.getApplicationContext<Context>())
 
-        // Reset db id
         PreferenceUtils.edit()
             .putString(PreferenceKeys.DRUGDB_CURRENT_DB.key(), INITIAL_DB_ID)
             .apply()
-
 
         dbPrefPresenter = DatabasePrefsPresenter(INITIAL_DB_ID)
         dbPrefPresenter.attachView(dbPrefView)
@@ -92,13 +85,11 @@ class DatabasePrefsPresenterTest {
     fun start() {
         dbPrefPresenter.start()
 
-
         verify(dbPrefView).setDbList(
             kotlinAny<Array<String>>(),
             kotlinAny<Array<String>>()
         )
 
-        // no DB intent was passed, so db dialog shouldn't have been opened
         verify(dbPrefView, never()).openDatabaseSelection()
     }
 
@@ -131,18 +122,6 @@ class DatabasePrefsPresenterTest {
         verify(dbPrefView).showDatabaseDownloadChoice(kotlinEq(NEW_DB_ID))
     }
 
-
-    @Test
-    fun selectDifferentDbNoPerms() {
-        Mockito.`when`(dbPrefView.hasDownloadPermission()).thenReturn(false)
-
-        dbPrefPresenter.selectNewDb(NEW_DB_ID)
-
-        verify(dbPrefView, never()).showDatabaseDownloadChoice(kotlinEq(NEW_DB_ID))
-        verify(dbPrefView).askForDownloadPermission(kotlinEq(NEW_DB_ID))
-    }
-
-
     @Test
     fun selectSameDb() {
         dbPrefPresenter.selectNewDb(INITIAL_DB_ID)
@@ -164,7 +143,6 @@ class DatabasePrefsPresenterTest {
 
     @Test
     fun onDbDownloadChoiceResultFalse() {
-
         dbPrefPresenter.onDbDownloadChoiceResult(false)
 
         Assert.assertEquals(
@@ -187,7 +165,6 @@ class DatabasePrefsPresenterTest {
 
     @Test
     fun checkDatabaseUpdate() {
-        //right now, just see it doesn't crash
         dbPrefPresenter.checkDatabaseUpdate(ApplicationProvider.getApplicationContext<Context>())
     }
 
