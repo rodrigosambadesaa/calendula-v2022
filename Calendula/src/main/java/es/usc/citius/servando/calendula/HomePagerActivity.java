@@ -28,7 +28,7 @@ import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.os.Handler;
 import androidx.annotation.ColorInt;
-import androidx.annotation.MenuRes;
+import androidx.annotation.IdRes;
 import androidx.annotation.NonNull;
 import androidx.annotation.StringRes;
 import com.google.android.material.appbar.AppBarLayout;
@@ -111,7 +111,7 @@ public class HomePagerActivity extends CalendulaActivity implements
     public static final int REQ_CODE_EXTERNAL_STORAGE = 10;
     private static final String TAG = "HomePagerActivity";
 
-    @MenuRes
+    @IdRes
     private static final int[] MENU_ITEMS = {
             R.id.action_sort, R.id.action_expand, R.id.action_last_update, R.id.action_calendar, R.id.action_schedules_help
     };
@@ -258,7 +258,7 @@ public class HomePagerActivity extends CalendulaActivity implements
                 startActivity(new Intent(HomePagerActivity.this, activityClazz));
                 overridePendingTransition(0, 0);
             }
-        }, delay);
+        }, delay ? 500 : 0);
 
     }
 
