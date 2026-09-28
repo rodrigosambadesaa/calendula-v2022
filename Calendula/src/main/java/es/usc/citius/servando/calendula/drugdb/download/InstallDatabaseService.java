@@ -402,6 +402,20 @@ public class InstallDatabaseService extends Service {
     }
 
     @Override
+    public void onTimeout(int startId, int fgsType) {
+        LogUtil.w(TAG, "Foreground data-sync timeout reached; stopping database operation");
+        databaseExecutor.shutdownNow();
+        isRunning = false;
+        stopForeground(true);
+
+        Intent bcIntent = new Intent(ACTION_ERROR);
+        bcIntent.setPackage(getPackageName());
+        sendBroadcast(bcIntent);
+
+        stopSelf(startId);
+    }
+
+    @Override
     public void onDestroy() {
         databaseExecutor.shutdownNow();
         super.onDestroy();
