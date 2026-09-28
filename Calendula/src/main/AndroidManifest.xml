@@ -7,7 +7,7 @@
   ~    the Free Software Foundation; either version 3 of the License, or
   ~    (at your option) any later version.
   ~
-  ~    This program is distributed in the hope that it will be useful,
+  ~    Calendula is distributed in the hope that it will be useful,
   ~    but WITHOUT ANY WARRANTY; without even the implied warranty of
   ~    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   ~    GNU General Public License for more details.
@@ -26,6 +26,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.USE_FINGERPRINT" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
@@ -173,6 +174,7 @@
         <service
             android:name=".drugdb.download.InstallDatabaseService"
             android:exported="false"
+            android:foregroundServiceType="dataSync"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
 
         <service
