@@ -1,11 +1,9 @@
 package es.usc.citius.servando.calendula.activities;
 
-import android.os.Build;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.annotation.RequiresApi;
 import androidx.viewpager.widget.ViewPager;
 
 import com.afollestad.materialdialogs.DialogAction;
@@ -23,11 +21,10 @@ import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
 
-@RequiresApi(api = Build.VERSION_CODES.M)
 public class CheckBatterySavingActivity extends IntroActivity {
 
-    private static final int IGNORE_OPTIMIZATION_REQUEST = 1;
     private int location = 0;
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
 
