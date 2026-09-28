@@ -18,6 +18,7 @@
 
 package es.usc.citius.servando.calendula.settings.notifications
 
+import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -60,6 +61,7 @@ class NotificationPrefsFragment :
     private val notificationPref:Preference? by lazy { findPreference(PreferenceKeys.SETTINGS_NOTIFICATION_TONE.key()) as Preference?}
     private val insistentNotificationPref:Preference? by lazy { findPreference(PreferenceKeys.SETTINGS_INSISTENT_NOTIFICATION_TONE.key()) as Preference?}
     private val batterySavingPref: TwoStatePreference? by lazy { findPreference(PreferenceKeys.SETTINGS_BATTERY_SAVING.key()) as TwoStatePreference?}
+    private val exactAlarmAccessPref: Preference? by lazy { findPreference(PreferenceKeys.SETTINGS_EXACT_ALARM_ACCESS.key()) as Preference?}
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         LogUtil.d(TAG, "onCreatePreferences called")
@@ -82,6 +84,7 @@ class NotificationPrefsFragment :
                 }
                 false
         }
+        updateExactAlarmAccessPreference()
     }
 
     override fun onPreferenceTreeClick(preference: Preference?): Boolean {
@@ -92,6 +95,10 @@ class NotificationPrefsFragment :
             }
             PreferenceKeys.SETTINGS_INSISTENT_NOTIFICATION_TONE.key() -> {
                 presenter.selectInsistentRingtone()
+                return true
+            }
+            PreferenceKeys.SETTINGS_EXACT_ALARM_ACCESS.key() -> {
+                requestExactAlarmAccessIfNeeded()
                 return true
             }
         }
@@ -113,6 +120,43 @@ class NotificationPrefsFragment :
             val state = isIgnoringBatteryOptimizations()
             batterySavingPref?.isChecked = state;
         }
+        updateExactAlarmAccessPreference()
+    }
+
+    private fun requestExactAlarmAccessIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            return
+        }
+        val currentContext = context ?: return
+        val alarmManager = currentContext.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        if (!alarmManager.canScheduleExactAlarms()) {
+            val intent = Intent(
+                    Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                    Uri.parse("package:" + currentContext.packageName)
+            )
+            startActivity(intent)
+        }
+    }
+
+    private fun updateExactAlarmAccessPreference() {
+        val preference = exactAlarmAccessPref ?: return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            preference.isVisible = false
+            return
+        }
+
+        val currentContext = context ?: return
+        val alarmManager = currentContext.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val allowed = alarmManager.canScheduleExactAlarms()
+        preference.isVisible = true
+        preference.isEnabled = !allowed
+        preference.setSummary(
+                if (allowed) {
+                    R.string.pref_summary_exact_alarm_access_allowed
+                } else {
+                    R.string.pref_summary_exact_alarm_access_denied
+                }
+        )
     }
 
     @RequiresApi(Build.VERSION_CODES.M)

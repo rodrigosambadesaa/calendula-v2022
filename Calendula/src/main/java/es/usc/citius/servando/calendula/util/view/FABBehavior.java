@@ -22,7 +22,6 @@ import android.content.Context;
 import com.google.android.material.appbar.AppBarLayout;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
-import com.google.android.material.snackbar.Snackbar;
 import android.util.AttributeSet;
 import android.view.View;
 import android.view.ViewGroup;
@@ -37,14 +36,17 @@ public class FABBehavior extends FloatingActionButton.Behavior {
     public FABBehavior(Context context, AttributeSet attributeSet) {
     }
 
+    @Override
     public boolean onDependentViewChanged(CoordinatorLayout parent, FloatingActionButton child, View dependency) {
-        if (dependency instanceof Snackbar.SnackbarLayout) {
-            return super.onDependentViewChanged(parent, child, dependency);
-        } else if (dependency instanceof AppBarLayout) {
+        if (dependency instanceof AppBarLayout) {
             this.updateFabVisibility(parent, (AppBarLayout) dependency, child);
+            return false;
         }
 
-        return false;
+        // Delegate every other dependency to Material's public FAB behavior. This preserves the
+        // framework handling for transient bars without depending on the restricted SnackbarLayout
+        // implementation class.
+        return super.onDependentViewChanged(parent, child, dependency);
     }
 
     private boolean updateFabVisibility(CoordinatorLayout parent, AppBarLayout appBarLayout, FloatingActionButton child) {

@@ -41,6 +41,7 @@ import es.usc.citius.servando.calendula.healthcareprovider.util.DBUtil;
 import es.usc.citius.servando.calendula.util.GsonUtil;
 import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.NetworkUtils;
+import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
@@ -222,7 +223,7 @@ public class UpdateMedicationHelper {
         PendingIntent resultPendingIntent =
                 stackBuilder.getPendingIntent(
                         0,
-                        PendingIntent.FLAG_UPDATE_CURRENT
+                        PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT)
                 );
         mBuilder.setContentIntent(resultPendingIntent);
         NotificationManager mNotificationManager =
@@ -236,7 +237,7 @@ public class UpdateMedicationHelper {
      */
     private static void onSuccess() {
         final SharedPreferences.Editor editor = PreferenceUtils.edit();
-        editor.putString(PreferenceKeys.REMOTE_UPDATE_STATUS.key(), Status.SUCCESS.toString());
+        editor.putString(PreferenceKeys.REMOTE_UPDATE_STATUS.key(), Status.SUCCESS.toString()).apply();
         editor.putString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_DATE.key(), DateTime.now().toString());
         editor.apply();
 

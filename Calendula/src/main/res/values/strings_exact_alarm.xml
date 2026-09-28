@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="prefkey_settings_exact_alarm_access" translatable="false">exact_alarm_access</string>
+    <string name="pref_title_exact_alarm_access">Exact reminder timing</string>
+    <string name="pref_summary_exact_alarm_access_allowed">Allowed — reminders can be scheduled at exact times</string>
+    <string name="pref_summary_exact_alarm_access_denied">Not allowed — tap to enable Alarms &amp; reminders</string>
+</resources>

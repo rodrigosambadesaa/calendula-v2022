@@ -81,6 +81,7 @@ public enum PreferenceKeys {
     SETTINGS_ALARM_REPEAT_ENABLED(R.string.prefkey_settings_alarm_repeat_enabled),
     SETTINGS_ALARM_REPEAT_FREQUENCY(R.string.prefkey_settings_alarm_repeat_frequency),
     SETTINGS_ALARM_NOTIFICATIONS(R.string.prefkey_settings_alarm_notifications),
+    SETTINGS_EXACT_ALARM_ACCESS(R.string.prefkey_settings_exact_alarm_access),
     SETTINGS_BATTERY_SAVING(R.string.prefkey_settings_battery_saving),
     SETTINGS_DATABASE_UPDATE(R.string.prefkey_settings_database_update),
     SETTINGS_NOTIFICATION_TONE(R.string.prefkey_settings_notification_tone),
