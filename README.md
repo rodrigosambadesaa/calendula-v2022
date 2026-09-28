@@ -69,37 +69,33 @@ These instructions will get you a copy of the project up and running on your loc
 
 ### Development environment setup
 
-We use [Android Studio](https://developer.android.com/studio/index.html) (the official Android IDE) for development, so we recommend it as the IDE to use in your development environment. Once you install Android Studio, you can use the Android SDK Manager to obtain the SDK tools, platforms, and other components you will need to start developing. The most important are:
+We use [Android Studio](https://developer.android.com/studio/index.html) (the official Android IDE) for development. The repository now uses the modernized Android toolchain validated by CI. The main local prerequisites are:
 
-* Android SDK Tools and Android SDK Platform-tools (upgrade to their last versions is usually a good idea).
-* Android SDK Build-Tools 29.0.3.
-* Android 10 (API Level 29) SDK Platform.
-* Android Support Repository
+* JDK 17.
+* Android SDK Platform-tools.
+* Android 15 (API Level 35) SDK Platform.
+* Android SDK Build-Tools 34.0.0 (the version installed by the current CI workflow).
 
-You can also install other packages like emulators for running the app, if you don't have or don't want to use a real device. The current Gradle configuration uses a minimum SDK of *API level 18 (Android 4.3).*
+Gradle does not need to be installed separately because the repository includes the Gradle Wrapper. Additional SDK packages, emulator images and device drivers can be installed as needed from Android Studio's SDK Manager.
+
+The current Gradle configuration supports **Android 6.0 (API 23) and newer**.
 
 ### Maintenance baseline
 
-This fork currently preserves the historical Android compatibility of the 2022 codebase while
-modernizing it incrementally. The validated baseline is:
+The historical 2022 codebase is being modernized incrementally while preserving upstream provenance and keeping every stage buildable. The currently validated baseline is:
 
-- **minSdk:** API 18 (Android 4.3)
-- **compileSdk / targetSdk:** API 29
-- **Android Gradle Plugin:** 4.0.1
-- **Gradle:** 6.5.1
-- **Java for the legacy Gradle build:** JDK 8
+- **minSdk:** API 23 (Android 6.0)
+- **compileSdk / targetSdk:** API 35 (Android 15)
+- **Android Gradle Plugin:** 8.6.1
+- **Gradle:** 8.7
+- **Kotlin:** 2.1.21
+- **JDK:** 17
 
-GitHub Actions uses a newer JDK only for the current Android SDK command-line tools, then switches
-back to JDK 8 for the actual legacy Gradle build.
+GitHub Actions builds the `ciDebug` APK, runs the JVM unit-test suite, builds the instrumentation-test APK, runs Android lint, and uploads the resulting reports and debug APK. The same JDK 17 toolchain is used for the Android SDK tools and Gradle build.
 
-Dependency updates are therefore intentionally conservative. Dependabot is enabled, but versions
-known to raise the Android minimum SDK, require newer Android resource attributes, change major
-library APIs, or require a newer AGP/Gradle/JDK stack are deferred in `.github/dependabot.yml`.
-Those updates should be handled as coordinated modernization work rather than merged as isolated
-version bumps.
+Dependency updates remain intentionally conservative where a new version changes library APIs, Android behavior or requires a coordinated migration. Dependabot is enabled, but major framework and library migrations should still be reviewed and validated in dedicated pull requests instead of being accepted as isolated version bumps.
 
-The long-term direction is to modernize the toolchain in explicit, testable stages while keeping
-the app buildable and preserving the provenance of the upstream source.
+The long-term direction remains explicit, testable modernization while keeping the app buildable and preserving the provenance of the upstream source.
 
 ### Building and installing the app
 
