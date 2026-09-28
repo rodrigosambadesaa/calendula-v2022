@@ -21,7 +21,6 @@ package es.usc.citius.servando.calendula.fragments;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.drawable.Drawable;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import androidx.core.app.ActivityCompat;
@@ -297,7 +296,6 @@ public class DailyAgendaFragment extends Fragment {
         if (position > 0)
             llm.smoothScrollToPosition(rv, null, position - 1);
     }
-
     public boolean isExpanded() {
         return rvAdapter.isExpanded();
     }
@@ -365,23 +363,18 @@ public class DailyAgendaFragment extends Fragment {
         i.putExtra(IntentParams.EXTRA_PATIENT_ID, item.patient.getId());
         i.putExtra(IntentParams.EXTRA_DATETIME, item.dateTime().toString(ISODateTimeFormat.dateTimeNoMillis()));
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+        View v1 = view.findViewById(R.id.patient_avatar);
+        View v2 = view.findViewById(R.id.linearLayout);
+        View v3 = view.findViewById(R.id.routines_list_item_name);
 
-            View v1 = view.findViewById(R.id.patient_avatar);
-            View v2 = view.findViewById(R.id.linearLayout);
-            View v3 = view.findViewById(R.id.routines_list_item_name);
-
-            if (v1 != null && v2 != null && v3 != null) {
-                ActivityOptionsCompat activityOptions = ActivityOptionsCompat.makeSceneTransitionAnimation(
-                        getActivity(),
-                        new Pair<>(v1, "avatar_transition"),
-                        new Pair<>(v2, "time"),
-                        new Pair<>(v3, "title")
-                );
-                ActivityCompat.startActivity(getActivity(), i, activityOptions.toBundle());
-            } else {
-                startActivity(i);
-            }
+        if (v1 != null && v2 != null && v3 != null) {
+            ActivityOptionsCompat activityOptions = ActivityOptionsCompat.makeSceneTransitionAnimation(
+                    getActivity(),
+                    new Pair<>(v1, "avatar_transition"),
+                    new Pair<>(v2, "time"),
+                    new Pair<>(v3, "title")
+            );
+            ActivityCompat.startActivity(getActivity(), i, activityOptions.toBundle());
         } else {
             startActivity(i);
         }
