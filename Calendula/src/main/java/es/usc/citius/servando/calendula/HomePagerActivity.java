@@ -258,7 +258,7 @@ public class HomePagerActivity extends CalendulaActivity implements
                 startActivity(new Intent(HomePagerActivity.this, activityClazz));
                 overridePendingTransition(0, 0);
             }
-        }, delay ? 500 : 0);
+        }, delay);
 
     }
 
