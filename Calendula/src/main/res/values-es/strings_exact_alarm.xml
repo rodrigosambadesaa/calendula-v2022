@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pref_title_exact_alarm_access">Horario exacto de los recordatorios</string>
+    <string name="pref_summary_exact_alarm_access_allowed">Permitido: los recordatorios pueden programarse a horas exactas</string>
+    <string name="pref_summary_exact_alarm_access_denied">No permitido: toca para activar Alarmas y recordatorios</string>
+</resources>
