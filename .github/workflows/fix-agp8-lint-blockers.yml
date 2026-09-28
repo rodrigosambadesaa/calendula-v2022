@@ -23,11 +23,8 @@ jobs:
 
           java = Path('Calendula/src/main/java/es/usc/citius/servando/calendula/DailyAgendaRecyclerAdapter.java')
           text = java.read_text()
-          old = '''                if(el.eventId ==ev.getId())
-                el.taken = ev.completed();'''
-          new = '''                if (el.eventId == ev.getId()) {
-                    el.taken = ev.completed();
-                }'''
+          old = '                if(el.eventId ==ev.getId())\n                el.taken = ev.completed();'
+          new = '                if (el.eventId == ev.getId()) {\n                    el.taken = ev.completed();\n                }'
           if old not in text:
               raise SystemExit('DailyAgendaRecyclerAdapter lint target not found')
           java.write_text(text.replace(old, new, 1))
@@ -40,8 +37,7 @@ jobs:
               raise SystemExit('Resource root target not found')
           text = text.replace(old_root, new_root, 1)
           old_plural = '    <plurals name="intakes_per_day">'
-          new_plural = '''    <!-- Structural plural: localized text comes from the referenced strings. -->
-    <plurals name="intakes_per_day" tools:ignore="MissingTranslation">'''
+          new_plural = '    <!-- Structural plural: localized text comes from the referenced strings. -->\n    <plurals name="intakes_per_day" tools:ignore="MissingTranslation">'
           if old_plural not in text:
               raise SystemExit('Plural lint target not found')
           xml.write_text(text.replace(old_plural, new_plural, 1))
