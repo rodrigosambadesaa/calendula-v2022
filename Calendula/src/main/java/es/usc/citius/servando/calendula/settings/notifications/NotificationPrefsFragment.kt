@@ -29,7 +29,6 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.service.autofill.Validators.not
-import androidx.annotation.RequiresApi
 import androidx.preference.Preference
 import androidx.preference.SwitchPreference
 import androidx.preference.TwoStatePreference
@@ -68,18 +67,16 @@ class NotificationPrefsFragment :
         addPreferencesFromResource(R.xml.pref_notifications)
         batterySavingPref?.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, value ->
                 val isChecked: Boolean = value as Boolean
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                    if (value != isIgnoringBatteryOptimizations()) {
-                        if (isChecked) {
-                            val intent = Intent()
-                            intent.action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
-                            intent.data = Uri.parse("package:" + context!!.packageName)
-                            startActivity(intent)
-                        } else {
-                            val intent = Intent()
-                            intent.action = Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
-                            startActivity(intent)
-                        }
+                if (isChecked != isIgnoringBatteryOptimizations()) {
+                    if (isChecked) {
+                        val intent = Intent()
+                        intent.action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+                        intent.data = Uri.parse("package:" + context!!.packageName)
+                        startActivity(intent)
+                    } else {
+                        val intent = Intent()
+                        intent.action = Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
+                        startActivity(intent)
                     }
                 }
                 false
@@ -116,10 +113,8 @@ class NotificationPrefsFragment :
 
     override fun onResume() {
         super.onResume()
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-            val state = isIgnoringBatteryOptimizations()
-            batterySavingPref?.isChecked = state;
-        }
+        val state = isIgnoringBatteryOptimizations()
+        batterySavingPref?.isChecked = state
         updateExactAlarmAccessPreference()
     }
 
@@ -159,7 +154,6 @@ class NotificationPrefsFragment :
         )
     }
 
-    @RequiresApi(Build.VERSION_CODES.M)
     fun isIgnoringBatteryOptimizations(): Boolean {
         val pm = context!!.getSystemService(Context.POWER_SERVICE) as PowerManager
         return pm.isIgnoringBatteryOptimizations(context!!.packageName)
