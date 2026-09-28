@@ -13,7 +13,6 @@ package es.usc.citius.servando.calendula.util;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.Network;
-import android.os.Build;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -92,12 +91,9 @@ public final class NetworkUtils {
             new BackendHostResolver() {
                 @Override
                 public boolean resolves(String host, Network network) throws IOException {
-                    InetAddress[] addresses;
-                    if (network != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                        addresses = network.getAllByName(host);
-                    } else {
-                        addresses = InetAddress.getAllByName(host);
-                    }
+                    InetAddress[] addresses = network != null
+                            ? network.getAllByName(host)
+                            : InetAddress.getAllByName(host);
                     return addresses != null && addresses.length > 0;
                 }
             };
@@ -201,32 +197,16 @@ public final class NetworkUtils {
     }
 
     private static Network selectBackendNetwork(Context context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-            return null;
-        }
-
         ConnectivityManager manager = (ConnectivityManager)
                 context.getSystemService(Context.CONNECTIVITY_SERVICE);
         if (manager == null) {
             return null;
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Network active = manager.getActiveNetwork();
-            return active != null && ConnectivityAndInternetAccess.isConnected(context, active)
-                    ? active
-                    : null;
-        }
-
-        Network[] networks = manager.getAllNetworks();
-        if (networks != null) {
-            for (Network network : networks) {
-                if (ConnectivityAndInternetAccess.isConnected(context, network)) {
-                    return network;
-                }
-            }
-        }
-        return null;
+        Network active = manager.getActiveNetwork();
+        return active != null && ConnectivityAndInternetAccess.isConnected(context, active)
+                ? active
+                : null;
     }
 
     public static boolean isVpnActive(final Context ctx) {
