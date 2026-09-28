@@ -18,6 +18,7 @@
 
 package es.usc.citius.servando.calendula.notifications;
 
+import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -157,7 +158,20 @@ public class LockScreenAlarmActivity extends AppCompatActivity {
                 }
             }
         };
-        registerReceiver(finishReceiver, new IntentFilter(STOP_SIGNAL));
+        IntentFilter filter = new IntentFilter(STOP_SIGNAL);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(finishReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerFinishReceiverPreTiramisu(filter);
+        }
+    }
+
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
+    private void registerFinishReceiverPreTiramisu(IntentFilter filter) {
+        // The exported/not-exported overload does not exist before API 33. This helper is only
+        // reached on those older releases; API 33+ always registers the app-private signal as
+        // RECEIVER_NOT_EXPORTED above.
+        registerReceiver(finishReceiver, filter);
     }
 
     private void unregisterFinishReceiver() {

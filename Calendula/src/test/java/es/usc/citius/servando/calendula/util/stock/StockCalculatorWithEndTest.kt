@@ -42,15 +42,15 @@ class StockCalculatorWithEndTest(
         @Parameters
         @JvmStatic
         fun getParameters() = listOf(
-            arrayOf(0F, 1F, 0),
-            arrayOf(1F, 1F, 1),
-            arrayOf(1F, 1.1F, 0),
-            arrayOf(1F, 2F, 0),
-            arrayOf(29F, 3F, 9),
-            arrayOf(3F, 1.5F, 2),
-            arrayOf(3F, 2.5F, 1),
-            arrayOf(7F, 1F, 7),
-            arrayOf(1000F, 500F, 2)
+            arrayOf<Any>(0F, 1F, 0),
+            arrayOf<Any>(1F, 1F, 1),
+            arrayOf<Any>(1F, 1.1F, 0),
+            arrayOf<Any>(1F, 2F, 0),
+            arrayOf<Any>(29F, 3F, 9),
+            arrayOf<Any>(3F, 1.5F, 2),
+            arrayOf<Any>(3F, 2.5F, 1),
+            arrayOf<Any>(7F, 1F, 7),
+            arrayOf<Any>(1000F, 500F, 2)
         )
     }
 
