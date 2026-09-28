@@ -157,7 +157,12 @@ public class LockScreenAlarmActivity extends AppCompatActivity {
                 }
             }
         };
-        registerReceiver(finishReceiver, new IntentFilter(STOP_SIGNAL));
+        IntentFilter filter = new IntentFilter(STOP_SIGNAL);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(finishReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(finishReceiver, filter);
+        }
     }
 
     private void unregisterFinishReceiver() {
