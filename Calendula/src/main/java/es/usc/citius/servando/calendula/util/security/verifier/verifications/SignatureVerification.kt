@@ -59,7 +59,10 @@ class SignatureVerification : Verification {
 
         val signatures =
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    val info = c.packageManager.getPackageInfo(c.packageName, PackageManager.GET_SIGNING_CERTIFICATES).signingInfo
+                    val info = c.packageManager
+                            .getPackageInfo(c.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+                            .signingInfo
+                            ?: return false
                     if (info.hasMultipleSigners()) {
                         info.apkContentsSigners
                     } else {
@@ -67,7 +70,7 @@ class SignatureVerification : Verification {
                     }
                 } else {
                     val info = c.packageManager.getPackageInfo(c.packageName, PackageManager.GET_SIGNATURES)
-                    info.signatures
+                    info.signatures ?: return false
 
                 }
         val validSignatures = getValidSignatures()
