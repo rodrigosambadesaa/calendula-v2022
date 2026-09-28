@@ -86,6 +86,7 @@ public class InstallDatabaseService extends Service {
     private NotificationCompat.Builder mBuilder;
     private NotificationManagerCompat mNotifyManager;
     private boolean silent = false;
+    private volatile boolean timedOut = false;
 
     public static void startSetup(Context context, String dbPath,
                                   Pair<String, String> databaseInfo, DBInstallType type) {
@@ -141,6 +142,12 @@ public class InstallDatabaseService extends Service {
             return Service.START_NOT_STICKY;
         }
 
+        if (timedOut) {
+            LogUtil.w(TAG, "Ignoring database operation while timed-out service is stopping");
+            stopSelf(startId);
+            return Service.START_NOT_STICKY;
+        }
+
         startForeground(NOTIFICATION_ID, getNotification(100, 0, null));
         isRunning = true;
 
@@ -166,9 +173,16 @@ public class InstallDatabaseService extends Service {
                         success = handleSetup(dbPath, dbPref, dbVersion, type);
                     }
 
+                    if (timedOut) {
+                        return;
+                    }
+
                     if (success) {
                         if (type == DBInstallType.UPDATE) {
                             checkForInvalidData();
+                            if (timedOut) {
+                                return;
+                            }
                             CalendulaApp.eventBus().post(new PersistenceEvents.DatabaseUpdateEvent());
                         }
                         onComplete();
@@ -234,6 +248,13 @@ public class InstallDatabaseService extends Service {
                 throw new IOException("Database download failed");
             }
 
+            if (timedOut) {
+                if (destination.exists() && !destination.delete()) {
+                    LogUtil.w(TAG, "Unable to remove timed-out database download");
+                }
+                return false;
+            }
+
             final boolean setupSucceeded =
                     handleSetup(destination.getAbsolutePath(), dbName, dbVersion, type);
             if (!setupSucceeded && destination.exists() && !destination.delete()) {
@@ -270,6 +291,10 @@ public class InstallDatabaseService extends Service {
                         }
                     });
 
+            if (timedOut) {
+                return false;
+            }
+
             SharedPreferences settings = PreferenceUtils.instance().preferences();
             settings.edit()
                     .putString(PreferenceKeys.DRUGDB_LAST_VALID.key(), dbPref)
@@ -298,15 +323,25 @@ public class InstallDatabaseService extends Service {
         } else {
             LogUtil.e(TAG, message);
         }
+        if (timedOut) {
+            LogUtil.w(TAG, "Suppressing late database failure after foreground-service timeout");
+            return;
+        }
         final boolean clearDatabaseSelection = type != DBInstallType.UPDATE;
         DownloadDatabaseHelper.instance().onDownloadFailed(this, clearDatabaseSelection);
         onFailure();
     }
 
     private void checkForInvalidData() {
+        if (timedOut) {
+            return;
+        }
         LogUtil.d(TAG, "checkForInvalidData() called");
         boolean anyMissing = false;
         for (Medicine m : DB.medicines().findAll()) {
+            if (timedOut) {
+                return;
+            }
             if (m.isBoundToPrescription()) {
                 final String cn = m.getCn();
                 final Prescription byCn = DB.drugDB().prescriptions().findByCn(cn);
@@ -316,12 +351,15 @@ public class InstallDatabaseService extends Service {
                 }
             }
         }
-        if (anyMissing) {
+        if (anyMissing && !timedOut) {
             notifyDataMissing();
         }
     }
 
     private void notifyDataMissing() {
+        if (timedOut) {
+            return;
+        }
         mBuilder = new NotificationCompat.Builder(this, NotificationHelper.CHANNEL_DEFAULT_ID)
                 .setTicker("")
                 .setSmallIcon(R.drawable.ic_launcher_white)
@@ -335,6 +373,9 @@ public class InstallDatabaseService extends Service {
     }
 
     private void showNotification(int max, int prog) {
+        if (timedOut) {
+            return;
+        }
         PendingIntent pIntent = null;
         if (!silent) {
             Intent activity = new Intent(this, MedicinesActivity.class);
@@ -359,6 +400,10 @@ public class InstallDatabaseService extends Service {
     }
 
     private void onComplete() {
+        if (timedOut) {
+            LogUtil.w(TAG, "Suppressing late database completion after foreground-service timeout");
+            return;
+        }
         isRunning = false;
         stopForeground(true);
         if (!silent) {
@@ -377,6 +422,10 @@ public class InstallDatabaseService extends Service {
     }
 
     private void onFailure() {
+        if (timedOut) {
+            LogUtil.w(TAG, "Suppressing late failure notification after foreground-service timeout");
+            return;
+        }
         isRunning = false;
         stopForeground(true);
         if (!silent) {
@@ -403,6 +452,10 @@ public class InstallDatabaseService extends Service {
 
     @Override
     public void onTimeout(int startId, int fgsType) {
+        if (timedOut) {
+            return;
+        }
+        timedOut = true;
         LogUtil.w(TAG, "Foreground data-sync timeout reached; stopping database operation");
         databaseExecutor.shutdownNow();
         isRunning = false;
