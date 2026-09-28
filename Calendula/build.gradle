@@ -66,7 +66,7 @@ def getCustomProguardFiles() {
 }
 
 android {
-    compileSdkVersion 33
+    compileSdkVersion 34
     namespace 'es.usc.citius.servando.calendula'
 
     buildFeatures {
