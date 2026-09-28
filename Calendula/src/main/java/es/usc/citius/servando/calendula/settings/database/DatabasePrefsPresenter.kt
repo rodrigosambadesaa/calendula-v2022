@@ -44,7 +44,6 @@ class DatabasePrefsPresenter(
     private lateinit var noneId: String
     private lateinit var settingUpId: String
     private lateinit var noneDisplay: String
-    private var selectIdTemp: String? = null
 
 
     override fun attachView(view: DatabasePrefsContract.View) {
@@ -93,13 +92,8 @@ class DatabasePrefsPresenter(
     override fun selectNewDb(dbId: String): Boolean {
         LogUtil.d(TAG, "selectNewDb() called with dbId=$dbId")
         if (dbId != currentDbId) {
-            // if there is no actual update just return true and skip checks
             if (dbId != noneId && dbId != settingUpId) {
-                if (!view.hasDownloadPermission()) {
-                    view.askForDownloadPermission(dbId)
-                } else {
-                    view.showDatabaseDownloadChoice(dbId)
-                }
+                view.showDatabaseDownloadChoice(dbId)
                 return false
             } else if (dbId == noneId) {
                 // if the db ID is "none", delete the current DB and let the pref update
@@ -129,11 +123,6 @@ class DatabasePrefsPresenter(
                 }
             }
         }
-    }
-
-
-    override fun onDownloadPermissionGranted(dbId: String) {
-        selectNewDb(dbId)
     }
 
     private fun notifyNoUpdate() {
