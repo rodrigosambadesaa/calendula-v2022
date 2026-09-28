@@ -385,8 +385,9 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
         List<EventInstance> evs = ScheduleUtils.instance().intakeEvents(stub.patient, stub.dateTime());
         for(EventInstance ev : evs){
             for (DailyAgendaItemStub.DailyAgendaItemStubElement el : stub.meds) {
-                if(el.eventId ==ev.getId())
-                el.taken = ev.completed();
+                if (el.eventId == ev.getId()) {
+                    el.taken = ev.completed();
+                }
             }
         }
     }
