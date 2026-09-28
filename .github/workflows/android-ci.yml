@@ -42,12 +42,6 @@ jobs:
       - name: Run unit tests
         run: ./gradlew testCiDebugUnitTest --stacktrace --no-daemon
 
-      - name: Diagnose instrumentation dependencies
-        run: |
-          ./gradlew :Calendula:dependencyInsight --configuration ciDebugAndroidTestRuntimeClasspath --dependency checker --no-daemon || true
-          ./gradlew :Calendula:dependencyInsight --configuration ciDebugAndroidTestRuntimeClasspath --dependency accessibility-test-framework --no-daemon || true
-          ./gradlew :Calendula:dependencyInsight --configuration ciDebugAndroidTestRuntimeClasspath --dependency annotation-experimental --no-daemon || true
-
       - name: Build instrumentation test APK
         run: ./gradlew -Dorg.gradle.jvmargs=-Xmx3072m assembleCiDebugAndroidTest --stacktrace --no-daemon
 
