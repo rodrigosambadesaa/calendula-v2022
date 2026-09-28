@@ -18,63 +18,43 @@
 
 package es.usc.citius.servando.calendula.util;
 
-/**
- *
- */
-
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
-import android.os.Build;
 import android.provider.Settings;
+
 import androidx.fragment.app.Fragment;
 
 /**
- * Android Permission Utility class. A collection of static convenience methods
- * for checking if Android Runtime permissions are required.
- * <p>
- * https://gist.github.com/mtsahakis/bd54dc595f8cf170eb1bce17f31722b5
+ * Android permission utility class for the app's Android 6.0+ baseline.
  */
 public class PermissionUtils {
 
     public static boolean useRunTimePermissions() {
-        return Build.VERSION.SDK_INT > Build.VERSION_CODES.LOLLIPOP_MR1;
-    }
-
-    public static boolean hasPermission(Activity activity, String permission) {
-        if (useRunTimePermissions()) {
-            return activity.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED;
-        }
         return true;
     }
 
+    public static boolean hasPermission(Activity activity, String permission) {
+        return activity.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED;
+    }
+
     public static void requestPermissions(Activity activity, String[] permission, int requestCode) {
-        if (useRunTimePermissions()) {
-            activity.requestPermissions(permission, requestCode);
-        }
+        activity.requestPermissions(permission, requestCode);
     }
 
     public static void requestPermissions(Fragment fragment, String[] permission, int requestCode) {
-        if (useRunTimePermissions()) {
-            fragment.requestPermissions(permission, requestCode);
-        }
+        fragment.requestPermissions(permission, requestCode);
     }
 
     public static boolean shouldShowRational(Activity activity, String permission) {
-        if (useRunTimePermissions()) {
-            return activity.shouldShowRequestPermissionRationale(permission);
-        }
-        return false;
+        return activity.shouldShowRequestPermissionRationale(permission);
     }
 
     public static boolean shouldAskForPermission(Activity activity, String permission) {
-        if (useRunTimePermissions()) {
-            return !hasPermission(activity, permission) &&
-                    (!hasAskedForPermission(activity, permission) ||
-                            shouldShowRational(activity, permission));
-        }
-        return false;
+        return !hasPermission(activity, permission)
+                && (!hasAskedForPermission(activity, permission)
+                || shouldShowRational(activity, permission));
     }
 
     public static void goToAppSettings(Activity activity) {
@@ -98,12 +78,12 @@ public class PermissionUtils {
     }
 
     public interface PermissionRequest {
-        public int reqCode();
+        int reqCode();
 
-        public String[] permissions();
+        String[] permissions();
 
-        public void onPermissionGranted();
+        void onPermissionGranted();
 
-        public void onPermissionDenied();
+        void onPermissionDenied();
     }
 }
