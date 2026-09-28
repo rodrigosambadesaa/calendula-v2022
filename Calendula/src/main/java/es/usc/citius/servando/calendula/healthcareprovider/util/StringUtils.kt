@@ -46,7 +46,6 @@ object StringUtils {
             Freq.MINUTELY -> c.resources.getString(R.string.minutes)
             Freq.SECONDLY -> c.resources.getString(R.string.seconds)
             Freq.YEARLY -> c.resources.getString(R.string.years)
-            else -> throw IllegalArgumentException("Unsupported frequency " + f)
         }
     }
 }
