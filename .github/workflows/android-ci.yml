@@ -30,11 +30,11 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Install Android SDK 33
+      - name: Install Android SDK 34
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platforms;android-33" "build-tools;33.0.1"
+          "$SDKMANAGER" "platforms;android-34" "build-tools;33.0.1"
 
       - name: Build CI debug APK
         run: ./gradlew assembleCiDebug --stacktrace --no-daemon
