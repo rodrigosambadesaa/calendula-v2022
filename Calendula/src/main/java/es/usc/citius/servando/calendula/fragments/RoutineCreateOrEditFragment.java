@@ -23,7 +23,6 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
-import android.os.Build;
 import android.os.Bundle;
 import androidx.fragment.app.DialogFragment;
 import android.util.DisplayMetrics;
@@ -116,7 +115,7 @@ public class RoutineCreateOrEditFragment extends DialogFragment implements Radia
 
                 float density = getResources().getDisplayMetrics().densityDpi;
                 LogUtil.d(TAG, "Density: " + density);
-                if (density >= DisplayMetrics.DENSITY_XHIGH || Build.VERSION.SDK_INT <= Build.VERSION_CODES.KITKAT) {
+                if (density >= DisplayMetrics.DENSITY_XHIGH) {
                     RadialTimePickerDialogFragment timePickerFragment = new RadialTimePickerDialogFragment()
                             .setOnTimeSetListener(RoutineCreateOrEditFragment.this)
                             .setStartTime(hour, minute);

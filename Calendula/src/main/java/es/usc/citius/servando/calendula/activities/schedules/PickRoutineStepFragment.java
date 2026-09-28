@@ -23,7 +23,6 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Paint;
 import android.graphics.drawable.Drawable;
-import android.os.Build;
 import android.os.Bundle;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -66,7 +65,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -117,13 +115,8 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
         View rootView = inflater.inflate(R.layout.fragment_pick_routine_step, container, false);
         ButterKnife.bind(this, rootView);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            selected = new ArrayMap<>();
-            times = new ArrayMap<>();
-        } else {
-            selected = new HashMap<>();
-            times = new HashMap<>();
-        }
+        selected = new ArrayMap<>();
+        times = new ArrayMap<>();
 
         items = getResources().getStringArray(R.array.routine_offsets);
         setupRecyclerView();
