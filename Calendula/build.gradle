@@ -258,8 +258,9 @@ dependencies {
     testImplementation "org.mockito:mockito-inline:$libVersions.mockito"
 
     // Support testing
-    androidTestImplementation 'androidx.test.espresso:espresso-contrib:3.4.0'
-    androidTestImplementation 'com.google.android.apps.common.testing.accessibility.framework:accessibility-test-framework:3.1.2'
+    androidTestImplementation('androidx.test.espresso:espresso-contrib:3.4.0') {
+        exclude group: 'com.google.android.apps.common.testing.accessibility.framework', module: 'accessibility-test-framework'
+    }
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0'
     androidTestImplementation 'androidx.test:rules:1.4.0'
     androidTestImplementation 'androidx.test.ext:junit:1.1.3'
@@ -310,7 +311,7 @@ dependencies {
     }
 
     // Calendar views
-implementation 'com.roomorama:caldroid:3.0.1'
+    implementation 'com.roomorama:caldroid:3.0.1'
     implementation 'com.squareup:android-times-square:1.7.10@aar'
 
     // Circular progress "pie" view
