@@ -147,7 +147,7 @@ public class AlertListFragment extends Fragment {
         // register alert view providers on the adapter
         for (Class<?> vp : alertViewProviders) {
             try {
-                rvAdapter.registerViewProvider((AlertViewRecyclerAdapter.AlertViewProvider) vp.newInstance(), vp);
+                rvAdapter.registerViewProvider((AlertViewRecyclerAdapter.AlertViewProvider) vp.getDeclaredConstructor().newInstance(), vp);
             } catch (Exception e) {
                 LogUtil.e(TAG, "setupRecyclerView: ", e);
                 throw new RuntimeException(e);

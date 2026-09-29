@@ -136,7 +136,7 @@ public class PatientAlert<P extends PatientAlert<P, T>, T> {
 
     public P map() {
         try {
-            P result = (P) Class.forName(getType()).newInstance();
+            P result = (P) Class.forName(getType()).getDeclaredConstructor().newInstance();
             result.setId(id);
             result.setPatient(patient);
             result.setMedicine(medicine);
