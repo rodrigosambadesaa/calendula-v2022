@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 /*
  *    Calendula - An assistant for personal medication management.
  *    Copyright (C) 2014-2018 CiTIUS - University of Santiago de Compostela
@@ -31,6 +33,8 @@ import es.usc.citius.servando.calendula.persistence.ScheduleUtils
 import es.usc.citius.servando.calendula.util.IntentParams
 import es.usc.citius.servando.calendula.util.LogUtil
 
+// JobIntentService remains the compatibility queue used by alarm/agenda dispatch. Migrating
+// this flow to a modern scheduler is a separate behavioral change; keep deprecation suppression file-local.
 class AlarmIntentService : JobIntentService() {
 
     companion object {
