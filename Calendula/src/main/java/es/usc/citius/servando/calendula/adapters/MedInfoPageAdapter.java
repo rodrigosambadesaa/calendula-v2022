@@ -22,6 +22,8 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentPagerAdapter;
 
+import java.util.Locale;
+
 import es.usc.citius.servando.calendula.fragments.AlertListFragment;
 import es.usc.citius.servando.calendula.fragments.ActiveMedInfoFragment;
 import es.usc.citius.servando.calendula.fragments.MedInfoFragment;
@@ -94,7 +96,7 @@ public class MedInfoPageAdapter extends FragmentPagerAdapter {
     }
 
     private String getPositionError(int position) {
-        return String.format("Bad position %d for adapter pageset %s", position, pageSet.toString());
+        return String.format(Locale.ROOT, "Bad position %d for adapter pageset %s", position, pageSet.toString());
     }
 
     /**
