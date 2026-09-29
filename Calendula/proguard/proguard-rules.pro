@@ -5,7 +5,6 @@
 # ----------------------------------------------------------------------------------------
 -keep class es.usc.citius.servando.calendula.** { *; }
 -dontwarn es.usc.citius.servando.calendula.**
--dump
 
 # ----------------------------------------------------------------------------------------
 # Rules applied to test code
