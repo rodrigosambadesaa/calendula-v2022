@@ -18,7 +18,6 @@
 
 package es.usc.citius.servando.calendula.activities;
 
-import android.annotation.TargetApi;
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -26,7 +25,6 @@ import android.content.Intent;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.os.Build;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 
@@ -104,12 +102,10 @@ public class PickupNotification {
     /**
      * Cancels any notifications of this type previously shown using
      */
-    @TargetApi(Build.VERSION_CODES.ECLAIR)
     public static void cancel(final Context context) {
         NotificationManagerCompat.from(context).cancel(NOTIFICATION_TAG, 0);
     }
 
-    @TargetApi(Build.VERSION_CODES.ECLAIR)
     private static void notify(final Context context, final Notification notification) {
         NotificationManagerCompat.from(context)
                 .notify(NOTIFICATION_TAG, 0, notification);

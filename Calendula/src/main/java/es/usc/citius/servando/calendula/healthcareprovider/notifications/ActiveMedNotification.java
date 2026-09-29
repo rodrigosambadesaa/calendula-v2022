@@ -18,7 +18,6 @@
 
 package es.usc.citius.servando.calendula.healthcareprovider.notifications;
 
-import android.annotation.TargetApi;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -27,7 +26,6 @@ import android.content.Intent;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.os.Build;
 import android.provider.Settings;
 import androidx.core.app.NotificationCompat;
 
@@ -136,7 +134,6 @@ public class ActiveMedNotification {
     /**
      * Cancels any notifications of this type previously shown using
      */
-    @TargetApi(Build.VERSION_CODES.ECLAIR)
     public static void cancel(final Context context) {
         final NotificationManager nm =
                 (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
@@ -147,7 +144,6 @@ public class ActiveMedNotification {
         return BitmapFactory.decodeResource(r, AvatarMgr.res(p.getAvatar()));
     }
 
-    @TargetApi(Build.VERSION_CODES.ECLAIR)
     private static void notify(final Context context, final Notification notification) {
         final NotificationManager nm =
                 (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
