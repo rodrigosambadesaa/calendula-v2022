@@ -18,7 +18,6 @@
 
 package es.usc.citius.servando.calendula.activities;
 
-import android.annotation.TargetApi;
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -28,7 +27,6 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.media.RingtoneManager;
 import android.net.Uri;
-import android.os.Build;
 import android.provider.Settings;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
@@ -163,7 +161,6 @@ public class IntakeNotificationMgr {
     /**
      * Cancels any notifications of this type previously shown using
      */
-    @TargetApi(Build.VERSION_CODES.ECLAIR)
     public static void cancel(final Context context, EventReminder e) {
         if (e != null) {
             final NotificationManagerCompat nm = NotificationManagerCompat.from(context);
@@ -317,7 +314,6 @@ public class IntakeNotificationMgr {
     }
 
 
-    @TargetApi(Build.VERSION_CODES.ECLAIR)
     private static void notify(final Context context, int id, final Notification notification, String tag) {
         final NotificationManagerCompat nm = NotificationManagerCompat.from(context);
         nm.notify(tag, id, notification);
