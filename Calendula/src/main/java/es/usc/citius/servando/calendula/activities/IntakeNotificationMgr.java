@@ -312,6 +312,9 @@ public class IntakeNotificationMgr {
 
 
     private static void notify(final Context context, int id, final Notification notification, String tag) {
+        if (!NotificationHelper.canPostNotifications(context)) {
+            return;
+        }
         final NotificationManagerCompat nm = NotificationManagerCompat.from(context);
         nm.notify(tag, id, notification);
     }
