@@ -46,6 +46,7 @@ import org.joda.time.DateTime;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
+import java.util.Locale;
 
 import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.R;
@@ -130,7 +131,7 @@ public class HomeProfileMgr {
 
     static String getBackgroundPath() {
         Integer idx = PreferenceUtils.getInt(PreferenceKeys.HOME_PROFILE_BACKGROUND_INDEX, 1);
-        return String.format(BG_IMAGE_PATTERN, idx);
+        return String.format(Locale.ROOT, BG_IMAGE_PATTERN, idx);
     }
 
     public void init(View view, final Activity ctx) {
@@ -215,7 +216,7 @@ public class HomeProfileMgr {
     public void updateDate() {
         DateTime dt = DateTime.now();
         String dayStr = dt.dayOfMonth().getAsShortText();
-        String monthStr = dt.monthOfYear().getAsShortText().toUpperCase();
+        String monthStr = dt.monthOfYear().getAsShortText().toUpperCase(Locale.getDefault());
         dayTv.setText(dayStr);
         monthTv.setText(monthStr);
     }
@@ -227,7 +228,7 @@ public class HomeProfileMgr {
         }
         currentBgFileIdx = rand;
         PreferenceUtils.edit().putInt(PreferenceKeys.HOME_PROFILE_BACKGROUND_INDEX.key(), rand).apply();
-        return String.format(BG_IMAGE_PATTERN, rand);
+        return String.format(Locale.ROOT, BG_IMAGE_PATTERN, rand);
 
     }
 
