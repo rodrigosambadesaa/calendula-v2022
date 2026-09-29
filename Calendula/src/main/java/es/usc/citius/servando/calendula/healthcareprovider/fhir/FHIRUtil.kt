@@ -1,6 +1,5 @@
 package es.usc.citius.servando.calendula.healthcareprovider.fhir
 
-import android.os.Build
 import android.util.ArrayMap
 import es.usc.citius.servando.calendula.CalendulaApp
 import es.usc.citius.servando.calendula.database.DB
@@ -47,20 +46,9 @@ object FHIRUtil {
         val bundle = FhirParseUtil.parseBundle(reader)
 
         val vo = ResponseVO()
-        val medicationDispenses: MutableMap<String, MedicationDispense>
-        val medicationRequests: MutableMap<String, MedicationRequest>
-        val medications: MutableMap<String, Medication>
-
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            medicationDispenses = ArrayMap()
-            medicationRequests = ArrayMap()
-            medications = ArrayMap()
-        } else {
-            medicationDispenses = HashMap()
-            medicationRequests = HashMap()
-            medications = HashMap()
-        }
+        val medicationDispenses: MutableMap<String, MedicationDispense> = ArrayMap()
+        val medicationRequests: MutableMap<String, MedicationRequest> = ArrayMap()
+        val medications: MutableMap<String, Medication> = ArrayMap()
 
         for (component in bundle.entry) {
             val resource = component.resource
