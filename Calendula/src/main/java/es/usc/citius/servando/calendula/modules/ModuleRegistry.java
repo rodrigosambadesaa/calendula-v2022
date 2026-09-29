@@ -52,7 +52,7 @@ public class ModuleRegistry {
         List<CalendulaModule> modules = new ArrayList<>();
         for (Class<?> moduleClass : config.modList) {
             try {
-                modules.add((CalendulaModule) moduleClass.newInstance());
+                modules.add((CalendulaModule) moduleClass.getDeclaredConstructor().newInstance());
             } catch (Exception e) {
                 LogUtil.e(TAG, "getModulesForConfig: An error occurred when trying to instantiate module", e);
                 throw new RuntimeException(e);
