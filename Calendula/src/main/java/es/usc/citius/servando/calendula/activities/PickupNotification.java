@@ -31,12 +31,9 @@ import androidx.core.app.NotificationManagerCompat;
 import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.notifications.NotificationHelper;
 import es.usc.citius.servando.calendula.util.PendingIntentFlags;
-import es.usc.citius.servando.calendula.util.PreferenceKeys;
-import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
 public class PickupNotification {
 
-    private static final String TAG = "PickupNotification";
     /**
      * The unique identifier for this type of notification.
      */
@@ -51,9 +48,6 @@ public class PickupNotification {
     public static void notify(final Context context, final String title, final String description, Intent intent) {
 
         final Resources res = context.getResources();
-
-        String delayMinutesStr = PreferenceUtils.getString(PreferenceKeys.SETTINGS_ALARM_REPEAT_FREQUENCY, "15");
-
 
         // This image is used as the notification's large icon (thumbnail).
         final Bitmap picture = BitmapFactory.decodeResource(res, R.drawable.ic_event_available_black_48dp);
