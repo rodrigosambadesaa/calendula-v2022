@@ -196,7 +196,7 @@ public class ExtraInfoHelper {
                     }
                 });
 
-        if (BuildConfig.DISABLE_HOSTNAME_VERIFICATION) {
+        if (BuildConfig.DEBUG && BuildConfig.DISABLE_HOSTNAME_VERIFICATION) {
             clientBuilder.hostnameVerifier(new HostnameVerifier() {
                 @Override
                 public boolean verify(String hostname, SSLSession session) {
