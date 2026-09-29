@@ -26,27 +26,14 @@ import androidx.fragment.app.FragmentPagerAdapter;
 
 import java.lang.reflect.Constructor;
 
-import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.util.LogUtil;
-import es.usc.citius.servando.calendula.util.ScreenUtils;
 
 public class HomePageAdapter extends FragmentPagerAdapter {
 
     private static final String TAG = "HomePageAdapter";
-    String[] titles;
-    private float dpWidth;
 
     public HomePageAdapter(FragmentManager fm, Context ctx, Activity activity) {
         super(fm);
-        // obtain the window width in dp to use later
-        dpWidth = ScreenUtils.getDpSize(activity).x;
-
-        titles = new String[]{
-                ctx.getString(R.string.title_home),
-                ctx.getString(R.string.title_activity_routines),
-                ctx.getString(R.string.title_activity_medicines),
-                ctx.getString(R.string.title_activity_schedules)
-        };
     }
 
     @Override
@@ -69,6 +56,6 @@ public class HomePageAdapter extends FragmentPagerAdapter {
 
     @Override
     public CharSequence getPageTitle(int position) {
-        return "";//titles[position];
+        return "";
     }
 }
