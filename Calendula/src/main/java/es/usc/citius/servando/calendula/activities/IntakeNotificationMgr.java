@@ -37,6 +37,7 @@ import org.joda.time.DateTime;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 
 import es.usc.citius.servando.calendula.R;
@@ -143,7 +144,7 @@ public class IntakeNotificationMgr {
         options.tag = makeTag(reminder);
         options.notificationNumber = events.size();
         options.picture = getLargeIcon(context.getResources(), reminder.getPatient());
-        options.text = events.size() + " " + context.getString(R.string.home_menu_medicines).toLowerCase();
+        options.text = events.size() + " " + context.getString(R.string.home_menu_medicines).toLowerCase(Locale.getDefault());
 
         final Intent defaultIntent = new Intent(context, ConfirmActivity.class);
         defaultIntent.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_REMINDER);

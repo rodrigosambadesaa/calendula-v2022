@@ -27,6 +27,7 @@ import net.openid.appauth.TokenResponse;
 import org.apache.commons.text.WordUtils;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 
 import javax.net.ssl.HostnameVerifier;
@@ -112,7 +113,7 @@ public class UpdateUserInfoHelper {
                 LogUtil.d(TAG, "User info retrieved successfully");
                 String curatedFirstName = userInfo.getFirstName().trim().replaceAll("\\s+", " ");
                 String curatedLastName = userInfo.getLastName().trim().replaceAll("\\s+", " ");
-                activePatient.setName(WordUtils.capitalize((curatedLastName + ", " + curatedFirstName).toLowerCase()));
+                activePatient.setName(WordUtils.capitalize((curatedLastName + ", " + curatedFirstName).toLowerCase(Locale.getDefault())));
                 activePatient.setDataRetrieved(true);
                 DB.patients().update(activePatient);
                 CalendulaApp.eventBus().post(new PersistenceEvents.UserUpdateEvent(activePatient));
