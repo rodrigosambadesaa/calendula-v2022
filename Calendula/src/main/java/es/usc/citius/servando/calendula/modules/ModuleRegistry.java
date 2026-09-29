@@ -27,7 +27,6 @@ import java.util.Locale;
 import es.usc.citius.servando.calendula.modules.modules.AllergiesModule;
 import es.usc.citius.servando.calendula.modules.modules.BaseModule;
 import es.usc.citius.servando.calendula.modules.modules.StockModule;
-import es.usc.citius.servando.calendula.modules.modules.TestDataModule;
 import es.usc.citius.servando.calendula.healthcareprovider.modules.ActiveMedsModule;
 import es.usc.citius.servando.calendula.healthcareprovider.modules.SetupDatabaseModule;
 import es.usc.citius.servando.calendula.util.LogUtil;
@@ -83,9 +82,5 @@ public class ModuleRegistry {
                 STABLE_MODULES,
                 StockModule.class,
                 AllergiesModule.class);
-
-        private static final Class<?>[] BLEEDING_MODULES = ArrayUtils.addAll(
-                UNSTABLE_MODULES,
-                TestDataModule.class);
     }
 }
