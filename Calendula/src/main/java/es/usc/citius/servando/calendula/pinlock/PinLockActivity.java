@@ -22,11 +22,9 @@ import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Color;
 import android.hardware.fingerprint.FingerprintManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
 import androidx.core.content.ContextCompat;
 import android.view.View;
 import android.widget.Button;
@@ -120,7 +118,6 @@ public class PinLockActivity extends CalendulaActivity {
     }
 
     @OnClick(R.id.use_fingerprint_btn)
-    @RequiresApi(Build.VERSION_CODES.M)
     void launchFingerprintAuth() {
         showFingerprintDialog();
         fpHelper.startAuthentication(new LoginFPCallbackAdapter(this, fingerprintDialog));
@@ -183,20 +180,15 @@ public class PinLockActivity extends CalendulaActivity {
                 footer.setVisibility(View.VISIBLE);
                 toolbar = (androidx.appcompat.widget.Toolbar) findViewById(R.id.toolbar);
                 toolbar.setVisibility(View.GONE);
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    setupFingerprintAuth();
-                }
+                setupFingerprintAuth();
                 break;
         }
     }
 
     @Override
     protected void onPause() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (fpHelper != null) {
-                fpHelper.stop();
-            }
+        if (fpHelper != null) {
+            fpHelper.stop();
         }
         super.onPause();
     }
@@ -204,14 +196,11 @@ public class PinLockActivity extends CalendulaActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (fpHelper != null && fingerprintDialog != null && fingerprintDialog.isShowing()) {
-                fpHelper.startAuthentication(new LoginFPCallbackAdapter(this, fingerprintDialog));
-            }
+        if (fpHelper != null && fingerprintDialog != null && fingerprintDialog.isShowing()) {
+            fpHelper.startAuthentication(new LoginFPCallbackAdapter(this, fingerprintDialog));
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.M)
     private void showFingerprintDialog() {
         fingerprintDialog = new MaterialDialog.Builder(this)
                 .icon(IconUtils.icon(this, CommunityMaterial.Icon.cmd_fingerprint, R.color.android_blue_dark, 48))
@@ -229,7 +218,6 @@ public class PinLockActivity extends CalendulaActivity {
         fingerprintDialog.show();
     }
 
-    @RequiresApi(Build.VERSION_CODES.M)
     private void setupFingerprintAuth() {
         fpHelper = new FingerprintHelper(this);
         if (fpHelper.fingerPrintEnabled() && fpHelper.canUseFingerPrint()) {
