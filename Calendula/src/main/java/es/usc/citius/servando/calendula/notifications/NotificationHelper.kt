@@ -18,10 +18,13 @@
 
 package es.usc.citius.servando.calendula.notifications
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
+import androidx.core.content.ContextCompat
 import es.usc.citius.servando.calendula.R
 
 
@@ -35,6 +38,14 @@ object NotificationHelper {
     const val CHANNEL_DEFAULT_ID = "calendula.channels.default"
     const val CHANNEL_SETUP_ID = "calendula.channels.setup"
 
+    @JvmStatic
+    fun canPostNotifications(context: Context): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+    }
 
     /**
      * Creates notification channels for the app (required from api 26 up).
