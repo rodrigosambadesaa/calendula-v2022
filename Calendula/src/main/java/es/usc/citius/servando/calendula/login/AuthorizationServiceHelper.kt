@@ -18,7 +18,7 @@ object AuthorizationServiceHelper {
         val baseBuilder = when {
             BuildConfig.ENABLE_CERTIFICATE_PINNING ->
                 CertificatePinningUtils.pinnedAppAuthConfiguration()
-            BuildConfig.OAUTH_ALLOW_INSECURE -> {
+            BuildConfig.DEBUG && BuildConfig.OAUTH_ALLOW_INSECURE -> {
                 val warning = """
                 ================================= WARNING =================================
                 Allowing HTTP connections!
