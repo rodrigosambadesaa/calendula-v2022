@@ -39,6 +39,9 @@ jobs:
       - name: Build CI debug APK
         run: ./gradlew assembleCiDebug --stacktrace --no-daemon
 
+      - name: Validate develop release code with R8
+        run: ./gradlew minifyDevelopReleaseWithR8 --stacktrace --no-daemon
+
       - name: Run unit tests
         run: ./gradlew testCiDebugUnitTest --stacktrace --no-daemon
 
