@@ -22,6 +22,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.preference.SwitchPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
@@ -59,6 +60,20 @@ class PrivacyPrefsFragment :
     }
     override val fragmentTitle: Int = R.string.pref_header_privacy
 
+    private val recordPinLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            presenter.onResult(PinLockActivity.REQUEST_PIN, result.resultCode, result.data)
+        }
+
+    private val modifyPinLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            presenter.onResult(PrivacyPrefsPresenter.REQUEST_MODIFY, result.resultCode, result.data)
+        }
+
+    private val deletePinLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            presenter.onResult(PrivacyPrefsPresenter.REQUEST_DELETE, result.resultCode, result.data)
+        }
 
     private val pinPref: Preference? by lazy { findPreference(PreferenceKeys.UNLOCK_PIN.key()) as Preference? }
     private val fingerprintPref: SwitchPreference? by lazy { findPreference(PreferenceKeys.FINGERPRINT_ENABLED.key()) as SwitchPreference? }
@@ -77,11 +92,6 @@ class PrivacyPrefsFragment :
 
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        LogUtil.d(TAG, "onActivityResult() called")
-        presenter.onResult(requestCode, resultCode, data)
-    }
-
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
         when (key) {
             pinTimeoutPref?.key -> {
@@ -93,7 +103,7 @@ class PrivacyPrefsFragment :
     override fun recordPIN() {
         val i = Intent(activity, PinLockActivity::class.java)
         i.action = PinLockActivity.ACTION_NEW_PIN
-        startActivityForResult(i, PinLockActivity.REQUEST_PIN)
+        recordPinLauncher.launch(i)
     }
 
     override fun showPINOptions() {
@@ -197,7 +207,11 @@ class PrivacyPrefsFragment :
     override fun verifyPIN(requestCode: Int) {
         val i = Intent(activity, PinLockActivity::class.java)
         i.action = PinLockActivity.ACTION_VERIFY_PIN
-        startActivityForResult(i, requestCode)
+        when (requestCode) {
+            PrivacyPrefsPresenter.REQUEST_MODIFY -> modifyPinLauncher.launch(i)
+            PrivacyPrefsPresenter.REQUEST_DELETE -> deletePinLauncher.launch(i)
+            else -> throw IllegalArgumentException("Unsupported PIN verification request code $requestCode")
+        }
     }
 
 }

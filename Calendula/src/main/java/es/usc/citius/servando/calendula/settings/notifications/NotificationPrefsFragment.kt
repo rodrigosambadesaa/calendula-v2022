@@ -29,6 +29,7 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.service.autofill.Validators.not
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.preference.Preference
 import androidx.preference.SwitchPreference
 import androidx.preference.TwoStatePreference
@@ -56,6 +57,24 @@ class NotificationPrefsFragment :
                 RingtoneNameResolver(context!!)
         )
     }
+
+    private val notificationRingtoneLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            presenter.onResult(
+                NotificationPrefsPresenter.REQ_CODE_NOTIF_RINGTONE,
+                result.resultCode,
+                result.data
+            )
+        }
+
+    private val insistentRingtoneLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            presenter.onResult(
+                NotificationPrefsPresenter.REQ_CODE_INSIST_RINGTONE,
+                result.resultCode,
+                result.data
+            )
+        }
 
     private val notificationPref:Preference? by lazy { findPreference(PreferenceKeys.SETTINGS_NOTIFICATION_TONE.key()) as Preference?}
     private val insistentNotificationPref:Preference? by lazy { findPreference(PreferenceKeys.SETTINGS_INSISTENT_NOTIFICATION_TONE.key()) as Preference?}
@@ -100,11 +119,6 @@ class NotificationPrefsFragment :
             }
         }
         return super.onPreferenceTreeClick(preference)
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        presenter.onResult(requestCode, resultCode, data)
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
@@ -184,7 +198,11 @@ class NotificationPrefsFragment :
                 currentValue
         )
 
-        startActivityForResult(intent, reqCode)
+        when (reqCode) {
+            NotificationPrefsPresenter.REQ_CODE_NOTIF_RINGTONE -> notificationRingtoneLauncher.launch(intent)
+            NotificationPrefsPresenter.REQ_CODE_INSIST_RINGTONE -> insistentRingtoneLauncher.launch(intent)
+            else -> throw IllegalArgumentException("Unsupported ringtone request code $reqCode")
+        }
     }
 
     override fun hideStockPref() {
