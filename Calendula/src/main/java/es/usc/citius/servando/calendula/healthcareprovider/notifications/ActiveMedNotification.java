@@ -32,6 +32,8 @@ import androidx.core.app.NotificationCompat;
 import org.apache.commons.lang3.StringUtils;
 import org.joda.time.DateTime;
 
+import java.util.Locale;
+
 import es.usc.citius.servando.calendula.HomePagerActivity;
 import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.notifications.NotificationHelper;
@@ -82,17 +84,17 @@ public class ActiveMedNotification {
 
         StringBuilder summaryStr = new StringBuilder();
         for (int i = 0; i < summary.getCreated().size(); i++) {
-            String line = StringUtils.capitalize(summary.getCreated().get(i).getDefaultDisplay().toLowerCase());
+            String line = StringUtils.capitalize(summary.getCreated().get(i).getDefaultDisplay().toLowerCase(Locale.getDefault()));
             summaryStr.append("• ").append(context.getString(R.string.active_med_notification_new)).append(" ").append(line).append("\n\n");
             inboxStyle.addLine(ADD_SYMBOL + " " + line);
         }
         for (int i = 0; i < summary.getUpdated().size(); i++) {
-            String line = StringUtils.capitalize(summary.getUpdated().get(i).getDefaultDisplay().toLowerCase());
+            String line = StringUtils.capitalize(summary.getUpdated().get(i).getDefaultDisplay().toLowerCase(Locale.getDefault()));
             summaryStr.append("• ").append(context.getString(R.string.active_med_notification_updated)).append(" ").append(line).append("\n\n");
             inboxStyle.addLine(UPDATE_SYMBOL + " " + line);
         }
         for (int i = 0; i < summary.getDeleted().size(); i++) {
-            String line = StringUtils.capitalize(summary.getDeleted().get(i).getDefaultDisplay().toLowerCase());
+            String line = StringUtils.capitalize(summary.getDeleted().get(i).getDefaultDisplay().toLowerCase(Locale.getDefault()));
             summaryStr.append("• ").append(context.getString(R.string.active_med_notification_deleted)).append(" ").append(line).append("\n\n");
             inboxStyle.addLine(DELETE_SYMBOL + " " + line);
         }
