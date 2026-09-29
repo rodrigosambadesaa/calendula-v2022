@@ -30,8 +30,6 @@ import es.usc.citius.servando.calendula.healthcareprovider.persistence.RepeatTyp
 
 public class DefaultDataGenerator {
 
-    private static final String TAG = "DefaultDataGenerator";
-
     public static void generateDefaultRoutines(Patient p, Context ctx) {
         Resources r = ctx.getResources();
         Routine breakfast = new Routine(p, new LocalTime(9, 0), r.getString(R.string.routine_breakfast));

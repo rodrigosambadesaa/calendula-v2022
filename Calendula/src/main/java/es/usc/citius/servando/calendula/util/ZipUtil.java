@@ -32,8 +32,6 @@ import java.util.zip.ZipInputStream;
 
 public class ZipUtil {
 
-    private static final String TAG = "ZipUtil";
-
     public static void unzip(File archive, File path) throws IOException {
         if (!path.exists() && !path.mkdirs()) {
             throw new IOException("Could not create ZIP destination directory");
