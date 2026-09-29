@@ -97,6 +97,9 @@ public class PickupNotification {
     }
 
     private static void notify(final Context context, final Notification notification) {
+        if (!NotificationHelper.canPostNotifications(context)) {
+            return;
+        }
         NotificationManagerCompat.from(context)
                 .notify(NOTIFICATION_TAG, 0, notification);
     }
