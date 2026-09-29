@@ -45,6 +45,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -268,7 +269,8 @@ public class MedicinesSearchAutoCompleteAdapter extends ArrayAdapter<MedicinesSe
             if (constraint != null && constraint.length() >= MIN_SEARCH_LEN) {
                 try {
 
-                    final String search = constraint.toString().toLowerCase().trim();
+                    final Locale locale = Locale.getDefault();
+                    final String search = constraint.toString().toLowerCase(locale).trim();
                     final String preFilter = search.subSequence(0, MIN_SEARCH_LEN).toString();
                     final List<PrescriptionSearchWrapper> resultData = new ArrayList<>(500);
 
@@ -298,7 +300,7 @@ public class MedicinesSearchAutoCompleteAdapter extends ArrayAdapter<MedicinesSe
                     final CloseableIterator<Prescription> nameIterator = prescriptionDAO.iterator(nameQuery);
                     while (nameIterator.hasNext()) {
                         Prescription p = nameIterator.next();
-                        final String name = currentDBMgr.shortName(p).toLowerCase();
+                        final String name = currentDBMgr.shortName(p).toLowerCase(locale);
 
                         final int nameIndex = name.indexOf(preFilter);
                         // check if the pre-filter is in the short name
@@ -324,7 +326,7 @@ public class MedicinesSearchAutoCompleteAdapter extends ArrayAdapter<MedicinesSe
                             // is exactly the constraint.
                             // We need to check this because even if distance is 0 the matching
                             // may have been done with only part of a word.
-                            final String sn = currentDBMgr.shortName(firstResult.getPrescription()).trim().toLowerCase();
+                            final String sn = currentDBMgr.shortName(firstResult.getPrescription()).trim().toLowerCase(locale);
                             final String[] split = sn.split("\\s+");
                             for (String s : split) {
                                 if (s.equals(search)) {
