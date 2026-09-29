@@ -1,6 +1,7 @@
 package es.usc.citius.servando.calendula.healthcareprovider.remote;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import es.usc.citius.servando.calendula.util.LogUtil;
 import okhttp3.Interceptor;
@@ -30,6 +31,7 @@ public class LoggingInterceptor implements Interceptor {
         LogUtil.d(
                 TAG,
                 String.format(
+                        Locale.ROOT,
                         "<-- %d %s %s (%.1fms)",
                         response.code(),
                         request.method(),
