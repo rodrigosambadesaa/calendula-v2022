@@ -32,26 +32,30 @@ import es.usc.citius.servando.calendula.R;
 public class PreferenceUtils {
 
     private static PreferenceUtils instance;
-    private final Context context;
+    private final SharedPreferences preferences;
 
-    private PreferenceUtils(Context context) {
-        this.context = context;
+    private PreferenceUtils(SharedPreferences preferences) {
+        this.preferences = preferences;
     }
 
     /**
      * Initializes this object and the default preferences.
      * MUST be called on app startup, preferably before launching any activity.
      *
-     * @param context a {@link Context} for the appplication
+     * @param context a {@link Context} for the application
      */
     public synchronized static void init(Context context) {
         if (instance == null) {
-            instance = new PreferenceUtils(context);
+            Context appContext = context.getApplicationContext();
+            if (appContext == null) {
+                appContext = context;
+            }
+            instance = new PreferenceUtils(PreferenceManager.getDefaultSharedPreferences(appContext));
             if (!getBoolean(PreferenceKeys.SETTINGS_DEFAULTS_LOADED, false)) {
-                PreferenceManager.setDefaultValues(context, R.xml.pref_main, true);
-                PreferenceManager.setDefaultValues(context, R.xml.pref_privacy, true);
-                PreferenceManager.setDefaultValues(context, R.xml.pref_database, true);
-                PreferenceManager.setDefaultValues(context, R.xml.pref_notifications, true);
+                PreferenceManager.setDefaultValues(appContext, R.xml.pref_main, true);
+                PreferenceManager.setDefaultValues(appContext, R.xml.pref_privacy, true);
+                PreferenceManager.setDefaultValues(appContext, R.xml.pref_database, true);
+                PreferenceManager.setDefaultValues(appContext, R.xml.pref_notifications, true);
                 edit().putBoolean(PreferenceKeys.SETTINGS_DEFAULTS_LOADED.key(), true).apply();
             }
         }
@@ -96,7 +100,7 @@ public class PreferenceUtils {
     }
 
     public SharedPreferences preferences() {
-        return PreferenceManager.getDefaultSharedPreferences(context);
+        return preferences;
     }
 
 }
