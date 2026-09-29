@@ -113,7 +113,9 @@ public class CheckDatabaseUpdatesJob extends CalendulaJob {
                 .setAutoCancel(true)
                 .setContentIntent(updateIntent);
 
-        nManager.notify(UPDATE_NOTIFICATION_TAG, UPDATE_NOTIFICATION_ID, builder.build());
+        if (NotificationHelper.canPostNotifications(ctx)) {
+            nManager.notify(UPDATE_NOTIFICATION_TAG, UPDATE_NOTIFICATION_ID, builder.build());
+        }
     }
 
 }
