@@ -34,7 +34,6 @@ import androidx.core.util.Pair;
 import android.text.SpannableStringBuilder;
 
 import org.joda.time.DateTime;
-import org.joda.time.LocalTime;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.util.List;
@@ -65,8 +64,6 @@ import es.usc.citius.servando.calendula.util.PreferenceUtils;
  */
 public class IntakeNotificationMgr {
 
-    private static final String TAG = "ReminderNotification";
-
     private static Random random = new Random();
 
     public static void notify(final Context context, EventReminder reminder, boolean lost) {
@@ -85,7 +82,6 @@ public class IntakeNotificationMgr {
         EventType type = reminder.getEventType();
         DateTime dateTime = reminder.getDateTime();
         Patient patient = reminder.getPatient();
-        LocalTime time = dateTime.toLocalTime();
 
         List<EventInstance> events = DB.eventInstances().find(type, dateTime, patient);
 
