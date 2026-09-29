@@ -19,16 +19,13 @@
 package es.usc.citius.servando.calendula.pinlock.fingerprint;
 
 import android.Manifest;
-import android.annotation.TargetApi;
 import android.app.KeyguardManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.hardware.fingerprint.FingerprintManager;
-import android.os.Build;
 import android.os.CancellationSignal;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
-import androidx.annotation.RequiresApi;
 import androidx.core.app.ActivityCompat;
 import android.widget.Toast;
 
@@ -74,12 +71,9 @@ public class FingerprintHelper {
     public FingerprintHelper(Context context) {
         this.context = context.getApplicationContext();
         keyguardManager = (KeyguardManager) this.context.getSystemService(Context.KEYGUARD_SERVICE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            fingerprintManager = (FingerprintManager) this.context.getSystemService(Context.FINGERPRINT_SERVICE);
-        }
+        fingerprintManager = (FingerprintManager) this.context.getSystemService(Context.FINGERPRINT_SERVICE);
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.M)
     public void startAuthentication(FingerprintCallbackAdapter adapter) {
         LogUtil.d(TAG, "startAuthentication() called with: adapter = [" + adapter + "]");
         if (!canUseFingerPrint()) {
@@ -94,7 +88,6 @@ public class FingerprintHelper {
         }
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.M)
     public void stop() {
         LogUtil.d(TAG, "stop() called");
         if (handler != null) {
@@ -103,7 +96,6 @@ public class FingerprintHelper {
         }
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.M)
     public boolean hasPermissions() {
         if (ActivityCompat.checkSelfPermission(context, Manifest.permission.USE_FINGERPRINT) !=
                 PackageManager.PERMISSION_GRANTED) {
@@ -114,11 +106,7 @@ public class FingerprintHelper {
     }
 
     public boolean canUseFingerPrint() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            return hasPermissions() && checkKeyguard() && fingerprintManager.hasEnrolledFingerprints();
-        } else {
-            return false;
-        }
+        return hasPermissions() && checkKeyguard() && fingerprintManager.hasEnrolledFingerprints();
     }
 
     public boolean fingerPrintEnabled() {
@@ -133,7 +121,6 @@ public class FingerprintHelper {
         return true;
     }
 
-    @TargetApi(Build.VERSION_CODES.M)
     private boolean cipherInit() {
         try {
             cipher = Cipher.getInstance(
@@ -152,12 +139,7 @@ public class FingerprintHelper {
             cipher.init(Cipher.ENCRYPT_MODE, key);
             return true;
         } catch (InvalidKeyException e) {
-            // KeyPermanentlyInvalidatedException was added in API 23. Referencing that
-            // class directly from an API-18-compatible class can make older runtimes
-            // attempt to resolve a type that does not exist. It subclasses
-            // InvalidKeyException, so identify it without a hard class reference.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                    && "android.security.keystore.KeyPermanentlyInvalidatedException"
+            if ("android.security.keystore.KeyPermanentlyInvalidatedException"
                     .equals(e.getClass().getName())) {
                 return false;
             }
@@ -169,7 +151,6 @@ public class FingerprintHelper {
         }
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.M)
     private void generateKey() {
         try {
             keyStore = KeyStore.getInstance("AndroidKeyStore");
@@ -204,7 +185,6 @@ public class FingerprintHelper {
         void onAuthenticationSucceeded(FingerprintManager.AuthenticationResult result);
     }
 
-    @TargetApi(Build.VERSION_CODES.M)
     private class FingerprintHandler extends FingerprintManager.AuthenticationCallback {
 
         private CancellationSignal cancellationSignal;
