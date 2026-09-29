@@ -60,8 +60,6 @@ public enum PreferenceKeys {
     // Medicines
     MEDICINES_USE_PRESCRIPTIONS_SHOWN(R.string.prefkey_medicines_use_prescription_shown),
     MEDICINES_LEGACY_DB_ENABLED(R.string.prefkey_medicines_db_enabled),
-    // Test data module
-    TEST_DATA_GENERATED(R.string.prefkey_testdata_generated),
     // Patients
     PATIENTS_ACTIVE(R.string.prefkey_patients_active),
     PATIENTS_REMOVE_ACTIVE_ON_BOOT(R.string.prefkey_patients_remove_active_on_boot),
