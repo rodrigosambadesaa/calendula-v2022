@@ -369,7 +369,7 @@ public class InstallDatabaseService extends Service {
                 .setAutoCancel(true)
                 .setContentTitle(getString(R.string.title_database_update_data_lost))
                 .setContentText(getString(R.string.text_database_update_data_lost));
-        getNotificationManager().notify(NOTIFICATION_ID, mBuilder.build());
+        notifyIfAllowed(mBuilder.build());
     }
 
     private void showNotification(int max, int prog) {
@@ -383,7 +383,7 @@ public class InstallDatabaseService extends Service {
                     PendingIntentFlags.immutable(PendingIntent.FLAG_CANCEL_CURRENT));
         }
         final Notification notification = getNotification(max, prog, pIntent);
-        getNotificationManager().notify(NOTIFICATION_ID, notification);
+        notifyIfAllowed(notification);
     }
 
     private Notification getNotification(int max, int prog, PendingIntent pIntent) {
@@ -413,7 +413,7 @@ public class InstallDatabaseService extends Service {
             mBuilder.setProgress(100, 100, false);
             mBuilder.setSmallIcon(R.drawable.ic_done_white_36dp);
             mBuilder.setContentInfo("");
-            getNotificationManager().notify(NOTIFICATION_ID, mBuilder.build());
+            notifyIfAllowed(mBuilder.build());
         }
         Intent bcIntent = new Intent(ACTION_COMPLETE);
         bcIntent.setPackage(getPackageName());
@@ -439,7 +439,13 @@ public class InstallDatabaseService extends Service {
             mBuilder.setSmallIcon(R.drawable.ic_clear_search_holo_light);
             mBuilder.setContentInfo("");
             mBuilder.setContentIntent(null);
-            getNotificationManager().notify(NOTIFICATION_ID, mBuilder.build());
+            notifyIfAllowed(mBuilder.build());
+        }
+    }
+
+    private void notifyIfAllowed(Notification notification) {
+        if (NotificationHelper.canPostNotifications(this)) {
+            getNotificationManager().notify(NOTIFICATION_ID, notification);
         }
     }
 
