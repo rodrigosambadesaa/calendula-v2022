@@ -31,7 +31,6 @@ import android.graphics.RectF;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import androidx.annotation.ColorInt;
-import androidx.palette.graphics.Palette;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.Display;
@@ -50,7 +49,6 @@ import es.usc.citius.servando.calendula.R;
 public class ScreenUtils {
 
     private static final String TAG = "ScreenUtils";
-    private static Palette p;
 
     public static PointF getDpSize(Context context) {
         PointF p = new PointF();
@@ -65,11 +63,6 @@ public class ScreenUtils {
         display.getMetrics(outMetrics);
         return outMetrics.density;
     }
-
-    public static int alpha(int color, int alpha) {
-        return Color.argb(alpha, Color.red(color), Color.blue(color), Color.green(color));
-    }
-
 
     public static Bitmap drawableToBitmap(Drawable drawable) {
         if (drawable instanceof BitmapDrawable) {
