@@ -87,9 +87,6 @@
     <!-- Schedules -->
     <string name="prefkey_schedules_help_shown" translatable="false">PREFERENCE_SCHEDULE_HELP_SHOWN</string>
 
-    <!-- Test data module -->
-    <string name="prefkey_testdata_generated" translatable="false">test_data_generated</string>
-
     <!-- Unlock PIN -->
     <string name="prefkey_privacy" translatable="false">pref_key_privacy</string>
     <string name="prefkey_pin_lock" translatable="false">pref_pin_lock</string>

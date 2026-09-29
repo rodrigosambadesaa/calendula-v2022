@@ -19,6 +19,5 @@
 android {
     defaultConfig {
         buildConfigField 'String', 'DB_DOWNLOAD_URL', '"http://tec.citius.usc.es/calendula/dbs/"'
-        buildConfigField 'boolean', 'TEST_GENERATE_TESTDATA', 'false'
     }
 }
