@@ -57,7 +57,6 @@
         <FrameLayout
             android:layout_width="fill_parent"
             android:layout_height="fill_parent"
-            android:layout_marginTop="@dimen/status_bar_height"
             android:background="@drawable/reminder_view_bg"
             android:padding="10dp"
             android:visibility="visible">
