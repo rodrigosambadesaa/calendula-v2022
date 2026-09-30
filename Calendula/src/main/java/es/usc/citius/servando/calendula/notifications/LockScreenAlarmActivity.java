@@ -31,8 +31,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Vibrator;
-import androidx.core.content.ContextCompat;
-import androidx.appcompat.app.AppCompatActivity;
 import android.text.TextUtils;
 import android.view.KeyEvent;
 import android.view.View;
@@ -40,6 +38,10 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+
+import androidx.activity.OnBackPressedCallback;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 
 import com.mikepenz.community_material_typeface_library.CommunityMaterial;
 
@@ -90,12 +92,6 @@ public class LockScreenAlarmActivity extends AppCompatActivity {
     private BroadcastReceiver finishReceiver;
 
     @Override
-    public void onBackPressed() {
-        stopPlayingAlarm();
-        animateAndFinish();
-    }
-
-    @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if ((keyCode == KeyEvent.KEYCODE_VOLUME_DOWN)) {
             // stop sound and vibration if the user
@@ -112,6 +108,13 @@ public class LockScreenAlarmActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                stopPlayingAlarm();
+                animateAndFinish();
+            }
+        });
         setupForVisibilityOverLockScreen();
         setContentView(R.layout.activity_lock_screen_alarm);
         anim = (ImageView) findViewById(R.id.anim_image);
