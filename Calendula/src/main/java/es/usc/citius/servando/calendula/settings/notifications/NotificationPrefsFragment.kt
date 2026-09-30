@@ -54,7 +54,7 @@ class NotificationPrefsFragment :
     override val fragmentTitle: Int = R.string.pref_header_notifications
     override val presenter: NotificationPrefsContract.Presenter by lazy {
         NotificationPrefsPresenter(
-                RingtoneNameResolver(context!!)
+                RingtoneNameResolver(requireContext())
         )
     }
 
@@ -90,7 +90,7 @@ class NotificationPrefsFragment :
                     if (isChecked) {
                         val intent = Intent()
                         intent.action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
-                        intent.data = Uri.parse("package:" + context!!.packageName)
+                        intent.data = Uri.parse("package:" + requireContext().packageName)
                         startActivity(intent)
                     } else {
                         val intent = Intent()
@@ -169,8 +169,9 @@ class NotificationPrefsFragment :
     }
 
     fun isIgnoringBatteryOptimizations(): Boolean {
-        val pm = context!!.getSystemService(Context.POWER_SERVICE) as PowerManager
-        return pm.isIgnoringBatteryOptimizations(context!!.packageName)
+        val context = requireContext()
+        val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        return pm.isIgnoringBatteryOptimizations(context.packageName)
     }
 
     override fun requestRingtone(reqCode: Int, ringtoneType: Int, currentValue: Uri?) {
