@@ -23,7 +23,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:background="#fff"
-                android:paddingTop="@dimen/status_bar_height"
+                android:fitsSystemWindows="true"
                 tools:context="es.usc.citius.servando.calendula.activities.WebViewActivity">
 
     <androidx.appcompat.widget.Toolbar xmlns:app="http://schemas.android.com/apk/res-auto"

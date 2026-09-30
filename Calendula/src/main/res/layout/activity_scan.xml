@@ -23,7 +23,7 @@
                 android:background="@color/android_blue_dark"
                 android:descendantFocusability="beforeDescendants"
                 android:focusableInTouchMode="true"
-                android:paddingTop="@dimen/status_bar_height">
+                android:fitsSystemWindows="true">
 
     <ImageView
         android:id="@+id/imageView"
