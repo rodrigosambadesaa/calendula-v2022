@@ -73,8 +73,8 @@ We use [Android Studio](https://developer.android.com/studio/index.html) (the of
 
 * JDK 17.
 * Android SDK Platform-tools.
-* Android 15 (API Level 35) SDK Platform.
-* Android SDK Build-Tools 34.0.0 (the version installed by the current CI workflow).
+* Android 16 (API Level 36) SDK Platform.
+* Android SDK Build-Tools 35.0.0 (the version installed by the current CI workflow).
 
 Gradle does not need to be installed separately because the repository includes the Gradle Wrapper. Additional SDK packages, emulator images and device drivers can be installed as needed from Android Studio's SDK Manager.
 
@@ -85,13 +85,13 @@ The current Gradle configuration supports **Android 6.0 (API 23) and newer**.
 The historical 2022 codebase is being modernized incrementally while preserving upstream provenance and keeping every stage buildable. The currently validated baseline is:
 
 - **minSdk:** API 23 (Android 6.0)
-- **compileSdk / targetSdk:** API 35 (Android 15)
-- **Android Gradle Plugin:** 8.6.1
-- **Gradle:** 8.7
+- **compileSdk / targetSdk:** API 36 (Android 16)
+- **Android Gradle Plugin:** 8.10.1
+- **Gradle:** 8.11.1
 - **Kotlin:** 2.1.21
 - **JDK:** 17
 
-GitHub Actions builds the `ciDebug` APK, runs the JVM unit-test suite, builds the instrumentation-test APK, runs Android lint, and uploads the resulting reports and debug APK. The same JDK 17 toolchain is used for the Android SDK tools and Gradle build.
+GitHub Actions builds the `ciDebug` APK, validates the `developRelease` code path with R8, runs the JVM unit-test suite, builds the instrumentation-test APK, runs Android lint, and uploads the resulting reports and debug APK. The same JDK 17 toolchain is used for the Android SDK tools and Gradle build.
 
 Dependency updates remain intentionally conservative where a new version changes library APIs, Android behavior or requires a coordinated migration. Dependabot is enabled, but major framework and library migrations should still be reviewed and validated in dedicated pull requests instead of being accepted as isolated version bumps.
 
