@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- These notification paths explicitly call NotificationHelper.canPostNotifications()
+         before notify(); lint cannot infer that custom guard. -->
+    <issue id="MissingPermission">
+        <ignore path="src/main/java/es/usc/citius/servando/calendula/jobs/CheckDatabaseUpdatesJob.java" />
+        <ignore path="src/main/java/es/usc/citius/servando/calendula/drugdb/download/InstallDatabaseService.java" />
+        <ignore path="src/main/java/es/usc/citius/servando/calendula/activities/IntakeNotificationMgr.java" />
+        <ignore path="src/main/java/es/usc/citius/servando/calendula/activities/PickupNotification.java" />
+    </issue>
+
+    <!-- These activities intentionally keep their legacy custom back behavior until the
+         dedicated OnBackPressedDispatcher/predictive-back migration. -->
+    <issue id="MissingSuperCall">
+        <ignore path="src/main/java/es/usc/citius/servando/calendula/activities/AllergiesSearchActivity.java" />
+        <ignore path="src/main/java/es/usc/citius/servando/calendula/notifications/LockScreenAlarmActivity.java" />
+        <ignore path="src/main/java/es/usc/citius/servando/calendula/activities/MedicinesSearchActivity.java" />
+        <ignore path="src/main/java/es/usc/citius/servando/calendula/activities/PatientDetailActivity.java" />
+        <ignore path="src/main/java/es/usc/citius/servando/calendula/activities/PdfViewActivity.java" />
+        <ignore path="src/main/java/es/usc/citius/servando/calendula/activities/WebViewActivity.java" />
+    </issue>
+</lint>
