@@ -23,7 +23,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:background="@color/healthcare_provider_dark"
-                android:paddingTop="@dimen/status_bar_height"
+                android:fitsSystemWindows="true"
                 tools:background="@color/android_blue_dark"
                 tools:context="es.usc.citius.servando.calendula.pinlock.PinLockActivity">
 
