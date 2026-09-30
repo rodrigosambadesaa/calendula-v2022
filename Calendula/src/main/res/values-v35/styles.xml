@@ -1,12 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!--
-        Android 15 enforces edge-to-edge for apps targeting API 35.
-        Keep the legacy window layout while the view hierarchy is migrated
-        to explicit WindowInsets handling in a dedicated follow-up change.
-        This opt-out is intentionally temporary: Android 16 removes it.
-    -->
+    <!-- Android 15+ uses edge-to-edge; app layouts now handle system insets explicitly. -->
     <style name="AppTheme" parent="MaterialDrawerTheme.Light.TranslucentStatus">
         <item name="windowActionBar">false</item>
         <item name="colorPrimary">@color/android_blue_dark</item>
@@ -17,14 +12,12 @@
         <item name="siv_insetForeground">#01ffffff</item>
         <item name="android:actionModeBackground">@color/dark_grey_home</item>
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
     </style>
 
     <style name="SplashTheme" parent="MaterialDrawerTheme.Light.TranslucentStatus">
         <item name="android:windowBackground">@drawable/splash</item>
         <item name="android:windowAnimationStyle">@style/Animation.Splash</item>
         <item name="md_positive_color">@color/md_pink_600</item>
-        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
     </style>
 
 </resources>
