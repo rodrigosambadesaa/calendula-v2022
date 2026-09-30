@@ -28,12 +28,14 @@ import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.view.MenuItem;
+import android.view.WindowManager;
+
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.ColorInt;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
-import android.view.MenuItem;
-import android.view.WindowManager;
 
 import com.mikepenz.google_material_typeface_library.GoogleMaterial;
 import com.mikepenz.iconics.IconicsDrawable;
@@ -65,7 +67,7 @@ public abstract class CalendulaActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case android.R.id.home:
-                onBackPressed();
+                getOnBackPressedDispatcher().onBackPressed();
                 return true;
         }
 
@@ -123,11 +125,32 @@ public abstract class CalendulaActivity extends AppCompatActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Android 16 no longer dispatches system back directly to Activity.onBackPressed()
+        // for target-36 apps. Route AndroidX back dispatch through the existing per-activity
+        // handlers while they are migrated incrementally to OnBackPressedCallback.
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                setEnabled(false);
+                try {
+                    dispatchBackToLegacyHandler();
+                } finally {
+                    setEnabled(true);
+                }
+            }
+        });
+
         // set FLAG secure if the secure_window preference is enabled
         if (PreferenceUtils.getBoolean(PreferenceKeys.SECURE_WINDOW, false)) {
             getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE,
                     WindowManager.LayoutParams.FLAG_SECURE);
         }
+    }
+
+    @SuppressWarnings("deprecation")
+    private void dispatchBackToLegacyHandler() {
+        onBackPressed();
     }
 
     @Override
