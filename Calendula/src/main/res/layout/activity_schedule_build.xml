@@ -17,7 +17,7 @@
   -->
 
 
-<RelativeLayout
+<es.usc.citius.servando.calendula.util.view.ToolbarTitleInsetsRelativeLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
@@ -189,7 +189,6 @@
         android:layout_width="wrap_content"
         android:layout_height="65dp"
         android:layout_marginLeft="65dp"
-        android:layout_marginTop="@dimen/status_bar_height"
         android:gravity="center_vertical"
         tools:text="Titleeee!"
         android:textColor="@color/activity_schedule_build_primary"
@@ -244,4 +243,4 @@
     </RelativeLayout>
 
 
-</RelativeLayout>
+</es.usc.citius.servando.calendula.util.view.ToolbarTitleInsetsRelativeLayout>
