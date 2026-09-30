@@ -100,7 +100,7 @@ class DatabasePrefsFragment :
     }
 
     override fun resolveString(@StringRes stringRes: Int): String {
-        return context!!.getString(stringRes)
+        return requireContext().getString(stringRes)
     }
 
     override fun showSelectedDb(dbId: String) {
@@ -121,7 +121,7 @@ class DatabasePrefsFragment :
         Toast.makeText(context, R.string.database_update_not_available, Toast.LENGTH_SHORT).show()
     }
 
-    override fun getIntent(): Intent = activity!!.intent
+    override fun getIntent(): Intent = requireActivity().intent
 
     override fun openDatabaseSelection() {
         preferenceManager.showDialog(dbPref)
