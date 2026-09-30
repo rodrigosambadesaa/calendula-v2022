@@ -16,7 +16,7 @@
   ~    along with this software.  If not, see <http://www.gnu.org/licenses/>.
   -->
 
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<es.usc.citius.servando.calendula.util.view.PatientDetailInsetsRelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/bg"
@@ -69,7 +69,6 @@
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="56dp"
-        android:layout_marginTop="@dimen/status_bar_height"
         app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
         app:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar" />
 
@@ -78,8 +77,6 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@+id/top"
-        android:layout_marginTop="@dimen/negative_status_bar_height"
-        android:fitsSystemWindows="true"
         android:overScrollMode="never">
 
         <RelativeLayout
@@ -217,4 +214,4 @@
         app:elevation="@dimen/fab_elevation" />
 
 
-</RelativeLayout>
+</es.usc.citius.servando.calendula.util.view.PatientDetailInsetsRelativeLayout>
