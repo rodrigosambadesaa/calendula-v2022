@@ -39,7 +39,7 @@ class RootVerification : Verification {
     }
 
     private fun isRooted(c: Context): Boolean {
-        // use RootBeer for root check
-        return RootBeer(c).isRootedWithoutBusyBoxCheck
+        // RootBeer 0.1.x excludes BusyBox from the standard root check.
+        return RootBeer(c).isRooted
     }
 }
