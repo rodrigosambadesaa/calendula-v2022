@@ -148,14 +148,8 @@ public class Agenda {
                         dateTime.getMillis(),
                         pendingIntent);
                 LogUtil.w(TAG, "Exact alarm access unavailable; scheduled inexact reminder fallback");
-            } else if (Build.VERSION.SDK_INT >= 23) {
-                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, dateTime.getMillis(), pendingIntent);
-                LogUtil.d(TAG, "Calling alarm manager");
-            } else if (Build.VERSION.SDK_INT >= 19) {
-                alarmManager.setExact(AlarmManager.RTC_WAKEUP, dateTime.getMillis(), pendingIntent);
-                LogUtil.d(TAG, "Calling alarm manager");
             } else {
-                alarmManager.set(AlarmManager.RTC_WAKEUP, dateTime.getMillis(), pendingIntent);
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, dateTime.getMillis(), pendingIntent);
                 LogUtil.d(TAG, "Calling alarm manager");
             }
         }
