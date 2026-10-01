@@ -216,14 +216,8 @@ dependencies {
     // Chrome debug bridge
     debugImplementation 'com.facebook.stetho:stetho:1.6.0'
 
-    // Memory leak debugging
-    //  1.5.2 held back because of a bug with gradle 3.0
-    debugImplementation "com.squareup.leakcanary:leakcanary-android-no-op:$libVersions.leakcanary"
-    releaseImplementation "com.squareup.leakcanary:leakcanary-android-no-op:$libVersions.leakcanary"
-    alphaImplementation "com.squareup.leakcanary:leakcanary-android-no-op:$libVersions.leakcanary"
-    betaImplementation "com.squareup.leakcanary:leakcanary-android-no-op:$libVersions.leakcanary"
-    testImplementation "com.squareup.leakcanary:leakcanary-android-no-op:$libVersions.leakcanary"
-    androidTestImplementation "com.squareup.leakcanary:leakcanary-android-no-op:$libVersions.leakcanary"
+    // Memory leak debugging (LeakCanary 2 auto-installs in debug builds.)
+    debugImplementation 'com.squareup.leakcanary:leakcanary-android:2.14'
 
     /********** SUPPORT **********/
     // Multidex support
