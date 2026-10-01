@@ -26,7 +26,6 @@ import androidx.multidex.MultiDexApplication;
 import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
 import com.google.android.gms.common.GooglePlayServicesRepairableException;
 import com.google.android.gms.security.ProviderInstaller;
-import com.squareup.leakcanary.LeakCanary;
 
 import org.greenrobot.eventbus.EventBus;
 
@@ -131,18 +130,8 @@ public class CalendulaApp extends MultiDexApplication {
     public void onCreate() {
         super.onCreate();
 
-        if (!Build.FINGERPRINT.equals("robolectric")) {
-            if (BuildConfig.DEBUG) {
-                new StethoHelper().init(this);
-            }
-
-            if (LeakCanary.isInAnalyzerProcess(CalendulaApp.this)) {
-                // This process is dedicated to LeakCanary for heap analysis.
-                return;
-            }
-
-            //initialize LeakCanary
-            LeakCanary.install(CalendulaApp.this);
+        if (!Build.FINGERPRINT.equals("robolectric") && BuildConfig.DEBUG) {
+            new StethoHelper().init(this);
         }
 
         final Context applicationContext = getApplicationContext();
