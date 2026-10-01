@@ -214,7 +214,7 @@ dependencies {
 
     /********** DEBUGGING **********/
     // Chrome debug bridge
-    debugImplementation 'com.facebook.stetho:stetho:1.5.1'
+    debugImplementation 'com.facebook.stetho:stetho:1.6.0'
 
     // Memory leak debugging
     //  1.5.2 held back because of a bug with gradle 3.0
