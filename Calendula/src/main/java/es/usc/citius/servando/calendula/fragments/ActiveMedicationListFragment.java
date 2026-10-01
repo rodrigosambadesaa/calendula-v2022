@@ -52,6 +52,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -227,7 +228,7 @@ public class ActiveMedicationListFragment extends Fragment {
                 if (diff.isShorterThan(minUpdateWaitPeriod)) {
                     final Duration d = minUpdateWaitPeriod.minus(diff);
                     final String waitStr = DateUtils.getRelativeTimeSpanString(d.getMillis(), 0, DateUtils.SECOND_IN_MILLIS).toString();
-                    ((HomePagerActivity) getActivity()).makeSnackbar(getString(R.string.wait_until_reload, waitStr.toLowerCase()), Snackbar.LENGTH_LONG).show();
+                    ((HomePagerActivity) getActivity()).makeSnackbar(getString(R.string.wait_until_reload, waitStr.toLowerCase(Locale.getDefault())), Snackbar.LENGTH_LONG).show();
                     refreshLayout.setRefreshing(false);
                 } else {
                     UpdateMedicationFromServiceJob.scheduleOneShot(false);
