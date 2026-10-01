@@ -25,7 +25,6 @@
     <string name="prefkey_confirm_check_window_margin" translatable="false">check_window_margin</string>
 
     <!-- Drug DB -->
-    <string name="prefkey_drugdb" translatable="false">pref_key_drugdb</string>
     <string name="prefkey_drugdb_current_db" translatable="false">prescriptions_database</string>
     <string name="prefkey_drugdb_enable_drugdb" translatable="false">drugdb_enable_db</string>
     <string name="prefkey_drugdb_last_valid" translatable="false">last_valid_database</string>
@@ -51,7 +50,6 @@
 
     <!--Login-->
     <string name="prefkey_login_id" translatable="false">user_login_id</string>
-    <string name="login_auth_state" translatable="false">user_login_auth_state</string>
     <string name="prefkey_login_skip_login" translatable="false">user_login_skip</string>
     <string name="prefkey_login_last_loggedin_user" translatable="false">user_login_last_logged_in</string>
     <string name="prefkey_last_login_failed_auth_level" translatable="false">last_login_failed_auth_level</string>
@@ -90,8 +88,6 @@
     <!-- Unlock PIN -->
     <string name="prefkey_privacy" translatable="false">pref_key_privacy</string>
     <string name="prefkey_pin_lock" translatable="false">pref_pin_lock</string>
-    <string name="prefkey_unlock_pin_hash" translatable="false">unlock_pin_hash</string>
-    <string name="prefkey_unlock_pin_salt" translatable="false">unlock_pin_salt</string>
     <string name="prefkey_fingerprint_enabled" translatable="false">fingerprint_enabled</string>
     <string name="prefkey_pin_timeout" translatable="false">pref_pin_timeout</string>
     <!-- Allow screenshots -->

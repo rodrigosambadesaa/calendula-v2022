@@ -54,7 +54,6 @@ public enum PreferenceKeys {
     HOME_LAST_MOOD(R.string.prefkey_home_last_mood),
     // Login
     LOGIN_ID(R.string.prefkey_login_id),
-    //LOGIN_AUTH_STATE(R.string.login_auth_state),
     LOGIN_SKIP_LOGIN(R.string.prefkey_login_skip_login),
     LOGIN_LAST_LOGGEDIN_USER(R.string.prefkey_login_last_loggedin_user),
     // Medicines
@@ -91,8 +90,6 @@ public enum PreferenceKeys {
     // Unlock PIN
     PRIVACY(R.string.prefkey_privacy),
     UNLOCK_PIN(R.string.prefkey_pin_lock),
-    //UNLOCK_PIN_HASH(R.string.prefkey_unlock_pin_hash),
-    //UNLOCK_PIN_SALT(R.string.prefkey_unlock_pin_salt),
     FINGERPRINT_ENABLED(R.string.prefkey_fingerprint_enabled),
     UNLOCK_PIN_TIMEOUT(R.string.prefkey_pin_timeout),
     // Locale
