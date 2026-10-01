@@ -41,6 +41,7 @@ import org.joda.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -144,7 +145,7 @@ public class SummaryStepFragment extends ScheduleBuildStepFragment implements St
                 public void onChangeMonth(int month, int year) {
                     super.onChangeMonth(month, year);
                     DateTime date = DateTime.now().withYear(year).withMonthOfYear(month);
-                    monthName.setText(date.toString("MMMM YYYY").toUpperCase());
+                    monthName.setText(date.toString("MMMM YYYY").toUpperCase(Locale.getDefault()));
                     if (!monthsShown.contains(month)) {
                         DateTime from = date.withDayOfMonth(1);
                         DateTime to = from.plusMonths(1).plusWeeks(1);
