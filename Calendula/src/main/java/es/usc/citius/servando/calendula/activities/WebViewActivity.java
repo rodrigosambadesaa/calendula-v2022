@@ -415,9 +415,7 @@ public class WebViewActivity extends CalendulaActivity {
         // content providers. Keep these capabilities disabled to reduce WebView attack surface.
         webView.getSettings().setAllowFileAccess(false);
         webView.getSettings().setAllowContentAccess(false);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            webView.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        }
+        webView.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         webView.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT);
     }
 
@@ -503,7 +501,6 @@ public class WebViewActivity extends CalendulaActivity {
             return blocked != null ? blocked : super.shouldInterceptRequest(view, url);
         }
 
-        @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
         @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest resourceRequest) {
             String targetUrl = resourceRequest != null && resourceRequest.getUrl() != null
