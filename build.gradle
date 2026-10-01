@@ -10,7 +10,7 @@ buildscript {
         google_services_version = '4.5.0'
         libVersions = [
                 butterknife: '10.2.3',
-                leakcanary: '1.5.1',
+                leakcanary: '1.6.3',
                 mockito: '4.11.0',
                 robolectric: '4.17'
         ]
