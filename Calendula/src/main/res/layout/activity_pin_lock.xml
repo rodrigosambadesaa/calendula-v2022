@@ -27,7 +27,7 @@
                 tools:background="@color/android_blue_dark"
                 tools:context="es.usc.citius.servando.calendula.pinlock.PinLockActivity">
 
-    <androidx.appcompat.widget.Toolbar xmlns:app="http://schemas.android.com/apk/res-auto"
+    <androidx.appcompat.widget.Toolbar
                                        android:id="@+id/toolbar"
                                        android:layout_width="match_parent"
                                        android:layout_height="56dp"
