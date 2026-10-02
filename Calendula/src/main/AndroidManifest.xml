@@ -34,6 +34,10 @@
 
 <!--    <uses-permission android:name="com.samsung.permission.READ_SM_DATA"/>-->
 
+    <queries>
+        <package android:name="com.saurik.substrate"/>
+        <package android:name="de.robv.android.xposed.installer"/>
+    </queries>
 
     <supports-screens
         android:largeScreens="true"
