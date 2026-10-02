@@ -11,10 +11,10 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
-import android.widget.Switch;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.widget.SwitchCompat;
 
 import com.heinrichreimersoftware.materialintro.app.SlideFragment;
 
@@ -26,7 +26,7 @@ import es.usc.citius.servando.calendula.R;
 public class CheckBatterySavingFragment extends SlideFragment {
 
     @BindView(R.id.switch_battery_saving)
-    protected Switch system_battery_saving_switch;
+    protected SwitchCompat system_battery_saving_switch;
     @BindView(R.id.manufacturer_battery_saving_button)
     protected Button manufacturer_battery_saving_button;
     @BindView(R.id.manufacturer_battery_saving_option)
