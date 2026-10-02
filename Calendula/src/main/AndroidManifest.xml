@@ -7,7 +7,7 @@
   ~    the Free Software Foundation; either version 3 of the License, or
   ~    (at your option) any later version.
   ~
-  ~    This program is distributed in the hope that it will be useful,
+  ~    Calendula is distributed in the hope that it will be useful,
   ~    but WITHOUT ANY WARRANTY; without even the implied warranty of
   ~    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   ~    GNU General Public License for more details.
@@ -34,6 +34,10 @@
 
 <!--    <uses-permission android:name="com.samsung.permission.READ_SM_DATA"/>-->
 
+    <queries>
+        <package android:name="com.saurik.substrate"/>
+        <package android:name="de.robv.android.xposed.installer"/>
+    </queries>
 
     <supports-screens
         android:largeScreens="true"
