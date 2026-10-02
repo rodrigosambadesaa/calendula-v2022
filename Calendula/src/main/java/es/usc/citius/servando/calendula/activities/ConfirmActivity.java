@@ -72,6 +72,7 @@ import org.joda.time.format.ISODateTimeFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -382,7 +383,7 @@ public class ConfirmActivity extends CalendulaActivity {
 
         hour.setText(dateTime.toString("kk:"));
         minute.setText(dateTime.toString("mm"));
-        friendlyTime.setText(relativeTime.substring(0, 1).toUpperCase() + relativeTime.substring(1));
+        friendlyTime.setText(relativeTime.substring(0, 1).toUpperCase(Locale.getDefault()) + relativeTime.substring(1));
 
         if (isDistant) {
             fab.setBackgroundTintList(ColorStateList.valueOf(getResources().getColor(R.color.android_orange_dark)));
