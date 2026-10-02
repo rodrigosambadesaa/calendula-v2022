@@ -61,6 +61,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -80,7 +81,7 @@ public class CalendarActivity extends CalendulaActivity {
 
     public static final int ACTION_SHOW_REMINDERS = 1;
     private static final String TAG = "CalendarActivity";
-    private static final DateFormat dtf2 = new SimpleDateFormat("dd/MMM");
+    private static final DateFormat dtf2 = new SimpleDateFormat("dd/MMM", Locale.getDefault());
     private static DispensationInfoStore dispensationInfoStore;
 
     @BindView(R.id.pickup_list_container)
@@ -313,7 +314,7 @@ public class CalendarActivity extends CalendulaActivity {
             @Override
             public void onChangeMonth(int month, int year) {
                 DateTime date = DateTime.now().withYear(year).withMonthOfYear(month);
-                subtitle.setText(date.toString("MMMM YYYY").toUpperCase());
+                subtitle.setText(date.toString("MMMM YYYY").toUpperCase(Locale.getDefault()));
             }
 
             @Override
