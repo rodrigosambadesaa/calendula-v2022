@@ -67,7 +67,7 @@
         android:layout_height="match_parent"
         android:layout_below="@id/textView2">
 
-        <fragment
+        <androidx.fragment.app.FragmentContainerView
             android:id="@+id/routine_fragment"
             android:name="es.usc.citius.servando.calendula.fragments.RoutineCreateOrEditFragment"
             android:layout_width="match_parent"
