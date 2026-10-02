@@ -28,4 +28,5 @@
     <item name="fastadapter_schedule_item" type="id" />
     <item name="fastadapter_active_medication_list_item" type="id" />
     <item name="material_drawer_lang_drawer_item" type="id" />
+    <item name="profile_image_container" type="id" />
 </resources>
