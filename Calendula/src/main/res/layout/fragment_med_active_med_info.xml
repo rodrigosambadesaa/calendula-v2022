@@ -284,7 +284,7 @@
                     android:layout_toRightOf="@+id/ic_substitution"
                     android:fontFamily="sans-serif-condensed"
                     android:gravity="center_vertical"
-                    android:text="This medicine substitutes the prescribed medicine with name: PLACEHOLDER MEDICINE 1"
+                    tools:text="This medicine substitutes the prescribed medicine with name: PLACEHOLDER MEDICINE 1"
                     android:textColor="@color/dark_grey_text"
                     android:textSize="18sp"/>
 
