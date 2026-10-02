@@ -79,7 +79,7 @@
 
                 </FrameLayout>
 
-                <androidx.appcompat.widget.Toolbar xmlns:app="http://schemas.android.com/apk/res-auto"
+                <androidx.appcompat.widget.Toolbar
                                                    android:id="@+id/toolbar"
                                                    android:layout_width="match_parent"
                                                    android:layout_height="65dp"
@@ -165,8 +165,7 @@
                 </RelativeLayout>
 
 
-                <com.stepstone.stepper.StepperLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                                                     xmlns:app="http://schemas.android.com/apk/res-auto"
+                <com.stepstone.stepper.StepperLayout
                                                      android:id="@+id/stepperLayout"
                                                      android:layout_width="match_parent"
                                                      android:layout_height="wrap_content"
