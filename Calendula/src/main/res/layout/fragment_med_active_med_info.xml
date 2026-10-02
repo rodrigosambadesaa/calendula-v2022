@@ -284,7 +284,7 @@
                     android:layout_toRightOf="@+id/ic_substitution"
                     android:fontFamily="sans-serif-condensed"
                     android:gravity="center_vertical"
-                    android:text="This medicine substitutes the prescribed medicine with name: PLACEHOLDER MEDICINE 1"
+                    tools:text="This medicine substitutes the prescribed medicine with name: PLACEHOLDER MEDICINE 1"
                     android:textColor="@color/dark_grey_text"
                     android:textSize="18sp"/>
 
@@ -310,23 +310,6 @@
 
                 <TextView
                     android:id="@+id/dispensation_title"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_alignParentLeft="true"
-                    android:layout_alignParentTop="true"
-                    android:layout_marginLeft="72dp"
-                    android:layout_toRightOf="@+id/ic_dispensation"
-                    android:gravity="center_vertical"
-                    android:text="@string/title_dispensation_info"
-                    android:textAllCaps="false"
-                    android:textColor="#000"
-                    android:textIsSelectable="false"
-                    android:textSize="19sp"
-                    android:textStyle="bold"/>
-
-
-                <TextView
-                    android:id="@+id/dispensation_text"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_alignParentLeft="true"
