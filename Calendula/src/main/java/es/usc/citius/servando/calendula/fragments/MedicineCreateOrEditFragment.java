@@ -231,7 +231,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
             public void afterTextChanged(Editable s) {
                 String name = mNameTextView.getText().toString();
 
-                if (mPrescription != null && !dbMgr.shortName(mPrescription).toLowerCase().equals(name.toLowerCase())) {
+                if (mPrescription != null && !dbMgr.shortName(mPrescription).equalsIgnoreCase(name)) {
                     mPrescription = null;
                 }
 
