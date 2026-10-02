@@ -73,6 +73,12 @@ android {
         buildConfig true
     }
 
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
+
     defaultConfig {
         minSdkVersion 23
         targetSdkVersion 36
