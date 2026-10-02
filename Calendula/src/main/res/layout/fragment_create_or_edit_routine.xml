@@ -42,6 +42,7 @@
         android:layout_marginLeft="72dp"
         android:layout_marginTop="30dp"
         android:gravity="center_vertical"
+        android:labelFor="@id/routine_edit_name"
         android:text="@string/routine_name"
         android:textAppearance="?android:attr/textAppearanceLarge"
         android:textColor="@color/dark_grey_text"
@@ -56,6 +57,7 @@
         android:layout_marginRight="24dp"
         android:layout_marginTop="24dp"
         android:imeOptions="actionDone"
+        android:inputType="text"
         android:textColor="@color/dark_grey_home"
         android:textSize="22dp" />
 
