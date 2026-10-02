@@ -32,7 +32,7 @@
 
         <LinearLayout
             android:id="@+id/presentation_scroll_content"
-            android:layout_width="fill_parent"
+            android:layout_width="wrap_content"
             android:layout_height="80dp"
             android:layout_alignParentTop="true"
             android:layout_centerHorizontal="true"
