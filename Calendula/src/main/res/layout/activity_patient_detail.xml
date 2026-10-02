@@ -95,6 +95,7 @@
                 android:layout_marginRight="24dp"
                 android:layout_marginTop="24dp"
                 android:imeOptions="actionDone"
+                android:inputType="text"
                 android:maxLines="1"
                 android:singleLine="true"
                 android:textColor="@color/dark_grey_home"
@@ -107,6 +108,7 @@
                 android:layout_marginLeft="72dp"
                 android:layout_marginTop="30dp"
                 android:gravity="center_vertical"
+                android:labelFor="@id/patient_name"
                 android:text="@string/label_patient_name"
                 android:textColor="@color/dark_grey_text"
                 android:textSize="20sp" />
