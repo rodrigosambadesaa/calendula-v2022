@@ -210,8 +210,7 @@
             <FrameLayout
                 android:id="@+id/fragment_holder"
                 android:layout_width="fill_parent"
-                android:layout_height="240dp"
-                android:layout_below="@+id/about_holder" />
+                android:layout_height="240dp" />
 
         </LinearLayout>
     </ScrollView>
