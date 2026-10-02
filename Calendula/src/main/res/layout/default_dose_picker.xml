@@ -43,6 +43,7 @@
             android:layout_marginTop="25dp"
             android:ems="10"
             android:gravity="center"
+            android:hint="@string/schedule_build_tab_title_dosage"
             android:inputType="numberDecimal"
             tools:text="1"
             android:textAlignment="gravity"
@@ -57,7 +58,6 @@
             android:layout_marginLeft="10dp"
             android:layout_marginRight="10dp"
             android:layout_marginTop="25dp"
-            android:labelFor="@id/editText"
             android:textAlignment="center"
             android:textSize="20sp"/>
 
