@@ -49,7 +49,7 @@
         android:textAppearance="?android:attr/textAppearanceMedium"
         android:textColor="#fff"/>
 
-    <Switch
+    <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/switch_battery_saving"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
