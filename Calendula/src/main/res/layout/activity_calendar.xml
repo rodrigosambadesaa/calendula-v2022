@@ -66,8 +66,6 @@
                     <ImageView
                         android:layout_width="fill_parent"
                         android:layout_height="fill_parent"
-                        android:layout_alignBottom="@+id/top_background"
-                        android:layout_alignTop="@+id/top_background"
                         android:alpha="0.3"
                         android:scaleType="centerCrop"
                         android:src="@drawable/clock"/>
