@@ -57,6 +57,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -515,19 +516,20 @@ public class AllergiesSearchActivity extends CalendulaActivity {
 
         @Override
         public int compare(AbstractItem o1, AbstractItem o2) {
-            final String f = filter.toLowerCase();
-            final String t1 = getTitle(o1).toLowerCase().trim();
+            final Locale locale = Locale.getDefault();
+            final String f = filter.toLowerCase(locale);
+            final String t1 = getTitle(o1).toLowerCase(locale).trim();
             boolean c1 = t1.contains(f);
-            final String t2 = getTitle(o2).toLowerCase().trim();
-            boolean c2 = t2.toLowerCase().trim().contains(f);
+            final String t2 = getTitle(o2).toLowerCase(locale).trim();
+            boolean c2 = t2.contains(f);
 
             if (c1 && !c2) {
                 return -1;
             } else if (c2 && !c1) {
                 return 1;
             } else if (c1) { //if c1 is true, c2 is true at this point too
-                int i1 = t1.toLowerCase().trim().indexOf(filter.toLowerCase());
-                int i2 = t2.toLowerCase().trim().indexOf(filter.toLowerCase());
+                int i1 = t1.indexOf(f);
+                int i2 = t2.indexOf(f);
                 if (i1 == i2) {
                     //if the index is the same, prioritize groups
                     final int ty1 = o1.getType();
