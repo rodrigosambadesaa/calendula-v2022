@@ -41,7 +41,6 @@ import android.widget.LinearLayout;
 import android.widget.NumberPicker;
 import android.widget.RelativeLayout;
 import android.widget.ScrollView;
-import android.widget.Switch;
 import android.widget.TextView;
 
 import com.afollestad.materialdialogs.DialogAction;
@@ -122,7 +121,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
     @BindView(R.id.stock_estimated_duration)
     TextView mStockEstimation;
     @BindView(R.id.stock_switch)
-    Switch stockSwitch;
+    CompoundButton stockSwitch;
     @BindView(R.id.btn_stock_add)
     IconicsImageView addBtn;
     @BindView(R.id.btn_stock_remove)

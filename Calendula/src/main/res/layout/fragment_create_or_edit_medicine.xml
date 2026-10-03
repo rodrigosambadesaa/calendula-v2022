@@ -278,7 +278,7 @@
                 android:textSize="16sp"
                 tools:text="Enough for two placeholders with the current placeholder"/>
 
-            <Switch
+            <androidx.appcompat.widget.SwitchCompat
                 android:id="@+id/stock_switch"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
