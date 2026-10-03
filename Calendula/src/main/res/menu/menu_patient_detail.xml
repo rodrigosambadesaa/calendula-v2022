@@ -25,9 +25,8 @@
         android:id="@+id/action_link_qr"
         android:icon="@drawable/ic_qrcode_white_48dp"
         android:orderInCategory="100"
-        android:title="Vincular"
-        app:showAsAction="ifRoom"
-        tools:ignore="HardcodedText"/>
+        android:title="@string/patient_link_action"
+        app:showAsAction="ifRoom"/>
 
     <item
         android:id="@+id/action_done"

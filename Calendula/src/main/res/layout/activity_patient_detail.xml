@@ -59,7 +59,7 @@
             android:layout_alignParentLeft="true"
             android:layout_marginBottom="10dp"
             android:layout_marginLeft="10dp"
-            android:text="Vincular"
+            android:text="@string/patient_link_action"
             android:textColor="#fff" />
 
     </RelativeLayout>

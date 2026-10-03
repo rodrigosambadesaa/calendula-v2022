@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="patient_link_action">Link</string>
+    <string name="patient_unlink_action">Unlink</string>
+    <string name="patient_link_success">Patient linked successfully!</string>
+    <string name="patient_unlink_warning">Unlinking this patient will stop follow-up. Are you sure you want to continue?</string>
+    <string name="patient_unlink_title">Be careful</string>
+    <string name="patient_unlink_confirm">Yes, unlink</string>
+</resources>
