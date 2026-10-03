@@ -19,7 +19,6 @@
 package es.usc.citius.servando.calendula.util.security.verifier.verifications
 
 import android.content.Context
-import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import es.usc.citius.servando.calendula.util.LogUtil
@@ -56,20 +55,22 @@ class RuntimeVerification : Verification {
 
 
     private fun suspiciousAppsFound(c: Context): Boolean {
-        val apps: List<ApplicationInfo> = if (Build.VERSION.SDK_INT >= 33) {
-            c.packageManager.getInstalledApplications(
-                PackageManager.ApplicationInfoFlags.of(PackageManager.GET_META_DATA.toLong())
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            c.packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
-        }
-        for (applicationInfo in apps) {
-            if (SUSPICIOUS_APPS.contains(applicationInfo.packageName)) {
-                return true
+        return SUSPICIOUS_APPS.any { packageName ->
+            try {
+                if (Build.VERSION.SDK_INT >= 33) {
+                    c.packageManager.getApplicationInfo(
+                        packageName,
+                        PackageManager.ApplicationInfoFlags.of(PackageManager.GET_META_DATA.toLong())
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    c.packageManager.getApplicationInfo(packageName, PackageManager.GET_META_DATA)
+                }
+                true
+            } catch (e: PackageManager.NameNotFoundException) {
+                false
             }
         }
-        return false
     }
 
     private fun stackTraceHooked(): Boolean {
