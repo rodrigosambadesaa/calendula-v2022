@@ -88,7 +88,7 @@
                         android:gravity="center"
                         android:textColor="@color/agenda_item_title"
                         tools:text="JULY 2017"
-                        android:textSize="20dp"
+                        android:textSize="20sp"
                         android:textStyle="bold"
                         android:transitionName="title"/>
 
@@ -161,7 +161,7 @@
                         android:paddingTop="16dp"
                         android:text="@string/title_pickups_bottom_sheet"
                         android:textColor="@color/agenda_item_title"
-                        android:textSize="18dp"
+                        android:textSize="18sp"
                         android:textStyle="bold"/>
 
                     <LinearLayout
@@ -197,7 +197,7 @@
                         android:layout_marginRight="16dp"
                         android:layout_marginTop="15dp"
                         android:text="@string/done"
-                        android:textSize="15dp"/>
+                        android:textSize="15sp"/>
 
                 </RelativeLayout>
 
@@ -228,7 +228,7 @@
             android:gravity="center"
             tools:text="Almorzo"
             android:textColor="@color/agenda_item_title"
-            android:textSize="20dp"
+            android:textSize="20sp"
             android:textStyle="bold"
             android:transitionName="title"/>
 
