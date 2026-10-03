@@ -84,12 +84,7 @@ public class MedicineItem extends AbstractItem<MedicineItem, MedicineItem.Medici
                 .sizeDp(40));
 
         if (ModuleManager.isEnabled(StockModule.ID)) {
-            String nextPickup = medicine.nextPickup();
             holder.stockInfo.setVisibility(View.VISIBLE);
-
-            if (nextPickup != null) {
-                holder.stockInfo.setText("Próxima e-Receta: " + nextPickup);
-            }
 
             if (medicine.getStock() != null && medicine.getStock() >= 0) {
                 holder.stockInfo.setText(ctx.getString(R.string.stock_remaining_msg, medicine.getStock().intValue(), medicine.getPresentation().units(ctx.getResources(), medicine.getStock())));
