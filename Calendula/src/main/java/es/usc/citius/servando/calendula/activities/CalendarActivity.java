@@ -192,7 +192,7 @@ public class CalendarActivity extends CalendulaActivity {
             String str = "       " + infoEntity.getActiveMed().getDefaultDisplay() + " (" + dtf2.format(infoEntity.getDispenseInterval().getStart().toDate()) + " - " + dtf2.format(infoEntity.getDispenseInterval().getEnd().toDate()) + ")\n";
             Spannable text = new SpannableString(str);
             text.setSpan(new ForegroundColorSpan(color), 0, str.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-            Drawable d = getResources().getDrawable(AvatarMgr.res(patient.getAvatar()));
+            Drawable d = androidx.core.content.ContextCompat.getDrawable(this, AvatarMgr.res(patient.getAvatar()));
             d.setBounds(0, 0, fontMetrics.bottom, fontMetrics.bottom);
             ImageSpan span = new ImageSpan(d, ImageSpan.ALIGN_BASELINE);
             text.setSpan(span, 0, 5, Spannable.SPAN_INCLUSIVE_EXCLUSIVE);
@@ -210,7 +210,7 @@ public class CalendarActivity extends CalendulaActivity {
         final List<DispensationInfoEntity> urgent = dispensationInfoStore.urgentMeds();
         Pair<LocalDate, List<DispensationInfoEntity>> best = dispensationInfoStore.getBestDay();
 
-        final List<DispensationInfoEntity> next = (best == null || best.first == null || best.second == null) ? new ArrayList<DispensationInfoEntity>() : best.second;
+        final List<DispensationInfoEntity>> next = (best == null || best.first == null || best.second == null) ? new ArrayList<DispensationInfoEntity>() : best.second;
 
         CharSequence msg = new SpannableString(getString(R.string.calendar_no_medicines_to_pick_up));
         LocalDate today = LocalDate.now();
