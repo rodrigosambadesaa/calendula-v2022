@@ -211,7 +211,7 @@
                 android:textColor="@color/android_orange"
                 android:padding="5dp"
                 android:textStyle="bold"
-                android:textSize="14dp"
+                android:textSize="14sp"
                 tools:text="17/07/2017"
                 tools:visibility="visible"/>
 
@@ -235,7 +235,7 @@
                 android:gravity="right"
                 android:textColor="@color/android_orange"
                 android:padding="5dp"
-                android:textSize="14dp"
+                android:textSize="14sp"
                 tools:text="Detailed dossage info"
                 android:visibility="visible" />
 
