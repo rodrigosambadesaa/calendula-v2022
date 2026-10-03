@@ -210,7 +210,7 @@ public class CalendarActivity extends CalendulaActivity {
         final List<DispensationInfoEntity> urgent = dispensationInfoStore.urgentMeds();
         Pair<LocalDate, List<DispensationInfoEntity>> best = dispensationInfoStore.getBestDay();
 
-        final List<DispensationInfoEntity>> next = (best == null || best.first == null || best.second == null) ? new ArrayList<DispensationInfoEntity>() : best.second;
+        final List<DispensationInfoEntity> next = (best == null || best.first == null || best.second == null) ? new ArrayList<DispensationInfoEntity>() : best.second;
 
         CharSequence msg = new SpannableString(getString(R.string.calendar_no_medicines_to_pick_up));
         LocalDate today = LocalDate.now();
