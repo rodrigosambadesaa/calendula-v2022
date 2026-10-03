@@ -577,7 +577,7 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
 
     private void showProviderPrescriptionInfo() {
         if (activeMed != null) {
-            String dosage = activeMed.getDosage().toReadableString(this).toLowerCase() + "\n";
+            String dosage = activeMed.getDosage().toReadableString(this).toLowerCase(java.util.Locale.getDefault()) + "\n";
             final String dateFormat = getString(R.string.schedule_limits_date_format);
             if(activeMed.getValidityStart() != null){
                 dosage += "\n● " + getString(R.string.active_med_from) + " " + activeMed.getValidityStart().toString(dateFormat);
