@@ -50,7 +50,7 @@
         android:gravity="center_vertical"
         android:paddingBottom="3dp"
         android:textColor="#222"
-        android:textSize="16dp"
+        android:textSize="16sp"
         android:textStyle="bold"
         tools:text="Ibuprofeno"/>
 
@@ -67,7 +67,7 @@
         android:gravity="top"
         tools:text="1 capsule"
         android:textColor="#111"
-        android:textSize="17dp"/>
+        android:textSize="17sp"/>
 
     <TextView
         android:id="@+id/med_item_status"
@@ -81,7 +81,7 @@
         android:gravity="top"
         tools:text="Not taken yet"
         android:textColor="#555"
-        android:textSize="13dp"/>
+        android:textSize="13sp"/>
 
     <TextView
         android:id="@+id/med_item_offset"
@@ -95,7 +95,7 @@
         android:fontFamily="sans-serif-light"
         android:gravity="top"
         android:textColor="#222"
-        android:textSize="14dp"
+        android:textSize="14sp"
         android:textStyle="bold"
         tools:text="Instrucciones: Consulte a su farmacéutico en caso de duda"/>
 
@@ -114,7 +114,7 @@
         tools:text="Después de la cena"
         android:textColor="#222"
         android:textStyle="bold"
-        android:textSize="14dp"/>
+        android:textSize="14sp"/>
 
 
     <TextView
@@ -129,7 +129,7 @@
         android:gravity="top"
         android:text="@string/confirm_activity_reminder_differs_from_official"
         android:textColor="#222"
-        android:textSize="14dp"
+        android:textSize="14sp"
         android:textStyle="bold"
         android:visibility="visible"/>
 
