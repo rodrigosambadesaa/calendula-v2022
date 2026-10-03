@@ -83,7 +83,7 @@
         android:singleLine="true"
         tools:text="Ibuprofeno"
         android:textColor="#222"
-        android:textSize="16dp"/>
+        android:textSize="16sp"/>
 
     <TextView
         android:id="@+id/med_item_dose"
@@ -142,7 +142,7 @@
             android:fontFamily="sans-serif-light"
             android:gravity="top"
             android:textColor="#222"
-            android:textSize="14dp"
+            android:textSize="14sp"
             android:textStyle="bold"
             tools:text="Instrucciones: Consulte a su farmacéutico en caso de duda" />
     </RelativeLayout>
