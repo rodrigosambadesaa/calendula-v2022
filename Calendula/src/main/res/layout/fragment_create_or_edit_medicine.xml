@@ -58,6 +58,7 @@
             android:focusable="false"
             android:focusableInTouchMode="false"
             android:hint="@string/medicine_edit_name_hint"
+            android:importantForAutofill="no"
             android:inputType="text"
             android:paddingTop="10dp"
             android:paddingBottom="15dp"
