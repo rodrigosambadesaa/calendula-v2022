@@ -162,7 +162,9 @@ public class LoginActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         if (requestCode == REQ_CODE_POST_NOTIFICATIONS) {
-            PermissionUtils.markPermissionAsAsked(this, Manifest.permission.POST_NOTIFICATIONS);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                PermissionUtils.markPermissionAsAsked(this, Manifest.permission.POST_NOTIFICATIONS);
+            }
             launchHome();
             return;
         }
