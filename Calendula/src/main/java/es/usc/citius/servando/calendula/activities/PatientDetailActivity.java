@@ -27,7 +27,6 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -448,7 +447,6 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
     }
 
     private void animateAvatarSelectorShow(int duration) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             gridContainer.setVisibility(View.INVISIBLE);
             // get the center for the clipping circle
             int cx = (int) fab.getX() + fab.getWidth() / 2;
@@ -467,11 +465,9 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
                     scrollToColor(patient.getColor());
                 }
             }, duration);
-        }
     }
 
     private void animateAvatarSelectorHide(int duration) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             // get the center for the clipping circle
             int cx = (int) fab.getX() + fab.getWidth() / 2;
             int cy = 0;
@@ -490,11 +486,9 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
                 }
             });
             anim.setDuration(duration).start();
-        }
     }
 
     private void animateAvatarBg(int duration, int x, Animator.AnimatorListener cb) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             patientAvatarBg.setVisibility(View.INVISIBLE);
             // get the center for the clipping circle
             int cx = (patientAvatarBg.getLeft() + patientAvatarBg.getRight()) / 2;
@@ -513,7 +507,6 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
                 anim.addListener(cb);
             }
             anim.start();
-        }
     }
 
     private void setupAvatarList() {
