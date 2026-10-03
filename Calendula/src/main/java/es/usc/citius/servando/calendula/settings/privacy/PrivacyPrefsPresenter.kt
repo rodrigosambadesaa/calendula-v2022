@@ -20,7 +20,6 @@ package es.usc.citius.servando.calendula.settings.privacy
 
 import android.app.Activity
 import android.content.Intent
-import androidx.annotation.VisibleForTesting
 import es.usc.citius.servando.calendula.R
 import es.usc.citius.servando.calendula.mvp.BasePresenter
 import es.usc.citius.servando.calendula.pinlock.PINManager
@@ -35,9 +34,7 @@ class PrivacyPrefsPresenter(val fpHelper: FingerprintHelper) :
 
     companion object {
         private const val TAG = "PrivacyPrefsPresenter"
-        @VisibleForTesting
         const val REQUEST_MODIFY = 12152
-        @VisibleForTesting
         const val REQUEST_DELETE = 12318
     }
 
