@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="patient_link_action">Vincular</string>
+    <string name="patient_unlink_action">Desvincular</string>
+    <string name="patient_link_success">Paciente vinculado correctamente!</string>
+    <string name="patient_unlink_warning">Se desvinculas este paciente, interromperase o seguimento. Seguro que queres continuar?</string>
+    <string name="patient_unlink_title">Ten coidado</string>
+    <string name="patient_unlink_confirm">Si, desvincular</string>
+</resources>
