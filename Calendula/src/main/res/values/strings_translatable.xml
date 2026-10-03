@@ -382,7 +382,7 @@ Delivery of notifications, such as intake reminders, will be unreliable unless y
 <string name="disable_manufacturer_battery_saving_button">"Open"</string>
     <string name="battery_saving_dialog_title">"Battery saving optimizations are enabled for Calendula"</string>
     <string name="battery_saving_dialog_text">"You can disable them later in the Notifications option of the Settings menu. Meanwhile, notifications will be unreliable."</string>
-    <string name="battery_saving_dialog_ok">"Ok"</string>
+    <string name="battery_saving_dialog_ok">"OK"</string>
     <string name="battery_saving_dialog_cancel">"Cancel"</string>
 <string name="title_activity_settings">"Settings"</string>
 <string name="pref_header_general">"General"</string>
