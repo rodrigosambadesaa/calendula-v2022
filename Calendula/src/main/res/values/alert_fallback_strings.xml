@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="generic_alert_title">Alert: %1$s</string>
+    <string name="generic_alert_description">Additional alert details are unavailable.</string>
+</resources>

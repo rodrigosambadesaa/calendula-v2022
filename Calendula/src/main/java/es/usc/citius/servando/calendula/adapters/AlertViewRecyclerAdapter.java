@@ -114,8 +114,9 @@ public class AlertViewRecyclerAdapter extends RecyclerView.Adapter<RecyclerView.
         // setup ui
         PatientAlert alert = item.map();
         viewHolder.alertIcon.setImageDrawable(IconUtils.alertLevelIcon(alert.getLevel(), viewHolder.context));
-        viewHolder.title.setText("Alert " + alert.getClass().getSimpleName());
-        viewHolder.description.setText("Description gose here");
+        viewHolder.title.setText(viewHolder.context.getString(
+                R.string.generic_alert_title, alert.getClass().getSimpleName()));
+        viewHolder.description.setText(R.string.generic_alert_description);
     }
 
     public void registerViewProvider(AlertViewProvider provider, Class<?> cls) {
