@@ -70,7 +70,7 @@ public class PickupCalendarAdapter extends CaldroidGridAdapter {
 
         // For reuse
         if (convertView == null) {
-            cellView = inflater.inflate(R.layout.custom_calendar_cell, null);
+            cellView = inflater.inflate(R.layout.custom_calendar_cell, parent, false);
         }
 
         int topPadding = cellView.getPaddingTop();
