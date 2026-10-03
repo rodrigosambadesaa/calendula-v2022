@@ -44,7 +44,7 @@
                 android:text="@string/schedule_build_dayselect_every_day_title"
                 android:textAllCaps="true"
                 android:textColor="@color/activity_schedule_build_secondary"
-                android:textSize="14dp"/>
+                android:textSize="14sp"/>
 
             <ImageView
                 android:id="@+id/every_day_selection"
@@ -70,7 +70,7 @@
                 android:text="@string/schedule_build_dayselect_custom"
                 android:textAllCaps="true"
                 android:textColor="@color/activity_schedule_build_secondary"
-                android:textSize="14dp"/>
+                android:textSize="14sp"/>
 
             <ImageView
                 android:id="@+id/custom_title_selection"
@@ -105,7 +105,7 @@
                             android:gravity="end|center_vertical"
                             android:text="@string/schedule_build_dayselect_repeat"
                             android:textColor="@color/activity_schedule_build_foreground"
-                            android:textSize="18dp"/>
+                            android:textSize="18sp"/>
 
 
                         <Spinner
@@ -118,7 +118,7 @@
                             android:layout_marginTop="24dp"
                             android:layout_toEndOf="@id/repeat_title"
                             android:textColor="@color/activity_schedule_build_foreground"
-                            android:textSize="18dp"/>
+                            android:textSize="18sp"/>
 
                     </RelativeLayout>
 
@@ -137,7 +137,7 @@
                             android:layout_toStartOf="@id/repeat_interval"
                             android:text="@string/schedule_build_dayselect_every"
                             android:textColor="@color/activity_schedule_build_foreground"
-                            android:textSize="18dp"/>
+                            android:textSize="18sp"/>
 
                         <!--<android.support.v7.widget.RecyclerView-->
                         <!--android:id="@+id/interval"-->
@@ -166,9 +166,9 @@
                             app:np_min="1"
                             app:np_orientation="horizontal"
                             app:np_selectedTextColor="@color/activity_schedule_build_foreground"
-                            app:np_selectedTextSize="20dp"
+                            app:np_selectedTextSize="20sp"
                             app:np_textColor="@color/activity_schedule_build_foreground_alpha"
-                            app:np_textSize="20dp"
+                            app:np_textSize="20sp"
                             app:np_value="8"
                             />
 
@@ -182,7 +182,7 @@
                             android:gravity="center_vertical"
                             android:text="@string/schedule_repeat_frequency_days"
                             android:textColor="@color/activity_schedule_build_foreground"
-                            android:textSize="18dp"/>
+                            android:textSize="18sp"/>
 
                     </RelativeLayout>
 
@@ -202,7 +202,7 @@
                             android:gravity="center_vertical|end"
                             android:text="@string/schedule_build_dayselect_take"
                             android:textColor="@color/activity_schedule_build_secondary"
-                            android:textSize="16dp"/>
+                            android:textSize="16sp"/>
 
                         <com.shawnlin.numberpicker.NumberPicker
                             android:id="@+id/period_interval"
@@ -219,9 +219,9 @@
                             app:np_min="1"
                             app:np_orientation="horizontal"
                             app:np_selectedTextColor="@color/activity_schedule_build_foreground"
-                            app:np_selectedTextSize="20dp"
+                            app:np_selectedTextSize="20sp"
                             app:np_textColor="@color/activity_schedule_build_foreground_alpha"
-                            app:np_textSize="20dp"
+                            app:np_textSize="20sp"
                             app:np_value="21"/>
 
                         <TextView
@@ -233,7 +233,7 @@
                             android:gravity="center_vertical"
                             android:text="@string/schedule_repeat_frequency_days"
                             android:textColor="@color/activity_schedule_build_secondary"
-                            android:textSize="16dp"/>
+                            android:textSize="16sp"/>
 
                     </RelativeLayout>
 
@@ -253,7 +253,7 @@
                             android:gravity="center_vertical|end"
                             android:text="@string/schedule_build_dayselect_rest"
                             android:textColor="@color/activity_schedule_build_secondary"
-                            android:textSize="16dp"/>
+                            android:textSize="16sp"/>
 
                         <!--<android.support.v7.widget.RecyclerView-->
                         <!--android:id="@+id/rest_interval"-->
@@ -282,9 +282,9 @@
                             app:np_min="1"
                             app:np_orientation="horizontal"
                             app:np_selectedTextColor="@color/activity_schedule_build_foreground"
-                            app:np_selectedTextSize="20dp"
+                            app:np_selectedTextSize="20sp"
                             app:np_textColor="@color/activity_schedule_build_foreground_alpha"
-                            app:np_textSize="20dp"
+                            app:np_textSize="20sp"
                             app:np_value="8"/>
 
                         <TextView
@@ -296,7 +296,7 @@
                             android:gravity="center_vertical"
                             android:text="@string/schedule_repeat_frequency_days"
                             android:textColor="@color/activity_schedule_build_secondary"
-                            android:textSize="16dp"/>
+                            android:textSize="16sp"/>
 
                     </RelativeLayout>
 
@@ -340,7 +340,7 @@
                 android:text="@string/schedule_build_dayselect_start_and_end"
                 android:textAllCaps="true"
                 android:textColor="@color/activity_schedule_build_secondary"
-                android:textSize="14dp"/>
+                android:textSize="14sp"/>
 
             <TextView
                 android:id="@+id/from_title"
@@ -352,7 +352,7 @@
                 android:gravity="center_vertical"
                 android:text="@string/schedule_build_dayselect_from"
                 android:textColor="@color/activity_schedule_build_foreground"
-                android:textSize="18dp"/>
+                android:textSize="18sp"/>
 
             <TextView
                 android:id="@+id/from_date"
@@ -366,7 +366,7 @@
                 android:fontFamily="sans_serif_condensed"
                 android:gravity="center_vertical"
                 android:textColor="@color/activity_schedule_build_foreground"
-                android:textSize="18dp"
+                android:textSize="18sp"
                 tools:text="Lunes, 24 de Junio"/>
 
             <ImageView
@@ -389,7 +389,7 @@
                 android:gravity="center_vertical"
                 android:text="@string/schedule_build_dayselect_until"
                 android:textColor="@color/activity_schedule_build_foreground"
-                android:textSize="18dp"/>
+                android:textSize="18sp"/>
 
             <TextView
                 android:id="@+id/to_date"
@@ -404,7 +404,7 @@
                 android:gravity="center_vertical"
                 android:text="@string/schedule_build_dayselect_repeat_indefinitely"
                 android:textColor="@color/activity_schedule_build_foreground"
-                android:textSize="18dp"/>
+                android:textSize="18sp"/>
 
 
             <ImageView
@@ -428,7 +428,7 @@
                 android:gravity="center_vertical"
                 android:text="@string/schedule_build_dayselect_first_time_title"
                 android:textColor="@color/activity_schedule_build_foreground"
-                android:textSize="18dp"/>
+                android:textSize="18sp"/>
 
 
             <TextView
@@ -442,7 +442,7 @@
                 android:fontFamily="sans_serif_condensed"
                 android:gravity="center_vertical"
                 android:textColor="@color/activity_schedule_build_foreground"
-                android:textSize="18dp"
+                android:textSize="18sp"
                 tools:text="16:00h"/>
 
 
