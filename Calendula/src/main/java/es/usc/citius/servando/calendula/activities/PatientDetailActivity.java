@@ -235,7 +235,7 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
                 LogUtil.w(TAG, "Ignoring patient link QR without a valid patient or token");
                 return;
             }
-            Snack.show("Usuario vinculado correctamente!", this, Snackbar.LENGTH_LONG);
+            Snack.show(R.string.patient_link_success, this, Snackbar.LENGTH_LONG);
             SecurePrefBundle.INSTANCE.setPatientLinkToken(patientId, p.token).apply();
             PreferenceUtils.instance().preferences()
                     .edit()
@@ -289,7 +289,7 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
             token = loadPatientLinkToken(patientId);
             if (token != null) {
                 linkButton.setVisibility(View.VISIBLE);
-                linkButton.setText("Desvincular");
+                linkButton.setText(R.string.patient_unlink_action);
 
                 linkButton.setOnClickListener(new View.OnClickListener() {
                     @Override
@@ -339,10 +339,10 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
 
     private void showUnlinkPatientDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setMessage("Si desvinculas este usuario se interrumpirá el seguimiento. Estás seguro de que deseas continuar?")
+        builder.setMessage(R.string.patient_unlink_warning)
                 .setCancelable(true)
-                .setTitle("Ten cuidado")
-                .setPositiveButton("Si, desvincular", new DialogInterface.OnClickListener() {
+                .setTitle(R.string.patient_unlink_title)
+                .setPositiveButton(R.string.patient_unlink_confirm, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int id) {
                         token = null;
                         SecurePrefBundle.INSTANCE.clearPatientLinkToken(patientId).apply();
@@ -350,7 +350,7 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
                                 .edit()
                                 .remove(legacyRemoteTokenKey(patientId))
                                 .apply();
-                        linkButton.setText("Vincular");
+                        linkButton.setText(R.string.patient_link_action);
                     }
                 })
                 .setNegativeButton(getString(R.string.dialog_no_option), new DialogInterface.OnClickListener() {
