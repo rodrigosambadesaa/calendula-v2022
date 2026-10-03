@@ -51,7 +51,7 @@ public class LiquidDosePickerFragment extends DosePickerFragment {
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                seekBarText.setText(progress + " ML");
+                seekBarText.setText(getString(R.string.liquid_dose_value, progress));
                 dose = progress;
             }
 
@@ -71,7 +71,7 @@ public class LiquidDosePickerFragment extends DosePickerFragment {
     @Override
     protected void setInitialValue(double initialDose) {
         seekBar.setProgress((int) initialDose);
-        seekBarText.setText(((int) initialDose) + " ML");
+        seekBarText.setText(getString(R.string.liquid_dose_value, (int) initialDose));
         dose = initialDose;
     }
 
