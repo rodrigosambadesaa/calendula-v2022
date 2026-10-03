@@ -73,7 +73,7 @@
                 android:singleLine="true"
                 tools:text="100 microgramos"
                 android:textColor="#999"
-                android:textSize="15dp"
+                android:textSize="15sp"
                 android:textStyle="bold"/>
 
             <TextView
@@ -89,7 +89,7 @@
                 android:singleLine="false"
                 tools:text="50 frascos de 100 ml, comprimidos recubiertos con película EFG"
                 android:textColor="#000"
-                android:textSize="15dp"/>
+                android:textSize="15sp"/>
 
             <TextView
                 android:layout_width="match_parent"
@@ -104,7 +104,7 @@
                 tools:text="Med description large name Med description large name Med description large name"
                 android:textAllCaps="false"
                 android:textColor="#222"
-                android:textSize="14dp"
+                android:textSize="14sp"
                 android:visibility="gone"/>
 
         </LinearLayout>
@@ -134,7 +134,7 @@
             android:padding="3dp"
             tools:text="123456"
             android:textColor="#fff"
-            android:textSize="12dp"
+            android:textSize="12sp"
             android:textStyle="bold"/>
 
         <ImageButton
