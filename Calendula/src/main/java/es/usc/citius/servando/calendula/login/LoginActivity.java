@@ -7,7 +7,7 @@
  *    the Free Software Foundation; either version 3 of the License, or
  *    (at your option) any later version.
  *
- *    This program is distributed in the hope that it will be useful,
+ *    Calendula is distributed in the hope that it will be useful,
  *    but WITHOUT ANY WARRANTY; without even the implied warranty of
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *    GNU General Public License for more details.
@@ -162,7 +162,9 @@ public class LoginActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         if (requestCode == REQ_CODE_POST_NOTIFICATIONS) {
-            PermissionUtils.markPermissionAsAsked(this, Manifest.permission.POST_NOTIFICATIONS);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                PermissionUtils.markPermissionAsAsked(this, Manifest.permission.POST_NOTIFICATIONS);
+            }
             launchHome();
             return;
         }
