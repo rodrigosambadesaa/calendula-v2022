@@ -35,7 +35,7 @@
         android:text=""
         android:textAllCaps="true"
         android:textColor="@color/activity_schedule_build_secondary"
-        android:textSize="14dp"/>
+        android:textSize="14sp"/>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/dosage_list"
@@ -57,7 +57,7 @@
         android:text="@string/intakes_with_meals"
         android:textAllCaps="true"
         android:textColor="#88ffffff"
-        android:textSize="14dp"/>
+        android:textSize="14sp"/>
 
     <RadioGroup
         android:layout_width="wrap_content"
