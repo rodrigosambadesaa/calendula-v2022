@@ -62,7 +62,7 @@
             android:textColor="#fff"
             android:textColorHint="#ececec"
             android:textCursorDrawable="@null"
-            android:textSize="20dp">
+            android:textSize="20sp">
 
             <requestFocus />
         </EditText>
@@ -102,7 +102,7 @@
                 android:textAlignment="center"
                 android:textAppearance="?android:attr/textAppearanceMedium"
                 android:textColor="#aaa"
-                android:textSize="16dp"/>
+                android:textSize="16sp"/>
 
             <Button
                 android:id="@+id/barcode_scan_btn"
