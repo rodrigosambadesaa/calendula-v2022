@@ -59,7 +59,7 @@
             android:fontFamily="sans-serif-condensed"
             android:gravity="center"
             android:textColor="#444"
-            android:textSize="22dp"
+            android:textSize="22sp"
             tools:text="Ángel" />
 
         <TextView
@@ -87,7 +87,7 @@
         android:gravity="center"
         android:text="@string/agenda_zoom_meds_time"
         android:textColor="#444"
-        android:textSize="20dp" />
+        android:textSize="20sp" />
 
     <ImageView
         android:id="@+id/spacer"
