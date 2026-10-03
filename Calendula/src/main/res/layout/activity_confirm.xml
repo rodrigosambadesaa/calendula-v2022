@@ -106,7 +106,7 @@
                     android:paddingTop="60dp"
                     tools:text="hace 5 minutos"
                     android:textColor="#ffffff"
-                    android:textSize="20dp"
+                    android:textSize="20sp"
                     android:textStyle="bold"
                     app:layout_collapseMode="parallax"
                     app:layout_collapseParallaxMultiplier="0.45"/>
@@ -147,7 +147,7 @@
                             android:gravity="bottom"
                             tools:text="08:"
                             android:textColor="#111"
-                            android:textSize="20dp"/>
+                            android:textSize="20sp"/>
 
                         <TextView
                             android:id="@+id/routines_list_item_minute"
@@ -156,7 +156,7 @@
                             android:gravity="bottom"
                             tools:text="00"
                             android:textColor="#111"
-                            android:textSize="20dp"/>
+                            android:textSize="20sp"/>
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -165,7 +165,7 @@
                             android:gravity="bottom"
                             tools:text=" h"
                             android:textColor="#111"
-                            android:textSize="20dp"
+                            android:textSize="20sp"
                             android:visibility="gone"/>
 
                     </LinearLayout>
@@ -182,7 +182,7 @@
                         android:fontFamily="sans-serif-condensed"
                         tools:text="Almorzo"
                         android:textColor="@color/agenda_item_title"
-                        android:textSize="20dp"
+                        android:textSize="20sp"
                         android:textStyle="bold"
                         android:transitionName="title"/>
 
@@ -257,7 +257,7 @@
             android:gravity="center_vertical"
             tools:text="Ángel"
             android:textColor="#fff"
-            android:textSize="20dp"
+            android:textSize="20sp"
             android:textStyle="bold"/>
 
         <ImageView
