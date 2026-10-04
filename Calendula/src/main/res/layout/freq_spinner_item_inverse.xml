@@ -23,4 +23,4 @@
           android:gravity="center"
           android:padding="7dp"
           android:textColor="@color/activity_schedule_build_foreground"
-          android:textSize="18dp"/>
+          android:textSize="18sp"/>

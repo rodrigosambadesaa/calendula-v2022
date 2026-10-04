@@ -22,4 +22,4 @@
           android:layout_height="wrap_content"
           android:gravity="center"
           android:textColor="@color/activity_schedule_build_foreground"
-          android:textSize="18dp"/>
+          android:textSize="18sp"/>
