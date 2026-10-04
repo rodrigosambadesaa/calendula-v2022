@@ -98,7 +98,7 @@
     <style name="delay_button">
         <item name="android:textColor">@color/dark_grey_home</item>
         <item name="android:textStyle">bold</item>
-        <item name="android:textSize">15dp</item>
+        <item name="android:textSize">15sp</item>
         <item name="android:height">@dimen/normal_button_height</item>
         <item name="android:background">@drawable/delay_button_selector</item>
     </style>
@@ -106,7 +106,7 @@
     <style name="delay_spinner_item">
         <item name="android:textColor">@color/dark_grey_home</item>
         <item name="android:textStyle">bold</item>
-        <item name="android:textSize">15dp</item>
+        <item name="android:textSize">15sp</item>
         <item name="android:height">@dimen/normal_button_height</item>
         <item name="android:background">@drawable/delay_button_selector</item>
     </style>
@@ -276,7 +276,7 @@
     <style name="CaldroidScheduleSummaryMonthName" parent="CaldroidDefaultMonthName">
         <item name="android:textColor">@color/activity_schedule_build_foreground</item>
         <item name="android:height">50dp</item>
-        <item name="android:textSize">16dp</item>
+        <item name="android:textSize">16sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:gravity">center</item>
         <item name="android:layout_marginTop">0dp</item>
@@ -317,7 +317,6 @@
     <style name="CaldroidPickupsMonthName" parent="CaldroidDefaultMonthName">
         <item name="android:textColor">#222</item>
     </style>
-
     <style name="CaldroidPickupsGridView" parent="CaldroidDefaultGridView">
         <item name="android:background">@color/transparent</item>
     </style>
