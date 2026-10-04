@@ -102,7 +102,7 @@
                 android:paddingTop="2dp"
                 tools:text="Three times a day"
                 android:textColor="#222"
-                android:textSize="15dp"
+                android:textSize="15sp"
                 android:textStyle="bold"/>
 
             <TextView
@@ -114,7 +114,7 @@
                 android:paddingTop="2dp"
                 tools:text="Every day"
                 android:textColor="@color/agenda_item_title"
-                android:textSize="15dp"/>
+                android:textSize="15sp"/>
 
             <TextView
                 android:id="@+id/schedules_list_item_more_info"
@@ -125,7 +125,7 @@
                 android:paddingTop="4dp"
                 tools:text="Every day"
                 android:textColor="@color/android_orange_dark"
-                android:textSize="15dp"
+                android:textSize="15sp"
                 android:textStyle="bold"/>
 
         </LinearLayout>
