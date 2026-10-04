@@ -32,7 +32,7 @@
         android:gravity="center"
         android:text="@string/meds_time"
         android:textColor="@color/white"
-        android:textSize="20dp"/>
+        android:textSize="20sp"/>
 
 
     <ImageView
