@@ -95,7 +95,7 @@
                 android:layout_marginTop="2dp"
                 android:text="@string/no_stock_info_msg"
                 android:textColor="@color/agenda_item_title"
-                android:textSize="15dp"
+                android:textSize="15sp"
                 android:visibility="gone"
                 tools:visibility="visible"/>
 
