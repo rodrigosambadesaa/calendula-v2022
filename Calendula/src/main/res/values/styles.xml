@@ -317,6 +317,7 @@
     <style name="CaldroidPickupsMonthName" parent="CaldroidDefaultMonthName">
         <item name="android:textColor">#222</item>
     </style>
+
     <style name="CaldroidPickupsGridView" parent="CaldroidDefaultGridView">
         <item name="android:background">@color/transparent</item>
     </style>
