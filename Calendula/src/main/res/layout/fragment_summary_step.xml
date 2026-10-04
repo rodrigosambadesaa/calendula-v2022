@@ -54,7 +54,7 @@
                 android:layout_height="wrap_content"
                 android:layout_centerInParent="true"
                 android:textColor="@color/activity_schedule_build_foreground"
-                android:textSize="16dp"
+                android:textSize="16sp"
                 />
 
             <ImageView
