@@ -43,7 +43,7 @@
         android:gravity="center_vertical"
         android:text="@string/stock_running_out"
         android:textColor="#222"
-        android:textSize="20dp"
+        android:textSize="20sp"
         android:textStyle="bold"/>
 
     <TextView
@@ -56,7 +56,7 @@
         android:layout_toRightOf="@+id/alert_icon"
         android:textAppearance="?android:attr/textAppearanceSmall"
         android:textColor="#888"
-        android:textSize="14dp"/>
+        android:textSize="14sp"/>
 
     <TextView
         android:id="@+id/stock_duration"
@@ -69,7 +69,7 @@
         android:paddingRight="16dp"
         android:textAppearance="?android:attr/textAppearanceSmall"
         android:textColor="@color/android_orange_dark"
-        android:textSize="18dp"/>
+        android:textSize="18sp"/>
 
     <Button
         android:id="@+id/manage_stock_btn"

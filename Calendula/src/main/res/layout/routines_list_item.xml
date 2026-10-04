@@ -91,7 +91,7 @@
             android:layout_marginLeft="10dp"
             tools:text="08:"
             android:textColor="@color/agenda_item_title"
-            android:textSize="20dp"
+            android:textSize="20sp"
             android:textStyle="bold"/>
 
         <TextView
@@ -100,14 +100,14 @@
             android:layout_height="wrap_content"
             tools:text="00"
             android:textColor="@color/agenda_item_title"
-            android:textSize="20dp"/>
+            android:textSize="20sp"/>
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             tools:text=" h"
             android:textColor="@color/agenda_item_title"
-            android:textSize="20dp"
+            android:textSize="20sp"
             android:visibility="gone"/>
 
     </LinearLayout>
