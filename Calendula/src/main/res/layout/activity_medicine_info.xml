@@ -99,7 +99,7 @@
                             android:scrollHorizontally="true"
                             android:textAppearance="?android:attr/textAppearanceMedium"
                             android:textColor="#fff"
-                            android:textSize="20dp"
+                            android:textSize="20sp"
                             android:textStyle="bold"
                             tools:text="Medicine name, possibly long"/>
                     </RelativeLayout>
