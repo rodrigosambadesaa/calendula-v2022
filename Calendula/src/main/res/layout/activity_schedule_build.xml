@@ -153,7 +153,7 @@
                         android:text="@string/schedule_build_official_prescription"
                         android:textAllCaps="true"
                         android:textColor="@color/activity_schedule_build_foreground_alpha"
-                        android:textSize="14dp"
+                        android:textSize="14sp"
                         android:textStyle="bold"/>
 
                     <ImageView
@@ -192,7 +192,7 @@
         android:gravity="center_vertical"
         tools:text="Titleeee!"
         android:textColor="@color/activity_schedule_build_primary"
-        android:textSize="20dp"
+        android:textSize="20sp"
         android:visibility="gone"/>
 
     <RelativeLayout
