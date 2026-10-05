@@ -7,7 +7,7 @@
  *    the Free Software Foundation; either version 3 of the License, or
  *    (at your option) any later version.
  *
- *    This program is distributed in the hope that it will be useful,
+ *    Calendula is distributed in the hope that it will be useful,
  *    but WITHOUT ANY WARRANTY; without even the implied warranty of
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *    GNU General Public License for more details.
@@ -231,12 +231,12 @@ dependencies {
 
     // Support libs
     implementation 'androidx.appcompat:appcompat:1.8.0'
-    implementation 'androidx.activity:activity:1.13.0'
+    implementation 'androidx.activity:activity-ktx:1.13.0'
     implementation 'androidx.cardview:cardview:1.0.0'
     implementation 'com.google.android.material:material:1.0.0'
     implementation 'androidx.gridlayout:gridlayout:1.1.0'
-    implementation 'androidx.palette:palette:1.0.0'
-    implementation 'androidx.preference:preference:1.1.0'
+    implementation 'androidx.palette:palette-ktx:1.0.0'
+    implementation 'androidx.preference:preference-ktx:1.1.0'
     implementation 'androidx.recyclerview:recyclerview:1.1.0'
     implementation 'androidx.annotation:annotation:1.11.0'
     implementation 'androidx.legacy:legacy-support-v4:1.0.0'
