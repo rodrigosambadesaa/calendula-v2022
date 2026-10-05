@@ -142,12 +142,12 @@ public class AboutActivity extends CalendulaActivity {
                 versionName = packageInfo.versionName;
                 versionCode = packageInfo.versionCode;
                 if (versionName != null && versionCode != null) {
-                    aboutVersion.setText(getString(R.string.version) + " " + versionName + " (" + versionCode + ")");
+                    aboutVersion.setText(getString(R.string.about_version_name_code, getString(R.string.version), versionName, versionCode));
                 } else {
                     if (versionName != null) {
-                        aboutVersion.setText(getString(R.string.version) + " " + versionName);
+                        aboutVersion.setText(getString(R.string.about_version_value, getString(R.string.version), versionName));
                     } else if (versionCode != null) {
-                        aboutVersion.setText(getString(R.string.version) + " " + versionCode);
+                        aboutVersion.setText(getString(R.string.about_version_value, getString(R.string.version), String.valueOf(versionCode)));
                     } else {
                         aboutVersion.setVisibility(View.GONE);
                     }

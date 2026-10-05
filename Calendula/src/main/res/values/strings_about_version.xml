@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="about_version_value" translatable="false">%1$s %2$s</string>
+    <string name="about_version_name_code" translatable="false">%1$s %2$s (%3$d)</string>
+</resources>
