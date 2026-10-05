@@ -167,7 +167,7 @@ public class RoutinesListFragment extends Fragment {
 
     }
 
-    private View createRoutineListItem(LayoutInflater inflater, final Routine routine) {
+    private View createRoutineListItem(LayoutInflater inflater, ViewGroup parent, final Routine routine) {
 
         int hour = routine.getTime().getHourOfDay();
         int minute = routine.getTime().getMinuteOfHour();
@@ -175,7 +175,7 @@ public class RoutinesListFragment extends Fragment {
         String strHour = String.valueOf(hour >= 10 ? hour : "0" + hour);
         String strMinute = ":" + String.valueOf(minute >= 10 ? minute : "0" + minute);
 
-        View item = inflater.inflate(R.layout.routines_list_item, null);
+        View item = inflater.inflate(R.layout.routines_list_item, parent, false);
 
         ((TextView) item.findViewById(R.id.routines_list_item_hour)).setText(strHour);
         ((TextView) item.findViewById(R.id.routines_list_item_minute)).setText(strMinute);
@@ -241,7 +241,7 @@ public class RoutinesListFragment extends Fragment {
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             final LayoutInflater layoutInflater = getActivity().getLayoutInflater();
-            return createRoutineListItem(layoutInflater, this.getItem(position));
+            return createRoutineListItem(layoutInflater, parent, this.getItem(position));
         }
 
     }
