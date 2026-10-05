@@ -17,10 +17,6 @@
   -->
 
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                android:layout_width="fill_parent"
-                android:layout_height="wrap_content">
-
-    <RelativeLayout
         android:id="@+id/medicines_list_item_container"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
@@ -60,6 +56,3 @@
         </LinearLayout>
 
     </RelativeLayout>
-
-
-</RelativeLayout>
