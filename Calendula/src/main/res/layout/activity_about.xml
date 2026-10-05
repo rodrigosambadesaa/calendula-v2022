@@ -52,12 +52,6 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <FrameLayout
-                android:id="@+id/about_holder"
-                android:layout_width="fill_parent"
-                android:layout_height="wrap_content">
-
-
                 <LinearLayout
                     android:id="@+id/about_info_layout"
                     android:layout_width="match_parent"
@@ -204,8 +198,6 @@
                         android:textSize="@dimen/textSizeSmall_openSource"
                         tools:text="About Libs" />
                 </LinearLayout>
-
-            </FrameLayout>
 
             <FrameLayout
                 android:id="@+id/fragment_holder"
