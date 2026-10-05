@@ -44,4 +44,9 @@ public class NonSwipeableViewPager extends ViewPager {
         // Never allow swiping to switch between pages
         return false;
     }
+
+    @Override
+    public boolean performClick() {
+        return super.performClick();
+    }
 }
