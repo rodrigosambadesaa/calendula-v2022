@@ -219,7 +219,7 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
         searchList.setAdapter(adapter);
         searchList.setEmptyView(emptyView);
 
-        View footerView = getLayoutInflater().inflate(R.layout.medicine_search_footer, null, false);
+        View footerView = getLayoutInflater().inflate(R.layout.medicine_search_footer, searchList, false);
         addCustomMedFooter = (Button) footerView.findViewById(R.id.add_custom_med_btn);
         searchList.addFooterView(footerView);
 
