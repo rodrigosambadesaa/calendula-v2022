@@ -29,11 +29,6 @@
                                             android:paddingTop="10dp"
                                             app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-    <RelativeLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent">
-
-
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -313,8 +308,6 @@
             </RelativeLayout>
 
         </LinearLayout>
-
-    </RelativeLayout>
 
 
 </androidx.core.widget.NestedScrollView>
