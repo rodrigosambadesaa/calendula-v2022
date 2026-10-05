@@ -17,71 +17,63 @@
   -->
 
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                android:layout_width="fill_parent"
-                android:layout_height="wrap_content">
+    android:id="@+id/medicines_list_item_container"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/touchable_white">
 
-    <RelativeLayout
-        android:id="@+id/medicines_list_item_container"
+    <ImageView
+        android:layout_width="fill_parent"
+        android:layout_height="1px"
+        android:layout_alignParentBottom="true"
+        android:layout_marginLeft="72dp"
+        android:background="#efefef"/>
+
+    <LinearLayout
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
-        android:background="@drawable/touchable_white">
+        android:layout_margin="16dp"
+        android:orientation="vertical">
 
-        <ImageView
-            android:layout_width="fill_parent"
-            android:layout_height="1px"
-            android:layout_alignParentBottom="true"
-            android:layout_marginLeft="72dp"
-            android:background="#efefef"/>
+        <TextView
+            android:id="@+id/text1"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="top"
+            android:textColor="#222"
+            android:textSize="18sp"/>
 
-
-        <LinearLayout
+        <TextView
+            android:id="@+id/text2"
             android:layout_width="fill_parent"
             android:layout_height="wrap_content"
-            android:layout_margin="16dp"
-            android:orientation="vertical">
+            android:layout_marginTop="2dp"
+            android:textColor="@color/agenda_item_title"
+            android:textSize="15sp"/>
 
-            <TextView
-                android:id="@+id/text1"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:gravity="top"
-                android:textColor="#222"
-                android:textSize="18sp"/>
+    </LinearLayout>
 
-            <TextView
-                android:id="@+id/text2"
-                android:layout_width="fill_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:textColor="@color/agenda_item_title"
-                android:textSize="15sp"/>
+    <ImageButton
+        android:id="@+id/group_button"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_centerVertical="true"
+        android:layout_marginEnd="16dp"
+        android:layout_marginRight="16dp"
+        android:layout_toLeftOf="@+id/delete_button"
+        android:alpha="0.9"
+        android:background="@drawable/simple_highlight_click_selector"/>
 
-        </LinearLayout>
-
-        <ImageButton
-            android:id="@+id/group_button"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_centerVertical="true"
-            android:layout_marginEnd="16dp"
-            android:layout_marginRight="16dp"
-            android:layout_toLeftOf="@+id/delete_button"
-            android:alpha="0.9"
-            android:background="@drawable/simple_highlight_click_selector"/>
-
-        <ImageButton
-            android:id="@+id/delete_button"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_alignParentEnd="true"
-            android:layout_alignParentRight="true"
-            android:layout_centerVertical="true"
-            android:layout_marginEnd="16dp"
-            android:layout_marginRight="16dp"
-            android:alpha="0.9"
-            android:background="@drawable/simple_highlight_click_selector"/>
-
-    </RelativeLayout>
-
+    <ImageButton
+        android:id="@+id/delete_button"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentRight="true"
+        android:layout_centerVertical="true"
+        android:layout_marginEnd="16dp"
+        android:layout_marginRight="16dp"
+        android:alpha="0.9"
+        android:background="@drawable/simple_highlight_click_selector"/>
 
 </RelativeLayout>
