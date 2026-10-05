@@ -202,7 +202,7 @@ public class ActiveMedInfoFragment extends Fragment {
                 hasReminders ? CommunityMaterial.Icon.cmd_bell_ring : CommunityMaterial.Icon.cmd_bell_plus,
                 R.color.android_green, 30, 5), null);
 
-        remindersButton.setText(getString(hasReminders ? R.string.edit_reminder_text : R.string.create_reminder_text) + " ");
+        remindersButton.setText(getString(hasReminders ? R.string.edit_reminder_text : R.string.create_reminder_text));
 
         remindersButton.setOnClickListener(new View.OnClickListener() {
             @Override
