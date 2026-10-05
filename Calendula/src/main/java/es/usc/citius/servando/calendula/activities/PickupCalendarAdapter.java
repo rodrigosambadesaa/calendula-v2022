@@ -38,6 +38,7 @@ import org.joda.time.LocalDate;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
@@ -132,7 +133,7 @@ public class PickupCalendarAdapter extends CaldroidGridAdapter {
             }
         }
 
-        tv1.setText(dateTime.getDay().toString());
+        tv1.setText(String.format(Locale.getDefault(), "%d", dateTime.getDay()));
 
         List<DispensationInfoEntity> starting = dispensationInfo.pickupsMap().get(new LocalDate(dateTime.getMilliseconds(TimeZone.getDefault())));
         List<DispensationInfoEntity> ending = new ArrayList<>();// dispensationInfo.pickupsEndMap().get(new LocalDate(dateTime.getMilliseconds(TimeZone.getDefault())));
