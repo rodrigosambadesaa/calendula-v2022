@@ -234,6 +234,7 @@
                     android:gravity="center_vertical"
                     tools:text="Reminders are enabled"
                     android:drawableRight="@drawable/ic_arrow_back_black_48dp"
+                    android:drawablePadding="4dp"
                     android:padding="5dp"
                     android:src="@null"/>
             </RelativeLayout>
