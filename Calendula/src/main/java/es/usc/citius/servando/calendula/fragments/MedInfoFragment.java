@@ -215,7 +215,7 @@ public class MedInfoFragment extends Fragment {
             if (m.stockManagementEnabled()) {
                 final Float s = m.getStock();
                 final String stock = s.intValue() == s ? String.valueOf(s.intValue()) : String.valueOf(s);
-                stockInfo.setText(stock + " " + m.getPresentation().units(getResources(), s));
+                stockInfo.setText(getString(R.string.value_with_unit, stock, m.getPresentation().units(getResources(), s)));
                 final StockCalculator.StockEnd stockEnd = StockCalculator.calculateStockEnd(LocalDate.now(), new MedicineScheduleStockProvider(m), m.getStock());
                 String msg = StockDisplayUtils.getReadableStockDuration(stockEnd, getContext());
                 stockInfoEnd.setText(msg);
