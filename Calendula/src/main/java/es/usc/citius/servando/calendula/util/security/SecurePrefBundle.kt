@@ -18,6 +18,7 @@
 
 package es.usc.citius.servando.calendula.util.security
 
+import androidx.core.content.edit
 import es.usc.citius.servando.calendula.util.GsonUtil
 import es.usc.citius.servando.calendula.util.LogUtil
 import es.usc.citius.servando.calendula.util.PreferenceKeys
@@ -103,7 +104,9 @@ object SecurePrefBundle {
      * Persists the current bundle values to secured shared preferences
      */
     fun apply() {
-        SecuredVault.edit().putString(PreferenceKeys.SECURE_PREF_BUNDLE.key(), serialize()).apply()
+        SecuredVault.edit {
+            putString(PreferenceKeys.SECURE_PREF_BUNDLE.key(), serialize())
+        }
     }
 
 
@@ -111,7 +114,9 @@ object SecurePrefBundle {
      * Removes the bundle from secured shared preferences
      */
     fun delete() {
-        SecuredVault.edit().remove(PreferenceKeys.SECURE_PREF_BUNDLE.key()).apply()
+        SecuredVault.edit {
+            remove(PreferenceKeys.SECURE_PREF_BUNDLE.key())
+        }
         clearAuthState()
         clearPinHash()
         clearPinSalt()
