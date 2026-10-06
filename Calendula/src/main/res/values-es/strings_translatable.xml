@@ -323,6 +323,7 @@ Versión %1$s
 <string name="medicine_search_not_found_msg">"Lo sentimos, no hemos podido encontrar nada con ese nombre"</string>
 <string name="medicine_search_empty_list_msg">"Escribe un nombre o un código de medicamento para comenzar a buscar, o escanea un código de barras…"</string>
 <string name="search_hint">"Buscar…"</string>
+<string name="clear_search">"Borrar búsqueda"</string>
 <string name="database_us_display">"Base de datos US"</string>
 <string name="pref_stock_alert_title">"Avisar cuando mis medicamentos se agoten"</string>
 <string name="permission_dialog_go_to_settings">"No hemos podido realizar esta acción porque has rechazado una solicitud anterior de acceso al almacenamiento. Puedes conceder ese permiso de nuevo en la vista de información de la aplicación."</string>
