@@ -413,7 +413,7 @@ public class CalendarActivity extends CalendulaActivity {
             nestedScrollView.scrollBy(0, bottomSheet.getHeight());
             showBottomSheet();
             int total = list.getChildCount();
-            title.setText(total + " " + getResources().getString(R.string.title_pickups_bottom_sheet, date.toString(df)));
+            title.setText(getString(R.string.count_with_text, total, getResources().getString(R.string.title_pickups_bottom_sheet, date.toString(df))));
             appBarLayout.setExpanded(false, true);
             return true;
         }

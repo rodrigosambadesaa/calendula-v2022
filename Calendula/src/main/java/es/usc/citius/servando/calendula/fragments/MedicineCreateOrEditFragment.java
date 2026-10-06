@@ -326,7 +326,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
         LogUtil.d(TAG, "Medicine selected for editing");
         mMedicine = r;
         mNameTextView.setText(mMedicine.getName());
-        mPresentationTv.setText(": " + mMedicine.getPresentation().getName(getResources()));
+        mPresentationTv.setText(getString(R.string.colon_prefixed_value, mMedicine.getPresentation().getName(getResources())));
         selectedPresentation = mMedicine.getPresentation();
         selectPresentation(mMedicine.getPresentation());
 
@@ -345,7 +345,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
         mPrescription = p;
         Presentation pr = DBRegistry.instance().current().expectedPresentation(p);
         if (pr != null) {
-            mPresentationTv.setText(": " + pr.getName(getResources()));
+            mPresentationTv.setText(getString(R.string.colon_prefixed_value, pr.getName(getResources())));
             selectedPresentation = pr;
             selectPresentation(pr);
         }
@@ -626,7 +626,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
             if(view != null) {
                 ImageView image = (ImageView) view.findViewById(R.id.presentation_chooser_item_drawable);
                 image.setBackgroundResource(R.drawable.presentation_circle_background);
-                mPresentationTv.setText(": " + p.getName(getResources()));
+                mPresentationTv.setText(getString(R.string.colon_prefixed_value, p.getName(getResources())));
                 scrollToMedPresentation(view);
             }
         }

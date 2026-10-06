@@ -224,7 +224,7 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
             }
 
             viewHolder.title.setText(item.title);
-            viewHolder.hour.setText(item.time.toString("kk") + ":");
+            viewHolder.hour.setText(viewHolder.hour.getContext().getString(R.string.value_with_trailing_colon, item.time.toString("kk")));
             viewHolder.minute.setText(item.time.toString("mm"));
 
             boolean allTaken = addMeds(viewHolder, item);
@@ -346,7 +346,7 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
             TextView instructions = (TextView) intakeView.findViewById(R.id.med_item_info);
             String units = element.presentation.units(viewHolder.context.getResources(), element.dose);
             image.setImageDrawable(medIcon(element.presentation.icon(), intakeView.getContext()));
-            medDose.setText(element.displayDose + " " + units);
+            medDose.setText(medDose.getContext().getString(R.string.value_with_unit, element.displayDose, units));
             medName.setText(element.medName);
 //            if(element.instructions ==null || org.apache.commons.lang3.StringUtils.isBlank(element.instructions)) {
                 instructions.setVisibility(View.GONE);

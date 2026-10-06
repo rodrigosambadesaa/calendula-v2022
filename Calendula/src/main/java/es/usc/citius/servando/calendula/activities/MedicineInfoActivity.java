@@ -318,7 +318,7 @@ public class MedicineInfoActivity extends CalendulaActivity {
     }
 
     private void updateMedDetails() {
-        toolbarTitle.setText(getString(R.string.label_info_short) + " | " + getCurrentName());
+        toolbarTitle.setText(getString(R.string.pipe_separated_label_value, getString(R.string.label_info_short), getCurrentName()));
         medName.setText(getCurrentName());
         medIcon.setImageDrawable(IconUtils.icon(this, getCurrentIcon(), R.color.white));
     }
@@ -459,9 +459,9 @@ public class MedicineInfoActivity extends CalendulaActivity {
             public void onPageSelected(int position) {
                 if (medicine != null) {
                     if (position == 0) {
-                        toolbarTitle.setText(getString(R.string.label_info_short) + " | " + medicine.getName());
+                        toolbarTitle.setText(getString(R.string.pipe_separated_label_value, getString(R.string.label_info_short), medicine.getName()));
                     } else if (position == 1) {
-                        toolbarTitle.setText(getString(R.string.label_alerts_short) + " | " + medicine.getName());
+                        toolbarTitle.setText(getString(R.string.pipe_separated_label_value, getString(R.string.label_alerts_short), medicine.getName()));
                     }
 
                 }

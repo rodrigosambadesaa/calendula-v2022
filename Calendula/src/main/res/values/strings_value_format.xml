@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="value_with_unit" translatable="false">%1$s %2$s</string>
+    <string name="count_with_text" translatable="false">%1$d %2$s</string>
+    <string name="value_with_trailing_colon" translatable="false">%1$s:</string>
+    <string name="colon_prefixed_value" translatable="false">: %1$s</string>
+    <string name="pipe_separated_label_value" translatable="false">%1$s | %2$s</string>
+    <string name="concatenated_text_parts" translatable="false">%1$s%2$s</string>
 </resources>
