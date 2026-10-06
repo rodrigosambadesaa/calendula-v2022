@@ -18,6 +18,7 @@
 
 package es.usc.citius.servando.calendula.util.view;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import androidx.viewpager.widget.ViewPager;
 import android.util.AttributeSet;
@@ -39,14 +40,10 @@ public class NonSwipeableViewPager extends ViewPager {
         return false;
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        // Never allow swiping to switch between pages
+        // This container intentionally rejects every touch event; it never detects or consumes clicks.
         return false;
-    }
-
-    @Override
-    public boolean performClick() {
-        return super.performClick();
     }
 }
