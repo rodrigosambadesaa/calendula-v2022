@@ -383,7 +383,7 @@ public class CalendarActivity extends CalendulaActivity {
 
                 if (pat.getId().equals(patient.getId())) {
 
-                    View v = i.inflate(R.layout.calendar_pickup_list_item, null);
+                    View v = i.inflate(R.layout.calendar_pickup_list_item, list, false);
                     TextView tv1 = ((TextView) v.findViewById(R.id.textView));
                     TextView tv2 = ((TextView) v.findViewById(R.id.textView2));
                     ImageView avatar = ((ImageView) v.findViewById(R.id.avatar));
