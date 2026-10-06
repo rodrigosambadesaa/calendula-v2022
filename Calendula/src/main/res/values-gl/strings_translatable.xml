@@ -326,6 +326,7 @@ Calendula está sendo desenvolvida polo Centro de Investigación en Tecnoloxías
 <string name="medicine_search_not_found_msg">"Sentímolo, non puidemos atopar nada con ese nome"</string>
 <string name="medicine_search_empty_list_msg">"Escribe un nome ou un código para comezar a buscar, ou escanea un código de barras…"</string>
 <string name="search_hint">"Buscar…"</string>
+<string name="clear_search">"Limpar busca"</string>
 <string name="database_us_display">"Base de datos US"</string>
 <string name="pref_stock_alert_title">"Avisar cando os meus medicamentos se agoten"</string>
 <string name="permission_dialog_go_to_settings">"Non puidemos realizar esta acción debido a que rexeitaches unha solicitude anterior de acceso ó almacenamento. Podes conceder ese permiso de novo na vista de información da aplicación."</string>
