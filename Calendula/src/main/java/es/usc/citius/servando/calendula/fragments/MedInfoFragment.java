@@ -180,10 +180,8 @@ public class MedInfoFragment extends Fragment {
 
         if (scheduleCount == 0) {
             scheduleInfo.setText(R.string.active_schedules_none);
-        } else if (scheduleCount == 1) {
-            scheduleInfo.setText(R.string.active_schedules_one);
         } else {
-            scheduleInfo.setText(getString(R.string.active_schedules_number, scheduleCount));
+            scheduleInfo.setText(getResources().getQuantityString(R.plurals.active_schedules_number, scheduleCount, scheduleCount));
         }
 
         if (foundOnDB) {
