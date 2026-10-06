@@ -338,7 +338,7 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
 
         for (DailyAgendaItemStub.DailyAgendaItemStubElement element : item.meds) {
 
-            View intakeView = viewHolder.inflater.inflate(R.layout.daily_view_intake_med, null);
+            View intakeView = viewHolder.inflater.inflate(R.layout.daily_view_intake_med, viewHolder.medList, false);
             TextView medName = (TextView) intakeView.findViewById(R.id.med_item_name);
             TextView medDose = (TextView) intakeView.findViewById(R.id.med_item_dose);
             ImageView image = (ImageView) intakeView.findViewById(R.id.imageView);
