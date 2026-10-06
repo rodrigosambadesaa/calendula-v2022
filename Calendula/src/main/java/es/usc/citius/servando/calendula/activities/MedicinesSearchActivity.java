@@ -18,6 +18,7 @@
 
 package es.usc.citius.servando.calendula.activities;
 
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
@@ -203,6 +204,7 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
     }
 
 
+    @SuppressLint("ClickableViewAccessibility")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
