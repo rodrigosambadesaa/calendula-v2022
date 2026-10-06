@@ -192,7 +192,7 @@ public class RoutinesListFragment extends Fragment {
         int items = ScheduleUtils.instance().schedulesLinkedTo(routine);
 
         //ImageView mealIc = ((ImageView) item.findViewById(R.id.meal_icon));
-        String schedules = items > 0 ? getString(R.string.schedules_for_med, items) : getString(R.string.schedules_for_med_none);
+        String schedules = items > 0 ? getResources().getQuantityString(R.plurals.schedules_for_med, items, items) : getString(R.string.schedules_for_med_none);
         ((TextView) item.findViewById(R.id.routines_list_item_subtitle)).setText(schedules);
         View overlay = item.findViewById(R.id.routine_list_item_container);
         overlay.setTag(routine);

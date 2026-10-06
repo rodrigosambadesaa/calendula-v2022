@@ -55,7 +55,7 @@ public class AllergyGroupItem extends AbstractExpandableItem<AllergyGroupItem, A
     public void bindView(final ViewHolder holder, List<Object> payloads) {
         super.bindView(holder, payloads);
         holder.title.setText(this.title);
-        holder.subtitle.setText(context.getString(R.string.allergies_group_elements_number, getSubItems().size()));
+        holder.subtitle.setText(context.getResources().getQuantityString(R.plurals.allergies_group_elements_number, getSubItems().size(), getSubItems().size()));
 //        UIUtils.setBackground(holder.itemView, FastAdapterUIUtils.getSelectableBackground(holder.itemView.getContext(), Color.CYAN, true));
         holder.dropButton.setImageDrawable(new IconicsDrawable(holder.dropButton.getContext())
                 .icon(GoogleMaterial.Icon.gmd_chevron_down)
