@@ -23,6 +23,7 @@ import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.core.net.toUri
 import es.usc.citius.servando.calendula.modules.ModuleManager
 import es.usc.citius.servando.calendula.modules.modules.StockModule
 import es.usc.citius.servando.calendula.mvp.BasePresenter
@@ -110,7 +111,7 @@ class NotificationPrefsPresenter(
         return when (currentTone) {
             "" -> null
             "default" -> Settings.System.DEFAULT_NOTIFICATION_URI
-            else -> Uri.parse(currentTone)
+            else -> currentTone.toUri()
         }
     }
 

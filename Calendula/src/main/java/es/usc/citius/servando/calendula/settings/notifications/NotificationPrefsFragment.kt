@@ -30,6 +30,7 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.service.autofill.Validators.not
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.net.toUri
 import androidx.preference.Preference
 import androidx.preference.SwitchPreference
 import androidx.preference.TwoStatePreference
@@ -90,7 +91,7 @@ class NotificationPrefsFragment :
                     if (isChecked) {
                         val intent = Intent()
                         intent.action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
-                        intent.data = Uri.parse("package:" + requireContext().packageName)
+                        intent.data = "package:${requireContext().packageName}".toUri()
                         startActivity(intent)
                     } else {
                         val intent = Intent()
@@ -141,7 +142,7 @@ class NotificationPrefsFragment :
         if (!alarmManager.canScheduleExactAlarms()) {
             val intent = Intent(
                     Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-                    Uri.parse("package:" + currentContext.packageName)
+                    "package:${currentContext.packageName}".toUri()
             )
             startActivity(intent)
         }
