@@ -51,50 +51,62 @@
 <string name="schedule">"Pauta"</string>
 <plurals name="injections_units">
 <item quantity="one">"inyección"</item>
+<item quantity="many">"inyecciones"</item>
 <item quantity="other">"inyecciones"</item>
 </plurals>
 <plurals name="pills_units">
 <item quantity="one">"pastilla"</item>
+<item quantity="many">"pastillas"</item>
 <item quantity="other">"pastillas"</item>
 </plurals>
     <plurals name="vial_units">
         <item quantity="one">"vial"</item>
-        <item quantity="other">"viales"</item>
+        <item quantity="many">"viales"</item>
+<item quantity="other">"viales"</item>
     </plurals>
 <plurals name="capsules_units">
 <item quantity="one">"cápsula"</item>
+<item quantity="many">"cápsulas"</item>
 <item quantity="other">"cápsulas"</item>
 </plurals>
 <plurals name="inhaler_units">
 <item quantity="one">"inhalación"</item>
+<item quantity="many">"inhalaciones"</item>
 <item quantity="other">"inhalaciones"</item>
 </plurals>
 <plurals name="spray_units">
 <item quantity="one">"aplicación"</item>
+<item quantity="many">"aplicaciones"</item>
 <item quantity="other">"aplicaciones"</item>
 </plurals>
 <plurals name="drops_units">
 <item quantity="one">"gota"</item>
+<item quantity="many">"gotas"</item>
 <item quantity="other">"gotas"</item>
 </plurals>
 <plurals name="pomade_units">
 <item quantity="one">"aplicación"</item>
+<item quantity="many">"aplicaciones"</item>
 <item quantity="other">"aplicaciones"</item>
 </plurals>
 <plurals name="syrup_units">
 <item quantity="one">"ml"</item>
+<item quantity="many">"ml"</item>
 <item quantity="other">"ml"</item>
 </plurals>
 <plurals name="patches_units">
 <item quantity="one">"parche"</item>
+<item quantity="many">"parches"</item>
 <item quantity="other">"parches"</item>
 </plurals>
 <plurals name="unknown_units">
 <item quantity="one">"unidad"</item>
+<item quantity="many">"unidades"</item>
 <item quantity="other">"unidades"</item>
 </plurals>
 <plurals name="effervescent_units">
 <item quantity="one">"sobre"</item>
+<item quantity="many">"sobres"</item>
 <item quantity="other">"sobres"</item>
 </plurals>
 <string name="never">"Nunca"</string>
@@ -529,14 +541,17 @@ Quieres instalar la nueva base de datos ahora?"</string>
 <string name="cream">"Crema"</string>
 <plurals name="powder_units">
 <item quantity="one">"gramo"</item>
+<item quantity="many">"gramos"</item>
 <item quantity="other">"gramos"</item>
 </plurals>
 <plurals name="cream_units">
 <item quantity="one">"aplicación"</item>
+<item quantity="many">"aplicaciones"</item>
 <item quantity="other">"aplicaciones"</item>
 </plurals>
 <plurals name="generic_units">
 <item quantity="one">"unidad"</item>
+<item quantity="many">"unidades"</item>
 <item quantity="other">"unidades"</item>
 </plurals>
 <string name="generic_presentation">"Genérico"</string>
