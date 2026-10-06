@@ -575,7 +575,7 @@ public class HomePagerActivity extends CalendulaActivity implements
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
 
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == MaterialIntroActivity.MATERIAL_INTRO_ACTIVITY && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M ) {
+        if (requestCode == MaterialIntroActivity.MATERIAL_INTRO_ACTIVITY) {
             launchActivity(new Intent(HomePagerActivity.this, CheckBatterySavingActivity.class));
         }
     }//onActivityResult
