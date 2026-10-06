@@ -29,17 +29,12 @@
                                             android:paddingTop="10dp"
                                             app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-    <RelativeLayout
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:paddingBottom="20dp">
-
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingRight="16dp">
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingBottom="20dp"
+        android:paddingRight="16dp">
 
 
             <!-- TODO delete? What to do with this? -->
@@ -381,9 +376,7 @@
             </RelativeLayout>
 
 
-        </LinearLayout>
-
-    </RelativeLayout>
+    </LinearLayout>
 
 
 </androidx.core.widget.NestedScrollView>
