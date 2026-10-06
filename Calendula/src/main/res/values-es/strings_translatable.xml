@@ -62,7 +62,7 @@
     <plurals name="vial_units">
         <item quantity="one">"vial"</item>
         <item quantity="many">"viales"</item>
-<item quantity="other">"viales"</item>
+        <item quantity="other">"viales"</item>
     </plurals>
 <plurals name="capsules_units">
 <item quantity="one">"cápsula"</item>
