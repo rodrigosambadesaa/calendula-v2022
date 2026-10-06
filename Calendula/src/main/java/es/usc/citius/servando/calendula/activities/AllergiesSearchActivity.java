@@ -481,7 +481,7 @@ public class AllergiesSearchActivity extends CalendulaActivity {
                             e.setTitleSpannable(Strings.getHighlighted(vo.getName(), filter, highlightColor));
                             sub.add(e);
                         }
-                        g.setSubtitle(getString(R.string.allergies_group_elements_number, sub.size()));
+                        g.setSubtitle(getResources().getQuantityString(R.plurals.allergies_group_elements_number, sub.size(), sub.size()));
                         g.setTitleSpannable(Strings.getHighlighted(s, filter, highlightColor));
                         Collections.sort(sub, new Comparator<AllergenGroupSubItem>() {
                             @Override
