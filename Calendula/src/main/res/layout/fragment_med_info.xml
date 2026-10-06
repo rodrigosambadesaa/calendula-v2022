@@ -48,7 +48,8 @@
                     android:layout_height="30dp"
                     android:layout_alignParentTop="true"
                     android:layout_marginLeft="16dp"
-                    android:src="@drawable/ic_edit_black_48dp"/>
+                    android:src="@drawable/ic_edit_black_48dp"
+                    android:contentDescription="@null"/>
 
                 <TextView
                     android:id="@+id/med_large_name"
@@ -164,7 +165,8 @@
                     android:layout_height="30dp"
                     android:layout_alignParentTop="true"
                     android:layout_marginLeft="16dp"
-                    android:src="@drawable/ic_edit_black_48dp"/>
+                    android:src="@drawable/ic_edit_black_48dp"
+                    android:contentDescription="@null"/>
 
                 <TextView
                     android:id="@+id/med_stock"
@@ -212,7 +214,8 @@
                     android:layout_height="30dp"
                     android:layout_alignParentTop="true"
                     android:layout_marginLeft="16dp"
-                    android:src="@drawable/ic_edit_black_48dp"/>
+                    android:src="@drawable/ic_edit_black_48dp"
+                    android:contentDescription="@null"/>
 
                 <TextView
                     android:id="@+id/schedule_info"
@@ -245,7 +248,8 @@
                     android:layout_height="30dp"
                     android:layout_alignParentTop="true"
                     android:layout_marginLeft="16dp"
-                    android:src="@drawable/ic_edit_black_48dp"/>
+                    android:src="@drawable/ic_edit_black_48dp"
+                    android:contentDescription="@null"/>
 
                 <TextView
                     android:id="@+id/prospect_title"
@@ -271,7 +275,8 @@
                     android:layout_below="@+id/prospect_title"
                     android:layout_marginRight="26dp"
                     android:layout_marginTop="10dp"
-                    android:background="@drawable/shape_list_item"/>
+                    android:background="@drawable/shape_list_item"
+                    android:contentDescription="@string/button_official_prospect"/>
 
                 <ImageView
                     android:id="@+id/ic_show_prospect"
@@ -288,7 +293,8 @@
                     android:scaleType="fitCenter"
                     android:src="@drawable/ic_help_white_48dp"
                     android:textColor="@color/dark_grey_text"
-                    tools:src="@drawable/icp_capsule"/>
+                    tools:src="@drawable/icp_capsule"
+                    android:contentDescription="@null"/>
 
                 <TextView
                     android:layout_width="wrap_content"
