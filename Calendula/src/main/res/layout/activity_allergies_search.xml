@@ -81,7 +81,8 @@
         android:layout_width="56dp"
         android:layout_height="56dp"
         android:padding="15dp"
-        android:src="@drawable/ic_arrow_back_white_48dp"/>
+        android:src="@drawable/ic_arrow_back_white_48dp"
+        android:contentDescription="@string/cancel"/>
 
     <ProgressBar
         android:id="@+id/main_progress_bar"
@@ -100,7 +101,8 @@
         android:layout_alignParentRight="true"
         android:padding="15dp"
         android:src="@drawable/ic_cancel_white_48dp"
-        android:visibility="gone"/>
+        android:visibility="gone"
+        android:contentDescription="@string/clear_search"/>
 
     <ImageView
         android:layout_width="fill_parent"
@@ -108,7 +110,8 @@
         android:layout_below="@+id/search_edit_text"
         android:alpha="0.7"
         android:scaleType="fitXY"
-        android:src="@drawable/daily_view_list_item_tab_shadow_top"/>
+        android:src="@drawable/daily_view_list_item_tab_shadow_top"
+        android:contentDescription="@null"/>
 
     <LinearLayout
         android:id="@+id/allergies_selected_layout"
@@ -138,6 +141,7 @@
             android:src="@drawable/ic_done_white_48dp"
             app:backgroundTint="@color/md_light_green_800"
             app:elevation="@dimen/fab_elevation"
+        android:contentDescription="@string/done"
             />
 
     </LinearLayout>
