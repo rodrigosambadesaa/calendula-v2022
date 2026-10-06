@@ -168,7 +168,7 @@ public class AllergiesSearchActivity extends CalendulaActivity {
         searchAdapter.clear();
         searchAdapter.deselect();
         searchAdapter.notifyDataSetChanged();
-        selectText.setText(getString(R.string.allergies_selected_number, 0));
+        selectText.setText(getResources().getQuantityString(R.plurals.allergies_selected_number, 0, 0));
         selectLayout.setVisibility(View.GONE);
         searchEditText.setText("");
     }
@@ -372,7 +372,7 @@ public class AllergiesSearchActivity extends CalendulaActivity {
                     if (selected) {
                         i.setSubtitle(getString(R.string.allergies_group_elements_selected, size, size));
                     } else {
-                        i.setSubtitle(getString(R.string.allergies_group_elements_number, size));
+                        i.setSubtitle(getResources().getQuantityString(R.plurals.allergies_group_elements_number, size, size));
                     }
                     SubItemUtil.selectAllSubItems(searchAdapter, i, selected, true, null);
                     break;
@@ -387,7 +387,7 @@ public class AllergiesSearchActivity extends CalendulaActivity {
                             t.withSetSelected(true);
                         }
                     } else {
-                        t.setSubtitle(getString(R.string.allergies_group_elements_number, s));
+                        t.setSubtitle(getResources().getQuantityString(R.plurals.allergies_group_elements_number, s, s));
                         if (t.isSelected()) {
                             t.withSetSelected(false);
                         }
@@ -400,7 +400,7 @@ public class AllergiesSearchActivity extends CalendulaActivity {
             final int selectedNumber = getSelected().size();
             if (selectedNumber > 0) {
                 selectLayout.setVisibility(View.VISIBLE);
-                selectText.setText(getString(R.string.allergies_selected_number, selectedNumber));
+                selectText.setText(getResources().getQuantityString(R.plurals.allergies_selected_number, selectedNumber, selectedNumber));
                 KeyboardUtils.hideKeyboard(AllergiesSearchActivity.this);
             } else {
                 selectLayout.setVisibility(View.GONE);
