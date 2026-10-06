@@ -147,8 +147,10 @@ Establece a hora da primeira toma, e listo!"</string>
 <string name="schedule_build_pick_routine_routine_title">"A horas concretas"</string>
 <string name="schedule_build_add_custom_time">"Engadir hora personalizada"</string>
 <string name="schedule_build_custom_time_selected">"Hora xa seleccionada"</string>
-<string name="intakes_per_day_one">"%1$d toma ao día"</string>
-<string name="intakes_per_day_several">"%1$d tomas ao día"</string>
+<plurals name="intakes_per_day">
+    <item quantity="one">%1$d toma ao día</item>
+    <item quantity="other">%1$d tomas ao día</item>
+</plurals>
 <string name="schedule_build_dayselect_every_day_title">"Tomar todos os días"</string>
 <string name="schedule_build_dayselect_custom">"Personalizar"</string>
 <string name="schedule_build_dayselect_repeat">"Repetir"</string>
