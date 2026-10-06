@@ -397,7 +397,7 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
         colorList.removeAllViews();
 
         for (final String hex : COLORS) {
-            ImageView colorView = (ImageView) getLayoutInflater().inflate(R.layout.color_chooser_item, null);
+            ImageView colorView = (ImageView) getLayoutInflater().inflate(R.layout.color_chooser_item, colorList, false);
             final int color = Color.parseColor(hex);
             colorView.setBackgroundColor(color);
             colorView.setPadding(2, 2, 2, 2);
