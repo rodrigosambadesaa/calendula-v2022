@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources xmlns:tools="http://schemas.android.com/tools">
+<resources>
 
     <string-array name="routine_offsets">
         <item>@string/routine_offset_none</item>
@@ -7,14 +7,6 @@
         <item>@string/routine_offset_at</item>
         <item>@string/routine_offset_after</item>
     </string-array>
-
-    <!-- Structural plural: localized text comes from the referenced strings. -->
-    <plurals name="intakes_per_day" tools:ignore="MissingTranslation">
-        <item quantity="one">@string/intakes_per_day_one</item>
-        <item quantity="other">@string/intakes_per_day_several</item>
-    </plurals>
-
-
     <string-array name="schedule_build_dayselect_repeat_types">
         <item>@string/schedule_build_dayselect_weekdays</item>
         <item>@string/schedule_build_dayselect_daily</item>
