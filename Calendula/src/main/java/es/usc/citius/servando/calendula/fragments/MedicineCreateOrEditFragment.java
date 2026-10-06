@@ -490,7 +490,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
     void addPresentations(View rootView) {
         LinearLayout parent = (LinearLayout) rootView.findViewById(R.id.presentation_scroll_content);
         for (final Presentation p : Presentation.available()) {
-            View item = getLayoutInflater().inflate(R.layout.presentation_chooser_item, null);
+            View item = getLayoutInflater().inflate(R.layout.presentation_chooser_item, parent, false);
             ImageView imageView = (ImageView) item.findViewById(R.id.presentation_chooser_item_drawable);
             imageView.setImageDrawable(iconFor(p.icon()));
             item.setTag(p);
