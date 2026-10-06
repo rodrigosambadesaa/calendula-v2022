@@ -418,7 +418,7 @@ public class LeftDrawerMgr implements Drawer.OnDrawerItemClickListener, AccountH
         final int schedules = DB.schedules().findAll(p).size();
         String fakeMail;
         if (schedules > 0) {
-            fakeMail = homeActivity.getString(R.string.active_schedules_number, schedules);
+            fakeMail = homeActivity.getResources().getQuantityString(R.plurals.active_schedules_number, schedules, schedules);
         } else {
             fakeMail = homeActivity.getString(R.string.active_schedules_none);
         }
