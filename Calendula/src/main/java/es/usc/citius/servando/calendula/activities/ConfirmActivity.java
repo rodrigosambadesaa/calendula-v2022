@@ -19,14 +19,12 @@
 package es.usc.citius.servando.calendula.activities;
 
 import android.animation.Animator;
-import android.animation.AnimatorListenerAdapter;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
-import android.os.Build;
 import android.os.Bundle;
 import androidx.annotation.NonNull;
 import com.google.android.material.appbar.AppBarLayout;
@@ -46,7 +44,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewAnimationUtils;
 import android.view.ViewGroup;
-import android.view.ViewPropertyAnimator;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.animation.Animation;
@@ -266,12 +263,8 @@ public class ConfirmActivity extends CalendulaActivity {
     @Override
     public void onBackPressed() {
         if (fromNotification) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                finishAndRemoveTask();
-                startActivity(new Intent(this, StartActivity.class));
-            } else {
-                finish();
-            }
+            finishAndRemoveTask();
+            startActivity(new Intent(this, StartActivity.class));
         } else {
             super.onBackPressed();
         }
@@ -316,21 +309,11 @@ public class ConfirmActivity extends CalendulaActivity {
         checkAllOverlay.postDelayed(new Runnable() {
             @Override
             public void run() {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    finishAndRemoveTask();
-                } else {
-                    finish();
-                }
+                finishAndRemoveTask();
             }
         }, duration + 300);
 
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            showRipple(x, y, duration);
-        } else {
-            checkAllOverlay.setVisibility(View.VISIBLE);
-            checkAllOverlay.animate().alpha(1).setDuration(duration).start();
-        }
+        showRipple(x, y, duration);
         moveArrowsDown(arrowDuration);
     }
 
@@ -486,54 +469,39 @@ public class ConfirmActivity extends CalendulaActivity {
         final int rippleX = middle;
         final int rippleY = (int) (fab.getY() + fab.getHeight() / 2) - translationY;
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+        Animation arcAnimation = new ArcTranslateAnimation(0, -translationX, 0, -translationY);
+        arcAnimation.setAnimationListener(new Animation.AnimationListener() {
+            @Override
+            public void onAnimationStart(Animation animation) {
+            }
 
-            Animation arcAnimation = new ArcTranslateAnimation(0, -translationX, 0, -translationY);
-            arcAnimation.setAnimationListener(new Animation.AnimationListener() {
-                @Override
-                public void onAnimationStart(Animation animation) {
-                }
+            @Override
+            public void onAnimationEnd(Animation animation) {
+                showRippleByApi(rippleX, rippleY);
+            }
 
-                @Override
-                public void onAnimationEnd(Animation animation) {
-                    showRippleByApi(rippleX, rippleY);
-                }
+            @Override
+            public void onAnimationRepeat(Animation animation) {
+            }
+        });
 
-                @Override
-                public void onAnimationRepeat(Animation animation) {
-                }
-            });
-
-            arcAnimation.setInterpolator(new DecelerateInterpolator());
-            arcAnimation.setDuration(200);
-            arcAnimation.setFillAfter(true);
-            fab.startAnimation(arcAnimation);
-
-        } else {
-            ViewPropertyAnimator animator = fab.animate().translationX(-translationX).setDuration(300);
-            animator.setListener(new AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(Animator animation) {
-                    showRippleByApi(rippleX, rippleY);
-                }
-            });
-            animator.start();
-        }
+        arcAnimation.setInterpolator(new DecelerateInterpolator());
+        arcAnimation.setDuration(200);
+        arcAnimation.setFillAfter(true);
+        fab.startAnimation(arcAnimation);
     }
 
     private void showRipple(int x, int y, int duration) {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-            LogUtil.d(TAG, "Ripple x,y [" + x + ", " + y + "]");
-            checkAllOverlay.setVisibility(View.INVISIBLE);
-            // get the final radius for the clipping circle
-            int finalRadius = (int) Math.hypot(checkAllOverlay.getWidth(), checkAllOverlay.getHeight());
-            // create the animator for this view (the start radius is zero)
-            Animator anim = ViewAnimationUtils.createCircularReveal(checkAllOverlay, x, y, fab.getWidth() / 2, finalRadius);
-            anim.setInterpolator(new DecelerateInterpolator());
-            // make the view visible and start the animation
-            checkAllOverlay.setVisibility(View.VISIBLE);
-            anim.setDuration(duration).start();
-        }
+        LogUtil.d(TAG, "Ripple x,y [" + x + ", " + y + "]");
+        checkAllOverlay.setVisibility(View.INVISIBLE);
+        // get the final radius for the clipping circle
+        int finalRadius = (int) Math.hypot(checkAllOverlay.getWidth(), checkAllOverlay.getHeight());
+        // create the animator for this view (the start radius is zero)
+        Animator anim = ViewAnimationUtils.createCircularReveal(checkAllOverlay, x, y, fab.getWidth() / 2, finalRadius);
+        anim.setInterpolator(new DecelerateInterpolator());
+        // make the view visible and start the animation
+        checkAllOverlay.setVisibility(View.VISIBLE);
+        anim.setDuration(duration).start();
     }
 
     private void setupListView() {
