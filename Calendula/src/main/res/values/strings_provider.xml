@@ -145,8 +145,10 @@ Add your reminders here and let us just notify you!"</string>
 <string name="schedule_build_pick_routine_routine_title">"At fixed times"</string>
 <string name="schedule_build_add_custom_time">"Add custom time"</string>
 <string name="schedule_build_custom_time_selected">"Time already selected"</string>
-<string name="intakes_per_day_one">"%1$d intake per day"</string>
-<string name="intakes_per_day_several">"%1$d intakes per day"</string>
+<plurals name="intakes_per_day">
+    <item quantity="one">%1$d intake per day</item>
+    <item quantity="other">%1$d intakes per day</item>
+</plurals>
 <string name="schedule_build_dayselect_every_day_title">"Take every day"</string>
 <string name="schedule_build_dayselect_custom">"Customize"</string>
 <string name="schedule_build_dayselect_repeat">"Repeat"</string>
