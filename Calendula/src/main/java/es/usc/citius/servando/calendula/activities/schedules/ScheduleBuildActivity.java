@@ -567,6 +567,7 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
                 @Override
                 public void run() {
                     changesIcon.setImageDrawable(checkingChangesIc);
+                    changesIcon.setContentDescription(getString(R.string.accessibility_checking_schedule_changes));
                     changesIcon.setOnClickListener(null);
                     checkChangesTask = new CheckChangesTask();
                     checkChangesTask.execute();
@@ -892,9 +893,11 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
             nextStep.setEnabled(true);
             if (!res) {
                 changesIcon.setImageDrawable(noChangesIc);
+                changesIcon.setContentDescription(getString(R.string.accessibility_schedule_matches_official));
                 changesIcon.setOnClickListener(null);
             } else {
                 changesIcon.setImageDrawable(changesIc);
+                changesIcon.setContentDescription(getString(R.string.schedule_build_reminder_different_from_schedule));
                 changesIcon.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
