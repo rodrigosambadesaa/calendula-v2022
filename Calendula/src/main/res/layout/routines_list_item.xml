@@ -32,7 +32,8 @@
 
         android:layout_alignParentBottom="true"
         android:layout_marginLeft="72dp"
-        android:background="#efefef"/>
+        android:background="#efefef"
+        android:contentDescription="@null"/>
 
     <ImageButton
         android:id="@+id/imageButton2"
