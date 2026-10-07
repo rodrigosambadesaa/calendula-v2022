@@ -28,14 +28,16 @@
         android:layout_width="fill_parent"
         android:layout_height="fill_parent"
         android:layout_alignParentTop="true"
-        android:scaleType="centerCrop"/>
+        android:scaleType="centerCrop"
+        android:contentDescription="@null"/>
 
     <ImageView
         android:layout_width="fill_parent"
         android:layout_height="fill_parent"
         android:alpha="0.9"
         android:scaleType="centerCrop"
-        android:src="@drawable/blur_mask"/>
+        android:src="@drawable/blur_mask"
+        android:contentDescription="@null"/>
 
     <ImageView
         android:id="@+id/bottom_shadow"
@@ -44,7 +46,8 @@
         android:layout_alignParentBottom="true"
         android:alpha="0.5"
         android:scaleType="fitXY"
-        android:src="@drawable/daily_view_list_item_tab_shadow_bottom"/>
+        android:src="@drawable/daily_view_list_item_tab_shadow_bottom"
+        android:contentDescription="@null"/>
 
 
     <RelativeLayout
