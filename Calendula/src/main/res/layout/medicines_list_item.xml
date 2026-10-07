@@ -47,7 +47,8 @@
             android:layout_height="1px"
             android:layout_alignParentBottom="true"
             android:layout_marginLeft="72dp"
-            android:background="#efefef"/>
+            android:background="#efefef"
+            android:contentDescription="@null"/>
 
 
         <ImageButton
@@ -60,6 +61,7 @@
             android:layout_centerVertical="true"
             android:background="@null"
             android:scaleType="fitStart"
+            android:contentDescription="@null"
             tools:src="@drawable/icp_pill"/>
 
         <LinearLayout
@@ -109,6 +111,7 @@
             android:background="@drawable/simple_highlight_click_selector"
             android:padding="0dp"
             android:src="@drawable/icprospect"
+            android:contentDescription="@string/label_alerts_short"
             android:visibility="gone"
             tools:visibility="visible"/>
 

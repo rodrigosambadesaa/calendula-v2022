@@ -82,6 +82,7 @@ public class MedicineItem extends AbstractItem<MedicineItem, MedicineItem.Medici
                 .colorRes(R.color.agenda_item_title)
                 .paddingDp(8)
                 .sizeDp(40));
+        holder.icon.setContentDescription(medicine.getPresentation().getName(ctx.getResources()));
 
         if (ModuleManager.isEnabled(StockModule.ID)) {
             holder.stockInfo.setVisibility(View.VISIBLE);
@@ -118,6 +119,7 @@ public class MedicineItem extends AbstractItem<MedicineItem, MedicineItem.Medici
     @Override
     public void unbindView(MedicineViewHolder holder) {
         holder.icon.setImageDrawable(null);
+        holder.icon.setContentDescription(null);
         holder.name.setText(null);
         holder.stockInfo.setText(null);
         holder.stockInfo.setVisibility(View.GONE);
