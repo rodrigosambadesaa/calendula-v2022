@@ -8,4 +8,6 @@
     <string name="accessibility_next_month">Mes seguinte</string>
     <string name="accessibility_checking_schedule_changes">Comprobando cambios da pauta</string>
     <string name="accessibility_schedule_matches_official">O recordatorio coincide coa pauta oficial</string>
+    <string name="accessibility_expand">Expandir</string>
+    <string name="accessibility_collapse">Contraer</string>
 </resources>
