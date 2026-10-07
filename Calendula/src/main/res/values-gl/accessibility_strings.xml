@@ -6,4 +6,6 @@
     <string name="accessibility_change_avatar">Cambiar avatar</string>
     <string name="accessibility_previous_month">Mes anterior</string>
     <string name="accessibility_next_month">Mes seguinte</string>
+    <string name="accessibility_expand">Expandir</string>
+    <string name="accessibility_collapse">Contraer</string>
 </resources>
