@@ -60,6 +60,7 @@
             android:layout_marginLeft="16dp"
             android:layout_marginTop="16dp"
             android:background="@null"
+            android:contentDescription="@null"
             android:scaleType="fitStart"/>
 
         <TextView
@@ -137,6 +138,7 @@
             android:layout_marginRight="16dp"
             android:layout_marginTop="16dp"
             android:background="@drawable/circle_white"
+            android:contentDescription="@null"
             android:visibility="visible"/>
 
     </RelativeLayout>
