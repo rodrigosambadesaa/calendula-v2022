@@ -52,6 +52,7 @@
                 android:layout_height="30dp"
                 android:layout_alignParentEnd="true"
                 android:layout_centerVertical="true"
+                android:contentDescription="@string/schedule_build_dayselect_every_day_title"
                 />
         </RelativeLayout>
 
@@ -78,6 +79,7 @@
                 android:layout_height="30dp"
                 android:layout_alignParentEnd="true"
                 android:layout_alignTop="@id/custom_title"
+                android:contentDescription="@string/schedule_build_dayselect_custom"
                 />
         </RelativeLayout>
 
@@ -369,6 +371,8 @@
                 android:layout_alignBottom="@id/from_date"
                 android:layout_alignParentEnd="true"
                 android:layout_alignTop="@id/from_date"
+                android:contentDescription="@string/schedule_build_dayselect_reset_start_date"
+                                android:importantForAccessibility="no"
                 />
 
 
@@ -408,6 +412,8 @@
                 android:layout_alignParentEnd="true"
                 android:layout_alignTop="@id/to_date"
                 android:layout_below="@id/from_date"
+                android:contentDescription="@string/schedule_build_dayselect_remove_end_date"
+                                android:importantForAccessibility="no"
                 />
 
 
