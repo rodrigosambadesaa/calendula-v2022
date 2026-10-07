@@ -217,6 +217,7 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
             if (item.patient != null) {
                 viewHolder.avatarIcon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
                 viewHolder.avatarIcon.setImageResource(AvatarMgr.res(item.patient.getAvatar()));
+                viewHolder.avatarIcon.setContentDescription(item.patient.getName());
                 viewHolder.patientIndicatorBand.setBackgroundColor(item.patient.getColor());
                 final ViewGroup.LayoutParams layoutParams = viewHolder.patientIndicatorBand.getLayoutParams();
                 layoutParams.height = viewHolder.itemView.getLayoutParams().height;

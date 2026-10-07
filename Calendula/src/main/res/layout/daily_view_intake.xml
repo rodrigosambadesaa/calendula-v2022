@@ -71,7 +71,8 @@
                     android:layout_marginLeft="0dp"
                     android:layout_marginRight="10dp"
                     android:layout_marginBottom="0dp"
-                    android:src="@drawable/ic_done_black_48dp" />
+                    android:src="@drawable/ic_done_black_48dp"
+            android:contentDescription="@string/text_take_medicines_now" />
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -91,7 +92,8 @@
                     android:layout_alignParentTop="true"
                     android:layout_alignParentRight="true"
                     android:background="#ececec"
-                    android:visibility="visible" />
+                    android:visibility="visible"
+                    android:contentDescription="@null"/>
 
 
             </RelativeLayout>
@@ -107,7 +109,8 @@
             android:layout_alignParentTop="true"
             android:layout_marginBottom="1px"
             android:background="#aaffffff"
-            android:visibility="gone"/>
+            android:visibility="gone"
+            android:contentDescription="@null"/>
 
         <RelativeLayout
             android:id="@+id/routine_list_item_container"
@@ -133,7 +136,8 @@
                 android:paddingTop="8dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/arrow_down"
-                android:visibility="gone"/>
+                android:visibility="gone"
+            android:importantForAccessibility="no"/>
 
 
             <TextView
@@ -163,14 +167,15 @@
                 android:layout_marginTop="5dp"
                 android:transitionName="time">
 
-                <ImageButton
+                <ImageView
                     android:id="@+id/imageButton2"
                     android:layout_width="22dp"
                     android:layout_height="22dp"
                     android:layout_gravity="center_vertical"
                     android:background="@null"
                     android:scaleType="fitCenter"
-                    android:src="@drawable/ic_alarm_black_48dp"/>
+                    android:src="@drawable/ic_alarm_black_48dp"
+                    android:contentDescription="@null"/>
 
                 <TextView
                     android:id="@+id/routines_list_item_hour"
@@ -208,7 +213,8 @@
                 android:layout_height="1px"
                 android:layout_alignParentBottom="true"
                 android:background="#ececec"
-                android:visibility="gone"/>
+                android:visibility="gone"
+                    android:contentDescription="@null"/>
 
 
         </RelativeLayout>
@@ -222,7 +228,8 @@
             android:layout_marginRight="5dp"
             android:layout_marginTop="10dp"
             android:background="#ececec"
-            android:visibility="visible"/>
+            android:visibility="visible"
+                    android:contentDescription="@null"/>
 
 
         <ImageView
@@ -231,7 +238,8 @@
             android:layout_height="match_parent"
             android:layout_alignParentBottom="true"
             android:layout_alignParentTop="true"
-            android:layout_marginBottom="1px"/>
+            android:layout_marginBottom="1px"
+            android:contentDescription="@null"/>
 
 
         <ImageView
@@ -248,6 +256,7 @@
             android:paddingTop="5dp"
             android:scaleType="fitCenter"
             android:transitionName="avatar_transition"
-            android:visibility="visible"/>
+            android:visibility="visible"
+            android:contentDescription="@null"/>
 
 </RelativeLayout>
