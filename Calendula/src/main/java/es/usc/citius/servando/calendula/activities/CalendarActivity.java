@@ -400,6 +400,7 @@ public class CalendarActivity extends CalendulaActivity {
                     tv1.setText(p.getActiveMed().getDefaultDisplay());
                     tv2.setText(interval);
                     avatar.setImageResource(AvatarMgr.res(pat.getAvatar()));
+                    avatar.setContentDescription(getString(R.string.accessibility_patient_avatar, pat.getName()));
 
                     tv1.setOnClickListener(new View.OnClickListener() {
                         @Override
