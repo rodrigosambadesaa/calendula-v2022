@@ -44,7 +44,8 @@
         android:layout_below="@+id/textView2"
         android:alpha="0.7"
         android:scaleType="fitXY"
-        android:src="@drawable/daily_view_list_item_tab_shadow_top"\n        android:contentDescription="@null"/>
+        android:src="@drawable/daily_view_list_item_tab_shadow_top"
+        android:contentDescription="@null"/>
 
     <TextView
         android:id="@+id/textView2"
@@ -87,7 +88,8 @@
         android:layout_marginTop="@dimen/fab_separator_top_margin"
         android:src="@drawable/ic_done_black_48dp"
         app:backgroundTint="@color/fab_default_color"
-        app:elevation="@dimen/fab_elevation"\n        android:contentDescription="@string/done"/>
+        app:elevation="@dimen/fab_elevation"
+        android:contentDescription="@string/done"/>
 
     <TextView
         android:id="@+id/textView"
