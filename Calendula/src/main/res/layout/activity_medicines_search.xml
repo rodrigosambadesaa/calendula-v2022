@@ -89,7 +89,8 @@
                 android:layout_width="50dp"
                 android:layout_height="50dp"
                 android:alpha="0.3"
-                android:src="@drawable/ic_intro_alarm"/>
+                android:src="@drawable/ic_intro_alarm"
+                android:contentDescription="@null"/>
 
             <TextView
                 android:id="@+id/textView10"
@@ -155,7 +156,8 @@
             android:layout_below="@+id/search_edit_text"
             android:alpha="0.3"
             android:scaleType="fitXY"
-            android:src="@drawable/daily_view_list_item_tab_shadow_top"/>
+            android:src="@drawable/daily_view_list_item_tab_shadow_top"
+            android:contentDescription="@null"/>
 
         <Button
             android:id="@+id/add_custom_med_btn"
