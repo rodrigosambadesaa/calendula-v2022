@@ -35,7 +35,8 @@
         android:cropToPadding="false"
         android:padding="8dp"
         android:scaleType="fitCenter"
-        android:visibility="visible"/>
+        android:visibility="visible"
+        android:contentDescription="@null"/>
 
 
     <TextView
