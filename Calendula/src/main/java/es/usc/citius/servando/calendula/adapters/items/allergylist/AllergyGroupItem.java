@@ -64,6 +64,8 @@ public class AllergyGroupItem extends AbstractExpandableItem<AllergyGroupItem, A
                 .paddingDp(10)
                 .sizeDp(38));
         final float rotation = isExpanded() ? 180 : 0;
+        holder.dropButton.setContentDescription(context.getString(
+                isExpanded() ? R.string.accessibility_collapse : R.string.accessibility_expand));
         holder.itemView.setRotation(rotation);
         holder.deleteButton.setImageDrawable(new IconicsDrawable(holder.deleteButton.getContext())
                 .icon(CommunityMaterial.Icon.cmd_delete)
