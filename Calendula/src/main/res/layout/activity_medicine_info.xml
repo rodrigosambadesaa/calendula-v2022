@@ -83,6 +83,7 @@
                             android:layout_height="60dp"
                             android:layout_centerHorizontal="true"
                             android:layout_marginTop="90dp"
+                            android:contentDescription="@null"
                             tools:src="@drawable/icp_capsule"/>
 
                         <TextView
