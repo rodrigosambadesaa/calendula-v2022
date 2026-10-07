@@ -321,7 +321,7 @@ Calendula está sendo desenvolvida polo Centro de Investigación en Tecnoloxías
 <string name="message_allergy_add_multiple_success">"A túa información de alerxias foi gardada."</string>
 <string name="title_allergies_database_required">"Requírese unha base de datos"</string>
 <string name="message_allergies_database_required">"A xestión de alerxias só está dispoñible actualmente para a base de datos AEMPS. Queres activala?"</string>
-<string name="allergies_group_elements_selected">"%1$d elementos (%2$d seleccionados)"</string>
+<string name="allergies_group_elements_selected">"%1$s (%2$s)"</string>
 <string name="add_custom_med_button_text">"Engadir \"%1$s\" ao botiquín"</string>
 <string name="medicine_search_not_found_msg">"Sentímolo, non puidemos atopar nada con ese nome"</string>
 <string name="medicine_search_empty_list_msg">"Escribe un nome ou un código para comezar a buscar, ou escanea un código de barras…"</string>

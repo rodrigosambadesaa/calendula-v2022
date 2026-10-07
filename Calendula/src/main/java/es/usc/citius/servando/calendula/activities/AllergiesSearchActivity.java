@@ -370,7 +370,7 @@ public class AllergiesSearchActivity extends CalendulaActivity {
                     AllergenGroupItem i = (AllergenGroupItem) item;
                     final int size = i.getSubItems().size();
                     if (selected) {
-                        i.setSubtitle(getString(R.string.allergies_group_elements_selected, size, size));
+                        i.setSubtitle(formatGroupSelectionSubtitle(size, size));
                     } else {
                         i.setSubtitle(getResources().getQuantityString(R.plurals.allergies_group_elements_number, size, size));
                     }
@@ -382,7 +382,7 @@ public class AllergiesSearchActivity extends CalendulaActivity {
                     final int s = t.getSubItems().size();
                     final int pos = searchAdapter.getAdapterPosition(t);
                     if (count > 0) {
-                        t.setSubtitle(getString(R.string.allergies_group_elements_selected, s, count));
+                        t.setSubtitle(formatGroupSelectionSubtitle(s, count));
                         if (!t.isSelected()) {
                             t.withSetSelected(true);
                         }
@@ -406,6 +406,14 @@ public class AllergiesSearchActivity extends CalendulaActivity {
                 selectLayout.setVisibility(View.GONE);
             }
         }
+    }
+
+    private String formatGroupSelectionSubtitle(int total, int selected) {
+        String totalText = getResources().getQuantityString(
+                R.plurals.allergies_group_elements_number, total, total);
+        String selectedText = getResources().getQuantityString(
+                R.plurals.allergies_selected_number, selected, selected);
+        return getString(R.string.allergies_group_elements_selected, totalText, selectedText);
     }
 
     private class DoSearchTask extends AsyncTask<String, Void, List<AbstractItem>> {
