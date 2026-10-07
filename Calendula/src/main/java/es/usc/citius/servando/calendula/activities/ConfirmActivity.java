@@ -731,6 +731,9 @@ public class ConfirmActivity extends CalendulaActivity {
                     : getUncheckedIcon(Color.parseColor("#11000000"));
 
             h.check.setImageDrawable(checkDrawable);
+            h.check.setContentDescription(getString(eventInstance.completed()
+                    ? R.string.accessibility_mark_not_taken
+                    : R.string.accessibility_mark_taken));
             h.icon.setImageDrawable(medDrawable);
         }
 
