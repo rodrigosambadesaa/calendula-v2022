@@ -153,6 +153,7 @@
         android:layout_alignParentBottom="false"
         android:layout_below="@+id/med_item_alert"
         android:layout_marginTop="16dp"
-        android:background="#ececec"/>
+        android:background="#ececec"
+        android:contentDescription="@null"/>
 
 </RelativeLayout>
