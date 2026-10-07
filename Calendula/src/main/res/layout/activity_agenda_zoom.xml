@@ -34,7 +34,8 @@
             android:layout_width="45dp"
             android:layout_height="45dp"
             android:layout_marginTop="10dp"
-            app:srcCompat="@drawable/ic_avatar1" />
+            app:srcCompat="@drawable/ic_avatar1"
+            android:contentDescription="@null" />
 
         <TextView
             android:id="@+id/routine_name"
@@ -97,7 +98,8 @@
         android:layout_marginLeft="1dp"
         android:layout_marginTop="10dp"
         android:layout_marginRight="1dp"
-        android:background="#efefef" />
+        android:background="#efefef"
+        android:contentDescription="@null" />
 
     <ScrollView
         android:id="@+id/scrollView"
@@ -148,7 +150,8 @@
         android:src="@drawable/ic_arrow_back_black_48dp"
         android:text="@string/material_drawer_close"
         android:textSize="15sp"
-        android:visibility="gone" />
+        android:visibility="gone"
+        android:contentDescription="@string/material_drawer_close" />
 
     <ImageButton
         android:id="@+id/delay_button"
@@ -164,6 +167,7 @@
         android:src="@drawable/ic_history_black_48dp"
         android:text="@string/delay"
         android:textSize="15sp"
-        android:visibility="visible" />
+        android:visibility="visible"
+        android:contentDescription="@string/delay" />
 
 </RelativeLayout>
