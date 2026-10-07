@@ -81,7 +81,8 @@
         android:layout_width="56dp"
         android:layout_height="56dp"
         android:padding="15dp"
-        android:src="@drawable/ic_arrow_back_white_48dp"/>
+        android:src="@drawable/ic_arrow_back_white_48dp"
+        android:contentDescription="@string/accessibility_back"/>
 
     <ProgressBar
         android:id="@+id/main_progress_bar"
@@ -100,6 +101,7 @@
         android:layout_alignParentRight="true"
         android:padding="15dp"
         android:src="@drawable/ic_cancel_white_48dp"
+        android:contentDescription="@string/accessibility_clear_search"
         android:visibility="gone"/>
 
     <ImageView
@@ -137,6 +139,7 @@
             android:layout_marginBottom="@dimen/fab_vertical_margin"
             android:layout_marginTop="@dimen/fab_vertical_margin"
             android:src="@drawable/ic_done_white_48dp"
+            android:contentDescription="@string/done"
             app:backgroundTint="@color/md_light_green_800"
             app:elevation="@dimen/fab_elevation"
             />
