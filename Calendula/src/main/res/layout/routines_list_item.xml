@@ -43,6 +43,7 @@
         android:layout_marginLeft="16dp"
         android:layout_marginTop="16dp"
         android:background="@null"
+        android:contentDescription="@null"
         android:scaleType="fitCenter"
         android:src="@drawable/ic_alarm_black_48dp"/>
 
@@ -120,6 +121,7 @@
         android:layout_toLeftOf="@id/hour_container"
         android:layout_marginTop="16dp"
         android:layout_marginRight="10dp"
+        android:contentDescription="@null"
         app:srcCompat="@null"/>
 
 </RelativeLayout>
