@@ -301,7 +301,7 @@ Version %1$s
 <string name="message_allergy_add_multiple_success">"Your allergy information has been saved."</string>
 <string name="title_allergies_database_required">"Database required"</string>
 <string name="message_allergies_database_required">"Allergy management is currently only supported for AEMPS medication database. Do you want to activate it?"</string>
-<string name="allergies_group_elements_selected">"%1$d elements (%2$d selected)"</string>
+<string name="allergies_group_elements_selected">"%1$s (%2$s)"</string>
 <string name="add_custom_med_button_text">"Add \"%1$s\" to the med kit"</string>
 <string name="medicine_search_not_found_msg">"Sorry, we didn't find anything with that name"</string>
 <string name="medicine_search_empty_list_msg">"Type a drug name or code to start searching, or scan a package barcode…"</string>
