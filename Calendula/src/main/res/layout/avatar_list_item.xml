@@ -28,6 +28,7 @@
         android:layout_marginTop="40dp"
         android:background="@drawable/avatar_list_item_bg"
         android:padding="8dp"
+        android:contentDescription="@null"
         android:scaleType="fitEnd"
         app:srcCompat="@drawable/ic_avatar1" />
 </FrameLayout>
