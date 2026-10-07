@@ -68,6 +68,8 @@ public class AllergenGroupItem extends AbstractExpandableItem<AllergenGroupItem,
         holder.title.setText(titleSpannable != null ? titleSpannable : title);
         holder.subtitle.setText(this.subtitle);
         final float rotation = isExpanded() ? 180 : 0;
+        holder.imageButton.setContentDescription(holder.itemView.getContext().getString(
+                isExpanded() ? R.string.accessibility_collapse : R.string.accessibility_expand));
         holder.imageButton.setRotation(rotation);
         final int selectedColor = ContextCompat.getColor(holder.itemView.getContext(), R.color.med_presentation_circle_bg);
         UIUtils.setBackground(holder.itemView, FastAdapterUIUtils.getSelectableBackground(holder.itemView.getContext(), selectedColor, true));
@@ -135,9 +137,11 @@ public class AllergenGroupItem extends AbstractExpandableItem<AllergenGroupItem,
             IExpandable it = (IExpandable) item;
             if (it.isExpanded()) {
                 fastAdapter.getExtension(ExpandableExtension.class).collapse(i);
+                view.setContentDescription(view.getContext().getString(R.string.accessibility_expand));
                 ViewCompat.animate(view).rotation(0);
             } else {
                 fastAdapter.getExtension(ExpandableExtension.class).expand(i);
+                view.setContentDescription(view.getContext().getString(R.string.accessibility_collapse));
                 ViewCompat.animate(view).rotation(180);
             }
         }

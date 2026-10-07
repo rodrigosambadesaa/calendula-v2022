@@ -311,6 +311,8 @@ public class AllergiesActivity extends CalendulaActivity {
                             expandableExtension.expand(i);
                         else
                             expandableExtension.collapse(i);
+                        view.setContentDescription(getString(
+                                expand ? R.string.accessibility_collapse : R.string.accessibility_expand));
                         break;
                     default:
                         LogUtil.w(TAG, "onClick: Unexpected view type on click hook: " + view);

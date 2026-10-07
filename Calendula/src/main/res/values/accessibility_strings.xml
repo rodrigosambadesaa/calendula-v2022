@@ -8,4 +8,6 @@
     <string name="accessibility_next_month">Next month</string>
     <string name="accessibility_checking_schedule_changes">Checking schedule changes</string>
     <string name="accessibility_schedule_matches_official">Reminder matches the official schedule</string>
+    <string name="accessibility_expand">Expand</string>
+    <string name="accessibility_collapse">Collapse</string>
 </resources>
