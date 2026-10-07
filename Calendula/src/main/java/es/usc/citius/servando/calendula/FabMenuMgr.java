@@ -72,8 +72,15 @@ public class FabMenuMgr implements View.OnClickListener {
                 fab.hide();
                 break;
             case ROUTINES:
+                fab.setContentDescription(activity.getString(R.string.create_routine_button_text));
+                fab.show();
+                break;
             case MEDICINES:
+                fab.setContentDescription(activity.getString(R.string.create_medicine_button_text));
+                fab.show();
+                break;
             case SCHEDULES:
+                fab.setContentDescription(activity.getString(R.string.title_create_schedule_activity));
                 fab.show();
                 break;
         }
