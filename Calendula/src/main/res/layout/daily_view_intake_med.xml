@@ -44,7 +44,8 @@
         android:cropToPadding="false"
         android:padding="8dp"
         android:scaleType="fitCenter"
-        android:visibility="visible"/>
+        android:visibility="visible"
+        android:contentDescription="@null"/>
 
 
     <ImageView
@@ -62,7 +63,8 @@
         android:paddingLeft="5dp"
         android:paddingTop="5dp"
         android:scaleType="fitCenter"
-        android:visibility="visible"/>
+        android:visibility="visible"
+        android:contentDescription="@string/schedule_build_official_prescription"/>
 
 
     <TextView
@@ -109,7 +111,8 @@
         android:layout_marginRight="20dp"
         android:alpha="0.7"
         android:src="@drawable/ic_done_black_48dp"
-        android:visibility="visible"/>
+        android:visibility="visible"
+        android:contentDescription="@string/done"/>
 
     <ImageView
         android:id="@+id/imageView2"
@@ -122,7 +125,8 @@
         android:layout_marginRight="20dp"
         android:layout_marginTop="5dp"
         android:background="#efefef"
-        android:visibility="gone"/>
+        android:visibility="gone"
+        android:contentDescription="@null"/>
 
 </RelativeLayout>
 
