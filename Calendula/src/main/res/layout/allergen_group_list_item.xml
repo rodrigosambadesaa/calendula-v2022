@@ -27,7 +27,7 @@
             android:layout_height="1px"
             android:layout_alignParentBottom="true"
             android:layout_marginLeft="72dp"
-            android:background="#efefef"/>
+            android:background="#efefef"\n            android:contentDescription="@null"/>
 
 
         <LinearLayout
