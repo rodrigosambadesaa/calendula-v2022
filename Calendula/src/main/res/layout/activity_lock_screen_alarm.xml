@@ -43,7 +43,7 @@
         android:layout_centerHorizontal="true"
         android:layout_marginBottom="40dp"
         android:alpha="0.6"
-        android:src="@drawable/circle_white"/>
+        android:src="@drawable/circle_white"\n        android:contentDescription="@null"/>
 
     <ImageView
         android:id="@+id/anim_image"
@@ -56,7 +56,7 @@
         android:layout_marginBottom="20dp"
         android:layout_marginTop="20dp"
         android:scaleType="fitCenter"
-        android:src="@drawable/clock"/>
+        android:src="@drawable/clock"\n        android:contentDescription="@null"/>
 
 
     <ImageButton
@@ -67,6 +67,6 @@
         android:layout_alignParentBottom="true"
         android:layout_centerHorizontal="true"
         android:layout_marginBottom="50dp"
-        android:text="@string/confirm"/>
+        android:text="@string/confirm"\n        android:contentDescription="@string/confirm"/>
 
 </RelativeLayout>
