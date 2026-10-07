@@ -363,7 +363,10 @@ Versión %1$s
 <string name="message_link_real_prescription_short">"Asociar medicamento"</string>
 <string name="prospect">"Prospecto"</string>
 <string name="button_official_prospect">"Prospecto oficial"</string>
-<string name="stock_enough_for_days">"Suficiente para %1$d días con las pautas actuales"</string>
+<plurals name="stock_enough_for_days">
+    <item quantity="one">Suficiente para %1$d día con las pautas actuales</item>
+    <item quantity="other">Suficiente para %1$d días con las pautas actuales</item>
+</plurals>
 <string name="stock_enough_for_months_days">"Suficiente para %1$d meses y %2$d días con las pautas actuales"</string>
 <string name="stock_enough_for_upper_limit">"Suficiente para más de tres meses con las pautas actuales"</string>
 <string name="no_alerts_detected">"No se han detectado alertas para este medicamento"</string>
