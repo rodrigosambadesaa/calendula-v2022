@@ -50,6 +50,7 @@
                 android:layout_alignParentTop="true"
                 android:background="@null"
                 android:scaleType="fitStart"
+                android:contentDescription="@null"
                 tools:src="@drawable/icp_pill"/>
 
             <TextView
@@ -79,6 +80,7 @@
 
             <ImageView
                 android:id="@+id/schedule_icon"
+                android:contentDescription="@null"
                 android:layout_width="25dp"
                 android:layout_height="25dp"
                 />
