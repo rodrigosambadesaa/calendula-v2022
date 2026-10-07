@@ -30,7 +30,7 @@
         android:layout_width="fill_parent"
         android:layout_height="1px"
         android:layout_alignParentBottom="true"
-        android:background="#efefef"/>
+        android:background="#efefef"    android:contentDescription="@null"/>
 
     <ImageView
         android:layout_width="fill_parent"
@@ -41,7 +41,7 @@
         android:background="#FAFAFA"
         android:paddingRight="-200dp"
         android:scaleType="centerCrop"
-        android:src="@drawable/clock_no_bg"/>
+        android:src="@drawable/clock_no_bg"    android:contentDescription="@null"/>
 
 
     <TextView
