@@ -4,4 +4,6 @@
     <string name="accessibility_clear_search">Clear search</string>
     <string name="accessibility_add_allergy">Add allergy</string>
     <string name="accessibility_change_avatar">Change avatar</string>
+    <string name="accessibility_previous_month">Previous month</string>
+    <string name="accessibility_next_month">Next month</string>
 </resources>
