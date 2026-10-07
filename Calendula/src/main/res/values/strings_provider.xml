@@ -159,6 +159,8 @@ Add your reminders here and let us just notify you!"</string>
 <string name="schedule_build_dayselect_from">"From"</string>
 <string name="schedule_build_dayselect_until">"Until"</string>
 <string name="schedule_build_dayselect_repeat_indefinitely">"Repeat indefinitely"</string>
+<string name="schedule_build_dayselect_reset_start_date">"Reset start date"</string>
+<string name="schedule_build_dayselect_remove_end_date">"Remove end date"</string>
 <string name="schedule_build_dayselect_first_time_title">"Start at"</string>
 <string name="schedule_build_dayselect_weekdays">"Weekdays"</string>
 <string name="schedule_build_dayselect_daily">"Daily"</string>
