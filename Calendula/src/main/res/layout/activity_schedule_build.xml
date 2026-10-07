@@ -138,6 +138,7 @@
                         android:id="@+id/provider_icon"
                         android:layout_width="30dp"
                         android:layout_height="30dp"
+                        android:contentDescription="@null"
                         />
 
                     <TextView
@@ -161,6 +162,7 @@
                         android:layout_width="30dp"
                         android:layout_height="30dp"
                         android:layout_alignParentRight="true"
+                        android:contentDescription="@string/accessibility_checking_schedule_changes"
                         />
                 </RelativeLayout>
 
