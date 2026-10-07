@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_avatar_option">Avatar %1$d</string>
+    <string name="accessibility_avatar_option_selected">Avatar %1$d, seleccionado</string>
+    <string name="accessibility_color_option">Cor %1$d</string>
+    <string name="accessibility_color_option_selected">Cor %1$d, seleccionada</string>
+    <string name="accessibility_patient_avatar">Paciente %1$s</string>
+    <string name="accessibility_pickup_completed">Recollida de medicamento completada</string>
+    <string name="accessibility_pickup_pending">Recollida de medicamento pendente</string>
+</resources>
