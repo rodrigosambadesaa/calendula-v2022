@@ -30,7 +30,8 @@
         android:layout_centerHorizontal="true"
         android:layout_marginTop="50dp"
         android:alpha="0.07"
-        android:src="@drawable/circle_white"/>
+        android:src="@drawable/circle_white"
+        android:contentDescription="@null"/>
 
 
     <ImageView
@@ -40,7 +41,8 @@
         android:layout_centerHorizontal="true"
         android:layout_marginTop="80dp"
         android:alpha="0.8"
-        android:src="@drawable/alldone"/>
+        android:src="@drawable/alldone"
+        android:contentDescription="@null"/>
 
     <TextView
         android:id="@+id/textView3"
