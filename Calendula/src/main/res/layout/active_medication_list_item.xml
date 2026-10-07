@@ -225,6 +225,7 @@
                 android:layout_alignParentRight="true"
                 android:gravity="right"
                 android:padding="5dp"
+                android:contentDescription="@string/reminder"
                 android:src="@null"
                 android:visibility="visible" />
 
