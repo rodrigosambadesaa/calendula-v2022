@@ -44,7 +44,9 @@ object StockDisplayUtils {
                     "updateStockText: estimated end date is " + estimatedEnd.date.toString("dd/MM")
                 )
                 if (estimatedEnd.days < MAX_DAYS) {
-                    ctx.resources.getQuantityString(\n                        R.plurals.stock_enough_for_days, estimatedEnd.days, estimatedEnd.days\n                    )
+                    ctx.resources.getQuantityString(
+                        R.plurals.stock_enough_for_days, estimatedEnd.days, estimatedEnd.days
+                    )
                 } else {
                     ctx.getString(
                         R.string.stock_enough_for_weeks_days,
