@@ -494,6 +494,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
             ImageView imageView = (ImageView) item.findViewById(R.id.presentation_chooser_item_drawable);
             imageView.setImageDrawable(iconFor(p.icon()));
             item.setTag(p);
+            item.setContentDescription(p.getName(getResources()));
             parent.addView(item);
             item.setOnClickListener(new View.OnClickListener() {
                 @Override
