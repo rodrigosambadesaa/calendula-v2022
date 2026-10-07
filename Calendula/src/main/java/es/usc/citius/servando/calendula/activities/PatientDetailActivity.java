@@ -396,12 +396,17 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
 
         colorList.removeAllViews();
 
-        for (final String hex : COLORS) {
+        for (int colorIndex = 0; colorIndex < COLORS.length; colorIndex++) {
+            final String hex = COLORS[colorIndex];
             ImageView colorView = (ImageView) getLayoutInflater().inflate(R.layout.color_chooser_item, colorList, false);
             final int color = Color.parseColor(hex);
+            final boolean selectedColor = color == patient.getColor();
+            colorView.setContentDescription(getString(
+                    selectedColor ? R.string.accessibility_color_option_selected : R.string.accessibility_color_option,
+                    colorIndex + 1));
             colorView.setBackgroundColor(color);
             colorView.setPadding(2, 2, 2, 2);
-            if (color == patient.getColor()) {
+            if (selectedColor) {
                 colorView.setImageDrawable(new IconicsDrawable(this)
                         .icon(CommunityMaterial.Icon.cmd_checkbox_marked_circle)
                         .paddingDp(30)
@@ -617,8 +622,12 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
 
             v = (ImageView) view.findViewById(R.id.imageView);
             v.setImageResource(resource);
+            boolean selectedAvatar = avatar.equals(patient.getAvatar());
+            v.setContentDescription(context.getString(
+                    selectedAvatar ? R.string.accessibility_avatar_option_selected : R.string.accessibility_avatar_option,
+                    position + 1));
 
-            if (avatar.equals(patient.getAvatar())) {
+            if (selectedAvatar) {
                 v.setBackgroundResource(R.drawable.avatar_list_item_bg);
             } else {
                 v.setBackgroundResource(R.color.transparent);
