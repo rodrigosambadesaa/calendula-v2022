@@ -489,8 +489,10 @@ public class DaySelectionStepFragment extends ScheduleBuildStepFragment implemen
 
         if (start.equals(originalStart)) {
             clearStart.setImageDrawable(null);
+            clearStart.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         } else {
             clearStart.setImageDrawable(clearIc);
+            clearStart.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
         }
     }
 
@@ -505,9 +507,11 @@ public class DaySelectionStepFragment extends ScheduleBuildStepFragment implemen
         if (end != null) {
             toDate.setText(StringUtils.capitalize(end.toString(dateFmt)));
             clearEnd.setImageDrawable(clearIc);
+            clearEnd.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
         } else {
             toDate.setText(R.string.schedule_build_dayselect_repeat_indefinitely);
             clearEnd.setImageDrawable(null);
+            clearEnd.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         }
     }
 
