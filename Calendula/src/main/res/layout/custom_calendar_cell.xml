@@ -39,6 +39,7 @@
         android:background="@color/transparent"
         android:src="@color/transparent"
         android:id="@+id/icon"
+        android:contentDescription="@null"
         android:layout_width="18dp"
         android:layout_height="18dp"/>
 
