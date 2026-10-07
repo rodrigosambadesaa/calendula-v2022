@@ -161,6 +161,8 @@ Establece a hora da primeira toma, e listo!"</string>
 <string name="schedule_build_dayselect_from">"Dende"</string>
 <string name="schedule_build_dayselect_until">"Ata"</string>
 <string name="schedule_build_dayselect_repeat_indefinitely">"Repetir indefinidamente"</string>
+<string name="schedule_build_dayselect_reset_start_date">"Restablecer a data de inicio"</string>
+<string name="schedule_build_dayselect_remove_end_date">"Eliminar a data de fin"</string>
 <string name="schedule_build_dayselect_first_time_title">"Comezar ás"</string>
 <string name="schedule_build_dayselect_weekdays">"Días da semana"</string>
 <string name="schedule_build_dayselect_daily">"Diariamente"</string>
