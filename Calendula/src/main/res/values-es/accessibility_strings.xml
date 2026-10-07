@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_back">Atrás</string>
+    <string name="accessibility_clear_search">Borrar búsqueda</string>
+    <string name="accessibility_add_allergy">Añadir alergia</string>
+    <string name="accessibility_change_avatar">Cambiar avatar</string>
+</resources>
