@@ -40,7 +40,8 @@
         android:layout_below="@+id/toolbar"
         android:alpha="0.7"
         android:scaleType="fitXY"
-        android:src="@drawable/daily_view_list_item_tab_shadow_top" />
+        android:src="@drawable/daily_view_list_item_tab_shadow_top"
+        android:contentDescription="@null" />
 
     <ScrollView
         android:layout_width="match_parent"
@@ -145,7 +146,8 @@
                             android:layout_gravity="center"
                             android:layout_weight="1"
                             android:padding="4dp"
-                            tools:srcCompat="@drawable/ic_logo_citius_2019_54px" />
+                            tools:srcCompat="@drawable/ic_logo_citius_2019_54px"
+        android:contentDescription="@null" />
                         <!--                    android:layout_weight="1"-->
 
                         <ImageView
@@ -155,7 +157,8 @@
                             android:layout_gravity="top"
                             android:layout_weight="3"
                             android:padding="4dp"
-                            tools:srcCompat="@drawable/ic_logousc_54px" />
+                            tools:srcCompat="@drawable/ic_logousc_54px"
+        android:contentDescription="@null" />
                         <!--                    android:layout_weight="1"-->
 
                     </LinearLayout>
@@ -177,7 +180,8 @@
                             android:layout_gravity="center"
                             android:layout_weight="1"
                             android:padding="4dp"
-                            tools:srcCompat="@drawable/ic_logousc_54px" />
+                            tools:srcCompat="@drawable/ic_logousc_54px"
+        android:contentDescription="@null" />
 
                         <ImageView
                             android:id="@+id/aboutLogoCITIUS2"
@@ -186,7 +190,8 @@
                             android:layout_gravity="center"
                             android:layout_weight="1"
                             android:padding="4dp"
-                            tools:srcCompat="@drawable/ic_logo_citius_2019_54px" />
+                            tools:srcCompat="@drawable/ic_logo_citius_2019_54px"
+        android:contentDescription="@null" />
                     </LinearLayout>
 
                     <TextView
