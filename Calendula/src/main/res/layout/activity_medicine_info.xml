@@ -79,6 +79,7 @@
 
                         <ImageView
                             android:id="@+id/medicine_icon"
+                            android:contentDescription="@null"
                             android:layout_width="60dp"
                             android:layout_height="60dp"
                             android:layout_centerHorizontal="true"
