@@ -27,7 +27,8 @@
             android:layout_height="1px"
             android:layout_alignParentBottom="true"
             android:layout_marginLeft="72dp"
-            android:background="#efefef"/>
+            android:background="#efefef"
+            android:contentDescription="@null"/>
 
 
         <LinearLayout
@@ -58,6 +59,7 @@
 
         <ImageButton
             android:id="@+id/delete_button"
+            android:contentDescription="@string/action_remove"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:layout_alignParentEnd="true"
