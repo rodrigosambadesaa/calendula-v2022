@@ -48,6 +48,7 @@
         android:layout_below="@+id/toolbar"
         android:alpha="0.7"
         android:scaleType="fitXY"
-        android:src="@drawable/daily_view_list_item_tab_shadow_top"/>
+        android:src="@drawable/daily_view_list_item_tab_shadow_top"
+        android:contentDescription="@null"/>
 
 </RelativeLayout>
