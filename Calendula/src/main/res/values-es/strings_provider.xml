@@ -200,7 +200,10 @@ Próxima recogida: %2$s"</string>
 <string name="sched_intake_missing_at">"Las tomas no coinciden con la pauta oficial"</string>
 <string name="sched_intake_missing_for">"Falta una toma con "</string>
 <string name="sched_dosage_changed">"Las dosis no coinciden con la pauta oficial"</string>
-<string name="sched_intake_count_msg">"Hay %1$d tomas en lugar de %2$d"</string>
+<plurals name="sched_intake_count_msg">
+    <item quantity="one">Hay %1$d toma en lugar de %2$d</item>
+    <item quantity="other">Hay %1$d tomas en lugar de %2$d</item>
+</plurals>
 <string name="sched_intakes_moved_msg">"Algunas horas de tomas no coinciden con la pauta oficial"</string>
 <string name="sched_repeat_period_msg">"El intervalo de repetición es %1$s en lugar de %2$s"</string>
 <string name="sched_dosage_at_changed">"La dosis de la toma %1$s debería ser %2$s"</string>
