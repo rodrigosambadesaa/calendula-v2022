@@ -38,7 +38,7 @@
             android:background="@drawable/agenda_repeating_bg"
             android:cropToPadding="false"
             android:scaleType="centerCrop"
-            android:visibility="visible"/>
+            android:visibility="visible"    android:contentDescription="@null"/>
 
     </LinearLayout>
 
@@ -47,7 +47,7 @@
         android:id="@+id/day_bg"
         android:layout_width="fill_parent"
         android:layout_height="fill_parent"
-        android:alpha="0.7"/>
+        android:alpha="0.7"    android:contentDescription="@null"/>
 
     <TextView
         android:id="@+id/day_text"
@@ -67,14 +67,14 @@
         android:layout_height="10dp"
         android:layout_alignParentBottom="true"
         android:alpha="0.3"
-        android:background="@drawable/daily_view_list_item_tab_shadow_bottom"/>
+        android:background="@drawable/daily_view_list_item_tab_shadow_bottom"    android:contentDescription="@null"/>
 
     <ImageView
         android:layout_width="fill_parent"
         android:layout_height="10dp"
         android:layout_alignParentTop="true"
         android:alpha="0.3"
-        android:background="@drawable/daily_view_list_item_tab_shadow_top"/>
+        android:background="@drawable/daily_view_list_item_tab_shadow_top"    android:contentDescription="@null"/>
 
 
 </RelativeLayout>
