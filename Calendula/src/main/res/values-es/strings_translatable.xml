@@ -318,7 +318,7 @@ Versión %1$s
 <string name="message_allergy_add_multiple_success">"Tu información de alergias ha sido guardada."</string>
 <string name="title_allergies_database_required">"Se requiere una base de datos"</string>
 <string name="message_allergies_database_required">"La gestión de alertas sólo está disponible actualmente para la base de datos AEMPS. ¿Quieres activarla?"</string>
-<string name="allergies_group_elements_selected">"%1$d elementos (%2$d seleccionados)"</string>
+<string name="allergies_group_elements_selected">"%1$s (%2$s)"</string>
 <string name="add_custom_med_button_text">"Añadir \"%1$s\" al botiquín"</string>
 <string name="medicine_search_not_found_msg">"Lo sentimos, no hemos podido encontrar nada con ese nombre"</string>
 <string name="medicine_search_empty_list_msg">"Escribe un nombre o un código de medicamento para comenzar a buscar, o escanea un código de barras…"</string>
