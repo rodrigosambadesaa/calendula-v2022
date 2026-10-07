@@ -138,6 +138,7 @@
             android:layout_marginEnd="@dimen/fab_horizontal_margin"
             android:layout_marginRight="@dimen/fab_horizontal_margin"
             android:src="@drawable/ic_action_add"
+            android:contentDescription="@string/create_medicine_button_text"
             app:backgroundTint="@color/fab_default_color"
             app:elevation="@dimen/fab_elevation" />
 
