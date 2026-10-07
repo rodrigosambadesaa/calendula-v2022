@@ -6,4 +6,6 @@
     <string name="accessibility_change_avatar">Cambiar avatar</string>
     <string name="accessibility_previous_month">Mes anterior</string>
     <string name="accessibility_next_month">Mes siguiente</string>
+    <string name="accessibility_checking_schedule_changes">Comprobando cambios de la pauta</string>
+    <string name="accessibility_schedule_matches_official">El recordatorio coincide con la pauta oficial</string>
 </resources>
