@@ -125,6 +125,7 @@
             android:layout_height="56dp"
             android:divider="@null"
             android:dividerHeight="0dp"
+            android:contentDescription="@string/accessibility_back"
             android:padding="15dp"
             android:src="@drawable/ic_search_white_48dp"/>
 
@@ -134,6 +135,7 @@
             android:layout_width="56dp"
             android:layout_height="56dp"
             android:layout_alignParentRight="true"
+            android:contentDescription="@string/accessibility_clear_search"
             android:padding="15dp"
             android:src="@drawable/ic_cancel_white_48dp"
             android:visibility="gone"/>
