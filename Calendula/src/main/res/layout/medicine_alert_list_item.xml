@@ -29,7 +29,7 @@
         android:layout_height="36dp"
         android:layout_marginLeft="16dp"
         android:layout_marginTop="16dp"
-        android:src="@drawable/ic_event_available_black_48dp"/>
+        android:src="@drawable/ic_event_available_black_48dp"\n        android:contentDescription="@null"/>
 
     <TextView
         android:id="@+id/alert_title"
@@ -64,5 +64,5 @@
         android:layout_below="@+id/alert_description"
         android:layout_marginTop="10dp"
         android:layout_toRightOf="@+id/alert_icon"
-        android:background="#eaeaea"/>
+        android:background="#eaeaea"\n        android:contentDescription="@null"/>
 </RelativeLayout>
