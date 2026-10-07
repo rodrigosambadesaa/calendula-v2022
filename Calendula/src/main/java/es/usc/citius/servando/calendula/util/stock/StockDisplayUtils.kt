@@ -45,7 +45,7 @@ object StockDisplayUtils {
                 )
                 if (estimatedEnd.days < MAX_DAYS) {
                     ctx.resources.getQuantityString(
-                        R.plurals.stock_enough_for_days, estimatedEnd.days, estimatedEnd.days
+                        R.plurals.stock_enough_for_days, estimatedEnd.days.toInt(), estimatedEnd.days
                     )
                 } else {
                     ctx.getString(
