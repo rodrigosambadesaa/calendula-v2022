@@ -67,6 +67,7 @@
             android:layout_marginEnd="16dp"
             android:layout_marginRight="16dp"
             android:alpha="0.9"
-            android:background="@drawable/simple_highlight_click_selector"/>
+            android:background="@drawable/simple_highlight_click_selector"
+            android:contentDescription="@string/action_remove"/>
 
     </RelativeLayout>
