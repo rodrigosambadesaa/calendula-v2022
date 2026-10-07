@@ -6,4 +6,6 @@
     <string name="accessibility_change_avatar">Change avatar</string>
     <string name="accessibility_previous_month">Previous month</string>
     <string name="accessibility_next_month">Next month</string>
+    <string name="accessibility_checking_schedule_changes">Checking schedule changes</string>
+    <string name="accessibility_schedule_matches_official">Reminder matches the official schedule</string>
 </resources>
