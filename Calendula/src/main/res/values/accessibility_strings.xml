@@ -10,4 +10,9 @@
     <string name="accessibility_schedule_matches_official">Reminder matches the official schedule</string>
     <string name="accessibility_expand">Expand</string>
     <string name="accessibility_collapse">Collapse</string>
+    <string name="accessibility_mark_taken">Mark medication as taken</string>
+    <string name="accessibility_mark_not_taken">Mark medication as not taken</string>
+    <string name="accessibility_select_hourly_repetition">Select hourly repetition</string>
+    <string name="accessibility_hourly_repetition_selected">Hourly repetition selected</string>
+    <string name="accessibility_change_routine_timing">Change routine timing</string>
 </resources>
