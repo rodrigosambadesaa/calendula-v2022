@@ -56,6 +56,10 @@ public class DBVersionManager {
      * @return the newest working version
      */
     public static String getLastDBVersion(Context ctx, String databaseID) {
+        if (!LegacyRemoteArchivePolicy.permitsRemoteSqlInstallation()) {
+            LogUtil.w(TAG, "Retired unsigned medicine archive backend disabled");
+            return null;
+        }
         final String downloadUrl = BuildConfig.DB_DOWNLOAD_URL;
         final String url = downloadUrl + VERSION_FILE;
 
