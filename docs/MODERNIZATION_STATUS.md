@@ -72,7 +72,8 @@ availability and migration behavior are verified.
 
 The legacy database helper previously handled an upgrade exception by calling
 `dropAndCreateAllTables()`, which erased patient, medicine, schedule and
-reminder records. A failed schema migration must now **propagate the error**
+reminder records. An unsupported downgrade is also rejected rather than being silently accepted.
+A failed schema migration must now **propagate the error**
 and allow the SQLiteOpenHelper transaction to roll back, never destroy user
 data as a fallback. Isolated regression tests deliberately exercise failed
 v1/v2 upgrade paths while keeping a synthetic patient row.
