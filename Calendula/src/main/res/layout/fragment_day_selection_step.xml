@@ -183,6 +183,7 @@
                             android:text="@string/schedule_repeat_frequency_days"
                             android:textColor="@color/activity_schedule_build_foreground"
                             android:textSize="18sp"/>
+                            tools:ignore="RelativeOverlap"
 
                     </RelativeLayout>
 
@@ -236,6 +237,7 @@
                             android:text="@string/schedule_repeat_frequency_days"
                             android:textColor="@color/activity_schedule_build_secondary"
                             android:textSize="16sp"/>
+                            tools:ignore="RelativeOverlap"
 
                     </RelativeLayout>
 
@@ -301,6 +303,7 @@
                             android:text="@string/schedule_repeat_frequency_days"
                             android:textColor="@color/activity_schedule_build_secondary"
                             android:textSize="16sp"/>
+                            tools:ignore="RelativeOverlap"
 
                     </RelativeLayout>
 
