@@ -85,6 +85,10 @@ public class DB {
             Context applicationContext = context.getApplicationContext();
             Context safeContext = applicationContext != null ? applicationContext : context;
             manager = provider;
+            // dispose() on older installations may have left a reference to
+            // a closed helper. A failed new getHelper() must never release
+            // that stale reference as though this attempt acquired it.
+            db = null;
             try {
                 db = manager.getHelper(safeContext, DatabaseHelper.class);
 
