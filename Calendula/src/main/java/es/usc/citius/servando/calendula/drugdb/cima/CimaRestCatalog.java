@@ -93,8 +93,12 @@ public final class CimaRestCatalog {
                         throw new IllegalArgumentException("Invalid CIMA presentation name");
                     }
                 }
-                String earlier = presentationNames.putIfAbsent(code, marketedName);
-                if (earlier != null && !earlier.equals(marketedName)) {
+                // Avoid the Java 8 Map default method: Android API 23 must
+                // work without relying on newer java.util.Map implementations.
+                String earlier = presentationNames.get(code);
+                if (earlier == null) {
+                    presentationNames.put(code, marketedName);
+                } else if (!earlier.equals(marketedName)) {
                     throw new IllegalArgumentException(
                             "Conflicting CIMA presentation details for national code");
                 }
