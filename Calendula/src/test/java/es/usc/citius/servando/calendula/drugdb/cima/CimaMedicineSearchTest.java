@@ -103,6 +103,40 @@ public class CimaMedicineSearchTest {
                 "{\"totalFilas\":2147483648,\"pagina\":1,\"resultados\":[]}", 1);
     }
 
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsUnpairedHighSurrogateInSearchName() {
+        CimaMedicineSearch.url("AB" + (char) 0xD800, 1);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsUnpairedLowSurrogateInSearchName() {
+        CimaMedicineSearch.url("AB" + (char) 0xDC00, 1);
+    }
+
+    @Test
+    public void acceptsValidSupplementaryUnicodeInSearchName() {
+        String emoji = new String(Character.toChars(0x1F600));
+        String url = CimaMedicineSearch.url("Med " + emoji, 1);
+        assertTrue(url.contains("%F0%9F%98%80"));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsUnpairedSurrogateInJsonMedicineName() {
+        String json = "{\"totalFilas\":1,\"pagina\":1,\"resultados\":["
+                + "{\"nregistro\":\"123\",\"nombre\":\"Med"
+                + (char) 0xD800 + "\"}]}";
+        CimaMedicineSearch.parsePage(json, 1);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsControlCharactersInJsonMedicineName() {
+        // Gson decodes an escaped newline; never normalize it away or
+        // accept it as medication metadata.
+        String json = "{\"totalFilas\":1,\"pagina\":1,\"resultados\":["
+                + "{\"nregistro\":\"123\",\"nombre\":\"\\nMedicine\"}]}";
+        CimaMedicineSearch.parsePage(json, 1);
+    }
+
     @Test(expected = UnsupportedOperationException.class)
     public void pageResultCollectionCannotBeModified() {
         CimaMedicineSearch.parsePage(SAMPLE, 1).getResults().clear();
