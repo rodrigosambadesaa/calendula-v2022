@@ -109,7 +109,19 @@ Add your reminders here and let us just notify you!"</string>
 <string name="login_wrong_user_desc">"A different user was logged in previously on this device. If you continue, all their data will be lost. Continue?"</string>
 <string name="aml_updated_notification_title">"Active Medication List Updated"</string>
 <string name="aml_updated_notification_text">"Your active medication has changed"</string>
-<string name="aml_updated_new_and_updated_summary">"There are %1$d new and %2$d updated schedules"</string>
+<plurals name="aml_new_schedule_count">
+    <item quantity="one">%1$d new schedule</item>
+    <item quantity="other">%1$d new schedules</item>
+</plurals>
+<plurals name="aml_updated_schedule_count">
+    <item quantity="one">%1$d updated schedule</item>
+    <item quantity="other">%1$d updated schedules</item>
+</plurals>
+<plurals name="aml_deleted_schedule_count">
+    <item quantity="one">%1$d removed schedule</item>
+    <item quantity="other">%1$d removed schedules</item>
+</plurals>
+<string name="aml_updated_new_and_updated_summary">"There are %1$s and %2$s"</string>
 <plurals name="aml_updated_new_summary">
     <item quantity="one">There is %1$d new schedule</item>
     <item quantity="other">There are %1$d new schedules</item>
@@ -118,7 +130,7 @@ Add your reminders here and let us just notify you!"</string>
     <item quantity="one">There is %1$d updated schedule</item>
     <item quantity="other">There are %1$d updated schedules</item>
 </plurals>
-<string name="aml_updated_summary">"%1$d new, %2$d updated and %3$d removed."</string>
+<string name="aml_updated_summary">"%1$s, %2$s and %3$s."</string>
 <string name="reminder_pending_revision">"Reminder pending review"</string>
 <string name="schedule_build_control_next">"Next"</string>
 <string name="schedule_build_control_confirm">"Confirm"</string>
