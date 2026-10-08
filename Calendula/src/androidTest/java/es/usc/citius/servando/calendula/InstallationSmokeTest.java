@@ -23,6 +23,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import es.usc.citius.servando.calendula.database.DB;
+import es.usc.citius.servando.calendula.drugdb.cima.CimaMedicineSearch;
 import es.usc.citius.servando.calendula.drugdb.download.InstallDatabaseService;
 import es.usc.citius.servando.calendula.drugdb.download.UpdateDatabaseService;
 import es.usc.citius.servando.calendula.notifications.NotificationHelper;
@@ -98,6 +99,22 @@ public class InstallationSmokeTest {
                 .findByNameOrCn("test\" OR 1=1 --", 5));
         assertNotNull(DB.drugDB().prescriptions()
                 .findByNameOrCn("Ácido's 100% _", 5));
+    }
+
+    @Test
+    public void officialCimaReadOnlySearchHandlesUnicodeOnDeviceWithoutNetwork() {
+        // Offline integration probe on Android API 23/33/36. The real HTTPS
+        // request and any persistence are deliberately excluded.
+        String url = CimaMedicineSearch.url("Ácido ascórbico", 1);
+        assertTrue(url.startsWith("https://cima.aemps.es/cima/rest/medicamentos?"));
+        assertTrue(url.contains("%C3%81cido+asc%C3%B3rbico"));
+        CimaMedicineSearch.Page page = CimaMedicineSearch.parsePage(
+                "{\"totalFilas\":1,\"pagina\":1,"
+                        + "\"resultados\":[{\"nregistro\":\"51347\","
+                        + "\"nombre\":\"Ácido ascórbico\"}]}", 1);
+        assertEquals(1, page.getResults().size());
+        assertEquals("51347", page.getResults().get(0).getRegistrationNumber());
+        assertEquals("Ácido ascórbico", page.getResults().get(0).getName());
     }
 
     @Test
