@@ -76,32 +76,69 @@ public class DB {
      * Initialize database and DAOs
      */
     public synchronized static void init(Context context) {
+        init(context, new DatabaseManager<>());
+    }
 
+    /** Package-private seam for deterministic failure/retry regression tests. */
+    static synchronized void init(Context context, DatabaseManager<DatabaseHelper> provider) {
         if (!initialized) {
-            initialized = true;
             Context applicationContext = context.getApplicationContext();
             Context safeContext = applicationContext != null ? applicationContext : context;
-            manager = new DatabaseManager<>();
-            db = manager.getHelper(safeContext, DatabaseHelper.class);
+            manager = provider;
+            // dispose() on older installations may have left a reference to
+            // a closed helper. A failed new getHelper() must never release
+            // that stale reference as though this attempt acquired it.
+            db = null;
+            try {
+                db = manager.getHelper(safeContext, DatabaseHelper.class);
 
-            db.getReadableDatabase().enableWriteAheadLogging();
+                // May throw on a failed migration or inaccessible storage.
+                // Never advertise the singleton as ready before this succeeds.
+                db.getReadableDatabase().enableWriteAheadLogging();
 
-            Medicines = new MedicineDao(db);
-            Routines = new RoutineDao(db);
-
-            Pickups = new PickupInfoDao(db);
-            Patients = new PatientDao(db);
-            DrugDB = DrugDBModule.getInstance();
-            PatientAlerts = new PatientAlertDao(db);
-            PatientAllergens = new PatientAllergenDao(db);
-            AllergyGroups = new AllergyGroupDao(db);
-            Schedules = new ScheduleDao(db);
-            EventInstances = new EventInstanceDao(db);
-            EventReminders = new EventReminderDao(db);
-            healthcareProviderDB = HealthcareProviderDBModule.getInstance();
-            LogUtil.v(TAG, "DB initialized " + DB.DB_NAME);
+                Medicines = new MedicineDao(db);
+                Routines = new RoutineDao(db);
+                Pickups = new PickupInfoDao(db);
+                Patients = new PatientDao(db);
+                DrugDB = DrugDBModule.getInstance();
+                PatientAlerts = new PatientAlertDao(db);
+                PatientAllergens = new PatientAllergenDao(db);
+                AllergyGroups = new AllergyGroupDao(db);
+                Schedules = new ScheduleDao(db);
+                EventInstances = new EventInstanceDao(db);
+                EventReminders = new EventReminderDao(db);
+                healthcareProviderDB = HealthcareProviderDBModule.getInstance();
+                // The flag must be last: failed database opens remain retryable.
+                initialized = true;
+                LogUtil.v(TAG, "DB initialized " + DB.DB_NAME);
+            } catch (RuntimeException | Error failure) {
+                // Do not leave a partially initialized or cached helper that
+                // could mask the original upgrade/storage error on next start.
+                if (db != null) {
+                    try {
+                        manager.releaseHelper(db);
+                    } catch (RuntimeException cleanupFailure) {
+                        failure.addSuppressed(cleanupFailure);
+                    }
+                }
+                db = null;
+                manager = null;
+                Medicines = null;
+                Routines = null;
+                Schedules = null;
+                Pickups = null;
+                Patients = null;
+                DrugDB = null;
+                PatientAlerts = null;
+                PatientAllergens = null;
+                AllergyGroups = null;
+                EventInstances = null;
+                EventReminders = null;
+                healthcareProviderDB = null;
+                initialized = false;
+                throw failure;
+            }
         }
-
     }
 
     /**
