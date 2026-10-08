@@ -1,16 +1,21 @@
 name: Android CI
 
 on:
+  # Avoid duplicate push + pull_request runs for the same same-repo PR commit.
+  # PRs run on their proposed revision; main still gets its post-merge CI.
   push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  # A push and the corresponding pull_request event should share the same group.
+  # New revisions cancel old checks; a PR and main have distinct run groups.
   group: android-ci-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
