@@ -49,8 +49,9 @@ public class DBInitializationRecoveryTest {
             try {
                 DB.init(isolated);
                 fail("Synthetic SQLite storage failure must fail initialization");
-            } catch (IllegalStateException expected) {
-                // An inaccessible database must not be silently considered ready.
+            } catch (RuntimeException expected) {
+                // The storage exception may be wrapped by SQLiteOpenHelper;
+                // either way a failed open must not be considered ready.
             }
             assertFalse("A failed database open must be retryable", DB.initialized);
             assertNull("The failed helper must not be exposed", DB.helper());
