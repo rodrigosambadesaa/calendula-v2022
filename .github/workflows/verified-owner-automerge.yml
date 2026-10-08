@@ -48,6 +48,7 @@ jobs:
           jq -c --arg owner "$owner" '
             .[] | select(
               .base.ref == "main"
+              and (.draft == false)
               and .head.repo.full_name == .base.repo.full_name
               and .user.login == $owner
               and (.head.ref | startswith("modernize/"))
@@ -82,6 +83,7 @@ jobs:
             current=$(gh api "repos/$REPO/pulls/$number")
             if ! jq -e --arg owner "$owner" --arg sha "$sha" '
                 .state == "open" and .base.ref == "main"
+                and (.draft == false)
                 and .head.repo.full_name == .base.repo.full_name
                 and .user.login == $owner
                 and (.head.ref | startswith("modernize/"))
