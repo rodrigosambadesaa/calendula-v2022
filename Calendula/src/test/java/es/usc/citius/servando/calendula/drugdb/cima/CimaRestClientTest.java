@@ -155,6 +155,31 @@ public class CimaRestClientTest {
         }
     }
 
+    @Test
+    public void medicineSearchReusesTheStrictBoundedHttpResponseValidator()
+            throws Exception {
+        HttpURLConnection response = fakeJsonResponse(
+                "{\"totalFilas\":1,\"pagina\":1,"
+                        + "\"resultados\":[{\"nregistro\":\"51347\","
+                        + "\"nombre\":\"ASPIRINA C\"}]}");
+        CimaMedicineSearch.Page page = CimaMedicineSearch.parsePage(
+                CimaRestClient.readJsonResponse(response), 1);
+        assertEquals("51347", page.getResults().get(0).getRegistrationNumber());
+    }
+
+    @Test
+    public void medicineSearchRedirectIsRejectedWithoutReadingBody()
+            throws Exception {
+        HttpURLConnection response = fakeJsonResponse("{}");
+        when(response.getResponseCode()).thenReturn(302);
+        try {
+            CimaRestClient.readJsonResponse(response);
+            fail("Search may not follow HTTP redirects");
+        } catch (IOException expected) {
+            verify(response, never()).getInputStream();
+        }
+    }
+
     private static HttpURLConnection fakeJsonResponse(String json) throws IOException {
         HttpURLConnection response = mock(HttpURLConnection.class);
         when(response.getResponseCode()).thenReturn(200);
