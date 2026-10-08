@@ -18,6 +18,7 @@
 
 package es.usc.citius.servando.calendula.activities;
 
+import android.annotation.SuppressLint;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
@@ -227,12 +228,17 @@ public class WebViewActivity extends CalendulaActivity {
         return request.getCacheType().equals(WebViewRequest.CacheType.DOWNLOAD_CACHE);
     }
 
+    @SuppressLint("SetJavaScriptEnabled")
+    private void enableJavaScriptForPageProcessing() {
+        webView.getSettings().setJavaScriptEnabled(true);
+    }
+
     private void setupWebView(final WebViewRequest request) {
 
         //enable JavaScript if it is explicitly enabled or custom css sheet must be injected
         if (request.isJavaScriptEnabled() || request.getCustomCss() != null) {
                 LogUtil.d(TAG, "Enabling JavaScript!");
-                webView.getSettings().setJavaScriptEnabled(true);
+                enableJavaScriptForPageProcessing();
         }
 
 
@@ -557,7 +563,7 @@ public class WebViewActivity extends CalendulaActivity {
                 // setup javascript interface if the request needs access to html
                 if (needsHtmlAccess(request)) {
                     WebViewActivity.this.url = view.getUrl();
-                    webView.getSettings().setJavaScriptEnabled(true);
+                    enableJavaScriptForPageProcessing();
                     webView.loadUrl("javascript:window.HtmlCache.writeToCache" +
                             "('<html>'+document.getElementsByTagName('html')[0].innerHTML+'</html>');");
                 } else {

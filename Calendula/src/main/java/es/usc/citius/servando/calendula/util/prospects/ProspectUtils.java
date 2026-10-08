@@ -73,7 +73,7 @@ public class ProspectUtils {
         request.setPostProcessorClassname(LeafletHtmlPostProcessor.class.getCanonicalName());
         if (enableCache)
             request.setCacheType(WebViewRequest.CacheType.DOWNLOAD_CACHE);
-        request.setJavaScriptEnabled(true);
+        request.setJavaScriptAllowed(true);
         request.setCacheTTL(PROSPECT_TTL);
         request.setExternalLinksEnabled(true);
         i.putExtra(WebViewActivity.PARAM_WEBVIEW_REQUEST, request);

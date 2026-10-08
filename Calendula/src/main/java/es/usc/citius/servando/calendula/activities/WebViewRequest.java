@@ -179,7 +179,7 @@ public class WebViewRequest implements Parcelable {
      *
      * @param javaScriptEnabled <code>true</code> if Javascript should be enabled
      */
-    public void setJavaScriptEnabled(boolean javaScriptEnabled) {
+    public void setJavaScriptAllowed(boolean javaScriptEnabled) {
         this.javaScriptEnabled = javaScriptEnabled;
     }
 
