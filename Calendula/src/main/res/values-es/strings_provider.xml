@@ -202,6 +202,7 @@ Próxima recogida: %2$s"</string>
 <string name="sched_dosage_changed">"Las dosis no coinciden con la pauta oficial"</string>
 <plurals name="sched_intake_count_msg">
     <item quantity="one">Hay %1$d toma en lugar de %2$d</item>
+    <item quantity="many">Hay %1$d tomas en lugar de %2$d</item>
     <item quantity="other">Hay %1$d tomas en lugar de %2$d</item>
 </plurals>
 <string name="sched_intakes_moved_msg">"Algunas horas de tomas no coinciden con la pauta oficial"</string>
