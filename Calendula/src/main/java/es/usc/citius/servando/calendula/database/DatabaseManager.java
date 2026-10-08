@@ -36,10 +36,13 @@ public class DatabaseManager<H extends OrmLiteSqliteOpenHelper> {
         return helper;
     }
 
-    public void releaseHelper(H helper) {
-        if (helper != null) {
+    public synchronized void releaseHelper(H helper) {
+        // The old implementation nulled only its argument and left the
+        // manager's cached reference pointing at a released SQLite helper.
+        // Ignore unknown helpers: they do not belong to this manager.
+        if (helper != null && this.helper == helper) {
             OpenHelperManager.releaseHelper();
-            helper = null;
+            this.helper = null;
         }
     }
 }
