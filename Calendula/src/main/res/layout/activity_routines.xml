@@ -86,7 +86,7 @@
         android:layout_gravity="bottom|right"
         android:layout_marginRight="@dimen/fab_separator_right_margin"
         android:layout_marginTop="@dimen/fab_separator_top_margin"
-        android:src="@drawable/ic_done_black_48dp"
+        android:src="@drawable/ic_done_black"
         app:backgroundTint="@color/fab_default_color"
         app:elevation="@dimen/fab_elevation"
         android:contentDescription="@string/done"/>
