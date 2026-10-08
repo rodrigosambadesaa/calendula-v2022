@@ -78,6 +78,8 @@
                     android:layout_width="wrap_content"
                     android:layout_height="50dp"
                     android:layout_centerHorizontal="true"
+                    android:layout_toLeftOf="@id/check_all_button"
+                    android:layout_toStartOf="@id/check_all_button"
                     android:layout_marginRight="10dp"
                     android:fontFamily="sans-serif-light"
                     android:gravity="center"
