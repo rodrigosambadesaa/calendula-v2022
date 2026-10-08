@@ -46,6 +46,23 @@ making app builds dependent on an external service. The official HTTPS
 endpoint was separately checked on 2026-10-08, but full device/network
 interoperability is still an acceptance criterion.
 
+## Presentation-level mapping preview (not yet an importer)
+
+A CIMA medicine registration can contain multiple **national presentation codes
+(CN)** with different pack sizes and names. `CimaRestCatalog` retains
+`presentaciones[].nombre` alongside each validated CN, rejects contradictory
+duplicate CN entries, and keeps the existing national-code list API stable.
+`CimaPrescriptionCandidates.from()` produces immutable, **non-persisted**
+candidates that keep the registration number, CN, commercial name and
+source-reported dose text distinct. A registration with no presentations
+produces no candidates; no default package codes are fabricated.
+
+These candidates are not clinical prescriptions, medical advice, ORM entities,
+or installed catalog entries. They are input to a future **transactional**
+mapping and reconciliation stage. Active ingredients, authorization status,
+product discontinuations and patient-linked historical IDs still need explicit
+mapping and validation before any production import.
+
 ## Release-blocking next steps
 
 1. Validate AEMPS data licensing, attribution, update cadence and rate limits.
