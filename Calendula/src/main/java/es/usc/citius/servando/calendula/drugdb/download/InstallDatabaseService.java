@@ -212,6 +212,7 @@ public class InstallDatabaseService extends Service {
 
     private boolean handleDownloadAndSetup(final String database, final DBInstallType type) {
         File destination = null;
+        boolean downloadCommitted = false;
         try {
             final PrescriptionDBMgr mgr = DBRegistry.instance().db(database);
             if (mgr == null) {
@@ -232,10 +233,10 @@ public class InstallDatabaseService extends Service {
                 throw new IOException("Could not create database download directory");
             }
 
+            // The downloader stages new bytes and replaces the destination only
+            // after the complete transfer succeeds. Do not remove a previous
+            // complete archive before attempting a new download.
             destination = new File(downloads, dbName + DOWNLOAD_SUFFIX);
-            if (destination.exists() && !destination.delete()) {
-                throw new IOException("Could not replace previous database download");
-            }
 
             final String url = getString(
                     R.string.database_file_location,
@@ -247,6 +248,7 @@ public class InstallDatabaseService extends Service {
             if (!HttpDownloadUtil.downloadFile(this, url, destination)) {
                 throw new IOException("Database download failed");
             }
+            downloadCommitted = true;
 
             if (timedOut) {
                 if (destination.exists() && !destination.delete()) {
@@ -262,8 +264,11 @@ public class InstallDatabaseService extends Service {
             }
             return setupSucceeded;
         } catch (Exception e) {
-            if (destination != null && destination.exists() && !destination.delete()) {
-                LogUtil.w(TAG, "Unable to remove partial database download");
+            // A failed transfer preserves any previously complete archive.
+            // Only remove the archive if this attempt successfully committed it.
+            if (downloadCommitted && destination != null
+                    && destination.exists() && !destination.delete()) {
+                LogUtil.w(TAG, "Unable to remove failed database download");
             }
             failDatabaseOperation("Database download/setup failed", e, type);
             return false;

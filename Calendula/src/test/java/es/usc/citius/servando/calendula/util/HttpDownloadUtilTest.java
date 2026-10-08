@@ -134,4 +134,88 @@ public class HttpDownloadUtilTest {
                 new ByteArrayInputStream(new byte[0]), new ByteArrayOutputStream(), -1L);
     }
 
+    @org.junit.Rule
+    public org.junit.rules.TemporaryFolder stagingFolder =
+            new org.junit.rules.TemporaryFolder();
+
+    @Test
+    public void truncatedDownloadPreservesPriorArchiveAndRemovesStaging() throws Exception {
+        java.io.File file = stagingFolder.newFile("medicine.db");
+        java.nio.file.Files.write(file.toPath(), "prior".getBytes(StandardCharsets.UTF_8));
+        try {
+            HttpDownloadUtil.writeCompleteDownload(
+                    new ByteArrayInputStream("partial".getBytes(StandardCharsets.UTF_8)),
+                    file, 12L);
+            org.junit.Assert.fail("Truncated download should fail");
+        } catch (IOException expected) {
+            // Deliberately keep the previously completed archive.
+        }
+        assertEquals("prior", new String(
+                java.nio.file.Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
+        assertEquals(1, stagingFolder.getRoot().listFiles().length);
+    }
+
+    @Test
+    public void completeDownloadReplacesArchiveAndCleansUpTempFile() throws Exception {
+        java.io.File file = stagingFolder.newFile("medicine.db");
+        java.nio.file.Files.write(file.toPath(), "prior".getBytes(StandardCharsets.UTF_8));
+        HttpDownloadUtil.writeCompleteDownload(
+                new ByteArrayInputStream("replacement".getBytes(StandardCharsets.UTF_8)),
+                file, 11L);
+        assertEquals("replacement", new String(
+                java.nio.file.Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
+        assertEquals(1, stagingFolder.getRoot().listFiles().length);
+    }
+
+    @Test
+    public void emptyOrUnknownLengthDownloadIsHandledSafely() throws Exception {
+        java.io.File file = stagingFolder.newFile("medicine.db");
+        java.nio.file.Files.write(file.toPath(), "prior".getBytes(StandardCharsets.UTF_8));
+        try {
+            HttpDownloadUtil.writeCompleteDownload(
+                    new ByteArrayInputStream(new byte[0]), file, -1L);
+            org.junit.Assert.fail("Empty archive should fail");
+        } catch (IOException expected) {
+            // The old archive must not be erased.
+        }
+        assertEquals("prior", new String(
+                java.nio.file.Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
+        HttpDownloadUtil.writeCompleteDownload(
+                new ByteArrayInputStream("new".getBytes(StandardCharsets.UTF_8)),
+                file, -1L);
+        assertEquals("new", new String(
+                java.nio.file.Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    public void interruptedStreamLeavesOldArchiveUntouched() throws Exception {
+        java.io.File file = stagingFolder.newFile("medicine.db");
+        java.nio.file.Files.write(file.toPath(), "prior".getBytes(StandardCharsets.UTF_8));
+        java.io.InputStream interrupted = new java.io.InputStream() {
+            int reads = 0;
+            @Override
+            public int read() throws IOException {
+                throw new IOException("interrupted");
+            }
+            @Override
+            public int read(byte[] data, int offset, int length) throws IOException {
+                if (++reads > 1) {
+                    throw new IOException("interrupted");
+                }
+                data[offset] = 'x';
+                return 1;
+            }
+        };
+        try {
+            HttpDownloadUtil.writeCompleteDownload(interrupted, file, -1L);
+            org.junit.Assert.fail("Mid-transfer I/O error should fail");
+        } catch (IOException expected) {
+            // The staging file must be removed on I/O error.
+        }
+        assertEquals("prior", new String(
+                java.nio.file.Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
+        assertEquals(1, stagingFolder.getRoot().listFiles().length);
+    }
+
+
 }
