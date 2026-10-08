@@ -303,10 +303,17 @@ public class DailyAgendaFragment extends Fragment {
     public void notifyDataChange() {
         try {
             LogUtil.d(TAG, "AgendaView NotifyDataChange");
+            List<DailyAgendaItemStub> newItems = buildItems();
+            int oldSize = items.size();
             items.clear();
-            items.addAll(buildItems());
+            if (oldSize > 0) {
+                rvAdapter.notifyItemRangeRemoved(0, oldSize);
+            }
+            items.addAll(newItems);
+            if (!newItems.isEmpty()) {
+                rvAdapter.notifyItemRangeInserted(0, newItems.size());
+            }
             LogUtil.d(TAG, "Items after rebuild " + items.size());
-            rvAdapter.notifyDataSetChanged();
             // show empty list view if there are no items
             rv.postDelayed(new Runnable() {
                 @Override
