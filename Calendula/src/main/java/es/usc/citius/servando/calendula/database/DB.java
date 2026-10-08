@@ -145,9 +145,36 @@ public class DB {
      * Dispose DB and DAOs
      */
     public synchronized static void dispose() {
+        // Shutdown can be called repeatedly, including after a failed init().
+        // Revoke access to DAOs before releasing the managed SQLite helper.
+        DatabaseHelper oldHelper = db;
+        DatabaseManager<DatabaseHelper> oldManager = manager;
         initialized = false;
-        db.close();
-        manager.releaseHelper(db);
+        db = null;
+        manager = null;
+        Medicines = null;
+        Routines = null;
+        Schedules = null;
+        Pickups = null;
+        Patients = null;
+        DrugDB = null;
+        PatientAlerts = null;
+        PatientAllergens = null;
+        AllergyGroups = null;
+        EventInstances = null;
+        EventReminders = null;
+        healthcareProviderDB = null;
+
+        if (oldHelper != null) {
+            if (oldManager != null) {
+                // OpenHelperManager owns the helper's lifecycle and closes it
+                // when its reference count reaches zero. Do not close twice.
+                oldManager.releaseHelper(oldHelper);
+            } else {
+                // Defensive fallback for a legacy/inconsistent state.
+                oldHelper.close();
+            }
+        }
         LogUtil.v(TAG, "DB disposed");
     }
 
