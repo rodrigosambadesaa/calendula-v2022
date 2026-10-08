@@ -59,6 +59,17 @@ redirect checks, and ZIP size/traversal defenses improve robustness but
 contained in the retrieved archive; consequently this is a critical release
 gate, not merely a missing software update feature.
 
+**Interim safety policy:** until the above trust requirements are met,
+`LegacyRemoteArchivePolicy` blocks the historical unsigned remote SQL
+manifest/download/install flow before any network request or archive setup.
+This is intentionally **fail-closed**: it means remote prescription database
+installation and updates are unavailable, rather than executing potentially
+attacker-modified SQL. Previously installed database files and explicit local
+setup inputs are not deleted by this policy. This is a temporary release
+safety measure, **not** a CIMA importer or a replacement medical catalog.
+Its removal requires verified source authenticity, replay/downgrade defenses
+and representative end-to-end migration tests.
+
 **Acceptance criteria:** verify a working HTTPS endpoint under trusted
 certificate validation; ensure every manifest/archive request stays on an
 approved origin or safe equivalent; authenticate archive bytes using an
