@@ -211,8 +211,8 @@ object ScheduleComparator {
     }
 
     private class IntakeCountChange(private val expected: Int, private val found: Int) : Change {
-        override fun description(c: Context): String = c.getString(
-            R.string.sched_intake_count_msg, found, expected
+        override fun description(c: Context): String = c.resources.getQuantityString(
+            R.plurals.sched_intake_count_msg, found, found, expected
         )
 
     }

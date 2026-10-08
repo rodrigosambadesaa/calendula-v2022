@@ -197,7 +197,10 @@ Next pickup: %2$s"</string>
 <string name="sched_intake_missing_at">"Intakes do not match the official schedule"</string>
 <string name="sched_intake_missing_for">"There is a missing intake with "</string>
 <string name="sched_dosage_changed">"Dosages do not match the official schedule"</string>
-<string name="sched_intake_count_msg">"There are %1$d intakes instead of %2$d"</string>
+<plurals name="sched_intake_count_msg">
+    <item quantity="one">There is %1$d intake instead of %2$d</item>
+    <item quantity="other">There are %1$d intakes instead of %2$d</item>
+</plurals>
 <string name="sched_intakes_moved_msg">"Some intake times do not match the official schedule"</string>
 <string name="sched_repeat_period_msg">"The repetition interval is %1$s instead of %2$s"</string>
 <string name="sched_dosage_at_changed">"Dosage of %1$s intake should be %2$s"</string>
