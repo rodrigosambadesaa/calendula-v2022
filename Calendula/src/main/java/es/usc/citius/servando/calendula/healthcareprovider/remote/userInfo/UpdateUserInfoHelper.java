@@ -30,9 +30,6 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLSession;
-
 import es.usc.citius.servando.calendula.BuildConfig;
 import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.database.DB;
@@ -151,12 +148,7 @@ public class UpdateUserInfoHelper {
                 });
 
         if (BuildConfig.DEBUG && BuildConfig.DISABLE_HOSTNAME_VERIFICATION) {
-            clientBuilder.hostnameVerifier(new HostnameVerifier() {
-                @Override
-                public boolean verify(String hostname, SSLSession session) {
-                    return true;
-                }
-            });
+            clientBuilder.hostnameVerifier(TestingConnectionBuilder.getHostnameVerifier());
             clientBuilder.sslSocketFactory(TestingConnectionBuilder.getTrustingContext().getSocketFactory(),
                     TestingConnectionBuilder.getTrustManager());
         }
