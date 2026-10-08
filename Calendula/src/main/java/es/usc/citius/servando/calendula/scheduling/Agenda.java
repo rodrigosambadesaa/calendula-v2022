@@ -29,7 +29,6 @@ import com.j256.ormlite.misc.TransactionManager;
 
 import org.joda.time.DateTime;
 import org.joda.time.LocalDate;
-import org.joda.time.LocalTime;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
@@ -214,6 +213,15 @@ public class Agenda {
         return t.isBefore(now) && t.plusMinutes(window).isAfter(now);
     }
 
+    /**
+     * The first trigger must be in the future. A repeating RTC alarm whose
+     * first trigger is today's elapsed midnight can fire immediately when
+     * the app starts, racing the explicit startup agenda refresh.
+     */
+    static long nextDailyUpdateMillis(DateTime now) {
+        return now.plusDays(1).withTimeAtStartOfDay().getMillis();
+    }
+
     public void setDailyUpdateAlarm(Context ctx) {
         // intent our receiver will receive
         Intent intent = new Intent(ctx, AlarmReceiver.class);
@@ -227,7 +235,7 @@ public class Agenda {
         if (alarmManager != null) {
             alarmManager.setRepeating(
                     AlarmManager.RTC_WAKEUP,
-                    new LocalTime(0, 0).toDateTimeToday().getMillis(),
+                    nextDailyUpdateMillis(DateTime.now()),
                     AlarmManager.INTERVAL_DAY, dailyAlarm
             );
         }
