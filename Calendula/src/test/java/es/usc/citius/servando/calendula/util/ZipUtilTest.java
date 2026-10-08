@@ -107,4 +107,58 @@ public class ZipUtilTest {
 
         assertFalse(new File(destination.getParentFile(), "outside.txt").exists());
     }
+    @Test
+    public void unzipRejectsExcessiveUncompressedSizeWithoutReplacingExistingFile()
+            throws Exception {
+        File archive = temp.newFile("oversized.zip");
+        File destination = temp.newFolder("oversized-root");
+        File existing = new File(destination, "AEMPS.sql");
+        try (FileOutputStream output = new FileOutputStream(existing)) {
+            output.write("original".getBytes(StandardCharsets.UTF_8));
+        }
+        try (ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(archive))) {
+            zip.putNextEntry(new ZipEntry("AEMPS.sql"));
+            zip.write("replacement exceeds limit".getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        }
+
+        try {
+            ZipUtil.unzip(archive, destination, 8, 10);
+            fail("Expected uncompressed byte limit to reject ZIP");
+        } catch (IOException expected) {
+            // expected
+        }
+
+        assertEquals("original", readUtf8(existing));
+    }
+
+    @Test
+    public void unzipRejectsArchivesWithTooManyEntries() throws Exception {
+        File archive = temp.newFile("too-many-entries.zip");
+        File destination = temp.newFolder("entry-root");
+        try (ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(archive))) {
+            zip.putNextEntry(new ZipEntry("one.txt"));
+            zip.write(1);
+            zip.closeEntry();
+            zip.putNextEntry(new ZipEntry("two.txt"));
+            zip.write(2);
+            zip.closeEntry();
+        }
+
+        try {
+            ZipUtil.unzip(archive, destination, 100, 1);
+            fail("Expected archive entry limit to reject ZIP");
+        } catch (IOException expected) {
+            // expected
+        }
+
+        assertTrue(new File(destination, "one.txt").isFile());
+        assertFalse(new File(destination, "two.txt").exists());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void unzipRejectsNegativeExtractionLimits() throws Exception {
+        ZipUtil.unzip(temp.newFile("unused.zip"), temp.newFolder("unused"), -1, 1);
+    }
+
 }
