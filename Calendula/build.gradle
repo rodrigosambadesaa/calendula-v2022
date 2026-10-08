@@ -161,7 +161,10 @@ android {
         }
         debug {
             debuggable true
-            minifyEnabled true
+            // Keep test/debug code unminified. CI still validates release R8 with
+            // minifyDevelopReleaseWithR8, while instrumented test processes must
+            // load a complete desugared library runtime.
+            minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt')
             proguardFiles getCustomProguardFiles()
             testProguardFiles 'android-test-proguard.pro'
