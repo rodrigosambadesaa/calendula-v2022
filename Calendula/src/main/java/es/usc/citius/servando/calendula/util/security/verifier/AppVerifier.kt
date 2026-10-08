@@ -18,12 +18,8 @@
 
 package es.usc.citius.servando.calendula.util.security.verifier
 
-import android.annotation.SuppressLint
 import android.content.Context
-import es.usc.citius.servando.calendula.database.DB
 import es.usc.citius.servando.calendula.util.LogUtil
-import es.usc.citius.servando.calendula.util.PreferenceUtils
-import es.usc.citius.servando.calendula.util.security.SecuredVault
 import es.usc.citius.servando.calendula.util.security.verifier.VerificationResult.Level
 import es.usc.citius.servando.calendula.util.security.verifier.verifications.*
 
@@ -49,29 +45,25 @@ object AppVerifier {
             result
         }
 
+        return evaluateResults(results)
+    }
+
+    /**
+     * Pure aggregation: detecting a suspicious environment must never erase
+     * patient records or authentication material before the user decides.
+     * StartActivity already blocks launch and shows a confirmation dialog.
+     */
+    internal fun evaluateResults(results: Collection<VerificationResult>): VerificationResult {
         val breaches = results.filter { it.level == Level.SECURITY_BREACH }
         val warnings = results.filter { it.level == Level.SECURITY_WARNING }
 
         return when {
-            breaches.isNotEmpty() -> {
-                onSecurityBreach()
+            breaches.isNotEmpty() ->
                 VerificationResult(Level.SECURITY_BREACH, composeMessage(breaches))
-            }
-            warnings.isNotEmpty() -> {
+            warnings.isNotEmpty() ->
                 VerificationResult(Level.SECURITY_WARNING, composeMessage(warnings))
-            }
             else -> VerificationResult(Level.SECURITY_OK)
         }
-    }
-
-    @SuppressLint("ApplySharedPref")
-    private fun onSecurityBreach() {
-        // Drop all data from db
-        DB.helper().dropAndCreateAllTables()
-        // Clear secure vault
-        SecuredVault.edit().clear().commit()
-        // Clear preferences
-        PreferenceUtils.edit().clear().commit()
     }
 
     private fun composeMessage(v: Collection<VerificationResult>): String {
