@@ -76,11 +76,15 @@ public class DB {
      * Initialize database and DAOs
      */
     public synchronized static void init(Context context) {
+        init(context, new DatabaseManager<>());
+    }
 
+    /** Package-private seam for deterministic failure/retry regression tests. */
+    static synchronized void init(Context context, DatabaseManager<DatabaseHelper> provider) {
         if (!initialized) {
             Context applicationContext = context.getApplicationContext();
             Context safeContext = applicationContext != null ? applicationContext : context;
-            manager = new DatabaseManager<>();
+            manager = provider;
             try {
                 db = manager.getHelper(safeContext, DatabaseHelper.class);
 
@@ -89,17 +93,16 @@ public class DB {
                 db.getReadableDatabase().enableWriteAheadLogging();
 
                 Medicines = new MedicineDao(db);
-            Routines = new RoutineDao(db);
-
-            Pickups = new PickupInfoDao(db);
-            Patients = new PatientDao(db);
-            DrugDB = DrugDBModule.getInstance();
-            PatientAlerts = new PatientAlertDao(db);
-            PatientAllergens = new PatientAllergenDao(db);
-            AllergyGroups = new AllergyGroupDao(db);
-            Schedules = new ScheduleDao(db);
-            EventInstances = new EventInstanceDao(db);
-            EventReminders = new EventReminderDao(db);
+                Routines = new RoutineDao(db);
+                Pickups = new PickupInfoDao(db);
+                Patients = new PatientDao(db);
+                DrugDB = DrugDBModule.getInstance();
+                PatientAlerts = new PatientAlertDao(db);
+                PatientAllergens = new PatientAllergenDao(db);
+                AllergyGroups = new AllergyGroupDao(db);
+                Schedules = new ScheduleDao(db);
+                EventInstances = new EventInstanceDao(db);
+                EventReminders = new EventReminderDao(db);
                 healthcareProviderDB = HealthcareProviderDBModule.getInstance();
                 // The flag must be last: failed database opens remain retryable.
                 initialized = true;
