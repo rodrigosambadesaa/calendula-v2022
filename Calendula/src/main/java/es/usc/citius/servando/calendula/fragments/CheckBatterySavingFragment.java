@@ -2,7 +2,6 @@ package es.usc.citius.servando.calendula.fragments;
 
 import android.content.Context;
 import android.content.Intent;
-import android.net.Uri;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.provider.Settings;
@@ -49,16 +48,8 @@ public class CheckBatterySavingFragment extends SlideFragment {
 
         system_battery_saving_switch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked != isIgnoringBatteryOptimizations()) {
-                if (isChecked) {
-                    Intent intent = new Intent();
-                    intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                    intent.setData(Uri.parse("package:" + getContext().getPackageName()));
-                    startActivity(intent);
-                } else {
-                    Intent intent = new Intent();
-                    intent.setAction(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
-                    startActivity(intent);
-                }
+                Intent intent = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                startActivity(intent);
             }
         });
 
