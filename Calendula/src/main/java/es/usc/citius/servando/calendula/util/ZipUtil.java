@@ -41,7 +41,11 @@ public class ZipUtil {
         unzip(archive, path, MAX_UNCOMPRESSED_BYTES, MAX_ENTRIES);
     }
 
-    /** Package-visible to exercise small limits without allocating huge test archives. */
+    /**
+     * Stage an entire archive before installing its entries. Previous implementations
+     * replaced existing files as they streamed ZIP entries, so a corrupt or hostile
+     * *later* entry could leave a partially installed prescription database.
+     */
     static void unzip(File archive, File path, long maxBytes, int maxEntries)
             throws IOException {
         if (maxBytes < 0 || maxEntries < 0) {
@@ -50,49 +54,61 @@ public class ZipUtil {
         if (!path.exists() && !path.mkdirs()) {
             throw new IOException("Could not create ZIP destination directory");
         }
-
         final String rootPath = path.getCanonicalPath();
         final String rootPrefix = rootPath.endsWith(File.separator)
-                ? rootPath
-                : rootPath + File.separator;
+                ? rootPath : rootPath + File.separator;
+
+        // Keep temporary files on the same volume as their final destination.
+        File stage = File.createTempFile(".calendula-zip-stage-", ".tmp", path);
+        if (!stage.delete() || !stage.mkdir()) {
+            throw new IOException("Unable to create ZIP staging directory");
+        }
+
+        final String stagePath = stage.getCanonicalPath();
+        final String stagePrefix = stagePath + File.separator;
+        final java.util.Set<String> uniqueTargets = new java.util.HashSet<>();
+        final java.util.List<File> files = new java.util.ArrayList<>();
+        final java.util.List<File> destinations = new java.util.ArrayList<>();
+        final java.util.List<File> directories = new java.util.ArrayList<>();
         long extractedBytes = 0L;
         int entries = 0;
 
-        try (ZipInputStream zip = new ZipInputStream(
-                new BufferedInputStream(new FileInputStream(archive)))) {
-            ZipEntry zipEntry;
-            byte[] buffer = new byte[8192];
+        try {
+            try (ZipInputStream zip = new ZipInputStream(
+                    new BufferedInputStream(new FileInputStream(archive)))) {
+                ZipEntry entry;
+                byte[] buffer = new byte[8192];
 
-            while ((zipEntry = zip.getNextEntry()) != null) {
-                if (++entries > maxEntries) {
-                    throw new IOException("Too many ZIP archive entries");
-                }
-
-                final File outputFile = new File(path, zipEntry.getName());
-                final String outputPath = outputFile.getCanonicalPath();
-                // An entry must be under the destination, not a sibling sharing its prefix.
-                if (!outputPath.equals(rootPath) && !outputPath.startsWith(rootPrefix)) {
-                    throw new IOException("ZIP entry escapes destination directory");
-                }
-
-                if (zipEntry.isDirectory()) {
-                    if (!outputFile.exists() && !outputFile.mkdirs()) {
-                        throw new IOException("Could not create ZIP directory");
-                    }
-                } else {
-                    File parent = outputFile.getParentFile();
-                    if (parent == null) {
-                        throw new IOException("ZIP entry has no parent");
-                    }
-                    if (!parent.exists() && !parent.mkdirs()) {
-                        throw new IOException("Could not create ZIP parent directory");
+                while ((entry = zip.getNextEntry()) != null) {
+                    if (++entries > maxEntries) {
+                        throw new IOException("Too many ZIP archive entries");
                     }
 
-                    // Complete an entry in a temporary file, preserving any existing
-                    // destination if the archive fails its integrity or size checks.
-                    File temporary = File.createTempFile(".calendula-unzip-", ".tmp", parent);
-                    try {
-                        try (FileOutputStream output = new FileOutputStream(temporary)) {
+                    File destination = new File(path, entry.getName()).getCanonicalFile();
+                    String destinationPath = destination.getPath();
+                    // Reject root itself, traversal, absolute paths, and sibling-prefix tricks.
+                    if (!destinationPath.startsWith(rootPrefix)) {
+                        throw new IOException("ZIP entry escapes destination directory");
+                    }
+                    if (!uniqueTargets.add(destinationPath)) {
+                        throw new IOException("Duplicate ZIP entry destination");
+                    }
+
+                    File staged = new File(stage, entry.getName()).getCanonicalFile();
+                    if (!staged.getPath().startsWith(stagePrefix)) {
+                        throw new IOException("ZIP entry escapes staging directory");
+                    }
+                    if (entry.isDirectory()) {
+                        if (!staged.isDirectory() && !staged.mkdirs()) {
+                            throw new IOException("Could not create staged ZIP directory");
+                        }
+                        directories.add(destination);
+                    } else {
+                        File parent = staged.getParentFile();
+                        if (parent == null || (!parent.isDirectory() && !parent.mkdirs())) {
+                            throw new IOException("Could not create staged ZIP parent directory");
+                        }
+                        try (FileOutputStream output = new FileOutputStream(staged)) {
                             int read;
                             while ((read = zip.read(buffer)) != -1) {
                                 if (read > maxBytes - extractedBytes) {
@@ -102,19 +118,66 @@ public class ZipUtil {
                                 extractedBytes += read;
                             }
                         }
-                        if (!temporary.renameTo(outputFile)) {
-                            throw new IOException("Unable to commit extracted ZIP entry");
-                        }
-                    } finally {
-                        if (temporary.exists() && !temporary.delete()) {
-                            // The original exception (if any) is more informative.
-                            // Cleanup of a partially written extraction is best effort.
-                        }
+                        files.add(staged);
+                        destinations.add(destination);
                     }
+                    zip.closeEntry();
                 }
-
-                zip.closeEntry();
             }
+
+            // Validate all requested filesystem types before moving any staged file.
+            for (File directory : directories) {
+                if (directory.exists() && !directory.isDirectory()) {
+                    throw new IOException("ZIP directory conflicts with an existing file");
+                }
+            }
+            for (File destination : destinations) {
+                if (destination.exists() && !destination.isFile()) {
+                    throw new IOException("ZIP file conflicts with an existing directory");
+                }
+                File parent = destination.getParentFile();
+                while (parent != null && !parent.getPath().equals(rootPath)) {
+                    if (parent.exists() && !parent.isDirectory()) {
+                        throw new IOException("ZIP entry parent conflicts with an existing file");
+                    }
+                    parent = parent.getParentFile();
+                }
+            }
+
+            // No destination file is touched until ZIP CRC, entry-count and byte limits
+            // have all succeeded. Each same-volume rename is atomic for that file.
+            for (File directory : directories) {
+                if (!directory.isDirectory() && !directory.mkdirs()) {
+                    throw new IOException("Could not create ZIP destination directory");
+                }
+            }
+            for (int i = 0; i < files.size(); i++) {
+                File destination = destinations.get(i);
+                File parent = destination.getParentFile();
+                if (parent == null || (!parent.isDirectory() && !parent.mkdirs())) {
+                    throw new IOException("Could not create ZIP destination parent");
+                }
+                if (!files.get(i).renameTo(destination)) {
+                    throw new IOException("Unable to commit staged ZIP entry");
+                }
+            }
+        } finally {
+            deleteStagingTree(stage);
+        }
+    }
+
+    private static void deleteStagingTree(File file) {
+        if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    deleteStagingTree(child);
+                }
+            }
+        }
+        // Cleanup is best effort: preserve the original ZIP/commit failure.
+        if (file.exists() && !file.delete()) {
+            // The caller may clean up abandoned staging files later.
         }
     }
 

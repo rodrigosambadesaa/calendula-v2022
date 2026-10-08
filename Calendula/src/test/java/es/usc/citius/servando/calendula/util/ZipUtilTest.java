@@ -152,8 +152,83 @@ public class ZipUtilTest {
             // expected
         }
 
-        assertTrue(new File(destination, "one.txt").isFile());
+        // No entry may be installed until the entire archive passes validation.
+        assertFalse(new File(destination, "one.txt").exists());
         assertFalse(new File(destination, "two.txt").exists());
+    }
+
+
+    @Test
+    public void laterTraversalDoesNotOverwriteAnExistingDatabaseFile() throws Exception {
+        File archive = temp.newFile("traversal-later.zip");
+        File destination = temp.newFolder("existing-db");
+        File existing = new File(destination, "AEMPS.sql");
+        try (FileOutputStream out = new FileOutputStream(existing)) {
+            out.write("original data".getBytes(StandardCharsets.UTF_8));
+        }
+
+        try (ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(archive))) {
+            zip.putNextEntry(new ZipEntry("AEMPS.sql"));
+            zip.write("unverified replacement".getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+            zip.putNextEntry(new ZipEntry("../outside.sql"));
+            zip.write("invalid path".getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        }
+
+        try {
+            ZipUtil.unzip(archive, destination);
+            fail("Expected traversal rejection");
+        } catch (IOException expected) {
+            // Extraction staging must keep the old file intact.
+        }
+        assertEquals("original data", readUtf8(existing));
+        assertFalse(new File(destination.getParentFile(), "outside.sql").exists());
+    }
+
+    @Test
+    public void canonicalPathAliasesAreRejectedWithoutInstallingAnyFile() throws Exception {
+        File archive = temp.newFile("aliases.zip");
+        File destination = temp.newFolder("aliases-root");
+        try (ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(archive))) {
+            zip.putNextEntry(new ZipEntry("nested/"));
+            zip.closeEntry();
+            zip.putNextEntry(new ZipEntry("nested/../AEMPS.sql"));
+            zip.write("first".getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+            zip.putNextEntry(new ZipEntry("AEMPS.sql"));
+            zip.write("second".getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        }
+
+        try {
+            ZipUtil.unzip(archive, destination);
+            fail("Expected canonical duplicate ZIP entries to be rejected");
+        } catch (IOException expected) {
+            // A malicious second entry must not replace the first.
+        }
+        assertFalse(new File(destination, "AEMPS.sql").exists());
+    }
+
+    @Test
+    public void fullyValidatedArchiveReplacesFileAndCleansUpStaging() throws Exception {
+        File archive = temp.newFile("valid-replacement.zip");
+        File destination = temp.newFolder("valid-root");
+        File existing = new File(destination, "AEMPS.sql");
+        try (FileOutputStream out = new FileOutputStream(existing)) {
+            out.write("old".getBytes(StandardCharsets.UTF_8));
+        }
+        try (ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(archive))) {
+            zip.putNextEntry(new ZipEntry("AEMPS.sql"));
+            zip.write("new".getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        }
+
+        ZipUtil.unzip(archive, destination);
+
+        assertEquals("new", readUtf8(existing));
+        File[] left = destination.listFiles();
+        assertEquals(1, left == null ? 0 : left.length);
     }
 
     @Test(expected = IllegalArgumentException.class)
