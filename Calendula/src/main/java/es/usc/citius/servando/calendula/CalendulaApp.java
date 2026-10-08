@@ -18,6 +18,7 @@
 
 package es.usc.citius.servando.calendula;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.os.Build;
@@ -83,6 +84,8 @@ public class CalendulaApp extends MultiDexApplication {
     public static boolean disableReceivers = false;
 
     private static WeakReference<EventBus> eventBusRef;
+    // Assigned only from getApplicationContext() in onCreate(); process-lifetime storage is intentional.
+    @SuppressLint("StaticFieldLeak")
     private static Context mContext;
 
     public static EventBus eventBus() {

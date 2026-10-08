@@ -18,6 +18,7 @@
 
 package es.usc.citius.servando.calendula.database;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 
 import com.j256.ormlite.misc.TransactionManager;
@@ -41,7 +42,8 @@ public class DB {
 
     // DatabaseManeger reference
     private static DatabaseManager<DatabaseHelper> manager;
-    // SQLite DB Helper
+    // SQLite DB Helper. init() canonicalizes callers to the application context.
+    @SuppressLint("StaticFieldLeak")
     private static DatabaseHelper db;
 
     // Medicines DAO
@@ -77,8 +79,10 @@ public class DB {
 
         if (!initialized) {
             initialized = true;
+            Context applicationContext = context.getApplicationContext();
+            Context safeContext = applicationContext != null ? applicationContext : context;
             manager = new DatabaseManager<>();
-            db = manager.getHelper(context, DatabaseHelper.class);
+            db = manager.getHelper(safeContext, DatabaseHelper.class);
 
             db.getReadableDatabase().enableWriteAheadLogging();
 
