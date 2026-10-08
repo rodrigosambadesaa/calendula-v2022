@@ -24,8 +24,9 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
-import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import android.text.Editable;
@@ -62,6 +63,8 @@ import java.math.BigInteger;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -96,6 +99,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
     private static final int DIALOG_STOCK_REMOVE = 2;
 
     private static final String TAG = "MedicineCreateOrEditFr";
+    private static final ExecutorService STOCK_ESTIMATE_EXECUTOR = Executors.newSingleThreadExecutor();
     OnMedicineEditListener mMedicineEditCallback;
     Medicine mMedicine;
     Prescription mPrescription;
@@ -335,7 +339,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
             if (p != null) {
                 mPrescription = p;
 //                mDescriptionTv.setText(p.getName());
-                new ComputeEstimatedStockEndTask().execute();
+                computeEstimatedStockEndAsync();
             }
         }
     }
@@ -463,7 +467,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
             else
                 stock -= amount;
         }
-        new ComputeEstimatedStockEndTask().execute();
+        computeEstimatedStockEndAsync();
     }
 
     void updateStockText() {
@@ -602,7 +606,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
     private void setDefaultStock() {
         if (mPrescription != null && mPrescription.getPackagingUnits() > 0) {
             stock = mPrescription.getPackagingUnits();
-            new ComputeEstimatedStockEndTask().execute();
+            computeEstimatedStockEndAsync();
         }
     }
 
@@ -689,38 +693,35 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
         void onMedicineDeleted(Medicine r);
     }
 
-    public class ComputeEstimatedStockEndTask extends AsyncTask<Void, Void, Boolean> {
+    private void computeEstimatedStockEndAsync() {
+        estimatedStockText = null;
+        updateStockText();
 
-        String text;
-
-        @Override
-        protected Boolean doInBackground(Void... params) {
-            if (stock >= 0 && mMedicine != null) {
-                LogUtil.d(TAG, "updateStockText: medicina ok");
-                final StockCalculator.StockEnd stockEnd = StockCalculator.calculateStockEnd(LocalDate.now(), new MedicineScheduleStockProvider(mMedicine), stock);
-                text = StockDisplayUtils.getReadableStockDuration(stockEnd, getContext());
-                return true;
-            }
-            return false;
+        final Context context = getContext();
+        final Medicine medicine = mMedicine;
+        final float currentStock = stock;
+        if (context == null || currentStock < 0 || medicine == null) {
+            return;
         }
 
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-            estimatedStockText = null;
-            updateStockText();
+        final Context applicationContext = context.getApplicationContext();
+        final Handler mainHandler = new Handler(Looper.getMainLooper());
+        STOCK_ESTIMATE_EXECUTOR.execute(() -> {
+            LogUtil.d(TAG, "updateStockText: medicina ok");
+            final StockCalculator.StockEnd stockEnd = StockCalculator.calculateStockEnd(
+                    LocalDate.now(),
+                    new MedicineScheduleStockProvider(medicine),
+                    currentStock);
+            final String text = StockDisplayUtils.getReadableStockDuration(stockEnd, applicationContext);
 
-
-        }
-
-        @Override
-        protected void onPostExecute(Boolean res) {
-            super.onPostExecute(res);
-            if (res) {
+            mainHandler.post(() -> {
+                if (!isAdded() || getView() == null) {
+                    return;
+                }
                 estimatedStockText = text;
                 updateStockText();
-            }
-        }
+            });
+        });
     }
 
 
