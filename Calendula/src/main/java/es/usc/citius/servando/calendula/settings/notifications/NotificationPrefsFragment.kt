@@ -88,16 +88,7 @@ class NotificationPrefsFragment :
         batterySavingPref?.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, value ->
                 val isChecked: Boolean = value as Boolean
                 if (isChecked != isIgnoringBatteryOptimizations()) {
-                    if (isChecked) {
-                        val intent = Intent()
-                        intent.action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
-                        intent.data = "package:${requireContext().packageName}".toUri()
-                        startActivity(intent)
-                    } else {
-                        val intent = Intent()
-                        intent.action = Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
-                        startActivity(intent)
-                    }
+                    startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
                 }
                 false
         }
