@@ -561,8 +561,8 @@ Queres instalar a nova base de datos agora?"</string>
 </plurals>
 <string name="stock_enough_for_weeks_days">"Suficiente para %1$s e %2$s coas pautas actuais"</string>
 <plurals name="stock_running_out_dialog_message">
-    <item quantity="one">Quedan %1$d %2$s de %3$s, e esgotaranse en %4$d día coas pautas actuais.</item>
-    <item quantity="other">Quedan %1$d %2$s de %3$s, e esgotaranse en %4$d días coas pautas actuais.</item>
+    <item quantity="one">Quedan %1$d %2$s de %3$s, e agotaranse en %4$d día coas pautas actuais.</item>
+    <item quantity="other">Quedan %1$d %2$s de %3$s, e agotaranse en %4$d días coas pautas actuais.</item>
 </plurals>
 <string name="stock_running_out_dialog_title">"Queda pouco stock de %1$s"</string>
 <string name="manage_stock">"Administrar stock"</string>
