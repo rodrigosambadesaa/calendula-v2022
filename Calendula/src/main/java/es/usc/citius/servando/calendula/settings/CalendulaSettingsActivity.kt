@@ -36,19 +36,18 @@ class CalendulaSettingsActivity : CalendulaActivity(),
 
 
     override fun onPreferenceStartFragment(
-        caller: PreferenceFragmentCompat?,
-        pref: Preference?
+        caller: PreferenceFragmentCompat,
+        pref: Preference
     ): Boolean {
         try {
-            pref?.let {
-                LogUtil.d(TAG, "onPreferenceStartFragment: pref fragment class is ${pref.fragment}")
-                val transaction = supportFragmentManager.beginTransaction()
-                val fragment = Class.forName(pref.fragment).getDeclaredConstructor().newInstance() as Fragment
-                transaction.setTransition(TRANSIT_FRAGMENT_FADE)
-                transaction.replace(R.id.content_layout, fragment)
-                transaction.addToBackStack(null)
-                transaction.commit()
-            }
+            val fragmentClassName = pref.fragment ?: return false
+            LogUtil.d(TAG, "onPreferenceStartFragment: pref fragment class is $fragmentClassName")
+            val transaction = supportFragmentManager.beginTransaction()
+            val fragment = Class.forName(fragmentClassName).getDeclaredConstructor().newInstance() as Fragment
+            transaction.setTransition(TRANSIT_FRAGMENT_FADE)
+            transaction.replace(R.id.content_layout, fragment)
+            transaction.addToBackStack(null)
+            transaction.commit()
         } catch (e: Exception) {
             LogUtil.e(TAG, "onPreferenceStartFragment: ", e)
             Toast.makeText(this, R.string.message_generic_error, Toast.LENGTH_SHORT).show()
