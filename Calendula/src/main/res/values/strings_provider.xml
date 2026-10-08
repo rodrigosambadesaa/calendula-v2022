@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-<string name="login_successful">"Login successful!"</string>
     <string name="login_failed">"Login failed"</string>
 <string name="login_logging_in">"Logging in…"</string>
 <string name="login_welcome_message">"Welcome to Calendula!"</string>
@@ -10,18 +9,13 @@
 <string name="logout_successful">"Logout successful!"</string>
 <string name="logout_failed">"Logout failed"</string>
 <string name="logout_logging_out">"Logging out…"</string>
-<string name="dialog_continue_without_login_description">"If you continue without logging in, you will miss some interesting features!
-Remember: you can always log in by choosing the \"Login\" option in the left drawer menu!"</string>
 <string name="login_continue_without_login">"Continue without logging in"</string>
-<string name="dialog_continue_without_login_title">"Continue without logging in?"</string>
 <string name="drawer_login_option">"Login"</string>
 <string name="dialog_logout_title">"Logout"</string>
 <string name="dialog_logout_description">"Are you sure you want to log out? Reminders will cease to work, but all your data will still be here if you login again."</string>
 <string name="title_activity_active_medication_list">"AML"</string>
 <string name="active_med_from">"From:"</string>
 <string name="active_med_to">"To:"</string>
-<string name="medicine_substituted_for">"Substituted for %1$s"</string>
-<string name="message_med_provided_by_healthcare_provider">"This medicine was added from your active medication list. Information provided by your healthcare provider."</string>
 <string name="welcome">"Welcome!"</string>
 <string name="date_none">"None"</string>
 <string name="title_info_provided_by_entity">"Information provided by your healthcare provider"</string>
@@ -36,30 +30,16 @@ Remember: you can always log in by choosing the \"Login\" option in the left dra
 Add your reminders here and let us just notify you!"</string>
 <string name="remove_reminder_dialog_title">"Remove reminder"</string>
 <string name="remove_reminder_message">"Remove the reminder for %1$s?"</string>
-<string name="reminder_type_hourly_help">"Hourly reminders are intended for those intakes that repeat by a certain period, such as: \"Every 8 hours\". Set the time of the first intake and go on."</string>
-<string name="reminder_type_help_title">"You are about to create a reminder, choose the type that best suits your needs!"</string>
-<string name="reminder_type_routines_help">"This kind of reminder lets you bind intakes to your routines, such as: \"Every day at breakfast and dinner, excluding sundays\", or \"Every 3 days, with lunch.\""</string>
-<string name="reminder_type_intervalrest_help">"Birth control pills and other meds are taken for a while, and then there\'s a rest. This kind of reminder allows you to specify both periods and simplify those intakes."</string>
-<string name="title_create_reminder_activity">"Create reminder"</string>
 <string name="reminder">"Reminder"</string>
-<string name="title_edit_reminder_activity">"Edit reminder"</string>
-<string name="reminder_help_timesbyday">"Please state the number of times per day that the reminder will repeat"</string>
-<string name="reminder_help_repeat">"State the reminder repetition. If it repeats every day, you do not have to do anything."</string>
-<string name="reminder_help_duration">"Finally, you can specify the reminder start and end dates. Leave it as it is to repeat indefinitely."</string>
-<string name="reminder_type_routines_title">"Routine reminder"</string>
 <string name="intro_schedules_reminders_text">"Create your medication agenda by using the reminder editor. You can link your intakes to your routines, define hourly or daily repetitions and much more!"</string>
 <string name="intro_alarms_title">"Alarms"</string>
 <string name="healthcare_provider">"HEALTHCARE PROVIDER"</string>
 <string name="active_med_list_header_title">"Active Medication List"</string>
-<string name="active_med_list_header_text">"Information provided by your healthcare provider."</string>
 <string name="active_med_list_header_text_short">"Information provided by your healthcare provider."</string>
 <string name="login_no_internet">"An Internet connection is needed for login. Please connect to a network and try again."</string>
-    <string name="login_failed_invalid_SSL_version">"System does not support required secure communication protocol."</string>
-    <string name="login_failed_invalid_SSL_version_title">"Invalid security protocol."</string>
 <string name="login_failed_auth_level">"Login failed because security level is insufficient. Remember to login using high security level."</string>
 <string name="login_failed_auth_level_title">"Security level is insufficient"</string>
     <string name="update_hma">"Update"</string>
-<string name="remote_updating">"Updating active med info…"</string>
 <string name="remote_update_no_internet">"We couldn't update your medicines because there's no Internet connection."</string>
 <string name="remote_update_auth_error">"Authorization error. Login is required."</string>
 <string name="remote_update_generic_error">"Couldn't update medication info."</string>
@@ -70,7 +50,6 @@ Add your reminders here and let us just notify you!"</string>
 <string name="language_switch_message">"The language will be changed to %1$s."</string>
 <string name="notification_title_login_required">"Login required"</string>
 <string name="notification_text_login_required">"Please login again to continue using Calendula"</string>
-<string name="label_update_now">"Update now"</string>
 <string name="remote_update_successful">"Medicine list updated successfully."</string>
 <string name="wait_until_reload">"Oops! Last update was just a while ago. You can try again %1$s."</string>
 <string name="dosage_string_period">"%1$s %2$s every %3$s %4$s"</string>
@@ -193,13 +172,9 @@ Add your reminders here and let us just notify you!"</string>
 <string name="save_schedule_ignore_conflicts_msg">"¿Save it anyway?"</string>
 <string name="confirm_activity_reminder_differs_from_official">"* The reminder differs from the official schedule provided by your healthcare provider"</string>
 <string name="alarm_delayed_notification_message">"Alarm delayed"</string>
-<string name="pref_title_locale">"Language"</string>
-<string name="pref_locale_default">"Default"</string>
 <string name="pref_locale_en">"English"</string>
 <string name="pref_locale_es">"Spanish"</string>
 <string name="pref_locale_gl">"Galician"</string>
-<string name="enable_reminders">"Enable reminders"</string>
-<string name="edit_reminders">"Edit reminder"</string>
 <string name="mandatory_routine_msg">"This routine can not be deleted"</string>
 <string name="routine_time_already_exists">"A routine at %1$s already exists"</string>
 <string name="routine_name_already_exists">"A routine named '%1$s' already exists"</string>
@@ -222,7 +197,6 @@ Next pickup: %2$s"</string>
 <string name="sched_intakes_moved_msg">"Some intake times do not match the official schedule"</string>
 <string name="sched_repeat_period_msg">"The repetition interval is %1$s instead of %2$s"</string>
 <string name="sched_dosage_at_changed">"Dosage of %1$s intake should be %2$s"</string>
-<string name="sched_dosage_for_changed">"Dosage of %1$s intake should be %2$s"</string>
 <string name="message_cannot_delete_med_aml">"This medicine cannot be deleted"</string>
 <string name="aml_schedule_info_missing">"No schedule info"</string>
     <string name="aml_schedule_extra_info">"See extra info"</string>
