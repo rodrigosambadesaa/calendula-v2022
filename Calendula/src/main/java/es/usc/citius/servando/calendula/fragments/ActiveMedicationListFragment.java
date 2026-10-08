@@ -18,8 +18,10 @@
 
 package es.usc.citius.servando.calendula.fragments;
 
+import android.content.Context;
 import android.content.Intent;
-import android.os.AsyncTask;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.Bundle;
 import android.os.Handler;
 import androidx.annotation.NonNull;
@@ -53,6 +55,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -82,6 +86,7 @@ import es.usc.citius.servando.calendula.util.PreferenceUtils;
 public class ActiveMedicationListFragment extends Fragment {
 
     private static final String TAG = "MedicinesListFragment";
+    private static final ExecutorService RELOAD_EXECUTOR = Executors.newSingleThreadExecutor();
     private static final Duration minUpdateWaitPeriod = Duration.standardMinutes(1);
     private final Runnable ticker = new Runnable() {
         @Override
@@ -158,7 +163,7 @@ public class ActiveMedicationListFragment extends Fragment {
 
     public void notifyDataChange() {
         LogUtil.d(TAG, "Active med list - Notify data change");
-        new ReloadItemsTask().execute();
+        reloadItemsAsync();
     }
 
     @Override
@@ -344,7 +349,7 @@ public class ActiveMedicationListFragment extends Fragment {
 
 
         recyclerView.setAdapter(adapter);
-        new ReloadItemsTask().execute();
+        reloadItemsAsync();
     }
 
 
@@ -358,27 +363,35 @@ public class ActiveMedicationListFragment extends Fragment {
         }
     }
 
-    private class ReloadItemsTask extends AsyncTask<Void, Void, List<ActiveMedicationListItem>> {
+    private void reloadItemsAsync() {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
 
-        @Override
-        protected List<ActiveMedicationListItem> doInBackground(Void... params) {
+        final Context applicationContext = context.getApplicationContext();
+        final Handler mainHandler = new Handler(Looper.getMainLooper());
+        RELOAD_EXECUTOR.execute(() -> {
             LogUtil.d(TAG, "Reloading items...");
-            final List<ActiveMedEntity> entities = DB.healthcareProviderDB().activeMeds().findBy(ActiveMedEntity.COLUMN_PATIENT, DB.patients().getActive(getContext()));
+            final List<ActiveMedEntity> entities = DB.healthcareProviderDB().activeMeds().findBy(
+                    ActiveMedEntity.COLUMN_PATIENT,
+                    DB.patients().getActive(applicationContext));
             final List<ActiveMedicationListItem> items = new ArrayList<>(entities.size());
             for (ActiveMedEntity entity : entities) {
                 ActiveMedVO vo = ActiveMedVO.forEntity(entity);
                 items.add(new ActiveMedicationListItem(vo));
             }
             Collections.sort(items, amComparator);
-            return items;
-        }
 
-        @Override
-        protected void onPostExecute(List<ActiveMedicationListItem> items) {
-            LogUtil.d(TAG, "Reloaded items, count: " + items.size());
-            adapter.setNewList(items);
-            checkPlaceholder();
-        }
+            mainHandler.post(() -> {
+                if (!isAdded() || getView() == null) {
+                    return;
+                }
+                LogUtil.d(TAG, "Reloaded items, count: " + items.size());
+                adapter.setNewList(items);
+                checkPlaceholder();
+            });
+        });
     }
 
 
