@@ -19,12 +19,8 @@
 
 <resources>
 <string name="title_home">"Inicio"</string>
-<string name="action_settings">"Opcións"</string>
 <string name="action_remove">"Eliminar"</string>
-<string name="home_menu_routines">"RUTINAS"</string>
 <string name="home_menu_medicines">"MENCIÑAS"</string>
-<string name="home_menu_pharmacies">"FARMACIAS"</string>
-<string name="home_menu_plantrip">"PLAN DE VIAXE"</string>
 <string name="medicine">"menciña"</string>
 <string name="drawer_help_option">"Recorrido"</string>
 <string name="drawer_settings_option">"Axustes"</string>
@@ -153,7 +149,6 @@
 <string name="notification_cancel_now">"Cancelar agora"</string>
 <string name="notification_delay">"Pospor"</string>
 <string name="alarm_delayed_message">"Alarma posposta %1$s minutos"</string>
-<string name="moods_dialog_title">"Como te sientes?"</string>
 <string name="mood_very_bad">"Síntome moi mal"</string>
 <string name="mood_bad">"Síntome mal"</string>
 <string name="mood_neutral">"Non sinto nada"</string>
@@ -169,7 +164,6 @@
 <string name="driving_warning">"O uso deste medicamento podería ter efectos sobre a túa capacidade pra conducir.
 Por favor, le con con calma as instruccións de uso ou consulta ó teu farmacéutico antes de poñerte ó volante."</string>
 <string name="driving_warning_title">"Ten prudencia"</string>
-<string name="driving_warning_show_prospect">"Ver prospecto"</string>
 <string name="driving_warning_gotit">"Entendido"</string>
 <string name="repeat_every_tostr">"Cada %1$s %2$s"</string>
 <string name="schedule_limits_date_format">"'O' dd 'de' MMMM 'de' YYYY"</string>
@@ -198,9 +192,6 @@ Para este desenvolvemento faise uso dalgunhas librerías e utilidades de código
 "]]></string>
     <string name="about_privacy"><![CDATA[
 <a href=\'%1$s\'>Ver política de privacidade</a>
-"]]></string>
-    <string name="about_version"><![CDATA[
-Versión %1$s
 "]]></string>
 
     <string name="about_main_description"><![CDATA[
@@ -247,7 +238,6 @@ Calendula está sendo desenvolvida polo Centro de Investigación en Tecnoloxías
 <string name="title_medicine_allergy_alert">"Alerxias detectadas para este medicamento"</string>
 <string name="message_medicine_alert">"Este medicamento contén elementos aos que eres alérxico. Pola túa seguridade, non se poderán programar pautas para este medicamento."</string>
 <string name="medicine_save_error_message">"Produciuse un erro ao gardar o medicamento."</string>
-<string name="message_schedule_medicine_allergy">"Este medicamento non pode ser pautado porque eres alérxico a algún dos seus contidos."</string>
 <string name="title_allergies_detected_dialog">"Atención"</string>
 <string name="message_allergies_detected_dialog">"Algunhas das medicinas no teu botiquín conteñen o alérxeno que acabas de engadir. Por favor, revisa os seus prospectos coidadosamente."</string>
 <string name="error_duplicate_medicine">"Este medicamento xa se atopa no botiquín."</string>
@@ -283,9 +273,6 @@ Calendula está sendo desenvolvida polo Centro de Investigación en Tecnoloxías
 <string name="yesterday">"Onte"</string>
 <string name="today">"Hoxe"</string>
 <string name="tomorrow">"Mañá"</string>
-<string name="message_delete_default_patient">"Este é o paciente por defecto, e polo tanto non pode ser eliminado. Desexas eliminar todas as súas pautas, medicamentos e rutinas?"</string>
-<string name="yes_delete_everything">"Si, eliminar todo"</string>
-<string name="default_user_data_deleted">"Datos do usuario borrados!"</string>
 <string name="create_default_routines">"Crear rutinas por defecto"</string>
 <string name="stock_running_out">"Estase a agotar o stock"</string>
 <string name="add_more_stock">"Recargar"</string>
@@ -337,15 +324,10 @@ Por favor, bota un ollo ao que temos para ti!"</string>
 ¿Tomas varios medicamentos co almorzo? Define unha rutina para esa hora e Calendula agrupará todas as túas tomas nun único aviso."</string>
 <string name="intro_meds_title">"Botiquín"</string>
 <string name="intro_meds_text">"Mantén o control de todos os teus fármacos usando o botiquín, e accede de forma sinxela aos seus prospectos de bases de datos oficiais."</string>
-<string name="intro_schedules_title">"Pautas"</string>
-<string name="intro_schedules_text">"Define o teu calendario de tomas usando o noso editor de pautas. Podes vincular as túas tomas coas túas rutinas, definir pautas que se repiten diariamente ou semanalmente, e moito máis!"</string>
 <string name="intro_reminders_title">"Recordatorios"</string>
 <string name="intro_reminders_text">"Calendula lembrarache todas as túas tomas. Acórdate de confirmar, ou seguiremos a avisarte!
 
 Personaliza as túas alarmas no menú de opcións."</string>
-<string name="intro_multipat_title">"Varios pacientes!"</string>
-<string name="intro_multipat_text">"Calendula permíteche xestionar a medicación de varios pacientes, co seu propio botiquín, rutinas y pautas.      
-Verás todas as súas tomas na pantalla de inicio."</string>
     <string name="disable_battery_saving_title">"Notificacións fiables"</string>
     <string name="disable_battery_saving_text">"Certas optimizacións de batería poden interferir co funcionamento normal de Calendula.
 
@@ -359,13 +341,9 @@ Por exemplo, non recibirás os recordatorios das tomas de medicación á hora es
     <string name="battery_saving_dialog_cancel">"Cancelar"</string>
 
     <string name="title_activity_settings">"Opcións"</string>
-<string name="pref_header_general">"Xeral"</string>
-<string name="pref_title_display_name">"Nome"</string>
-<string name="pref_default_display_name">"Calendula"</string>
 <string name="pref_header_notifications">"Notificacións"</string>
 <string name="pref_title_new_alarm_notification">"Avisos de medicación"</string>
     <string name="pref_title_battery_saving">"Excluír das optimizacións de batería do sistema"</string>
-<string name="pref_title_pickup_notification">"Notificacións de recollida de medicamentos"</string>
 <string name="pref_title_insistent_alarms">"Avisos insistentes"</string>
 <string name="pref_title_repeat_alarms">"Repetir avisos"</string>
 <string name="pref_title_sync_frequency">"Repetir avisos cada"</string>
@@ -379,9 +357,7 @@ Por exemplo, non recibirás os recordatorios das tomas de medicación á hora es
 <string name="pref_alarm_reminder_thirty_min">"30 min"</string>
 <string name="pref_alarm_reminder_one_hour">"1 hora"</string>
 <string name="pref_alarm_reminder_two_hours">"2 horas"</string>
-<string name="pref_enable_databases_title">"Habilitar base de datos"</string>
 <string name="pref_available_databases_title">"Base de datos seleccionada"</string>
-<string name="pref_header_stock">"Control de stock"</string>
 <string name="pref_stock_do_not_warn">"Non avisarme"</string>
 <string name="pref_stock_warn_one_week">"En menos de 1 semana"</string>
 <string name="pref_stock_warn_two_weeks">"En menos de 2 semanas"</string>
@@ -408,10 +384,6 @@ Por exemplo, non recibirás os recordatorios das tomas de medicación á hora es
 <string name="title_database_update_data_lost">"Información adicional perdida despois da actualización"</string>
 <string name="preference_check_for_updates">"Buscar actualizacións"</string>
 <string name="database_update_not_available">"Non hai actualización dispoñible para a base de datos"</string>
-<string name="title_database_update_required">"Actualización da base de datos requerida"</string>
-<string name="message_database_update_required">"Esta versión da aplicación require unha base de datos máis nova. Queres descargala e configurala agora?
-Se escolles non facelo, algunha información das túas medicinas pode perderse."</string>
-<string name="download">"Descargar"</string>
 <string name="message_no_internet_error">"Non está dispoñible ningunha conexión a Internet! Por favor, establece unha conexión e inténtao de novo."</string>
 <string name="action_edit">"Editar"</string>
 <string name="injections">"Inxeccións"</string>
@@ -420,13 +392,11 @@ Se escolles non facelo, algunha información das túas medicinas pode perderse."
 <string name="reset">"Reiniciar"</string>
 <string name="edit_medicine">"Editar medicamento"</string>
 <string name="sort_by">"Ordenar por:"</string>
-<string name="sort_by_default">"Por defecto"</string>
 <string name="sort_by_name">"Nome"</string>
 <string name="sort_by_presentation">"Presentación"</string>
 <string name="action_sort">"Ordenar"</string>
 <string name="sort_by_alerts">"Alertas"</string>
 <string name="title_activity_pickup_calendar_short">"Dispensación"</string>
-<string name="calendar_patient_all">"Todos"</string>
 <string name="calendar_updating">"Actualizando calendario…"</string>
 <string name="best_date_recommendation_title">"Recomendación"</string>
 <string name="best_single_day_message">"Acude á túa farmacia %1$s e poderás recoller %2$s medicamentos á vez:"</string>
@@ -435,10 +405,6 @@ Se escolles non facelo, algunha información das túas medicinas pode perderse."
 <string name="best_single_day_message_after_pending_one_med">"Despois, poderías volver %1$s e recoller:"</string>
 <string name="pending_meds_msg">"Hai medicamentos pendentes de recollida. Por favor visita a túa farmacia o máis pronto posible:"</string>
 <string name="best_date_format">"'o' EEEE dd 'de' MMMM"</string>
-<string name="best_date_reminder">"Recordatorio"</string>
-<string name="calendar_pickup_reminder_one_day_before">"1 día antes"</string>
-<string name="calendar_pickup_reminder_two_days_before">"2 días antes"</string>
-<string name="calendar_pickup_reminder_three_days_before">"3 días antes"</string>
 <string name="calendar_no_medicines_to_pick_up">"Non hai medicamentos para recoller"</string>
 <string name="ok">"OK"</string>
 <string name="stock">"Stock"</string>
@@ -477,13 +443,10 @@ Se escolles non facelo, algunha información das túas medicinas pode perderse."
 <string name="pref_summary_pin_lock_set">"PIN configurado"</string>
 <string name="pref_summary_pin_lock_unset">"PIN non configurado"</string>
 <string name="pref_title_pin_lock">"Bloqueo de aplicación"</string>
-<string name="text_pinlock_auth_error">"O PIN introducido non é correcto. Por favor inténtao de novo."</string>
 <string name="text_pinlock_auth_prompt">"Por favor introduce o teu PIN para continuar"</string>
 <string name="text_pinlock_match_error">"Os PINs introducidos non coinciden. Por favor inténtao de novo."</string>
 <string name="text_pinlock_new_prompt">"Por favor introduce un PIN de catro díxitos"</string>
-<string name="text_pinlock_or_fingerprint_auth_prompt">"Por favor introduce o teu PIN ou usa a túa pegada para continuar."</string>
 <string name="text_pinlock_repeat_prompt">"Agora, introduce o mesmo PIN de novo…"</string>
-<string name="use_fingerprint_message">"ou usa a túa pegada para autenticarte"</string>
 <string name="reinstall_prescriptions_dialog_message">"Pra mellorar a información dispoñible da túa medicación, a base de datos de medicamentos debe ser reinstalada a través da pantalla de axustes. Se non a reinstalas, non poderás acceder aos prospectos ou outras funcións adicionais.
 
 Os teus medicamentos, pautas e rutinas, e outras funcións básicas, seguirán dispoñibles igualmente.
@@ -507,17 +470,12 @@ Queres instalar a nova base de datos agora?"</string>
 <string name="manage_stock">"Administrar stock"</string>
 <string name="message_generic_error">"Ups! Houbo un erro."</string>
 <string name="ringtone_none">"Ningún"</string>
-<string name="patient_add">"Engadir paciente"</string>
 <string name="db_download_and_setup">"Descargar e instalar"</string>
 <string name="powder">"Pó"</string>
 <string name="cream">"Crema"</string>
 <plurals name="powder_units">
 <item quantity="one">"gramo"</item>
 <item quantity="other">"gramos"</item>
-</plurals>
-<plurals name="cream_units">
-<item quantity="one">"aplicación"</item>
-<item quantity="other">"aplicacións"</item>
 </plurals>
 <plurals name="generic_units">
 <item quantity="one">"unidade"</item>
@@ -530,18 +488,11 @@ Queres instalar a nova base de datos agora?"</string>
 <string name="pref_lock_1m">"1 minuto"</string>
 <string name="pref_lock_2m">"2 minutos"</string>
 <string name="pref_lock_5m">"5 minutos"</string>
-<string name="second">"segundo"</string>
 <string name="seconds">"segundos"</string>
-<string name="minute">"minuto"</string>
 <string name="minutes">"minutos"</string>
-<string name="hour">"hora"</string>
-<string name="day">"día"</string>
 <string name="days">"días"</string>
-<string name="week">"semana"</string>
 <string name="weeks">"semanas"</string>
-<string name="month">"mes"</string>
 <string name="months">"meses"</string>
-<string name="year">"ano"</string>
 <string name="years">"anos"</string>
 <string name="channel_meds_name">"Medicamentos"</string>
 <string name="channel_meds_description">"Notificacións relacionadas con medicamentos, como recordatorios de tomas."</string>
