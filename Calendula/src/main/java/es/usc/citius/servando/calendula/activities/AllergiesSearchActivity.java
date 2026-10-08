@@ -171,7 +171,6 @@ public class AllergiesSearchActivity extends CalendulaActivity {
     void clearSearch() {
         searchAdapter.clear();
         searchAdapter.deselect();
-        searchAdapter.notifyDataSetChanged();
         selectText.setText(getResources().getQuantityString(R.plurals.allergies_selected_number, 0, 0));
         selectLayout.setVisibility(View.GONE);
         searchEditText.setText("");
