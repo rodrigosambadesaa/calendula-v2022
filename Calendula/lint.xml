@@ -19,4 +19,9 @@
         <ignore path="src/main/java/es/usc/citius/servando/calendula/activities/PdfViewActivity.java" />
         <ignore path="src/main/java/es/usc/citius/servando/calendula/activities/WebViewActivity.java" />
     </issue>
+    <!-- Resource IDs are intentionally kept final by android.nonFinalResIds=false in
+         gradle.properties, so legacy switch statements over R.id values remain valid.
+         Re-enable this check when migrating the project to non-final resource IDs. -->
+    <issue id="NonConstantResourceId" severity="ignore" />
+
 </lint>
