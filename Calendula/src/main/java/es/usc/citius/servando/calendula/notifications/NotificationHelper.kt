@@ -24,6 +24,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import es.usc.citius.servando.calendula.R
 
@@ -40,6 +41,11 @@ object NotificationHelper {
 
     @JvmStatic
     fun canPostNotifications(context: Context): Boolean {
+        // App-wide notification settings can be disabled even on Android 6–12,
+        // where POST_NOTIFICATIONS does not exist as a runtime permission.
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            return false
+        }
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
                 ContextCompat.checkSelfPermission(
                         context,
