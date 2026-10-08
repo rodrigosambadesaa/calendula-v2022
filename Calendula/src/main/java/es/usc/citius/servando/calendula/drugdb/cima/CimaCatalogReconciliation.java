@@ -73,14 +73,16 @@ public final class CimaCatalogReconciliation {
                     || source.getMarketedName() == null) {
                 throw new IllegalArgumentException("Invalid official presentation candidate");
             }
+            // Android 6 compatibility: avoid the Map.putIfAbsent default method.
             CimaPrescriptionCandidates.Candidate previous =
-                    verified.putIfAbsent(source.getNationalCode(), source);
-            if (previous != null
-                    && (!previous.getRegistrationNumber().equals(
+                    verified.get(source.getNationalCode());
+            if (previous == null) {
+                verified.put(source.getNationalCode(), source);
+            } else if (!previous.getRegistrationNumber().equals(
                             source.getRegistrationNumber())
-                        || !previous.getMarketedName().equals(source.getMarketedName())
-                        || !Objects.equals(previous.getSourceDoseText(),
-                                source.getSourceDoseText()))) {
+                    || !previous.getMarketedName().equals(source.getMarketedName())
+                    || !Objects.equals(previous.getSourceDoseText(),
+                            source.getSourceDoseText())) {
                 throw new IllegalArgumentException(
                         "Conflicting official medicine data for a national code");
             }
