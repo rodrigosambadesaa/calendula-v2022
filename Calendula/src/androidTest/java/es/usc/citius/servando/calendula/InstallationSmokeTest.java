@@ -118,6 +118,27 @@ public class InstallationSmokeTest {
     }
 
     @Test
+    public void officialCimaRejectsCorruptUnicodeOnRealAndroidRuntime() {
+        // No network access and no patient/database writes.
+        try {
+            CimaMedicineSearch.url("Med " + (char) 0xD800, 1);
+            org.junit.Assert.fail("Unpaired UTF-16 must not reach the request encoder");
+        } catch (IllegalArgumentException expected) {
+            // Fail closed instead of silently replacing characters.
+        }
+
+        String invalidResponse = "{\"totalFilas\":1,\"pagina\":1,\"resultados\":["
+                + "{\"nregistro\":\"123\",\"nombre\":\"Med "
+                + (char) 0xDC00 + "\"}]}";
+        try {
+            CimaMedicineSearch.parsePage(invalidResponse, 1);
+            org.junit.Assert.fail("Corrupted CIMA medicine name must not be accepted");
+        } catch (IllegalArgumentException expected) {
+            // No invalid medicine metadata is returned.
+        }
+    }
+
+    @Test
     public void appDisablesSystemBackupOfMedicalData() {
         ApplicationInfo info = targetContext().getApplicationInfo();
         assertEquals(0, info.flags & ApplicationInfo.FLAG_ALLOW_BACKUP);
