@@ -527,8 +527,19 @@ Your schedules, medkit, routines and other basic functions are safe either way.
 Do you want to install the new database now?
 "</string>
 <string name="pref_insistent_notification_tone">"Insistent notifications ringtone"</string>
-<string name="stock_enough_for_weeks_days">"Enough for %1$d weeks and %2$d days with current schedules"</string>
-<string name="stock_running_out_dialog_message">"There are %1$d %2$s of %3$s remaining, and the stock will run out in %4$d days with the current schedules."</string>
+<plurals name="stock_duration_weeks">
+    <item quantity="one">%1$d week</item>
+    <item quantity="other">%1$d weeks</item>
+</plurals>
+<plurals name="stock_duration_days">
+    <item quantity="one">%1$d day</item>
+    <item quantity="other">%1$d days</item>
+</plurals>
+<string name="stock_enough_for_weeks_days">"Enough for %1$s and %2$s with current schedules"</string>
+<plurals name="stock_running_out_dialog_message">
+    <item quantity="one">There are %1$d %2$s of %3$s remaining, and the stock will run out in %4$d day with the current schedules.</item>
+    <item quantity="other">There are %1$d %2$s of %3$s remaining, and the stock will run out in %4$d days with the current schedules.</item>
+</plurals>
 <string name="stock_running_out_dialog_title">"Stock is running out for %1$s"</string>
 <string name="manage_stock">"Manage stock"</string>
 <string name="message_generic_error">"Oops! There was an error."</string>
