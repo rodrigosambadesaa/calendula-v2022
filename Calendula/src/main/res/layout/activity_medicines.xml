@@ -18,13 +18,14 @@
 
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
                 xmlns:app="http://schemas.android.com/apk/res-auto"
+                xmlns:tools="http://schemas.android.com/tools"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:descendantFocusability="beforeDescendants"
                 android:focusableInTouchMode="true"
                 android:fitsSystemWindows="true">
 
-    <es.usc.citius.servando.calendula.util.view.NonSwipeableViewPager xmlns:tools="http://schemas.android.com/tools"
+    <es.usc.citius.servando.calendula.util.view.NonSwipeableViewPager
                                                                       android:id="@+id/pager"
                                                                       android:layout_width="match_parent"
                                                                       android:layout_height="match_parent"
@@ -77,7 +78,8 @@
         android:src="@drawable/ic_done_black"
         app:backgroundTint="@color/fab_default_color"
         app:elevation="@dimen/fab_elevation"
-        android:contentDescription="@string/done"/>
+        android:contentDescription="@string/done"
+        tools:ignore="RelativeOverlap"/>
 
     <TextView
         android:id="@+id/textView"
