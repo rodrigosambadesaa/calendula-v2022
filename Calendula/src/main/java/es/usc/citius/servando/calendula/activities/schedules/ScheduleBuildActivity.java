@@ -62,6 +62,9 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -96,6 +99,7 @@ import com.mikepenz.iconics.typeface.IIcon;
 public class ScheduleBuildActivity extends CalendulaActivity implements StepperLayout.StepperListener {
 
     private static final String TAG = "ScheduleBuildActivity";
+    private static final ExecutorService CHECK_CHANGES_EXECUTOR = Executors.newSingleThreadExecutor();
     private final IIcon[] tabIcons = new IIcon[]{
             CommunityMaterial.Icon2.cmd_pill,
             CommunityMaterial.Icon.cmd_clock,
@@ -142,7 +146,7 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
     private IconicsDrawable noChangesIc;
     private IconicsDrawable checkingChangesIc;
     private Collection<ScheduleComparator.Change> changes;
-    private CheckChangesTask checkChangesTask;
+    private Future<?> checkChangesTask;
     private EditMode editMode = EditMode.CREATE;
     private ActiveMedVO activeMed;
 
@@ -569,8 +573,36 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
                     changesIcon.setImageDrawable(checkingChangesIc);
                     changesIcon.setContentDescription(getString(R.string.accessibility_checking_schedule_changes));
                     changesIcon.setOnClickListener(null);
-                    checkChangesTask = new CheckChangesTask();
-                    checkChangesTask.execute();
+                    final ActiveMedVO activeMedForCheck = activeMed;
+                    final Schedule scheduleForCheck = tmpSchedule;
+                    if (activeMedForCheck == null || scheduleForCheck == null) {
+                        return;
+                    }
+                    checkChangesTask = CHECK_CHANGES_EXECUTOR.submit(() -> {
+                        final Collection<ScheduleComparator.Change> detectedChanges =
+                                ScheduleComparator.INSTANCE.compare(activeMedForCheck, scheduleForCheck);
+                        if (Thread.currentThread().isInterrupted()) {
+                            return;
+                        }
+                        runOnUiThread(() -> {
+                            if (isFinishing() || isDestroyed()) {
+                                return;
+                            }
+                            changes = detectedChanges;
+                            final boolean hasChanges = !changes.isEmpty();
+                            differsFromPrescription = hasChanges;
+                            nextStep.setEnabled(true);
+                            if (!hasChanges) {
+                                changesIcon.setImageDrawable(noChangesIc);
+                                changesIcon.setContentDescription(getString(R.string.accessibility_schedule_matches_official));
+                                changesIcon.setOnClickListener(null);
+                            } else {
+                                changesIcon.setImageDrawable(changesIc);
+                                changesIcon.setContentDescription(getString(R.string.schedule_build_reminder_different_from_schedule));
+                                changesIcon.setOnClickListener(v -> showChanges(changes));
+                            }
+                        });
+                    });
                 }
             }, 600);
         }
@@ -864,47 +896,6 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
             EXPANDED,
             COLLAPSED,
             IDLE
-        }
-    }
-
-    public class CheckChangesTask extends AsyncTask<Void, Void, Boolean> {
-
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-            if (activeMed == null || tmpSchedule == null) {
-                cancel(true);
-            }
-        }
-
-        @Override
-        protected Boolean doInBackground(Void... params) {
-            if (activeMed != null && tmpSchedule != null) {
-                changes = ScheduleComparator.INSTANCE.compare(activeMed, tmpSchedule);
-                return !changes.isEmpty();
-            }
-            return false;
-        }
-
-        @Override
-        protected void onPostExecute(Boolean res) {
-            super.onPostExecute(res);
-            differsFromPrescription = res;
-            nextStep.setEnabled(true);
-            if (!res) {
-                changesIcon.setImageDrawable(noChangesIc);
-                changesIcon.setContentDescription(getString(R.string.accessibility_schedule_matches_official));
-                changesIcon.setOnClickListener(null);
-            } else {
-                changesIcon.setImageDrawable(changesIc);
-                changesIcon.setContentDescription(getString(R.string.schedule_build_reminder_different_from_schedule));
-                changesIcon.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        showChanges(changes);
-                    }
-                });
-            }
         }
     }
 
