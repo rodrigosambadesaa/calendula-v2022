@@ -16,10 +16,14 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
+import es.usc.citius.servando.calendula.util.IntentParams;
+import org.joda.time.DateTime;
 import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 /**
  * Real Android PendingIntent identity checks using synthetic unscheduled tokens.
@@ -47,6 +51,59 @@ public class ReminderPendingIntentSmokeTest {
                     before, after);
         } finally {
             before.cancel();
+        }
+    }
+
+    @Test
+    public void cancellationStillFindsAlarmAfterReminderMetadataChanges() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        EventReminder reminder = new EventReminder();
+        reminder.setId(9000000004L);
+        DateTime future = DateTime.now().plusHours(2);
+        reminder.setDateTime(future);
+        reminder.setNextTime(future);
+        try {
+            Agenda.instance().setAlarm(context, reminder);
+            assertNotNull("Scheduled alarm token should be registered",
+                    PendingIntent.getBroadcast(context, 0,
+                            Agenda.reminderBroadcastIntent(context, reminder),
+                            PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+
+            // Former request-code identity changed with this property.
+            reminder.setAutoRepeat(true);
+            Agenda.instance().cancelAlarm(context, reminder);
+            assertNull("Cancelling reminder must revoke stable alarm token",
+                    PendingIntent.getBroadcast(context, 0,
+                            Agenda.reminderBroadcastIntent(context, reminder),
+                            PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+        } finally {
+            Agenda.instance().cancelAlarm(context, reminder);
+        }
+    }
+
+    @Test
+    public void legacyHashBasedTokenIsRetiredWhenReminderIsRescheduled() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        EventReminder reminder = new EventReminder();
+        reminder.setId(9000000005L);
+        DateTime future = DateTime.now().plusHours(2);
+        reminder.setDateTime(future);
+        reminder.setNextTime(future);
+
+        android.content.Intent legacy = new android.content.Intent(context, AlarmReceiver.class);
+        legacy.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_REMINDER);
+        legacy.putExtra(IntentParams.EXTRA_REMINDER_ID, reminder.getId());
+        PendingIntent legacyToken = PendingIntent.getBroadcast(context,
+                reminder.hashCode(), legacy,
+                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+        try {
+            Agenda.instance().setAlarm(context, reminder);
+            assertNull("Old request-code token should be retired on upgrade",
+                    PendingIntent.getBroadcast(context, reminder.hashCode(), legacy,
+                            PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+        } finally {
+            legacyToken.cancel();
+            Agenda.instance().cancelAlarm(context, reminder);
         }
     }
 
