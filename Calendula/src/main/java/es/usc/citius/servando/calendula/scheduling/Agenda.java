@@ -386,7 +386,8 @@ public class Agenda {
         try {
             return !today.equals(ISODateTimeFormat.basicDate().parseLocalDate(savedDate));
         } catch (IllegalArgumentException invalidDate) {
-            LogUtil.w(TAG, "Invalid last agenda update date; rebuilding schedule");
+            // Pure fallback: JVM tests and startup work without Android logging.
+            // Do not expose the invalid preference (or user data) in logs.
             return true;
         }
     }
