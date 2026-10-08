@@ -508,8 +508,10 @@ public class Agenda {
         } else {
             // remove the reminder
             LogUtil.d(TAG, "Cancelling reminder with id " + r.getId());
-            cancelAlarm(ctx, r);
+            // A failed SQLite delete must not lose its still-persisted alarm.
+            // Only retire the Android token after the DAO confirms removal.
             DB.eventReminders().remove(r);
+            cancelAlarm(ctx, r);
         }
     }
 
