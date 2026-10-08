@@ -94,6 +94,19 @@ jobs:
               continue
             fi
 
+            # A green PR head may have been tested against an older main.
+            # Require the exact head commit to contain today's main before
+            # trusting those check results for automatic integration.
+            # This intentionally makes old approved PRs wait for an update.
+            comparison=$(gh api "repos/$REPO/compare/main...$sha")
+            if ! jq -e '
+                .behind_by == 0
+                and (.status == "ahead" or .status == "identical")
+              ' <<< "$comparison" >/dev/null; then
+              echo "PR #$number is behind main; update and re-run both CI suites"
+              continue
+            fi
+
             if [[ "$EVENT_NAME" == workflow_dispatch && "$DRY_RUN" != false ]]; then
               echo "Dry run: PR #$number is eligible for squash merge"
               continue
