@@ -74,8 +74,12 @@ public class PrescriptionDAO extends GenericDao<Prescription, Long> {
             // Never log search strings, which can contain medication information.
             QueryBuilder<Prescription, Long> qb = dao.queryBuilder();
             Where<Prescription, Long> w = qb.where();
-            w.or(w.like(Prescription.COLUMN_NAME, "%" + match + "%"),
-                    w.like(Prescription.COLUMN_CODE, match + "%"));
+            // ORMLite's like() with a raw String can embed SQL literals on
+            // Android; bind BOTH predicates, not just the ORDER BY clause.
+            w.or(w.like(Prescription.COLUMN_NAME,
+                            new SelectArg(SqlType.STRING, "%" + match + "%")),
+                    w.like(Prescription.COLUMN_CODE,
+                            new SelectArg(SqlType.STRING, match + "%")));
 
             // Preserve name-prefix ranking without interpolating user text into
             // raw SQL. The placeholder is bound as a string by ORMLite.
