@@ -56,7 +56,7 @@ public final class TestingConnectionBuilder implements ConnectionBuilder {
     private static final String HTTP = "http";
     private static final String HTTPS = "https";
 
-    @SuppressLint("TrustAllX509TrustManager")
+    @SuppressLint({"TrustAllX509TrustManager", "CustomX509TrustManager"})
     private static final TrustManager[] ANY_CERT_MANAGER = new TrustManager[]{
             new X509TrustManager() {
                 public X509Certificate[] getAcceptedIssuers() {
@@ -141,6 +141,11 @@ public final class TestingConnectionBuilder implements ConnectionBuilder {
     public static X509TrustManager getTrustManager(){
         requireDebugBuild();
         return (X509TrustManager)ANY_CERT_MANAGER[0];
+    }
+
+    public static HostnameVerifier getHostnameVerifier() {
+        requireDebugBuild();
+        return ANY_HOSTNAME_VERIFIER;
     }
 
     public static SSLContext getTrustingContext(){
