@@ -22,7 +22,6 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import androidx.annotation.NonNull;
@@ -60,6 +59,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -92,6 +94,7 @@ public class AllergiesSearchActivity extends CalendulaActivity {
 
     public static final int REQUEST_NEW_ALLERGIES = 1;
     private static final String TAG = "AllergiesSearchAct";
+    private static final ExecutorService SEARCH_EXECUTOR = Executors.newSingleThreadExecutor();
     private final ISelectionListener<AbstractItem> selectionListener = new AllergySelectionListener();
 
     @BindView(R.id.close_search_button)
@@ -115,7 +118,8 @@ public class AllergiesSearchActivity extends CalendulaActivity {
 
     private FastItemAdapter<AbstractItem> searchAdapter;
     private List<AllergyGroup> groups;
-    private DoSearchTask searchTask = null;
+    private Future<?> searchTask = null;
+    private int searchGeneration;
     private List<AllergenVO> patientAllergies;
 
     @Override
@@ -251,12 +255,33 @@ public class AllergiesSearchActivity extends CalendulaActivity {
     }
 
     private void doSearch() {
-        String filter = searchEditText.getText().toString().trim();
+        final String filter = searchEditText.getText().toString().trim();
         if (filter.length() >= 3) {
-            if (searchTask != null)
+            if (searchTask != null) {
                 searchTask.cancel(true);
-            searchTask = new DoSearchTask();
-            searchTask.execute(new String[]{filter});
+            }
+
+            final int generation = ++searchGeneration;
+            searchAdapter.clear();
+            selectLayout.setVisibility(View.GONE);
+            progressBar.setVisibility(View.VISIBLE);
+
+            searchTask = SEARCH_EXECUTOR.submit(() -> {
+                final List<AbstractItem> items = performSearch(filter);
+                if (Thread.currentThread().isInterrupted()) {
+                    return;
+                }
+
+                runOnUiThread(() -> {
+                    if (generation != searchGeneration || isFinishing() || isDestroyed()) {
+                        return;
+                    }
+                    searchAdapter.add(items);
+                    progressBar.setVisibility(View.GONE);
+                    checkSearchPlaceholder();
+                    searchTask = null;
+                });
+            });
         }
     }
 
@@ -416,102 +441,81 @@ public class AllergiesSearchActivity extends CalendulaActivity {
         return getString(R.string.allergies_group_elements_selected, totalText, selectedText);
     }
 
-    private class DoSearchTask extends AsyncTask<String, Void, List<AbstractItem>> {
-
-        @Override
-        protected void onPreExecute() {
-            searchAdapter.clear();
-            selectLayout.setVisibility(View.GONE);
-            progressBar.setVisibility(View.VISIBLE);
+    private List<AbstractItem> performSearch(final String filter) {
+        final List<AllergenVO> allergenVOs = AllergenFacade.searchForAllergens(filter);
+        if (patientAllergies != null) {
+            allergenVOs.removeAll(patientAllergies);
         }
 
-        @Override
-        protected void onPostExecute(List<AbstractItem> abstractItems) {
-            searchAdapter.add(abstractItems);
-            progressBar.setVisibility(View.GONE);
-            checkSearchPlaceholder();
-            searchTask = null;
-        }
+        final List<AbstractItem> items = new ArrayList<>();
+        final int highlightColor = ContextCompat.getColor(AllergiesSearchActivity.this, R.color.black);
 
-        @Override
-        protected List<AbstractItem> doInBackground(String... params) {
-            if (params.length != 1) {
-                LogUtil.e(TAG, "doInBackground: invalid argument length. Expected 1, got " + params.length);
-                throw new IllegalArgumentException("Invalid argument length");
+        if (groups != null && !groups.isEmpty()) {
+            final Map<String, Pattern> groupPatterns = new ArrayMap<>();
+            for (AllergyGroup group : groups) {
+                String regex = "\\b(" + group.getExpression() + ")\\b";
+                Pattern pattern = Pattern.compile(regex, Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+                groupPatterns.put(group.getName(), pattern);
             }
 
-            final String filter = params[0];
-            final List<AllergenVO> allergenVOs = AllergenFacade.searchForAllergens(filter);
-            if (patientAllergies != null)
-                allergenVOs.removeAll(patientAllergies);
-
-            final List<AbstractItem> items = new ArrayList<>();
-
-            final int highlightColor = ContextCompat.getColor(AllergiesSearchActivity.this, R.color.black);
-            if (groups != null && !groups.isEmpty()) {
-                //find words for groups
-                final Map<String, Pattern> groupPatterns = new ArrayMap<>();
-                for (AllergyGroup group : groups) {
-                    String regex = "\\b(" + group.getExpression() + ")\\b";
-                    Pattern p = Pattern.compile(regex, Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
-                    groupPatterns.put(group.getName(), p);
-                }
-
-                final Map<String, List<AllergenVO>> groups = new ArrayMap<>();
-                final List<AllergenVO> toRemove = new ArrayList<>();
-
-                for (AllergenVO vo : allergenVOs) {
-                    for (String k : groupPatterns.keySet()) {
-                        Pattern p = groupPatterns.get(k);
-                        if (p.matcher(vo.getName()).find()) {
-                            if (groups.keySet().contains(k)) {
-                                groups.get(k).add(vo);
-                            } else {
-                                ArrayList<AllergenVO> vos = new ArrayList<>();
-                                vos.add(vo);
-                                groups.put(k, vos);
-                            }
-                            toRemove.add(vo);
-                            break;
-                        }
-                    }
-                }
-
-                // sort elements into groups
-                allergenVOs.removeAll(toRemove);
-                for (String s : groups.keySet()) {
-                    final List<AllergenVO> subs = groups.get(s);
-                    if (!subs.isEmpty()) {
-                        AllergenGroupItem g = new AllergenGroupItem(s, "");
-                        List<AllergenGroupSubItem> sub = new ArrayList<>();
-                        for (AllergenVO vo : subs) {
-                            final AllergenGroupSubItem e = new AllergenGroupSubItem(vo, AllergiesSearchActivity.this);
-                            e.setTitleSpannable(Strings.getHighlighted(vo.getName(), filter, highlightColor));
-                            sub.add(e);
-                        }
-                        g.setSubtitle(getResources().getQuantityString(R.plurals.allergies_group_elements_number, sub.size(), sub.size()));
-                        g.setTitleSpannable(Strings.getHighlighted(s, filter, highlightColor));
-                        Collections.sort(sub, new Comparator<AllergenGroupSubItem>() {
-                            @Override
-                            public int compare(AllergenGroupSubItem o1, AllergenGroupSubItem o2) {
-                                return o1.getTitle().compareTo(o2.getTitle());
-                            }
-                        });
-                        g.withSubItems(sub);
-                        items.add(g);
-                    }
-                }
-            }
+            final Map<String, List<AllergenVO>> groupedAllergens = new ArrayMap<>();
+            final List<AllergenVO> toRemove = new ArrayList<>();
 
             for (AllergenVO vo : allergenVOs) {
-                final AllergenItem e = new AllergenItem(vo, AllergiesSearchActivity.this);
-                e.setTitleSpannable(Strings.getHighlighted(e.getTitle(), filter, highlightColor));
-                items.add(e);
+                for (String key : groupPatterns.keySet()) {
+                    Pattern pattern = groupPatterns.get(key);
+                    if (pattern.matcher(vo.getName()).find()) {
+                        if (groupedAllergens.containsKey(key)) {
+                            groupedAllergens.get(key).add(vo);
+                        } else {
+                            ArrayList<AllergenVO> vos = new ArrayList<>();
+                            vos.add(vo);
+                            groupedAllergens.put(key, vos);
+                        }
+                        toRemove.add(vo);
+                        break;
+                    }
+                }
             }
-            Collections.sort(items, new AllergenSearchComparator(filter));
 
-            return items;
+            allergenVOs.removeAll(toRemove);
+            for (String groupName : groupedAllergens.keySet()) {
+                final List<AllergenVO> grouped = groupedAllergens.get(groupName);
+                if (!grouped.isEmpty()) {
+                    AllergenGroupItem groupItem = new AllergenGroupItem(groupName, "");
+                    List<AllergenGroupSubItem> subItems = new ArrayList<>();
+                    for (AllergenVO vo : grouped) {
+                        final AllergenGroupSubItem item =
+                                new AllergenGroupSubItem(vo, AllergiesSearchActivity.this);
+                        item.setTitleSpannable(
+                                Strings.getHighlighted(vo.getName(), filter, highlightColor));
+                        subItems.add(item);
+                    }
+                    groupItem.setSubtitle(getResources().getQuantityString(
+                            R.plurals.allergies_group_elements_number,
+                            subItems.size(),
+                            subItems.size()));
+                    groupItem.setTitleSpannable(
+                            Strings.getHighlighted(groupName, filter, highlightColor));
+                    Collections.sort(subItems, new Comparator<AllergenGroupSubItem>() {
+                        @Override
+                        public int compare(AllergenGroupSubItem o1, AllergenGroupSubItem o2) {
+                            return o1.getTitle().compareTo(o2.getTitle());
+                        }
+                    });
+                    groupItem.withSubItems(subItems);
+                    items.add(groupItem);
+                }
+            }
         }
+
+        for (AllergenVO vo : allergenVOs) {
+            final AllergenItem item = new AllergenItem(vo, AllergiesSearchActivity.this);
+            item.setTitleSpannable(Strings.getHighlighted(item.getTitle(), filter, highlightColor));
+            items.add(item);
+        }
+        Collections.sort(items, new AllergenSearchComparator(filter));
+        return items;
     }
 
     private class AllergenSearchComparator implements Comparator<AbstractItem> {
