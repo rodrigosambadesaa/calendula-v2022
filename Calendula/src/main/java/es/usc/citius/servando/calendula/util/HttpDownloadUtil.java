@@ -41,6 +41,9 @@ public class HttpDownloadUtil {
     static final int MAX_REDIRECTS = 5;
     // versions.json is tiny; cap text responses to avoid unbounded memory growth on bad servers.
     static final int MAX_TEXT_DOWNLOAD_CHARS = 256 * 1024;
+    // Reject unbounded binary responses from the legacy HTTP database service.
+    // The archive must fit in this disk budget before it can reach the extractor.
+    static final long MAX_BINARY_DOWNLOAD_BYTES = 512L * 1024 * 1024;
 
     /**
      * Backwards-compatible overload. New code should pass a Context explicitly so the request
@@ -62,15 +65,13 @@ public class HttpDownloadUtil {
         try {
             connection = openBackendConnection(context, fileUrl);
 
-            fileOutput = new FileOutputStream(file);
-            inputStream = connection.getInputStream();
-
-            byte[] buffer = new byte[1024];
-            int bufferLength;
-
-            while ((bufferLength = inputStream.read(buffer)) > 0) {
-                fileOutput.write(buffer, 0, bufferLength);
+            int contentLength = connection.getContentLength();
+            if (contentLength > MAX_BINARY_DOWNLOAD_BYTES) {
+                throw new IOException("Binary download exceeds maximum allowed size");
             }
+            inputStream = connection.getInputStream();
+            fileOutput = new FileOutputStream(file);
+            copyLimited(inputStream, fileOutput, MAX_BINARY_DOWNLOAD_BYTES);
             return true;
         } catch (IOException e) {
             LogUtil.e(TAG, "downloadFile: ", e);
@@ -115,6 +116,25 @@ public class HttpDownloadUtil {
                 connection.disconnect();
             }
         }
+    }
+
+    /** Streamed byte limit: never trust a missing or deceptive Content-Length header. */
+    static long copyLimited(InputStream input, java.io.OutputStream output, long maxBytes)
+            throws IOException {
+        if (maxBytes < 0) {
+            throw new IllegalArgumentException("maxBytes must be >= 0");
+        }
+        long total = 0L;
+        byte[] buffer = new byte[8192];
+        int read;
+        while ((read = input.read(buffer)) != -1) {
+            if (read > maxBytes - total) {
+                throw new IOException("Binary download exceeds maximum allowed size");
+            }
+            output.write(buffer, 0, read);
+            total += read;
+        }
+        return total;
     }
 
     static String readLimitedText(Reader reader, int maxChars) throws IOException {
