@@ -19,7 +19,9 @@
 package es.usc.citius.servando.calendula.drugdb.model.database;
 
 import com.j256.ormlite.dao.Dao;
+import com.j256.ormlite.field.SqlType;
 import com.j256.ormlite.stmt.QueryBuilder;
+import com.j256.ormlite.stmt.SelectArg;
 import com.j256.ormlite.stmt.Where;
 
 import java.sql.SQLException;
@@ -69,11 +71,18 @@ public class PrescriptionDAO extends GenericDao<Prescription, Long> {
      */
     public List<Prescription> findByNameOrCn(final String match, final int limit) {
         try {
-            LogUtil.d(TAG, "Query by name: " + match);
+            // Never log search strings, which can contain medication information.
             QueryBuilder<Prescription, Long> qb = dao.queryBuilder();
-            Where w = qb.where();
-            w.or(w.like(Prescription.COLUMN_NAME, "%" + match + "%"), w.like(Prescription.COLUMN_CODE, match + "%"));
-            qb.orderByRaw(" (CASE WHEN " + Prescription.COLUMN_NAME + " LIKE \"" + match + "%\" THEN 1 ELSE 2 END),name");
+            Where<Prescription, Long> w = qb.where();
+            w.or(w.like(Prescription.COLUMN_NAME, "%" + match + "%"),
+                    w.like(Prescription.COLUMN_CODE, match + "%"));
+
+            // Preserve name-prefix ranking without interpolating user text into
+            // raw SQL. The placeholder is bound as a string by ORMLite.
+            qb.orderByRaw("CASE WHEN " + Prescription.COLUMN_NAME
+                            + " LIKE ? THEN 1 ELSE 2 END, "
+                            + Prescription.COLUMN_NAME,
+                    new SelectArg(SqlType.STRING, match + "%"));
             qb.limit((long) limit);
             qb.setWhere(w);
             return qb.query();
