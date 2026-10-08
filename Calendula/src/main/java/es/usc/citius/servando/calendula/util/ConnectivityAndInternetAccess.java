@@ -1953,19 +1953,6 @@ public final class ConnectivityAndInternetAccess {
         return isUsable(capabilities) && capabilities.hasTransport(transport);
     }
 
-    private static boolean legacyTypeMatches(int type, int transport) {
-        if (transport == NetworkCapabilities.TRANSPORT_WIFI) {
-            return type == ConnectivityManager.TYPE_WIFI;
-        }
-        if (transport == NetworkCapabilities.TRANSPORT_CELLULAR) {
-            return type == ConnectivityManager.TYPE_MOBILE;
-        }
-        if (transport == NetworkCapabilities.TRANSPORT_ETHERNET) {
-            return type == ConnectivityManager.TYPE_ETHERNET;
-        }
-        return false;
-    }
-
     private static boolean isFast(NetworkCapabilities capabilities) {
         return isUsable(capabilities)
                 && capabilities.getLinkDownstreamBandwidthKbps() >= MINIMUM_FAST_KBPS
@@ -1975,37 +1962,6 @@ public final class ConnectivityAndInternetAccess {
     private static NetworkInfo[] legacyNetworks(ConnectivityManager connectivityManager) {
         NetworkInfo[] networks = connectivityManager.getAllNetworkInfo();
         return networks != null ? networks : new NetworkInfo[0];
-    }
-
-    private static boolean isConnectedLegacy(NetworkInfo info) {
-        return info != null && info.isAvailable() && info.isConnected();
-    }
-
-    private static boolean isConnectionFast(int type, int subType) {
-        if (type == ConnectivityManager.TYPE_WIFI
-                || type == ConnectivityManager.TYPE_ETHERNET) {
-            return true;
-        }
-
-        if (type != ConnectivityManager.TYPE_MOBILE) {
-            return false;
-        }
-
-        switch (subType) {
-            case TelephonyManager.NETWORK_TYPE_EVDO_0:
-            case TelephonyManager.NETWORK_TYPE_EVDO_A:
-            case TelephonyManager.NETWORK_TYPE_HSDPA:
-            case TelephonyManager.NETWORK_TYPE_HSPA:
-            case TelephonyManager.NETWORK_TYPE_HSUPA:
-            case TelephonyManager.NETWORK_TYPE_UMTS:
-            case TelephonyManager.NETWORK_TYPE_EHRPD:
-            case TelephonyManager.NETWORK_TYPE_EVDO_B:
-            case TelephonyManager.NETWORK_TYPE_HSPAP:
-            case TelephonyManager.NETWORK_TYPE_LTE:
-                return true;
-            default:
-                return false;
-        }
     }
 
     private static Network selectProbeNetwork(ConnectivityManager connectivityManager) {
