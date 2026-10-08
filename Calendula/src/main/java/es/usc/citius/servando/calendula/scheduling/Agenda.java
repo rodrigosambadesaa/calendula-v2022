@@ -458,7 +458,8 @@ public class Agenda {
         }
     }
 
-    private void cancelAlarm(Context context, EventReminder reminder) {
+    // Package-private to verify actual PendingIntent cancellation on emulators.
+    void cancelAlarm(Context context, EventReminder reminder) {
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (alarmManager != null) {
             // FLAG_NO_CREATE must not create a new token merely to cancel it.
