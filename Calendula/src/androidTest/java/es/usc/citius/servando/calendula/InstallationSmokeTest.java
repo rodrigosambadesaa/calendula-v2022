@@ -8,6 +8,7 @@ package es.usc.citius.servando.calendula;
 
 import android.Manifest;
 import android.app.AlarmManager;
+import android.app.PendingIntent;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.ComponentName;
@@ -35,6 +36,8 @@ import es.usc.citius.servando.calendula.scheduling.PickupAlarmReceiver;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.util.NetworkUtils;
+import es.usc.citius.servando.calendula.util.IntentParams;
+import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 
 import org.joda.time.DateTime;
 import org.junit.Test;
@@ -43,6 +46,7 @@ import org.junit.runner.RunWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -156,6 +160,36 @@ public class InstallationSmokeTest {
                     context,
                     new Intent(AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED));
         }
+    }
+
+    @Test
+    public void bootRestoresDailyAgendaAlarmOnDevice() {
+        Context context = targetContext();
+        AlarmManager alarmManager =
+                (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        assertNotNull(alarmManager);
+        Intent daily = new Intent(context, AlarmReceiver.class);
+        daily.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_DAILY_UPDATE);
+
+        PendingIntent previous = PendingIntent.getBroadcast(context,
+                IntentParams.DAILY_UPDATE_ID, daily,
+                PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE));
+        if (previous != null) {
+            alarmManager.cancel(previous);
+            previous.cancel();
+        }
+        assertNull("Test starts with no daily-update registration",
+                PendingIntent.getBroadcast(context, IntentParams.DAILY_UPDATE_ID,
+                        daily, PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+
+        // A real boot discards app alarms. Explicitly invoke the receiver's
+        // recovery path with synthetic emulator data and verify registration.
+        new BootReceiver().onReceive(context, new Intent(Intent.ACTION_BOOT_COMPLETED));
+        PendingIntent restored = PendingIntent.getBroadcast(context,
+                IntentParams.DAILY_UPDATE_ID, daily,
+                PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE));
+        assertNotNull("Boot must restore daily schedule maintenance", restored);
+        // Keep the restored daily update in place for the rest of the test app.
     }
 
     @Test
