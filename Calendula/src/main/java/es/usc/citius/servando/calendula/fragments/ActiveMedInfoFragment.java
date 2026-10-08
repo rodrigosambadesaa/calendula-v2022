@@ -25,8 +25,9 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
-import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentTransaction;
@@ -55,6 +56,8 @@ import org.joda.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -79,6 +82,7 @@ import es.usc.citius.servando.calendula.util.LogUtil;
 public class ActiveMedInfoFragment extends Fragment {
 
     private static final String TAG = "ActiveMedInfoFragment";
+    private static final ExecutorService DISPENSATION_EXECUTOR = Executors.newSingleThreadExecutor();
 
     private final static String ID_ARG = "active_med_id";
 
@@ -271,7 +275,7 @@ public class ActiveMedInfoFragment extends Fragment {
 
         caldroidFragment.setCaldroidListener(listener);
 
-        new LoadDispensationInfoTask().execute();
+        loadDispensationInfoAsync();
     }
 
     private void setupDispensationInfo() {
@@ -370,39 +374,39 @@ public class ActiveMedInfoFragment extends Fragment {
         }
     }
 
-    private class LoadDispensationInfoTask extends AsyncTask<Void, Void, Void> {
+    private void loadDispensationInfoAsync() {
+        final Context context = getContext();
+        if (context == null || activeMed == null) {
+            return;
+        }
 
+        LogUtil.d(TAG, "loadDispensationInfoAsync: starting");
+        final ProgressDialog dialog = new ProgressDialog(context);
+        dialog.setIndeterminate(true);
+        dialog.setMessage(getString(R.string.calendar_updating));
+        dialog.show();
 
-        ProgressDialog dialog;
-
-        @Override
-        protected Void doInBackground(Void... params) {
+        final ActiveMedEntity activeMedEntity = activeMed.getBackingEntity();
+        final Handler mainHandler = new Handler(Looper.getMainLooper());
+        DISPENSATION_EXECUTOR.execute(() -> {
             final List<DispensationInfoEntity> dispensationInfoEntities = new ArrayList<>();
-            dispensationInfoEntities.addAll(activeMed.getBackingEntity().getDispensationInfo());
-            dispensationInfoStore = new DispensationInfoStore(dispensationInfoEntities);
-            return null;
-        }
+            dispensationInfoEntities.addAll(activeMedEntity.getDispensationInfo());
+            final DispensationInfoStore store = new DispensationInfoStore(dispensationInfoEntities);
 
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-            LogUtil.d(TAG, "onPreExecute: starting UpdatePickupsTask");
-            dialog = new ProgressDialog(getContext());
-            dialog.setIndeterminate(true);
-            dialog.setMessage(getString(R.string.calendar_updating));
-            dialog.show();
-        }
+            mainHandler.post(() -> {
+                if (dialog.isShowing()) {
+                    dialog.dismiss();
+                }
+                if (!isAdded() || getView() == null || getFragmentManager() == null) {
+                    return;
+                }
 
-        @Override
-        protected void onPostExecute(Void aVoid) {
-            super.onPostExecute(aVoid);
-            FragmentTransaction t = getFragmentManager().beginTransaction();
-            t.replace(R.id.dispensation_calendar, caldroidFragment);
-            t.commit();
-            if (dialog.isShowing()) {
-                dialog.dismiss();
-            }
-            setupDispensationInfo();
-        }
+                dispensationInfoStore = store;
+                FragmentTransaction t = getFragmentManager().beginTransaction();
+                t.replace(R.id.dispensation_calendar, caldroidFragment);
+                t.commit();
+                setupDispensationInfo();
+            });
+        });
     }
 }
