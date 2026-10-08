@@ -18,7 +18,7 @@ class AppVerifierTest {
             listOf(VerificationResult(VerificationResult.Level.SECURITY_BREACH, "Warning"))
         )
         assertEquals(VerificationResult.Level.SECURITY_BREACH, result.level)
-        assertEquals(" \n ● Warning", result.message)
+        assertEquals("\n ● Warning", result.message)
     }
 
     @Test
@@ -30,7 +30,7 @@ class AppVerifierTest {
             )
         )
         assertEquals(VerificationResult.Level.SECURITY_BREACH, result.level)
-        assertEquals(" \n ● Critical", result.message)
+        assertEquals("\n ● Critical", result.message)
     }
 
     @Test
