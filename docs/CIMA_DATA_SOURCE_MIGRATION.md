@@ -57,6 +57,15 @@ candidates that keep the registration number, CN, commercial name and
 source-reported dose text distinct. A registration with no presentations
 produces no candidates; no default package codes are fabricated.
 
+Batch validation is also available through
+`CimaPrescriptionCandidates.compileBatch()`: it deterministically rejects
+conflicting national-code assignments across **different** CIMA medicine
+responses. Byte-for-byte equivalent candidate records can repeat without
+creating duplicate rows. The result is immutable and read-only; it cannot
+replace an existing medicine catalog until authenticated inputs, historical
+identity reconciliation, backup, rollback and referential integrity checks
+have all been designed and tested.
+
 These candidates are not clinical prescriptions, medical advice, ORM entities,
 or installed catalog entries. They are input to a future **transactional**
 mapping and reconciliation stage. Active ingredients, authorization status,
