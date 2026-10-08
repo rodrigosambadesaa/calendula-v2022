@@ -8,9 +8,11 @@ package es.usc.citius.servando.calendula.scheduling;
 
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.LocalDate;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /** Pure time calculations, without alarms, databases or patient data. */
@@ -23,6 +25,27 @@ public class AgendaDailyUpdateTimingTest {
         assertEquals(expected.getMillis(), actual);
         assertTrue("A new repeating alarm must never begin in the past",
                 actual > current.getMillis());
+    }
+
+    @Test
+    public void savedDateFromTodaySkipsDuplicateAgendaRebuild() {
+        LocalDate today = new LocalDate(2026, 10, 8);
+        assertFalse(Agenda.shouldRefreshAgenda(today, "20261008"));
+    }
+
+    @Test
+    public void missingOrStaleUpdateDateTriggersAgendaRebuild() {
+        LocalDate today = new LocalDate(2026, 10, 8);
+        assertTrue(Agenda.shouldRefreshAgenda(today, null));
+        assertTrue(Agenda.shouldRefreshAgenda(today, "20261007"));
+        assertTrue(Agenda.shouldRefreshAgenda(today, "20261009"));
+    }
+
+    @Test
+    public void corruptStoredUpdateDateDoesNotBlockReminderRebuild() {
+        LocalDate today = new LocalDate(2026, 10, 8);
+        assertTrue(Agenda.shouldRefreshAgenda(today, "not-a-date"));
+        assertTrue(Agenda.shouldRefreshAgenda(today, "20260230"));
     }
 
     @Test
