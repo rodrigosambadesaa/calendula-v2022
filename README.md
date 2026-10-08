@@ -87,11 +87,19 @@ The historical 2022 codebase is being modernized incrementally while preserving 
 - **minSdk:** API 23 (Android 6.0)
 - **compileSdk / targetSdk:** API 36 (Android 16)
 - **Android Gradle Plugin:** 8.10.1
-- **Gradle:** 8.11.1
+- **Gradle:** 8.14.6
 - **Kotlin:** 2.1.21
 - **JDK:** 17
 
 GitHub Actions builds the `ciDebug` APK, validates the `developRelease` code path with R8, runs the JVM unit-test suite, builds the instrumentation-test APK, runs Android lint, and uploads the resulting reports and debug APK. The same JDK 17 toolchain is used for the Android SDK tools and Gradle build.
+
+**CI scope:** The workflow compiles an instrumentation-test APK but does not currently
+execute instrumentation tests on an emulator or physical device. A passing CI run
+therefore does not establish end-to-end reliability of medication alarms, database
+installations, sign-in, notifications, or UI flows on current Android versions.
+
+See [Modernization status and remaining work](docs/MODERNIZATION_STATUS.md) for
+the current roadmap, residual risks, and validation criteria.
 
 Dependency updates remain intentionally conservative where a new version changes library APIs, Android behavior or requires a coordinated migration. Dependabot is enabled, but major framework and library migrations should still be reviewed and validated in dedicated pull requests instead of being accepted as isolated version bumps.
 
