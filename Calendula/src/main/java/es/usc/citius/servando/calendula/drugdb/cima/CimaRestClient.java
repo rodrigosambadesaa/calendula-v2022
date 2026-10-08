@@ -62,30 +62,40 @@ public final class CimaRestClient {
             connection.setRequestProperty("Accept", "application/json");
             connection.setRequestProperty("Accept-Encoding", "identity");
 
-            int status = connection.getResponseCode();
-            if (!isExpectedJsonResponse(status, connection.getContentType())) {
-                throw new IOException(
-                        "Unexpected CIMA response status or content type: " + status);
-            }
-            // getContentLengthLong() requires Android API 24; getContentLength()
-            // works on API 23. Unknown/overflowing header lengths are still
-            // constrained by the streamed byte limit below.
-            if (connection.getContentLength() > MAX_RESPONSE_BYTES) {
-                throw new IOException("CIMA response exceeds maximum size");
-            }
-
-            final String json;
-            try (InputStream input = connection.getInputStream()) {
-                json = readBoundedUtf8(input, MAX_RESPONSE_BYTES);
-            }
-            try {
-                // Never associate the details of medicine A with a request for B.
-                return CimaRestCatalog.parseMedicine(json, registrationNumber);
-            } catch (IllegalArgumentException e) {
-                throw new IOException("Invalid CIMA medicine data", e);
-            }
+            return parseResponse(connection, registrationNumber);
         } finally {
             connection.disconnect();
+        }
+    }
+
+    /**
+     * Validate a single already-open CIMA HTTP response. Kept separate from the
+     * transport to verify error paths offline with a controlled connection.
+     * Never perform a redirect, retry or write to the database here.
+     */
+    static CimaRestCatalog.MedicineSnapshot parseResponse(
+            HttpURLConnection connection, String registrationNumber) throws IOException {
+        int status = connection.getResponseCode();
+        if (!isExpectedJsonResponse(status, connection.getContentType())) {
+            throw new IOException(
+                    "Unexpected CIMA response status or content type: " + status);
+        }
+        // getContentLengthLong() requires Android API 24; getContentLength()
+        // works on API 23. Unknown/overflowing header lengths are still
+        // constrained by the streamed byte limit below.
+        if (connection.getContentLength() > MAX_RESPONSE_BYTES) {
+            throw new IOException("CIMA response exceeds maximum size");
+        }
+
+        final String json;
+        try (InputStream input = connection.getInputStream()) {
+            json = readBoundedUtf8(input, MAX_RESPONSE_BYTES);
+        }
+        try {
+            // Never associate the details of medicine A with a request for B.
+            return CimaRestCatalog.parseMedicine(json, registrationNumber);
+        } catch (IllegalArgumentException e) {
+            throw new IOException("Invalid CIMA medicine data", e);
         }
     }
 

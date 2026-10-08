@@ -10,6 +10,7 @@ import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
@@ -17,6 +18,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 
 public class CimaRestClientTest {
 
@@ -64,4 +69,75 @@ public class CimaRestClientTest {
     public void rejectsNegativeResponseLimit() throws IOException {
         CimaRestClient.readBoundedUtf8(new ByteArrayInputStream(new byte[0]), -1);
     }
+    @Test
+    public void validOfficialJsonResponseMatchesRequestedMedicine() throws Exception {
+        HttpURLConnection response = fakeJsonResponse(
+                "{\"nregistro\":\"51347\",\"nombre\":\"Synthetic medicine\"}");
+        assertEquals("51347", CimaRestClient.parseResponse(response, "51347")
+                .getRegistrationNumber());
+    }
+
+    @Test
+    public void mismatchedMedicineIdentityRejectsOtherwiseValidJson() throws Exception {
+        HttpURLConnection response = fakeJsonResponse(
+                "{\"nregistro\":\"51347\",\"nombre\":\"Synthetic medicine\"}");
+        try {
+            CimaRestClient.parseResponse(response, "99999");
+            fail("Must not return a different medicine's metadata");
+        } catch (IOException expected) {
+            // The client must bind body identity to the original query.
+        }
+    }
+
+    @Test
+    public void redirectNeverReadsOrFollowsAResponseBody() throws Exception {
+        HttpURLConnection response = fakeJsonResponse("{}");
+        when(response.getResponseCode()).thenReturn(302);
+        try {
+            CimaRestClient.parseResponse(response, "51347");
+            fail("Any CIMA redirect must be rejected");
+        } catch (IOException expected) {
+            verify(response, never()).getInputStream();
+        }
+    }
+
+    @Test
+    public void htmlResponseCannotBeParsedAsMedicine() throws Exception {
+        HttpURLConnection response = fakeJsonResponse(
+                "{\"nregistro\":\"51347\",\"nombre\":\"Synthetic medicine\"}");
+        when(response.getContentType()).thenReturn("text/html");
+        try {
+            CimaRestClient.parseResponse(response, "51347");
+            fail("HTML is not valid CIMA JSON transport");
+        } catch (IOException expected) {
+            verify(response, never()).getInputStream();
+        }
+    }
+
+    @Test
+    public void forgedUnknownLengthCannotBypassStreamSizeLimit() throws Exception {
+        HttpURLConnection response = mock(HttpURLConnection.class);
+        when(response.getResponseCode()).thenReturn(200);
+        when(response.getContentType()).thenReturn("application/json");
+        when(response.getContentLength()).thenReturn(-1);
+        when(response.getInputStream()).thenReturn(
+                new ByteArrayInputStream(new byte[CimaRestClient.MAX_RESPONSE_BYTES + 1]));
+        try {
+            CimaRestClient.parseResponse(response, "51347");
+            fail("Oversized unknown-length HTTP response must be rejected");
+        } catch (IOException expected) {
+            // A forged or absent length header is never trusted.
+        }
+    }
+
+    private static HttpURLConnection fakeJsonResponse(String json) throws IOException {
+        HttpURLConnection response = mock(HttpURLConnection.class);
+        when(response.getResponseCode()).thenReturn(200);
+        when(response.getContentType()).thenReturn("application/json; charset=utf-8");
+        when(response.getContentLength()).thenReturn(-1);
+        when(response.getInputStream()).thenReturn(new ByteArrayInputStream(
+                json.getBytes(StandardCharsets.UTF_8)));
+        return response;
+    }
+
 }
