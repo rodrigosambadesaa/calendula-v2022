@@ -78,13 +78,6 @@
     </style>
 
 
-    <style name="Theme.AppCompat.Translucent" parent="AppTheme">
-        <item name="android:windowBackground">@android:color/transparent</item>
-        <item name="android:colorBackgroundCacheHint">@null</item>
-        <item name="android:windowIsTranslucent">true</item>
-        <item name="android:windowAnimationStyle">@android:style/Animation</item>
-    </style>
-
 
     <style name="next_button">
         <item name="android:textColor">@color/white</item>
@@ -103,33 +96,6 @@
         <item name="android:background">@drawable/delay_button_selector</item>
     </style>
 
-    <style name="delay_spinner_item">
-        <item name="android:textColor">@color/dark_grey_home</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:textSize">15sp</item>
-        <item name="android:height">@dimen/normal_button_height</item>
-        <item name="android:background">@drawable/delay_button_selector</item>
-    </style>
-
-
-    <style name="schedule_day_unselected">
-        <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:textAppearance">?android:attr/textAppearanceSmall</item>
-        <item name="android:textColor">@color/android_blue</item>
-        <item name="android:layout_weight">1</item>
-        <item name="android:gravity">center</item>
-    </style>
-
-    <style name="schedule_day_selected">
-        <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:textAppearance">?android:attr/textAppearanceSmall</item>
-        <item name="android:textColor">@color/activity_schedule_build_foreground</item>
-        <item name="android:layout_weight">1</item>
-        <item name="android:gravity">center</item>
-        <item name="android:textStyle">bold</item>
-    </style>
 
     <style name="schedule_weekday_unselected">
         <item name="android:layout_width">0dp</item>
@@ -172,23 +138,6 @@
         <item name="bpKeyboardIndicatorColor">@color/default_keyboard_indicator_color_light</item>
     </style>
 
-    <style name="calendar_day">
-        <item name="android:textColor">#666</item>
-    </style>
-
-    <style name="calendar_day_disabled">
-        <item name="android:textColor">#dcdcdc</item>
-    </style>
-
-    <style name="calendar_day_highlighted">
-        <item name="android:textColor">#ffffff</item>
-    </style>
-
-    <style name="calendar_day_today">
-        <item name="android:textStyle">bold</item>
-        <item name="android:textColor">#444444</item>
-    </style>
-
     <style name="menu_labels_style">
         <item name="android:background">@drawable/fab_label_background</item>
         <item name="android:textColor">@color/white</item>
@@ -197,8 +146,6 @@
 
     <style name="AppTheme.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar"/>
 
-    <style name="AppTheme.PopupOverlay" parent="ThemeOverlay.AppCompat.Light"/>
-
     <style name="AppTabLayoutTextAppearance" parent="TextAppearance.AppCompat.Widget.ActionBar.Title.Inverse">
         <item name="android:textSize">9sp</item>
         <item name="android:textAllCaps">true</item>
@@ -206,12 +153,6 @@
 
     <style name="ToolbarTitle" parent="TextAppearance.Widget.AppCompat.Toolbar.Title">
         <item name="android:textColor">#ffffff</item>
-    </style>
-
-    <style name="white_spinner_item" parent="Widget.AppCompat.Light.Spinner.DropDown.ActionBar">
-        <item name="android:background">?android:selectableItemBackground</item>
-        <item name="android:dropDownSelector">?android:selectableItemBackground</item>
-        <item name="android:divider">@null</item>
     </style>
 
     <!--<style >-->
@@ -225,22 +166,6 @@
 
     <!-- Calendar -->
 
-    <style name="CaldroidDefaultNoGrid" parent="CaldroidDefault">
-        <item name="styleCaldroidGridView">@style/CaldroidDefaultDarkGridView</item>
-    </style>
-
-    <style name="CaldroidDefaultDarkGridView" parent="CaldroidDefaultGridView">
-        <item name="android:background">@color/transparent</item>
-    </style>
-
-    <style name="AppTheme.LeafletButton" parent="Widget.AppCompat.Button.Colored">
-        <item name="colorButtonNormal">#ececec</item>
-    </style>
-
-
-    <style name="AppTheme.light_button">
-        <item name="android:background">@drawable/shape_list_item</item>
-    </style>
 
 
     <!-- Summary calendar theme -->
@@ -302,48 +227,11 @@
 
     <!-- Summary calendar theme -->
     <!-- Dark theme. -->
-    <style name="CaldroidPickups" parent="CaldroidDefault">
-        <item name="styleCaldroidViewLayout">@style/CaldroidPickupsCalendarViewLayout</item>
-        <item name="styleCaldroidMonthName">@style/CaldroidPickupsMonthName</item>
-        <item name="styleCaldroidNormalCell">@style/CaldroidPickupsNormalCell</item>
-        <item name="styleCaldroidSquareCell">@style/CaldroidPickupsSquareCell</item>
-        <item name="styleCaldroidGridView">@style/CaldroidPickupsGridView</item>
-    </style>
-
-    <style name="CaldroidPickupsCalendarViewLayout">
-        <item name="android:background">@android:color/transparent</item>
-    </style>
-
-    <style name="CaldroidPickupsMonthName" parent="CaldroidDefaultMonthName">
-        <item name="android:textColor">#222</item>
-    </style>
-
-    <style name="CaldroidPickupsGridView" parent="CaldroidDefaultGridView">
-        <item name="android:background">@color/transparent</item>
-    </style>
-
-    <style name="CaldroidPickupsCell" parent="CaldroidDefaultCell">
-        <item name="android:textColor">@color/white_80</item>
-        <item name="android:background">@color/transparent</item>
-    </style>
-
-    <style name="CaldroidPickupsNormalCell" parent="CaldroidPickupsCell">
-        <item name="android:padding">5dp</item>
-    </style>
-
-    <style name="CaldroidPickupsSquareCell" parent="CaldroidPickupsCell">
-        <item name="android:padding">5dp</item>
-    </style>
-
     <style name="KeypadButtonStyle" parent="@style/Widget.AppCompat.Button.Borderless.Colored">
         <item name="android:textSize">24sp</item>
         <item name="android:textColor">@color/white</item>
         <item name="android:layout_margin">1dp</item>
         <item name="background">@color/white_20</item>
-    </style>
-
-    <style name="AddCustomRoutineButtonStyle" parent="@style/Widget.AppCompat.Button.Borderless.Colored">
-        <item name="android:textColor">@color/activity_schedule_build_foreground</item>
     </style>
 
     <style name="SettingsActivityTheme" parent="AppTheme">
