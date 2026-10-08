@@ -97,7 +97,7 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
             Where w = qb.where();
             w.and(w.eq(EventInstance.COLUMN_EVENT_TYPE, type),
                     w.eq(EventInstance.COLUMN_DATE_TIME, dateTime),
-                    w.eq(EventInstance.COLUMN_PATIENT, p)
+                    (p == null ? w.isNull(EventInstance.COLUMN_PATIENT) : w.eq(EventInstance.COLUMN_PATIENT, p))
             );
             qb.setWhere(w);
             return qb.query();
@@ -127,7 +127,7 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
             Where w = qb.where();
             w.and(w.eq(EventInstance.COLUMN_EVENT_TYPE, type),
                     w.eq(EventInstance.COLUMN_DATE_TIME, dateTime),
-                    w.eq(EventInstance.COLUMN_PATIENT, p),
+                    (p == null ? w.isNull(EventInstance.COLUMN_PATIENT) : w.eq(EventInstance.COLUMN_PATIENT, p)),
                     w.eq(EventInstance.COLUMN_COMPLETED, completed)
             );
             qb.setWhere(w);
@@ -193,13 +193,55 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
         }
     }
 
+    private enum UnassignedChange { COMPLETE, CANCEL, CONFIRM }
+
+    /**
+     * The null-patient lookup is already verified by device SQLite tests.
+     * Update those exact persisted IDs transactionally rather than depending
+     * on ORMLite bulk UPDATE WHERE null/foreign-key conversion behavior.
+     */
+    private int updateUnassignedEvents(EventType type, DateTime dateTime,
+                                       DateTime completedAt, UnassignedChange change)
+            throws SQLException {
+        return com.j256.ormlite.misc.TransactionManager.callInTransaction(
+                dbHelper.getConnectionSource(), () -> {
+                    int changed = 0;
+                    for (EventInstance event : find(type, dateTime, null)) {
+                        if (event.getPatient() != null || event.getId() == null) {
+                            throw new SQLException("Unexpected event identity during unassigned update");
+                        }
+                        if (event.completed()) {
+                            continue;
+                        }
+                        if (change == UnassignedChange.CANCEL) {
+                            event.setCancelled(true);
+                        } else {
+                            event.setCompleted(true);
+                            if (change == UnassignedChange.CONFIRM) {
+                                event.setCancelled(false);
+                            }
+                        }
+                        event.setCompletedAt(completedAt);
+                        changed += dao.update(event);
+                    }
+                    return changed;
+                });
+    }
+
     public int checkAll(EventType type, DateTime dateTime, Patient p, DateTime completedAt) {
         try {
+            if (p == null) {
+                // ORMLite's bulk update SQL does not reliably handle this
+                // nullable foreign-key predicate on older Android SQLite.
+                // Select with IS NULL, then update only persisted primary keys
+                // in one transaction; never touch a different patient's row.
+                return updateUnassignedEvents(type, dateTime, completedAt, UnassignedChange.COMPLETE);
+            }
             UpdateBuilder<EventInstance, Long> qb = dao.updateBuilder();
             Where w = qb.where();
             w.and(w.eq(EventInstance.COLUMN_EVENT_TYPE, type),
                     w.eq(EventInstance.COLUMN_DATE_TIME, dateTime),
-                    w.eq(EventInstance.COLUMN_PATIENT, p),
+                    (p == null ? w.isNull(EventInstance.COLUMN_PATIENT) : w.eq(EventInstance.COLUMN_PATIENT, p)),
                     w.eq(EventInstance.COLUMN_COMPLETED, false)
             );
             qb.updateColumnValue(EventInstance.COLUMN_COMPLETED, true);
@@ -214,11 +256,18 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
 
     public int cancelUncompleted(EventType type, DateTime dateTime, Patient p, DateTime completedAt) {
         try {
+            if (p == null) {
+                // ORMLite's bulk update SQL does not reliably handle this
+                // nullable foreign-key predicate on older Android SQLite.
+                // Select with IS NULL, then update only persisted primary keys
+                // in one transaction; never touch a different patient's row.
+                return updateUnassignedEvents(type, dateTime, completedAt, UnassignedChange.CANCEL);
+            }
             UpdateBuilder<EventInstance, Long> qb = dao.updateBuilder();
             Where w = qb.where();
             w.and(w.eq(EventInstance.COLUMN_EVENT_TYPE, type),
                     w.eq(EventInstance.COLUMN_DATE_TIME, dateTime),
-                    w.eq(EventInstance.COLUMN_PATIENT, p),
+                    (p == null ? w.isNull(EventInstance.COLUMN_PATIENT) : w.eq(EventInstance.COLUMN_PATIENT, p)),
                     w.eq(EventInstance.COLUMN_COMPLETED, false)
             );
             qb.updateColumnValue(EventInstance.COLUMN_CANCELLED, true);
@@ -233,11 +282,18 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
 
     public int confirm(EventType type, DateTime dateTime, Patient p, DateTime completedAt) {
         try {
+            if (p == null) {
+                // ORMLite's bulk update SQL does not reliably handle this
+                // nullable foreign-key predicate on older Android SQLite.
+                // Select with IS NULL, then update only persisted primary keys
+                // in one transaction; never touch a different patient's row.
+                return updateUnassignedEvents(type, dateTime, completedAt, UnassignedChange.CONFIRM);
+            }
             UpdateBuilder<EventInstance, Long> qb = dao.updateBuilder();
             Where w = qb.where();
             w.and(w.eq(EventInstance.COLUMN_EVENT_TYPE, type),
                     w.eq(EventInstance.COLUMN_DATE_TIME, dateTime),
-                    w.eq(EventInstance.COLUMN_PATIENT, p),
+                    (p == null ? w.isNull(EventInstance.COLUMN_PATIENT) : w.eq(EventInstance.COLUMN_PATIENT, p)),
                     w.eq(EventInstance.COLUMN_COMPLETED, false)
             );
             qb.updateColumnValue(EventInstance.COLUMN_COMPLETED, true);
