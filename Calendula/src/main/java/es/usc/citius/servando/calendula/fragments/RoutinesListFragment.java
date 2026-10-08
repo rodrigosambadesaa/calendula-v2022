@@ -21,7 +21,8 @@ package es.usc.citius.servando.calendula.fragments;
 
 import android.content.Context;
 import android.graphics.drawable.Drawable;
-import android.os.AsyncTask;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.Bundle;
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
@@ -46,6 +47,8 @@ import org.greenrobot.eventbus.Subscribe;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.R;
@@ -61,6 +64,7 @@ public class RoutinesListFragment extends Fragment {
 
 
     private static final String TAG = "RoutinesListFragment";
+    private static final ExecutorService RELOAD_EXECUTOR = Executors.newSingleThreadExecutor();
     List<Routine> mRoutines;
     OnRoutineSelectedListener mRoutineSelectedCallback;
     ArrayAdapter adapter;
@@ -84,7 +88,7 @@ public class RoutinesListFragment extends Fragment {
 
         adapter = new RoutinesListAdapter(getActivity(), R.layout.routines_list_item, new ArrayList<>(mRoutines));
         listview.setAdapter(adapter);
-        new ReloadItemsTask().execute();
+        reloadItemsAsync();
         return rootView;
     }
 
@@ -101,7 +105,7 @@ public class RoutinesListFragment extends Fragment {
 
     public void notifyDataChange() {
         LogUtil.d(TAG, "Routines - Notify data change");
-        new ReloadItemsTask().execute();
+        reloadItemsAsync();
     }
 
     @Override
@@ -246,21 +250,27 @@ public class RoutinesListFragment extends Fragment {
 
     }
 
-    private class ReloadItemsTask extends AsyncTask<Void, Void, Void> {
-
-        @Override
-        protected Void doInBackground(Void... params) {
-            mRoutines.clear();
-            mRoutines.addAll(DB.routines().findAllWithNameForActivePatient(getContext()));
-            return null;
+    private void reloadItemsAsync() {
+        final Context context = getContext();
+        if (context == null) {
+            return;
         }
 
-        @Override
-        protected void onPostExecute(Void aVoid) {
-            super.onPostExecute(aVoid);
-            adapter.clear();
-            adapter.addAll(mRoutines);
-        }
+        final Context applicationContext = context.getApplicationContext();
+        final Handler mainHandler = new Handler(Looper.getMainLooper());
+        RELOAD_EXECUTOR.execute(() -> {
+            final List<Routine> routines =
+                    DB.routines().findAllWithNameForActivePatient(applicationContext);
+            mainHandler.post(() -> {
+                if (!isAdded()) {
+                    return;
+                }
+                mRoutines.clear();
+                mRoutines.addAll(routines);
+                adapter.clear();
+                adapter.addAll(mRoutines);
+            });
+        });
     }
 
     Drawable getMealIcon(RepeatType r) {
