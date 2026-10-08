@@ -56,7 +56,7 @@ public class LegacyV2MigrationFixtureTest {
                     String name, int mode, SQLiteDatabase.CursorFactory factory,
                     DatabaseErrorHandler errorHandler) {
                 return SQLiteDatabase.openOrCreateDatabase(
-                        getDatabasePath(name), factory, errorHandler);
+                        getDatabasePath(name).getAbsolutePath(), factory, errorHandler);
             }
         };
 
