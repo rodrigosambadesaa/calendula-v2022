@@ -33,6 +33,21 @@ public class USPrescriptionDBMgrTest {
     }
 
     @Test
+    public void prospectIdentifierIsNeverInterpretedAsRegexReplacement() {
+        Prescription prescription = new Prescription();
+        prescription.setPID("abc$2");
+        assertEquals(
+                "https://www.accessdata.fda.gov/spl/data/abc$2/abc$2.xml",
+                manager.getProspectURL(prescription));
+    }
+
+    @Test
+    public void shortNameHandlesMissingPrescriptionOrName() {
+        assertNull(manager.shortName(null));
+        assertNull(manager.shortName(new Prescription()));
+    }
+
+    @Test
     public void liquidMedicationIsInferredAsSyrup() {
         assertEquals(
                 Presentation.SYRUP,

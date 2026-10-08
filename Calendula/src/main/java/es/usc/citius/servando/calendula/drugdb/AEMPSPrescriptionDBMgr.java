@@ -47,7 +47,7 @@ public class AEMPSPrescriptionDBMgr extends PrescriptionDBMgr {
 
     @Override
     public String getProspectURL(Prescription p) {
-        return PROSPECT_URL.replaceAll("#ID#", p.getPID());
+        return PROSPECT_URL.replace("#ID#", p.getPID());
     }
 
     @Override
