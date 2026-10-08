@@ -40,6 +40,36 @@ public class DatabaseUpgradeSafetyTest {
         assertExistingPatientSurvivesAnInvalidUpgrade(2);
     }
 
+    @Test
+    public void unsupportedDowngradeRefusesToRewriteSchemaAndKeepsPatient()
+            throws SQLException {
+        Context context = ApplicationProvider.getApplicationContext();
+        DatabaseHelper helper = new DatabaseHelper(context);
+        Patient sentinel = new Patient();
+        sentinel.setName("Synthetic downgrade sentinel");
+        sentinel.setCode("downgrade-sentinel-" + System.nanoTime());
+        try {
+            SQLiteDatabase database = helper.getWritableDatabase();
+            helper.getPatientDao().create(sentinel);
+            assertNotNull(sentinel.getId());
+            try {
+                helper.onDowngrade(database, DatabaseHelper.DATABASE_VERSION + 1,
+                        DatabaseHelper.DATABASE_VERSION);
+                fail("Unsupported database downgrade must fail safely");
+            } catch (IllegalStateException expected) {
+                // This must not change tables or discard records.
+            }
+            Patient after = helper.getPatientDao().queryForId(sentinel.getId());
+            assertNotNull(after);
+            assertEquals(sentinel.getName(), after.getName());
+        } finally {
+            if (sentinel.getId() != null) {
+                helper.getPatientDao().deleteById(sentinel.getId());
+            }
+            helper.close();
+        }
+    }
+
     private void assertExistingPatientSurvivesAnInvalidUpgrade(int oldVersion)
             throws SQLException {
         Context context = ApplicationProvider.getApplicationContext();
