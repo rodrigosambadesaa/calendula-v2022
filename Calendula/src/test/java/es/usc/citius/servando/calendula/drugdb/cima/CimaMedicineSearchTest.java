@@ -133,7 +133,7 @@ public class CimaMedicineSearchTest {
         // Gson decodes an escaped newline; never normalize it away or
         // accept it as medication metadata.
         String json = "{\"totalFilas\":1,\"pagina\":1,\"resultados\":["
-                + "{\"nregistro\":\"123\",\"nombre\":\"\\\\nMedicine\"}]}";
+                + "{\"nregistro\":\"123\",\"nombre\":\"\\nMedicine\"}]}";
         CimaMedicineSearch.parsePage(json, 1);
     }
 
