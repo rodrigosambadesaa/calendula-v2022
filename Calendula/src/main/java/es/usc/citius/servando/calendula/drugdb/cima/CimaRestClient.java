@@ -67,7 +67,10 @@ public final class CimaRestClient {
                 throw new IOException(
                         "Unexpected CIMA response status or content type: " + status);
             }
-            if (connection.getContentLengthLong() > MAX_RESPONSE_BYTES) {
+            // getContentLengthLong() requires Android API 24; getContentLength()
+            // works on API 23. Unknown/overflowing header lengths are still
+            // constrained by the streamed byte limit below.
+            if (connection.getContentLength() > MAX_RESPONSE_BYTES) {
                 throw new IOException("CIMA response exceeds maximum size");
             }
 
