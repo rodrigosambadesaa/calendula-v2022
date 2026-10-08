@@ -140,8 +140,9 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
                     hourlySelection = true;
                     selectedHours = hours.get(hoursRv.getValue()-1);
                     updateHourlySelectionIndicator();
+                    List<Long> previouslySelected = new ArrayList<>(selected.keySet());
                     selected.clear();
-                    fastAdapter.notifyDataSetChanged();
+                    notifyRoutineRowsChanged(previouslySelected);
                 }
                 updateActivity();
             }
@@ -160,13 +161,14 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
 
     private void setSelectedHours(int hours) {
         selectedHours = hours;
+        List<Long> previouslySelected = new ArrayList<>(selected.keySet());
         selected.clear();
         if (!hourlySelection) {
             buildActivity.setDosage(dosage());
             hourlySelection = true;
             updateHourlySelectionIndicator();
-            fastAdapter.notifyDataSetChanged();
         }
+        notifyRoutineRowsChanged(previouslySelected);
         updateActivity();
     }
 
@@ -208,7 +210,7 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
                         if (selected.containsKey(dft.getReference())) {
                             selected.get(dft.getReference()).setOffset(dft.offset());
                         }
-                        fastAdapter.notifyDataSetChanged();
+                        notifyRoutineRowChanged(dft.getReference());
                         updateActivity();
                     }
                 });
@@ -278,7 +280,7 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
                     }
                     hourlySelection = false;
                     updateHourlySelectionIndicator();
-                    fastAdapter.notifyDataSetChanged();
+                    notifyRoutineRowsChanged(new ArrayList<>(selected.keySet()));
                     updateActivity();
                 }
             } else {
@@ -314,7 +316,7 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
         super.setUserVisibleHint(isVisibleToUser);
         if (isVisibleToUser) {
             if (getView() != null) {
-                fastAdapter.notifyDataSetChanged();
+                notifyAllRoutineRowsChanged();
                 updateActivity();
             }
         }
@@ -398,8 +400,32 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
             hourlySelection = true;
         }
         updateHourlySelectionIndicator();
-        fastAdapter.notifyDataSetChanged();
+        notifyRoutineRowChanged(dft.getReference());
         updateActivity();
+    }
+
+    private void notifyRoutineRowChanged(long reference) {
+        List<DailyFixedTimeItem> adapterItems = fastAdapter.getAdapterItems();
+        for (int position = 0; position < adapterItems.size(); position++) {
+            DailyFixedTimeItem item = adapterItems.get(position);
+            if (!item.isAddButton && item.getDailyFixedTime().getReference() == reference) {
+                fastAdapter.notifyAdapterItemChanged(position);
+                return;
+            }
+        }
+    }
+
+    private void notifyRoutineRowsChanged(List<Long> references) {
+        for (Long reference : references) {
+            notifyRoutineRowChanged(reference);
+        }
+    }
+
+    private void notifyAllRoutineRowsChanged() {
+        int itemCount = fastAdapter.getAdapterItemCount();
+        if (itemCount > 0) {
+            fastAdapter.notifyAdapterItemRangeChanged(0, itemCount);
+        }
     }
 
     private void populateAdapter() {
