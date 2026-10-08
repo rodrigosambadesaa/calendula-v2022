@@ -22,6 +22,7 @@ import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 
@@ -146,6 +147,9 @@ public class Agenda {
         // set the alarm
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (alarmManager != null) {
+            // An older release used a mutable hash for PendingIntent identity.
+            // Retire the matching old request before scheduling the stable ID.
+            cancelLegacyAlarm(context, reminder, alarmManager);
             scheduleAlarm(alarmManager, dateTime.getMillis(), pendingIntent);
         }
     }
@@ -432,22 +436,57 @@ public class Agenda {
         return false;
     }
 
-    private PendingIntent getReminderIntent(Context context, EventReminder reminder) {
+    /**
+     * Alarm identity must not depend on mutable patient names, time or other
+     * hashCode fields. A unique URI keeps reminders distinct from each other
+     * and from the daily-update PendingIntent sharing AlarmReceiver.
+     */
+    static Intent reminderBroadcastIntent(Context context, EventReminder reminder) {
+        if (reminder == null || reminder.getId() == null || reminder.getId() <= 0) {
+            throw new IllegalArgumentException("Save a reminder before scheduling its alarm");
+        }
         Intent intent = new Intent(context, AlarmReceiver.class);
+        intent.setAction(IntentParams.ACTION_ALARM_REMINDER);
+        intent.setData(Uri.parse("content://" + context.getPackageName()
+                + "/calendula-reminders/" + reminder.getId()));
         intent.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_REMINDER);
         intent.putExtra(IntentParams.EXTRA_REMINDER_ID, reminder.getId());
-        return PendingIntent.getBroadcast(
-                context,
-                reminder.hashCode(),
-                intent,
-                PendingIntentFlags.immutable(PendingIntent.FLAG_CANCEL_CURRENT));
+        return intent;
     }
 
-    private void cancelAlarm(Context context, EventReminder reminder) {
-        PendingIntent pendingIntent = getReminderIntent(context, reminder);
+    private PendingIntent getReminderIntent(Context context, EventReminder reminder) {
+        return PendingIntent.getBroadcast(context, 0,
+                reminderBroadcastIntent(context, reminder),
+                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+    }
+
+    /** Best effort: cancel a legacy hash-based alarm with its former identity. */
+    private void cancelLegacyAlarm(Context context, EventReminder reminder,
+                                   AlarmManager alarmManager) {
+        Intent legacy = new Intent(context, AlarmReceiver.class);
+        legacy.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_REMINDER);
+        legacy.putExtra(IntentParams.EXTRA_REMINDER_ID, reminder.getId());
+        PendingIntent old = PendingIntent.getBroadcast(context, reminder.hashCode(),
+                legacy, PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE));
+        if (old != null) {
+            alarmManager.cancel(old);
+            old.cancel();
+        }
+    }
+
+    // Package-private to verify actual PendingIntent cancellation on emulators.
+    void cancelAlarm(Context context, EventReminder reminder) {
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (alarmManager != null) {
-            alarmManager.cancel(pendingIntent);
+            // FLAG_NO_CREATE must not create a new token merely to cancel it.
+            PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0,
+                    reminderBroadcastIntent(context, reminder),
+                    PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE));
+            if (pendingIntent != null) {
+                alarmManager.cancel(pendingIntent);
+                pendingIntent.cancel();
+            }
+            cancelLegacyAlarm(context, reminder, alarmManager);
         }
     }
 
