@@ -7,10 +7,12 @@
 package es.usc.citius.servando.calendula;
 
 import android.Manifest;
+import android.app.AlarmManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -94,6 +96,20 @@ public class InstallationSmokeTest {
                 new ComponentName(context, UpdateDatabaseService.class), 0).exported);
         assertFalse(pm.getServiceInfo(
                 new ComponentName(context, AlarmIntentService.class), 0).exported);
+    }
+
+    @Test
+    public void bootReceiverRescheduleActionsDoNotCrashOnDevice() {
+        Context context = targetContext();
+        BootReceiver receiver = new BootReceiver();
+
+        receiver.onReceive(context, new Intent(Intent.ACTION_BOOT_COMPLETED));
+        receiver.onReceive(context, new Intent(Intent.ACTION_MY_PACKAGE_REPLACED));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            receiver.onReceive(
+                    context,
+                    new Intent(AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED));
+        }
     }
 
     @SuppressWarnings("deprecation")
