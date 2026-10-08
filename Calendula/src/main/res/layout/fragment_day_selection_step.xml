@@ -173,6 +173,7 @@
 
                         <TextView
                             android:id="@+id/repeat_freq_after"
+                            tools:ignore="RelativeOverlap"
                             android:layout_width="wrap_content"
                             android:layout_height="35dp"
                             android:layout_centerVertical="true"
@@ -227,6 +228,7 @@
 
                         <TextView
                             android:id="@+id/period_title_after"
+                            tools:ignore="RelativeOverlap"
                             android:layout_width="wrap_content"
                             android:layout_height="35dp"
                             android:layout_centerVertical="true"
@@ -292,6 +294,7 @@
 
                         <TextView
                             android:id="@+id/rest_title_after"
+                            tools:ignore="RelativeOverlap"
                             android:layout_width="wrap_content"
                             android:layout_height="40dp"
                             android:layout_centerVertical="true"
