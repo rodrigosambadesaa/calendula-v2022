@@ -186,6 +186,7 @@ android {
 
 
     compileOptions {
+        coreLibraryDesugaringEnabled true
         sourceCompatibility = 1.8
         targetCompatibility = 1.8
     }
@@ -217,6 +218,8 @@ tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile) {
 }
 
 dependencies {
+
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.1.5'
 
     /********** DEBUGGING **********/
     // Chrome debug bridge
@@ -272,7 +275,7 @@ dependencies {
 
     /********** UTILITIES **********/
     // HTML parsing
-    implementation 'org.jsoup:jsoup:1.10.3'
+    implementation 'org.jsoup:jsoup:1.23.2'
 
     // Event bus
     implementation 'org.greenrobot:eventbus:3.3.1'

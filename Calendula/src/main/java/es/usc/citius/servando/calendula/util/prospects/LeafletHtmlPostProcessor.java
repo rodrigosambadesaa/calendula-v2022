@@ -23,7 +23,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Entities;
 import org.jsoup.safety.Cleaner;
-import org.jsoup.safety.Whitelist;
+import org.jsoup.safety.Safelist;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -44,7 +44,7 @@ public class LeafletHtmlPostProcessor implements WebViewActivity.HtmlPostprocess
         doc.select("div#pdfurl").remove();
 
         // white list to clean html
-        Whitelist wl = Whitelist.relaxed();
+        Safelist wl = Safelist.relaxed();
         wl.addTags("div", "span", "p", "h1", "h2", "h3", "ul", "ol", "li", "a", "img");
         wl.preserveRelativeLinks(true);
         wl.addAttributes("img", "src");
