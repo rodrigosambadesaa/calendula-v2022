@@ -21,7 +21,6 @@ package es.usc.citius.servando.calendula.activities.schedules;
 import android.app.ProgressDialog;
 import android.content.Context;
 import android.graphics.Color;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import androidx.annotation.IntRange;
 import androidx.annotation.NonNull;
@@ -100,6 +99,7 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
 
     private static final String TAG = "ScheduleBuildActivity";
     private static final ExecutorService CHECK_CHANGES_EXECUTOR = Executors.newSingleThreadExecutor();
+    private static final ExecutorService SCHEDULE_SAVE_EXECUTOR = Executors.newSingleThreadExecutor();
     private final IIcon[] tabIcons = new IIcon[]{
             CommunityMaterial.Icon2.cmd_pill,
             CommunityMaterial.Icon.cmd_clock,
@@ -167,7 +167,7 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
                         @Override
                         public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
                             dialog.dismiss();
-                            new OnCompleteTask().execute();
+                            completeScheduleAsync();
                         }
                     })
                     .setNegativeText(getString(R.string.cancel))
@@ -179,7 +179,7 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
                     })
                     .show();
         } else {
-            new OnCompleteTask().execute();
+            completeScheduleAsync();
         }
     }
 
@@ -899,73 +899,63 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
         }
     }
 
-    public class OnCompleteTask extends AsyncTask<Void, Void, Void> {
-
-        ProgressDialog dialog;
-
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-
-            String text;
-            if (isInEditMode()) {
-                text = getString(R.string.schedule_build_updating_reminder_for);
-            } else {
-                text = getString(R.string.schedule_build_creating_reminder_for);
-            }
-
-            text += tmpSchedule.getMedicine().getName() + "...";
-            dialog = ProgressDialog.show(ScheduleBuildActivity.this, "", text, true);
-
+    private void completeScheduleAsync() {
+        String text;
+        if (isInEditMode()) {
+            text = getString(R.string.schedule_build_updating_reminder_for);
+        } else {
+            text = getString(R.string.schedule_build_creating_reminder_for);
         }
 
-        @Override
-        protected Void doInBackground(Void... params) {
-            if (isInEditMode()) {
+        text += tmpSchedule.getMedicine().getName() + "...";
+        final ProgressDialog dialog = ProgressDialog.show(this, "", text, true);
+        final boolean editMode = isInEditMode();
+        final boolean differs = differsFromPrescription;
+        final Schedule scheduleToSave = tmpSchedule;
+        final Schedule existingSchedule = editingSchedule;
 
-                if (editingSchedule.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE)) {
-                    editingSchedule.removeState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE);
+        SCHEDULE_SAVE_EXECUTOR.execute(() -> {
+            if (editMode) {
+                if (existingSchedule.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE)) {
+                    existingSchedule.removeState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE);
                 }
-                if (editingSchedule.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE)) {
-                    editingSchedule.removeState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE);
-                }
-
-                if (differsFromPrescription) {
-                    editingSchedule.addState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
-                } else if (editingSchedule.hasState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL)) {
-                    editingSchedule.removeState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
+                if (existingSchedule.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE)) {
+                    existingSchedule.removeState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE);
                 }
 
-                editingSchedule.setMedicine(tmpSchedule.getMedicine());
-                editingSchedule.setDosages(tmpSchedule.getDosages());
-                editingSchedule.setRecur(tmpSchedule.getRecur());
-                DB.schedules().save(editingSchedule);
-                ScheduleUtils.instance().updateEventInstances(ScheduleBuildActivity.this, editingSchedule);
+                if (differs) {
+                    existingSchedule.addState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
+                } else if (existingSchedule.hasState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL)) {
+                    existingSchedule.removeState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
+                }
+
+                existingSchedule.setMedicine(scheduleToSave.getMedicine());
+                existingSchedule.setDosages(scheduleToSave.getDosages());
+                existingSchedule.setRecur(scheduleToSave.getRecur());
+                DB.schedules().save(existingSchedule);
+                ScheduleUtils.instance().updateEventInstances(ScheduleBuildActivity.this, existingSchedule);
             } else {
-                Schedule s = new Schedule(tmpSchedule.getRecur());
-                s.setPatient(DB.patients().getActive(ScheduleBuildActivity.this));
-                s.setMedicine(tmpSchedule.getMedicine());
-                s.setDosages(tmpSchedule.getDosages());
+                Schedule schedule = new Schedule(scheduleToSave.getRecur());
+                schedule.setPatient(DB.patients().getActive(ScheduleBuildActivity.this));
+                schedule.setMedicine(scheduleToSave.getMedicine());
+                schedule.setDosages(scheduleToSave.getDosages());
 
-                if (differsFromPrescription) {
+                if (differs) {
                     editingSchedule.addState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
                 }
 
-                DB.schedules().save(s);
-                ScheduleUtils.instance().createEventInstances(ScheduleBuildActivity.this, s);
+                DB.schedules().save(schedule);
+                ScheduleUtils.instance().createEventInstances(ScheduleBuildActivity.this, schedule);
             }
-            return null;
-        }
 
-        @Override
-        protected void onPostExecute(Void res) {
-            super.onPostExecute(res);
-            if (dialog != null) {
-                dialog.dismiss();
-            }
-            finish();
-            DB.schedules().fireEvent();
-        }
+            runOnUiThread(() -> {
+                if (dialog.isShowing()) {
+                    dialog.dismiss();
+                }
+                finish();
+                DB.schedules().fireEvent();
+            });
+        });
     }
 
     @Override
