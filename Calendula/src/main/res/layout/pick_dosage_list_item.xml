@@ -35,6 +35,8 @@
             android:ellipsize="end"
             android:gravity="center_vertical"
             android:layout_centerVertical="true"
+            android:layout_toLeftOf="@id/dosage"
+            android:layout_toStartOf="@id/dosage"
             android:maxLines="1"
             android:singleLine="true"
             android:textColor="@color/activity_schedule_build_foreground"
