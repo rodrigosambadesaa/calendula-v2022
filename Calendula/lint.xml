@@ -24,4 +24,17 @@
          Re-enable this check when migrating the project to non-final resource IDs. -->
     <issue id="NonConstantResourceId" severity="ignore" />
 
+    <!-- The alarm animation is intentionally decoded with GifDrawable. -->
+    <issue id="GifUsage">
+        <ignore path="src/main/res/drawable-xxxhdpi/animated_clock.gif" />
+    </issue>
+
+    <!-- Legacy raster/vector assets intentionally use a mixed density layout. -->
+    <issue id="IconDensities">
+        <ignore path="src/main/res/drawable-hdpi" />
+        <ignore path="src/main/res/drawable-mdpi" />
+        <ignore path="src/main/res/drawable-xhdpi" />
+        <ignore path="src/main/res/drawable-xxhdpi" />
+    </issue>
+
 </lint>
