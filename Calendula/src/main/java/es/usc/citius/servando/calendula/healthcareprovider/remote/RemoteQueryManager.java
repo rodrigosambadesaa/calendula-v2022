@@ -8,9 +8,6 @@ import net.openid.appauth.TokenResponse;
 
 import java.io.IOException;
 
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLSession;
-
 import es.usc.citius.servando.calendula.BuildConfig;
 import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.login.LoginStateManager;
