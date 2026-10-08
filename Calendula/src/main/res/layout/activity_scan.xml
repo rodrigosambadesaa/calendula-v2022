@@ -23,7 +23,9 @@
                 android:background="@color/android_blue_dark"
                 android:descendantFocusability="beforeDescendants"
                 android:focusableInTouchMode="true"
-                android:fitsSystemWindows="true">
+                android:fitsSystemWindows="true"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="Overdraw">
 
     <ImageView
         android:id="@+id/imageView"
