@@ -941,7 +941,7 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
                 schedule.setDosages(scheduleToSave.getDosages());
 
                 if (differs) {
-                    editingSchedule.addState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
+                    schedule.addState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
                 }
 
                 DB.schedules().save(schedule);
