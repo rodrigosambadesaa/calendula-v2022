@@ -15,9 +15,9 @@ import com.google.gson.JsonPrimitive;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Read-only foundation for the AEMPS CIMA REST API.
@@ -63,7 +63,9 @@ public final class CimaRestCatalog {
         }
         String dose = optionalString(medicine, "dosis");
 
-        Set<String> codes = new LinkedHashSet<>();
+        // Keep each national presentation's own marketed name; a CIMA
+        // registration may represent multiple different packaging options.
+        Map<String, String> presentationNames = new LinkedHashMap<>();
         JsonElement presentations = medicine.get("presentaciones");
         if (presentations != null && !presentations.isJsonNull()) {
             if (!presentations.isJsonArray()) {
@@ -77,15 +79,34 @@ public final class CimaRestCatalog {
                 if (!entry.isJsonObject()) {
                     throw new IllegalArgumentException("Invalid CIMA presentation");
                 }
-                String code = requireString(entry.getAsJsonObject(), "cn");
+                JsonObject item = entry.getAsJsonObject();
+                String code = requireString(item, "cn");
                 if (!code.matches("[0-9]{5,8}")) {
                     throw new IllegalArgumentException("Invalid CIMA national code");
                 }
-                codes.add(code);
+                String marketedName = optionalString(item, "nombre");
+                if (marketedName == null) {
+                    marketedName = name;
+                } else {
+                    marketedName = marketedName.trim();
+                    if (marketedName.isEmpty() || marketedName.length() > 512) {
+                        throw new IllegalArgumentException("Invalid CIMA presentation name");
+                    }
+                }
+                String earlier = presentationNames.putIfAbsent(code, marketedName);
+                if (earlier != null && !earlier.equals(marketedName)) {
+                    throw new IllegalArgumentException(
+                            "Conflicting CIMA presentation details for national code");
+                }
             }
         }
+        List<PresentationSnapshot> options = new ArrayList<>();
+        for (Map.Entry<String, String> item : presentationNames.entrySet()) {
+            options.add(new PresentationSnapshot(item.getKey(), item.getValue()));
+        }
         return new MedicineSnapshot(registration, name, dose,
-                Collections.unmodifiableList(new ArrayList<>(codes)));
+                Collections.unmodifiableList(new ArrayList<>(presentationNames.keySet())),
+                Collections.unmodifiableList(options));
     }
 
     /**
@@ -139,13 +160,16 @@ public final class CimaRestCatalog {
         private final String name;
         private final String dose;
         private final List<String> nationalCodes;
+        private final List<PresentationSnapshot> presentations;
 
         private MedicineSnapshot(String registrationNumber, String name,
-                                 String dose, List<String> nationalCodes) {
+                                 String dose, List<String> nationalCodes,
+                                 List<PresentationSnapshot> presentations) {
             this.registrationNumber = registrationNumber;
             this.name = name;
             this.dose = dose;
             this.nationalCodes = nationalCodes;
+            this.presentations = presentations;
         }
 
         public String getRegistrationNumber() {
@@ -162,6 +186,29 @@ public final class CimaRestCatalog {
 
         public List<String> getNationalCodes() {
             return nationalCodes;
+        }
+
+        public List<PresentationSnapshot> getPresentations() {
+            return presentations;
+        }
+    }
+
+    /** Immutable presentation metadata; CN and marketing name are distinct. */
+    public static final class PresentationSnapshot {
+        private final String nationalCode;
+        private final String displayName;
+
+        private PresentationSnapshot(String nationalCode, String displayName) {
+            this.nationalCode = nationalCode;
+            this.displayName = displayName;
+        }
+
+        public String getNationalCode() {
+            return nationalCode;
+        }
+
+        public String getDisplayName() {
+            return displayName;
         }
     }
 }
