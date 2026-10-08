@@ -232,7 +232,7 @@
             android:layout_alignParentEnd="true"
             android:layout_alignParentRight="true"
             android:layout_marginRight="16dp"
-            android:src="@drawable/ic_done_black_48dp"
+            android:src="@drawable/ic_done_black"
             app:backgroundTint="#00c853"
             app:elevation="4dp"
             app:layout_anchor="@+id/appbar"
