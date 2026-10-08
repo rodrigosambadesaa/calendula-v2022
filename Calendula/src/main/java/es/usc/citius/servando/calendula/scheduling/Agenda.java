@@ -258,10 +258,14 @@ public class Agenda {
                 PendingIntentFlags.immutable(PendingIntent.FLAG_CANCEL_CURRENT));
         AlarmManager alarmManager = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
         if (alarmManager != null) {
-            alarmManager.setRepeating(
+            // INTERVAL_DAY is a fixed 24 hours, but calendar days around DST
+            // can last 23 or 25 hours. Each daily broadcast registers the
+            // next LOCAL midnight instead of drifting by an hour.
+            // This inexact one-shot requires no special exact-alarm access.
+            alarmManager.setAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
                     nextDailyUpdateMillis(DateTime.now()),
-                    AlarmManager.INTERVAL_DAY, dailyAlarm
+                    dailyAlarm
             );
         }
     }
