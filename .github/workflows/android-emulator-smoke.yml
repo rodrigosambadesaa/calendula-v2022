@@ -24,6 +24,9 @@ jobs:
   smoke:
     strategy:
       fail-fast: false
+      # Run emulator jobs serially so the first job populates the shared Gradle
+      # dependency cache instead of three cold runners hammering Maven Central at once.
+      max-parallel: 1
       matrix:
         api-level: [23, 33, 36]
     runs-on: ubuntu-latest
