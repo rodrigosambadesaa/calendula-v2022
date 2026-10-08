@@ -112,8 +112,14 @@ Establece a hora da primeira toma, e listo!"</string>
     <string name="aml_updated_notification_title">"Folla de Medicación actualizada"</string>
     <string name="aml_updated_notification_text">"A túa medicación cambiou"</string>
 <string name="aml_updated_new_and_updated_summary">"Hai %1$d pautas novas e %2$d pautas actualizadas"</string>
-<string name="aml_updated_new_summary">"Hai %1$d pautas novas"</string>
-<string name="aml_updated_updated_summary">"Hai %1$d pautas actualizadas"</string>
+<plurals name="aml_updated_new_summary">
+    <item quantity="one">Hai %1$d pauta nova</item>
+    <item quantity="other">Hai %1$d pautas novas</item>
+</plurals>
+<plurals name="aml_updated_updated_summary">
+    <item quantity="one">Hai %1$d pauta actualizada</item>
+    <item quantity="other">Hai %1$d pautas actualizadas</item>
+</plurals>
 <string name="aml_updated_summary">"%1$d novas, %2$d actualizadas e %3$d eliminadas."</string>
 <string name="reminder_pending_revision">"Recordatorio pendiente de revisión"</string>
 <string name="schedule_build_control_next">"Seguinte"</string>
