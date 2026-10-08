@@ -111,9 +111,6 @@ public class AlertListFragment extends Fragment {
 
     }
 
-    public void refresh() {
-        rvAdapter.notifyDataSetChanged();
-    }
 
     public void notifyDataChange() {
         try {
