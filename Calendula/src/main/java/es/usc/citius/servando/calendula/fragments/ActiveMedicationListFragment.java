@@ -336,7 +336,7 @@ public class ActiveMedicationListFragment extends Fragment {
                         request.setLoadingMessage(getContext().getString(R.string.message_extrainfo_loading));
                         request.setTitle(getContext().getString(R.string.title_extrainfo_webview));
                         request.setCacheType(WebViewRequest.CacheType.NO_CACHE);
-                        request.setJavaScriptEnabled(false);
+                        request.setJavaScriptAllowed(false);
                         request.setExternalLinksEnabled(false);
 
                         intent.putExtra(PdfViewActivity.PARAM_PDFVIEW_REQUEST, request);
