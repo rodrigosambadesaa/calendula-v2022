@@ -22,7 +22,6 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import androidx.annotation.NonNull;
@@ -51,7 +50,6 @@ import com.mikepenz.iconics.IconicsDrawable;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -59,6 +57,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -94,6 +94,7 @@ public class AllergiesActivity extends CalendulaActivity {
 
 
     private static final String TAG = "AllergiesActivity";
+    private static final ExecutorService ALLERGY_EXECUTOR = Executors.newSingleThreadExecutor();
     // main view
     @BindView(R.id.add_button)
     protected FloatingActionButton addButton;
@@ -123,7 +124,7 @@ public class AllergiesActivity extends CalendulaActivity {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == AllergiesSearchActivity.REQUEST_NEW_ALLERGIES && resultCode == Activity.RESULT_OK) {
             final ArrayList<AllergenGroupWrapper> result = data.getParcelableArrayListExtra("result");
-            new SaveAllergiesTask().execute(result);
+            saveAllergiesAsync(result);
         }
     }
 
@@ -156,7 +157,7 @@ public class AllergiesActivity extends CalendulaActivity {
                 android.graphics.PorterDuff.Mode.MULTIPLY);
 
         //load allergies, set placeholder if needed
-        new LoadAllergiesTask().execute();
+        loadAllergiesAsync();
 
         showWarningIfNeeded();
     }
@@ -343,7 +344,7 @@ public class AllergiesActivity extends CalendulaActivity {
         showDeleteConfirmationDialog(getString(R.string.remove_allergy_message_short, a.getAllergen().getName()), new MaterialDialog.SingleButtonCallback() {
             @Override
             public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
-                new DeleteAllergyTask().execute(a);
+                deleteAllergyAsync(a);
                 dialog.dismiss();
             }
         }, new MaterialDialog.SingleButtonCallback() {
@@ -358,7 +359,7 @@ public class AllergiesActivity extends CalendulaActivity {
         showDeleteConfirmationDialog(getString(R.string.remove_allergy_message_short, a.getTitle()), new MaterialDialog.SingleButtonCallback() {
             @Override
             public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
-                new DeleteAllergyGroupTask().execute(a);
+                deleteAllergyGroupAsync(a);
                 dialog.dismiss();
             }
         }, new MaterialDialog.SingleButtonCallback() {
@@ -515,179 +516,129 @@ public class AllergiesActivity extends CalendulaActivity {
         }
     }
 
-    private class DeleteAllergyGroupTask extends AsyncTask<AllergyGroupItem, Void, Integer> {
+    private void deleteAllergyGroupAsync(final AllergyGroupItem item) {
+        progressBar.setVisibility(View.VISIBLE);
 
-        @Override
-        protected Integer doInBackground(AllergyGroupItem... params) {
-            LogUtil.d(TAG, "doInBackground() called with: params = [" + Arrays.toString(params) + "]");
-            if (params.length != 1) {
-                LogUtil.e(TAG, "doInBackground: invalid argument length. Expected 1, got " + params.length);
-                throw new IllegalArgumentException("Invalid argument length");
-            }
-            int index = allergiesAdapter.getAdapterPosition(params[0]);
-
-            final List<AllergyGroupSubItem> subItems = params[0].getSubItems();
-            final List<PatientAllergen> allergens = new ArrayList<>(subItems.size());
-            for (AllergyGroupSubItem subItem : subItems) {
-                allergens.add(subItem.getAllergen());
-            }
-
-            int k = store.deleteAllergens(allergens);
-            return k >= -1 ? index : k;
+        final int index = allergiesAdapter.getAdapterPosition(item);
+        final List<AllergyGroupSubItem> subItems = new ArrayList<>(item.getSubItems());
+        final List<PatientAllergen> allergens = new ArrayList<>(subItems.size());
+        for (AllergyGroupSubItem subItem : subItems) {
+            allergens.add(subItem.getAllergen());
         }
 
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-            progressBar.setVisibility(View.VISIBLE);
-        }
+        ALLERGY_EXECUTOR.execute(() -> {
+            final int deleted = store.deleteAllergens(allergens);
+            final int resultIndex = deleted >= -1 ? index : deleted;
 
-        @Override
-        protected void onPostExecute(Integer index) {
-            if (index >= 0) {
-                store.reload();
-                checkPlaceholder();
-                expandableExtension.collapse(index);
-                allergiesAdapter.remove(index);
-            } else {
-                Snack.show(R.string.delete_allergen_error, AllergiesActivity.this);
-            }
-            progressBar.setVisibility(View.GONE);
-            new Handler().postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    checkPlaceholder();
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) {
+                    return;
                 }
-            }, 200);
-            hideAllergiesView(false);
-        }
-
-
-    }
-
-    private class DeleteAllergyTask extends AsyncTask<AllergyItem, Void, Integer> {
-
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-            progressBar.setVisibility(View.VISIBLE);
-        }
-
-        @Override
-        protected void onPostExecute(Integer index) {
-            if (index >= 0) {
-                store.reload();
-                checkPlaceholder();
-                allergiesAdapter.remove(index);
-            } else {
-                Snack.show(R.string.delete_allergen_error, AllergiesActivity.this);
-            }
-            progressBar.setVisibility(View.GONE);
-            new Handler().postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    checkPlaceholder();
-                }
-            }, 200);
-            hideAllergiesView(false);
-        }
-
-        @Override
-        protected Integer doInBackground(AllergyItem... params) {
-            if (params.length != 1) {
-                LogUtil.e(TAG, "doInBackground: invalid argument length. Expected 1, got " + params.length);
-                throw new IllegalArgumentException("Invalid argument length");
-            }
-            int index = allergiesAdapter.getAdapterPosition(params[0]);
-            store.deleteAllergen(params[0].getAllergen(), true);
-            return index;
-        }
-    }
-
-    private class LoadAllergiesTask extends AsyncTask<Void, Void, List<AbstractItem>> {
-
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-            hideAllergiesView(true);
-            progressBar.setVisibility(View.VISIBLE);
-        }
-
-        @Override
-        protected void onPostExecute(List<AbstractItem> items) {
-            allergiesAdapter.add(items);
-            progressBar.setVisibility(View.GONE);
-            checkPlaceholder();
-            hideAllergiesView(false);
-        }
-
-        @Override
-        protected List<AbstractItem> doInBackground(Void... params) {
-            store.load(AllergiesActivity.this);
-            return getAllergyItems();
-        }
-    }
-
-    private class SaveAllergiesTask extends AsyncTask<Collection<AllergenGroupWrapper>, Void, SaveAllergiesTask.Result> {
-
-        @SafeVarargs
-        @Override
-        protected final Result doInBackground(Collection<AllergenGroupWrapper>... items) {
-            if (items.length != 1) {
-                LogUtil.e(TAG, "doInBackground: invalid argument length. Expected 1, got " + items.length);
-                throw new IllegalArgumentException("Invalid argument length");
-            }
-            final Collection<AllergenGroupWrapper> ws = items[0];
-            Collection<PatientAllergen> pa = new ArrayList<>(ws.size());
-            Patient p = DB.patients().getActive(AllergiesActivity.this);
-            for (AllergenGroupWrapper w : ws) {
-                if (w.getGroup() != null)
-                    pa.add(new PatientAllergen(w.getVo(), p, w.getGroup()));
-                else
-                    pa.add(new PatientAllergen(w.getVo(), p));
-            }
-
-            final SaveResult r = store.storeAllergens(pa);
-            return new Result(r == SaveResult.OK || r == SaveResult.ALLERGY, r == SaveResult.ALLERGY, getAllergyItems());
-        }
-
-        @Override
-        protected void onPostExecute(Result res) {
-            progressBar.setVisibility(View.GONE);
-            if (res.saved) {
-                if (!res.allergyItems.isEmpty()) {
-                    allergiesAdapter.set(res.allergyItems);
+                if (resultIndex >= 0) {
                     store.reload();
+                    checkPlaceholder();
+                    expandableExtension.collapse(resultIndex);
+                    allergiesAdapter.remove(resultIndex);
+                } else {
+                    Snack.show(R.string.delete_allergen_error, AllergiesActivity.this);
                 }
-                if (res.allergies)
-                    showNewAllergyConflictDialog();
+                progressBar.setVisibility(View.GONE);
+                new Handler().postDelayed(() -> checkPlaceholder(), 200);
                 hideAllergiesView(false);
-                Snack.show(getString(R.string.message_allergy_add_multiple_success), AllergiesActivity.this);
-            } else {
-                Snack.show(R.string.message_allergy_add_failure, AllergiesActivity.this);
-            }
-        }
-
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-            hideAllergiesView(true);
-            progressBar.setVisibility(View.VISIBLE);
-        }
-
-        class Result {
-            final boolean saved;
-            final boolean allergies;
-            final List<AbstractItem> allergyItems;
-
-            public Result(boolean saved, boolean allergies, List<AbstractItem> allergyItems) {
-                this.saved = saved;
-                this.allergies = allergies;
-                this.allergyItems = allergyItems;
-            }
-        }
-
-
+            });
+        });
     }
+
+    private void deleteAllergyAsync(final AllergyItem item) {
+        progressBar.setVisibility(View.VISIBLE);
+        final int index = allergiesAdapter.getAdapterPosition(item);
+        final PatientAllergen allergen = item.getAllergen();
+
+        ALLERGY_EXECUTOR.execute(() -> {
+            store.deleteAllergen(allergen, true);
+
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) {
+                    return;
+                }
+                if (index >= 0) {
+                    store.reload();
+                    checkPlaceholder();
+                    allergiesAdapter.remove(index);
+                } else {
+                    Snack.show(R.string.delete_allergen_error, AllergiesActivity.this);
+                }
+                progressBar.setVisibility(View.GONE);
+                new Handler().postDelayed(() -> checkPlaceholder(), 200);
+                hideAllergiesView(false);
+            });
+        });
+    }
+
+    private void loadAllergiesAsync() {
+        hideAllergiesView(true);
+        progressBar.setVisibility(View.VISIBLE);
+
+        ALLERGY_EXECUTOR.execute(() -> {
+            store.load(AllergiesActivity.this);
+            final List<AbstractItem> items = getAllergyItems();
+
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) {
+                    return;
+                }
+                allergiesAdapter.add(items);
+                progressBar.setVisibility(View.GONE);
+                checkPlaceholder();
+                hideAllergiesView(false);
+            });
+        });
+    }
+
+    private void saveAllergiesAsync(final Collection<AllergenGroupWrapper> wrappers) {
+        hideAllergiesView(true);
+        progressBar.setVisibility(View.VISIBLE);
+        final Collection<AllergenGroupWrapper> items = new ArrayList<>(wrappers);
+
+        ALLERGY_EXECUTOR.execute(() -> {
+            final Collection<PatientAllergen> patientAllergens = new ArrayList<>(items.size());
+            final Patient patient = DB.patients().getActive(AllergiesActivity.this);
+            for (AllergenGroupWrapper wrapper : items) {
+                if (wrapper.getGroup() != null) {
+                    patientAllergens.add(new PatientAllergen(
+                            wrapper.getVo(), patient, wrapper.getGroup()));
+                } else {
+                    patientAllergens.add(new PatientAllergen(wrapper.getVo(), patient));
+                }
+            }
+
+            final SaveResult result = store.storeAllergens(patientAllergens);
+            final boolean saved = result == SaveResult.OK || result == SaveResult.ALLERGY;
+            final boolean conflicts = result == SaveResult.ALLERGY;
+            final List<AbstractItem> allergyItems = getAllergyItems();
+
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) {
+                    return;
+                }
+                progressBar.setVisibility(View.GONE);
+                if (saved) {
+                    if (!allergyItems.isEmpty()) {
+                        allergiesAdapter.set(allergyItems);
+                        store.reload();
+                    }
+                    if (conflicts) {
+                        showNewAllergyConflictDialog();
+                    }
+                    hideAllergiesView(false);
+                    Snack.show(getString(R.string.message_allergy_add_multiple_success),
+                            AllergiesActivity.this);
+                } else {
+                    Snack.show(R.string.message_allergy_add_failure, AllergiesActivity.this);
+                }
+            });
+        });
+    }
+
 
 }
