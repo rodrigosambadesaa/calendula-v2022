@@ -110,7 +110,7 @@
         android:layout_centerVertical="true"
         android:layout_marginRight="20dp"
         android:alpha="0.7"
-        android:src="@drawable/ic_done_black_48dp"
+        android:src="@drawable/ic_done_black"
         android:visibility="visible"
         android:contentDescription="@string/done"/>
 

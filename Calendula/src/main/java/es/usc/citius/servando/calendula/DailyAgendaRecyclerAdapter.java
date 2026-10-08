@@ -209,7 +209,7 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
         if (item.displayable) {
 
 //            if (!item.isRoutine) {
-//                viewHolder.itemTypeIcon.setImageResource(R.drawable.ic_history_black_48dp);
+//                viewHolder.itemTypeIcon.setImageResource(R.drawable.ic_history_black);
 //            } else {
                 viewHolder.itemTypeIcon.setImageResource(R.drawable.ic_alarm_black_48dp);
 //            }

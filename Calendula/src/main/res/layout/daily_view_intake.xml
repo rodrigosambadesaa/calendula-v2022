@@ -71,7 +71,7 @@
                     android:layout_marginLeft="0dp"
                     android:layout_marginRight="10dp"
                     android:layout_marginBottom="0dp"
-                    android:src="@drawable/ic_done_black_48dp"
+                    android:src="@drawable/ic_done_black"
             android:contentDescription="@string/text_take_medicines_now" />
 
                 <TextView
