@@ -22,6 +22,7 @@ import android.security.NetworkSecurityPolicy;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.drugdb.download.InstallDatabaseService;
 import es.usc.citius.servando.calendula.drugdb.download.UpdateDatabaseService;
 import es.usc.citius.servando.calendula.notifications.NotificationHelper;
@@ -73,6 +74,20 @@ public class InstallationSmokeTest {
         assertEquals(BuildConfig.APPLICATION_ID, context.getPackageName());
         assertNotNull(context.getApplicationInfo());
         assertNotNull(context.getPackageManager());
+    }
+
+    @Test
+    public void medicationDatabaseSchemaIsReadableOnDevice() {
+        // Read-only checks on the ephemeral emulator's own app database.
+        // This covers first-run SQLite/ORM initialization, not migrations
+        // from historical patient databases or download authenticity.
+        assertTrue(DB.initialized);
+        assertNotNull(DB.helper());
+        assertTrue(DB.helper().getReadableDatabase().isOpen());
+        assertTrue(DB.medicines().count() >= 0);
+        assertTrue(DB.routines().count() >= 0);
+        assertTrue(DB.schedules().count() >= 0);
+        assertTrue(DB.eventReminders().count() >= 0);
     }
 
     @Test
