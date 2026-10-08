@@ -76,7 +76,12 @@
         <item name="spinBars">true</item>
         <item name="color">@android:color/white</item>
     </style>
-<style name="next_button">
+
+
+    
+
+
+    <style name="next_button">
         <item name="android:textColor">@color/white</item>
         <item name="android:textStyle">bold</item>
         <item name="android:textSize">15sp</item>
@@ -92,7 +97,15 @@
         <item name="android:height">@dimen/normal_button_height</item>
         <item name="android:background">@drawable/delay_button_selector</item>
     </style>
-<style name="schedule_weekday_unselected">
+
+    
+
+
+    
+
+    
+
+    <style name="schedule_weekday_unselected">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:textAppearance">?android:attr/textAppearanceSmall</item>
@@ -132,17 +145,32 @@
         <item name="bpDividerColor">@color/default_divider_color_light</item>
         <item name="bpKeyboardIndicatorColor">@color/default_keyboard_indicator_color_light</item>
     </style>
-<style name="menu_labels_style">
+
+    
+
+    
+
+    
+
+    
+
+    <style name="menu_labels_style">
         <item name="android:background">@drawable/fab_label_background</item>
         <item name="android:textColor">@color/white</item>
     </style>
 
 
     <style name="AppTheme.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar"/>
-<style name="ToolbarTitle" parent="TextAppearance.Widget.AppCompat.Toolbar.Title">
+
+    
+
+    <style name="ToolbarTitle" parent="TextAppearance.Widget.AppCompat.Toolbar.Title">
         <item name="android:textColor">#ffffff</item>
     </style>
-<!--<style >-->
+
+    
+
+    <!--<style >-->
     <!--<item name="android:textColor">@color/white</item>-->
     <!--<item name="android:textStyle">bold</item>-->
     <!--<item name="android:textSize">15dp</item>-->
@@ -160,7 +188,14 @@
     <style name="CaldroidDefaultDarkGridView" parent="CaldroidDefaultGridView">
         <item name="android:background">@color/transparent</item>
     </style>
-<!-- Summary calendar theme -->
+
+    
+
+
+    
+
+
+    <!-- Summary calendar theme -->
     <!-- Dark theme. -->
     <style name="CaldroidScheduleSummary" parent="CaldroidDefault">
         <item name="styleCaldroidViewLayout">@style/CaldroidScheduleSummaryCalendarViewLayout</item>
@@ -258,7 +293,10 @@
         <item name="android:layout_margin">1dp</item>
         <item name="background">@color/white_20</item>
     </style>
-<style name="SettingsActivityTheme" parent="AppTheme">
+
+    
+
+    <style name="SettingsActivityTheme" parent="AppTheme">
         <item name="preferenceTheme">@style/PreferenceThemeOverlay.v14.Material</item>
         <item name="background">@color/android_red</item>
     </style>
