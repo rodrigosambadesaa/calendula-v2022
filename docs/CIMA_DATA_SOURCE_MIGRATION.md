@@ -27,7 +27,10 @@ Do not manufacture an unauthenticated SQL archive from these results.
 
 `CimaRestCatalog` constructs a constrained official HTTPS detail URL and
 validates a bounded JSON response into an immutable **non-persisted**
-`MedicineSnapshot`. It preserves the distinction between one registration
+`MedicineSnapshot`. The two-argument parser also requires the
+response registration to match the registration requested, preventing
+wrong-medicine associations after cache or proxy errors. It preserves the
+distinction between one registration
 number and potentially multiple national presentation codes. It performs
 **no network request, SQL execution, medicine import, dosage recommendation,
 prescription linkage or patient-data mutation**.
