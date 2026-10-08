@@ -93,10 +93,18 @@ The historical 2022 codebase is being modernized incrementally while preserving 
 
 GitHub Actions builds the `ciDebug` APK, validates the `developRelease` code path with R8, runs the JVM unit-test suite, builds the instrumentation-test APK, runs Android lint, and uploads the resulting reports and debug APK. The same JDK 17 toolchain is used for the Android SDK tools and Gradle build.
 
-**CI scope:** The workflow compiles an instrumentation-test APK but does not currently
-execute instrumentation tests on an emulator or physical device. A passing CI run
-therefore does not establish end-to-end reliability of medication alarms, database
-installations, sign-in, notifications, or UI flows on current Android versions.
+**CI scope:** In addition to compiling the instrumentation-test APK, a separate
+GitHub Actions emulator workflow runs focused instrumented smoke tests on Android
+6 (API 23), Android 13 (API 33), and Android 16 (API 36). These currently cover
+selected platform integrations, including application startup, receiver callbacks,
+notification permissions and local SQLite operations. A passing run **does not**
+prove end-to-end reliability of medication alarms (Doze/reboot), full medical
+database import and migration, authentication, or user-interface journeys. The
+medical database supply chain remains a release blocker (issue #216).
+
+Do not use this unofficial fork as a medically validated application until all
+P0 release blockers and representative device-level regression tests have been
+resolved. See the modernization status document for the current acceptance criteria.
 
 See [Modernization status and remaining work](docs/MODERNIZATION_STATUS.md) for
 the current roadmap, residual risks, and validation criteria.
