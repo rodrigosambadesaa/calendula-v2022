@@ -59,7 +59,6 @@ public class HttpDownloadUtil {
             final Context context,
             final String fileUrl,
             final File file) {
-        FileOutputStream fileOutput = null;
         InputStream inputStream = null;
         HttpURLConnection connection = null;
         try {
@@ -70,16 +69,60 @@ public class HttpDownloadUtil {
                 throw new IOException("Binary download exceeds maximum allowed size");
             }
             inputStream = connection.getInputStream();
-            fileOutput = new FileOutputStream(file);
-            copyLimited(inputStream, fileOutput, MAX_BINARY_DOWNLOAD_BYTES);
+            writeCompleteDownload(inputStream, file, contentLength);
             return true;
         } catch (IOException e) {
             LogUtil.e(TAG, "downloadFile: ", e);
             return false;
         } finally {
-            CloseableUtil.closeQuietly(fileOutput, inputStream);
+            CloseableUtil.closeQuietly(inputStream);
             if (connection != null) {
                 connection.disconnect();
+            }
+        }
+    }
+
+    /**
+     * Stage bytes beside the destination so failed/incomplete downloads never
+     * overwrite a previously complete database archive. A same-directory
+     * rename is atomic on Android's normal app-private Linux filesystems.
+     * Neither URL transport security nor archive authenticity is established
+     * by this staging step.
+     */
+    static void writeCompleteDownload(InputStream input, File destination, long declaredBytes)
+            throws IOException {
+        if (input == null || destination == null) {
+            throw new IOException("Missing database download input or destination");
+        }
+        File target = destination.getAbsoluteFile();
+        File directory = target.getParentFile();
+        if (directory == null || !directory.isDirectory()) {
+            throw new IOException("Database download destination directory does not exist");
+        }
+        if (declaredBytes > MAX_BINARY_DOWNLOAD_BYTES) {
+            throw new IOException("Binary download exceeds maximum allowed size");
+        }
+
+        File staged = File.createTempFile(".calendula-download-", ".part", directory);
+        boolean committed = false;
+        try {
+            try (FileOutputStream output = new FileOutputStream(staged)) {
+                long receivedBytes = copyLimited(input, output, MAX_BINARY_DOWNLOAD_BYTES);
+                if (receivedBytes == 0) {
+                    throw new IOException("Empty database download");
+                }
+                if (declaredBytes >= 0 && receivedBytes != declaredBytes) {
+                    throw new IOException("Incomplete database download");
+                }
+                output.getFD().sync();
+            }
+            if (!staged.renameTo(target)) {
+                throw new IOException("Unable to commit complete database download");
+            }
+            committed = true;
+        } finally {
+            if (!committed && staged.exists() && !staged.delete()) {
+                LogUtil.w(TAG, "Could not remove partial database download");
             }
         }
     }
