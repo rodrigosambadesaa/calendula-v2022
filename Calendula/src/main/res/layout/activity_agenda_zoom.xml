@@ -164,7 +164,7 @@
         android:background="@drawable/simple_highlight_click_selector"
         android:padding="7dp"
         android:scaleType="fitCenter"
-        android:src="@drawable/ic_history_black_48dp"
+        android:src="@drawable/ic_history_black"
         android:text="@string/delay"
         android:textSize="15sp"
         android:visibility="visible"
