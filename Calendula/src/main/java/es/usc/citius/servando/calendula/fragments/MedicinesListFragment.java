@@ -23,7 +23,6 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.PorterDuff;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import androidx.annotation.NonNull;
@@ -59,6 +58,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -79,6 +80,7 @@ import es.usc.citius.servando.calendula.util.view.CollapseExpandAnimator;
 public class MedicinesListFragment extends Fragment {
 
     private static final String TAG = "MedicinesListFragment";
+    private static final ExecutorService RELOAD_EXECUTOR = Executors.newSingleThreadExecutor();
 
     List<Medicine> mMedicines;
     OnMedicineSelectedListener mMedicineSelectedCallback;
@@ -140,7 +142,7 @@ public class MedicinesListFragment extends Fragment {
 
     public void notifyDataChange() {
         LogUtil.d(TAG, "Medicines - Notify data change");
-        new ReloadItemsTask().execute();
+        reloadItemsAsync();
     }
 
 
@@ -385,24 +387,29 @@ public class MedicinesListFragment extends Fragment {
         void onCreateMedicine();
     }
 
-    private class ReloadItemsTask extends AsyncTask<Void, Void, Void> {
+    private void reloadItemsAsync() {
+        final Context context = getContext();
+        final Handler mainHandler = handler;
+        if (context == null || mainHandler == null) {
+            return;
+        }
 
-        @Override
-        protected Void doInBackground(Void... params) {
+        final Context applicationContext = context.getApplicationContext();
+        RELOAD_EXECUTOR.execute(() -> {
             LogUtil.d(TAG, "Reloading items...");
-            mMedicines = DB.medicines().findAllForActivePatient(getContext());
-            return null;
-        }
-
-        @Override
-        protected void onPostExecute(Void aVoid) {
-            super.onPostExecute(aVoid);
-            final MedSortType sortType = (MedSortType) sortSpinner.getSelectedItem();
-            Collections.sort(mMedicines, sortType.comparator());
-            updateViewVisibility();
-            updateAdapterItems();
-            LogUtil.d(TAG, "Reloaded items, count: " + mMedicines.size());
-        }
+            final List<Medicine> medicines = DB.medicines().findAllForActivePatient(applicationContext);
+            mainHandler.post(() -> {
+                if (!isAdded() || getView() == null) {
+                    return;
+                }
+                mMedicines = medicines;
+                final MedSortType sortType = (MedSortType) sortSpinner.getSelectedItem();
+                Collections.sort(mMedicines, sortType.comparator());
+                updateViewVisibility();
+                updateAdapterItems();
+                LogUtil.d(TAG, "Reloaded items, count: " + mMedicines.size());
+            });
+        });
     }
 
 }
