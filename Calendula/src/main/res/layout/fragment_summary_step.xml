@@ -54,6 +54,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_centerInParent="true"
+                android:layout_toEndOf="@id/prev_month"
+                android:layout_toRightOf="@id/prev_month"
+                android:layout_toStartOf="@id/next_month"
+                android:layout_toLeftOf="@id/next_month"
                 android:textColor="@color/activity_schedule_build_foreground"
                 android:textSize="16sp"
                 />
