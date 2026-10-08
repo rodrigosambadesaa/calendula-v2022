@@ -87,7 +87,7 @@ public class Agenda {
         DB.eventInstances().saveAll(evts);
     }
 
-    public void createReminders(final Context context, final Collection<EventInstance> intakes) {
+    public boolean createReminders(final Context context, final Collection<EventInstance> intakes) {
         try {
             TransactionManager.callInTransaction(DB.helper().getConnectionSource(), new Callable<Object>() {
                 @Override
@@ -113,13 +113,17 @@ public class Agenda {
                     return null;
                 }
             });
+            return true;
         } catch (SQLException e) {
             LogUtil.e(TAG, "Error creating reminders ", e);
+            // An outer agenda transaction must not publish a completed-day
+            // marker when this nested reminder transaction has rolled back.
+            return false;
         }
     }
 
-    public void createReminders(Context context) {
-        createReminders(context, DB.eventInstances().findAll());
+    public boolean createReminders(Context context) {
+        return createReminders(context, DB.eventInstances().findAll());
     }
 
     public void updateAllAlarms(Context context) {
@@ -256,21 +260,32 @@ public class Agenda {
                         // fire before update event
                         onBeforeUpdate(context, today);
                         // create reminders for events
-                        Agenda.instance().createReminders(context);
+                        if (!Agenda.instance().createReminders(context)) {
+                            // Propagate a failed nested transaction to the
+                            // outer SQLiteOpenHelper transaction for rollback.
+                            throw new SQLException("Could not create daily reminders");
+                        }
                         return null;
                     }
                 });
-                // Persist the completion marker only after the SQLite
-                // transaction commits. A rolled-back update must be retried.
-                PreferenceUtils.edit()
+                // SQLite must commit and all alarms must be rescheduled before
+                // the day can be recorded as complete. Partial scheduling
+                // remains retryable after a service or process failure.
+                Agenda.instance().updateAllAlarms(context);
+                // This runs on both startup and background workers; a durable
+                // marker avoids reporting completion before it reaches disk.
+                boolean persisted = PreferenceUtils.edit()
                         .putString(PreferenceKeys.AGENDA_LAST_UPDATED.key(), today.toString(localDateFmt))
-                        .apply();
-            } catch (SQLException e) {
-                LogUtil.e(TAG, "Error updating agenda", e);
+                        .commit();
+                if (!persisted) {
+                    LogUtil.e(TAG, "Could not persist agenda completion marker");
+                    return;
+                }
+                CalendulaApp.eventBus().post(new AgendaUpdatedEvent());
+            } catch (SQLException | RuntimeException e) {
+                // Do not publish success or suppress a later retry.
+                LogUtil.e(TAG, "Error updating agenda; will retry on next update", e);
             }
-            // Update alarms
-            Agenda.instance().updateAllAlarms(context);
-            CalendulaApp.eventBus().post(new AgendaUpdatedEvent());
         } else {
             LogUtil.d(TAG, "No need to update daily schedule (" + DB.eventInstances().count() + " items found for today)");
             logReminders();
