@@ -365,11 +365,11 @@ public class ActiveMedicationListFragment extends Fragment {
             LogUtil.d(TAG, "Reloading items...");
             final List<ActiveMedEntity> entities = DB.healthcareProviderDB().activeMeds().findBy(ActiveMedEntity.COLUMN_PATIENT, DB.patients().getActive(getContext()));
             final List<ActiveMedicationListItem> items = new ArrayList<>(entities.size());
-            Collections.sort(items, amComparator);
             for (ActiveMedEntity entity : entities) {
                 ActiveMedVO vo = ActiveMedVO.forEntity(entity);
                 items.add(new ActiveMedicationListItem(vo));
             }
+            Collections.sort(items, amComparator);
             return items;
         }
 
