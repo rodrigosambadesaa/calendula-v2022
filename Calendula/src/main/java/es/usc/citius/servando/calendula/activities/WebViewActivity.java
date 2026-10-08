@@ -24,7 +24,6 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.net.http.SslError;
-import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -59,8 +58,11 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ref.WeakReference;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import es.usc.citius.servando.calendula.CalendulaActivity;
 import es.usc.citius.servando.calendula.R;
@@ -78,6 +80,8 @@ public class WebViewActivity extends CalendulaActivity {
     public static final String PARAM_WEBVIEW_REQUEST = "webview_param_request";
 
     private static final String TAG = "WebViewActivity";
+    private static final ExecutorService BACKEND_PREFLIGHT_EXECUTOR =
+            Executors.newCachedThreadPool();
 
     private static final String HTTP_ERROR_REGEXP = "^.*?(404|403|[nN]ot [fF]ound).*$";
     // reference to the request params
@@ -270,35 +274,46 @@ public class WebViewActivity extends CalendulaActivity {
     }
 
     private void loadBackendUrl(final String targetUrl, final WebViewRequest webRequest) {
-        new AsyncTask<Void, Void, Boolean>() {
-            @Override
-            protected Boolean doInBackground(Void... params) {
-                return NetworkUtils.isBackendAvailable(getApplicationContext(), targetUrl);
-            }
+        final Context applicationContext = getApplicationContext();
+        final WeakReference<WebViewActivity> activityRef = new WeakReference<>(this);
 
-            @Override
-            protected void onPostExecute(Boolean available) {
-                if (isFinishing()) {
+        BACKEND_PREFLIGHT_EXECUTOR.execute(() -> {
+            final boolean available =
+                    NetworkUtils.isBackendAvailable(applicationContext, targetUrl);
+            final WebViewActivity activity = activityRef.get();
+            if (activity == null) {
+                return;
+            }
+            activity.handler.post(() -> {
+                final WebViewActivity current = activityRef.get();
+                if (current == null || current.isFinishing() || current.isDestroyed()) {
                     return;
                 }
-                if (Boolean.TRUE.equals(available)) {
-                    // The approval only exists while this programmatic loadUrl call is
-                    // executing. If WebView does not synchronously invoke the navigation
-                    // callback, it cannot be reused by a later navigation.
-                    preflightApprovedUrl = targetUrl;
-                    try {
-                        webView.loadUrl(targetUrl);
-                    } finally {
-                        preflightApprovedUrl = null;
-                    }
-                } else {
-                    LogUtil.w(TAG, "Backend preflight failed for URL: " + targetUrl);
-                    showErrorToast(webRequest.getConnectionErrorMessage());
-                    hideLoading();
-                    finish();
-                }
+                current.handleBackendPreflightResult(targetUrl, webRequest, available);
+            });
+        });
+    }
+
+    private void handleBackendPreflightResult(
+            String targetUrl,
+            WebViewRequest webRequest,
+            boolean available) {
+        if (available) {
+            // The approval only exists while this programmatic loadUrl call is
+            // executing. If WebView does not synchronously invoke the navigation
+            // callback, it cannot be reused by a later navigation.
+            preflightApprovedUrl = targetUrl;
+            try {
+                webView.loadUrl(targetUrl);
+            } finally {
+                preflightApprovedUrl = null;
             }
-        }.execute();
+        } else {
+            LogUtil.w(TAG, "Backend preflight failed for URL: " + targetUrl);
+            showErrorToast(webRequest.getConnectionErrorMessage());
+            hideLoading();
+            finish();
+        }
     }
 
     private boolean consumePreflightApproval(String targetUrl) {
