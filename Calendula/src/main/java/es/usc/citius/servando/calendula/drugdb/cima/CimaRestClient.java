@@ -13,6 +13,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
@@ -113,6 +116,17 @@ public final class CimaRestClient {
             output.write(buffer, 0, count);
             total += count;
         }
-        return new String(output.toByteArray(), StandardCharsets.UTF_8);
+        // String(byte[], UTF_8) silently inserts U+FFFD for corrupted bytes.
+        // Reject malformed source data rather than importing a altered
+        // medicine label or presentation name.
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(output.toByteArray()))
+                    .toString();
+        } catch (CharacterCodingException e) {
+            throw new IOException("CIMA returned malformed UTF-8", e);
+        }
     }
 }
