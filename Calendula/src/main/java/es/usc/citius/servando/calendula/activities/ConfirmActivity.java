@@ -272,15 +272,16 @@ public class ConfirmActivity extends CalendulaActivity {
 
     void onClickFab() {
         boolean somethingChecked = false;
-        for (EventInstance item : items) {
+        for (int i = 0; i < items.size(); i++) {
+            EventInstance item = items.get(i);
             if (!item.completed()) {
                 ScheduleUtils.instance().setIntakeCompleted(this, item, true);
+                itemAdapter.notifyItemChanged(i);
                 somethingChecked = true;
             }
         }
 
         if (somethingChecked) {
-            itemAdapter.notifyDataSetChanged();
             stateChanged = true;
             fab.postDelayed(new Runnable() {
                 @Override
