@@ -49,6 +49,28 @@ public class AgendaDailyUpdateTimingTest {
     }
 
     @Test
+    public void successiveSpringMidnightsAreTwentyThreeHoursApart() {
+        DateTime before = new DateTime(2026, 3, 28, 12, 0, MADRID);
+        long first = Agenda.nextDailyUpdateMillis(before);
+        long second = Agenda.nextDailyUpdateMillis(new DateTime(first, MADRID));
+
+        assertEquals("DST spring-forward must not drift to 01:00 local",
+                new DateTime(2026, 3, 30, 0, 0, MADRID).getMillis(), second);
+        assertEquals(23L * 60 * 60 * 1000, second - first);
+    }
+
+    @Test
+    public void successiveAutumnMidnightsAreTwentyFiveHoursApart() {
+        DateTime before = new DateTime(2026, 10, 24, 12, 0, MADRID);
+        long first = Agenda.nextDailyUpdateMillis(before);
+        long second = Agenda.nextDailyUpdateMillis(new DateTime(first, MADRID));
+
+        assertEquals("DST fall-back must not drift to 23:00 local",
+                new DateTime(2026, 10, 26, 0, 0, MADRID).getMillis(), second);
+        assertEquals(25L * 60 * 60 * 1000, second - first);
+    }
+
+    @Test
     public void appOpenedDuringDaySchedulesTomorrowNotPastMidnight() {
         expectNextMidnight(
                 new DateTime(2026, 10, 8, 19, 54, MADRID),
