@@ -17,8 +17,9 @@ The Android CI workflow currently assembles the `ciDebug` APK, runs
 `minifyDevelopReleaseWithR8`, executes JVM unit tests, assembles the Android
 instrumentation-test APK, and runs Android lint. A separate emulator workflow
 executes the focused `InstallationSmokeTest` on API 23 (Android 6), API 33
-(Android 13), and API 36 (Android 16). These checks have passed on `main` as
-of this review. The emulator smoke suite is intentionally narrow and does not
+(Android 13), and API 36 (Android 16). The three emulator jobs passed
+on the implementation branch (Actions run 37783051953); an equivalent
+`main`-branch emulator run has not yet been verified. The emulator smoke suite is intentionally narrow and does not
 replace full end-to-end functional testing. Lint may pass despite warnings and
 narrowly documented suppressions.
 
