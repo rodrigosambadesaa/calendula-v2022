@@ -75,9 +75,11 @@ public class ActiveMedNotification {
         } else if (summary.hasUpdated() && summary.hasNew()) {
             summaryText = context.getString(R.string.aml_updated_new_and_updated_summary, summary.newCount(), summary.updatedCount());
         } else if (summary.hasNew()) {
-            summaryText = context.getString(R.string.aml_updated_new_summary, summary.newCount());
+            summaryText = context.getResources().getQuantityString(
+                    R.plurals.aml_updated_new_summary, summary.newCount(), summary.newCount());
         } else if (summary.hasUpdated()) {
-            summaryText = context.getString(R.string.aml_updated_updated_summary, summary.updatedCount());
+            summaryText = context.getResources().getQuantityString(
+                    R.plurals.aml_updated_updated_summary, summary.updatedCount(), summary.updatedCount());
         } else {
             summaryText = context.getString(R.string.aml_updated_notification_text);
         }
