@@ -304,6 +304,9 @@ public class PdfViewActivity extends CalendulaActivity {
                 });
 
         LayoutInflater inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+        // MaterialDialog accepts an unattached custom view and does not expose its internal
+        // container here, so a null inflate root is intentional.
+        //noinspection InflateParams
         View customView = inflater.inflate(R.layout.dialog_loading_view, null);
         TextView customText = (TextView) customView.findViewById(R.id.loading_description);
         customText.setText(loadingMsg);
