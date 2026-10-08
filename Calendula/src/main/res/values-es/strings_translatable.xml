@@ -165,65 +165,25 @@ Por favor, lee detenidamente las instrucciones de uso o consulta a tu farmacéut
 <string name="driving_warning_title">"Ten prudencia"</string>
 <string name="driving_warning_show_prospect">"Ver prospecto"</string>
 <string name="driving_warning_gotit">"Entendido"</string>
-<string name="dialog_interval_title">"Intervalo"</string>
-<string name="every">"cada"</string>
 <string name="repeat_every_tostr">"Cada %1$s %2$s"</string>
-<string name="label_schedule_repeat_today">"Empieza"</string>
-<string name="button_schedule_repeat_today">"Hoy"</string>
-<string name="label_schedule_repeat_until">"Acaba"</string>
-<string name="button_schedule_repeat_until">"Nunca"</string>
 <string name="schedule_limits_date_format">"'El' dd 'de' MMMM 'de' YYYY"</string>
-<string name="schedules_stop_after">"Parar después de %1$s tomas"</string>
-<string name="schedule_repeat_period">"Período + descanso"</string>
-<string name="schedule_repeat_type_everyday">"Todos los días"</string>
-<string name="schedule_repeat_type_some_week_days">"Algunos días de la semana"</string>
-<string name="schedule_repeat_type_interval">"Intervalo"</string>
 <string name="schedule_repeat_frequency_days">"días"</string>
 <string name="schedule_repeat_frequency_weeks">"semanas"</string>
-<string name="schedule_repeat_frequency_months">"meses"</string>
-<string name="summary_show_calendar">"Ver calendario"</string>
 <string name="hours">"horas"</string>
-<string name="schedule_help_no_type_selected">"Por favor, selecciona un tipo de pauta para poder continuar"</string>
-<string name="schedule_type_routines_title">"Vinculada a rutinas"</string>
-<string name="schedule_type_hourly_title">"Intervalo horario"</string>
-<string name="schedule_type_period_title">"Ciclo de toma/descanso"</string>
-<string name="schedule_type_common_periods">"Ciclos habituales"</string>
-<string name="schedule_type_routines_description">"Ex: Cada 3 días, con desayuno comida y cena"</string>
-<string name="schedule_type_hourly_description">"Ex: Cada 8 horas"</string>
-<string name="schedule_type_period_description">"Ex: 21 días + 7 de descanso"</string>
-<string name="schedule_help_cycle">"Indica el ciclo de repetición (período + descanso)"</string>
-<string name="schedule_help_duration">"Para acabar, puedes indicar cuando empieza y acaba esta pauta. Puedes dejarlo como está para que se repita indefinidamente."</string>
-<string name="schedule_help_hourly">"Por favor, indica el período de repetición, la dosis, y la hora de la primera toma"</string>
-<string name="schedule_help_repeat">"Indica cómo se repite la pauta. Si se repite todos los días no tienes que hacer nada."</string>
-<string name="schedule_help_timesbyday">"Por favor, indica el número de veces al día que se repite la pauta"</string>
-<string name="schedule_help_timetable">"Ahora, asocia cada toma a tus rutinas e indica la dosis para cada una"</string>
 <string name="title_activity_calendar">"Calendario"</string>
 <string name="title_pickups_bottom_sheet">"Recogidas el %1$s"</string>
 <string name="pickup_interval">"Hasta el %1$s"</string>
 <string name="pickup_date_format">"dd/MM"</string>
-<string name="title_activity_confirm_schedules">"Confirmar pautas"</string>
-<string name="confirm_prescription_x_of_y">"Prescripción %1$s de %2$s"</string>
 <string name="scan_prescriptions_title">"Escanear prescripciones"</string>
 <string name="scan_qr">"Scanear QR"</string>
-<string name="duration">"Duración"</string>
 <string name="all_meds_taken">"¡Has tomado todas tus medicinas!"</string>
-<string name="create_schedule_select_med_before_dose">"Por favor, selecciona un medicamento primero"</string>
 <string name="title_activity_patients">"Pacientes"</string>
-<string name="schedule_type_help_title">"Estás a punto de crear una pauta, ¡selecciona la que mejor se ajuste a tus necesidades!"</string>
-<string name="schedule_type_routines_help">"Este tipo de pauta te permite vincular tus tomas con rutinas, por ejemplo: \"Todos los días con desayuno y cena, excepto los domingos\", o \"Cada 3 días, con la comida.\""</string>
-<string name="schedule_type_hourly_help">"Las pautas de intervalo horario están pensadas para esas tomas que se repiten cada cierto número de horas: \"Cada 8 horas\".
-
-Establece la hora de la primera toma, ¡y listo!."</string>
-<string name="schedule_type_intervalrest_help">"Algunos anticonceptivos y otros medicamentos deben tomarse durante un tiempo, y luego hay un descanso. Estas pautas te permiten especificar ambos períodos y simplificar este tipo de tomas."</string>
 <string name="routines_list_empty_text">"Aún no se han añadido rutinas.
 
 Las rutinas son horas del día en las que habitualmente tomas medicamentos, como el desayuno o la cena. Puedes reutilizarlas para crear pautas más rápido."</string>
 <string name="medicines_list_empty_text">"Aún no se han añadido medicamentos.
 
 Añade tus medicamentos al botiquín, y tendrás fácil acceso a sus prospectos y avisos."</string>
-<string name="schedules_list_empty_text">"Aún no se han añadido pautas.
-
-¡Añade aquí tus pautas y permite que te avisemos!"</string>
 
     <string name="about_main_description"><![CDATA[
 Calendula es un asistente para la gestión personal de la medicación, que ayuda a los pacientes a seguir su tratamiento y lograr que este resulte efectivo.
@@ -430,7 +390,6 @@ Por ejemplo, no recibirás los recordatorios de las tomas de medicación a la ho
 <string name="database_aemps_display">"Base de datos AEMPS"</string>
 <string name="database_aemps_desc">"Base de datos de la Agencia Española de Medicamentos y Productos Sanitarios"</string>
 <string name="database_setting_up">"Configurando…"</string>
-<string name="schedule_type_from_qr">"Actualizar vía QR"</string>
 <string name="calendar_date_tomorrow">"mañana"</string>
 <string name="delays_one_min">"1 min"</string>
 <string name="delays_thirty_min">"30 min"</string>
@@ -547,7 +506,6 @@ Quieres instalar la nueva base de datos ahora?"</string>
 <string name="ringtone_none">"Ninguno"</string>
 <string name="patient_add">"Añadir paciente"</string>
 <string name="db_download_and_setup">"Descargar y configurar"</string>
-<string name="schedule_continue_indefinitely">"¿Quieres que esta pauta continúe indefinidamente?"</string>
 <string name="powder">"Polvo"</string>
 <string name="cream">"Crema"</string>
 <plurals name="powder_units">
