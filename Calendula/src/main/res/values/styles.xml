@@ -78,7 +78,7 @@
     </style>
 
 
-    
+
 
 
     <style name="next_button">
@@ -98,12 +98,12 @@
         <item name="android:background">@drawable/delay_button_selector</item>
     </style>
 
-    
 
 
-    
 
-    
+
+
+
 
     <style name="schedule_weekday_unselected">
         <item name="android:layout_width">0dp</item>
@@ -146,13 +146,13 @@
         <item name="bpKeyboardIndicatorColor">@color/default_keyboard_indicator_color_light</item>
     </style>
 
-    
 
-    
 
-    
 
-    
+
+
+
+
 
     <style name="menu_labels_style">
         <item name="android:background">@drawable/fab_label_background</item>
@@ -162,13 +162,18 @@
 
     <style name="AppTheme.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar"/>
 
-    
+
+
+    <style name="AppTabLayoutTextAppearance" parent="TextAppearance.AppCompat.Widget.ActionBar.Title.Inverse">
+        <item name="android:textSize">9sp</item>
+        <item name="android:textAllCaps">true</item>
+    </style>
 
     <style name="ToolbarTitle" parent="TextAppearance.Widget.AppCompat.Toolbar.Title">
         <item name="android:textColor">#ffffff</item>
     </style>
 
-    
+
 
     <!--<style >-->
     <!--<item name="android:textColor">@color/white</item>-->
@@ -189,10 +194,10 @@
         <item name="android:background">@color/transparent</item>
     </style>
 
-    
 
 
-    
+
+
 
 
     <!-- Summary calendar theme -->
@@ -294,7 +299,7 @@
         <item name="background">@color/white_20</item>
     </style>
 
-    
+
 
     <style name="SettingsActivityTheme" parent="AppTheme">
         <item name="preferenceTheme">@style/PreferenceThemeOverlay.v14.Material</item>
