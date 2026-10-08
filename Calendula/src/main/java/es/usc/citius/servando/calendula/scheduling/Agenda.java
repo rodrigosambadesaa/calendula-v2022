@@ -87,6 +87,17 @@ public class Agenda {
     }
 
     public boolean createReminders(final Context context, final Collection<EventInstance> intakes) {
+        return createRemindersInternal(context, intakes, true);
+    }
+
+    /** Only persist rows while the enclosing daily SQLite transaction is open. */
+    boolean createRemindersForDailyUpdate(final Context context) {
+        return createRemindersInternal(context, DB.eventInstances().findAll(), false);
+    }
+
+    private boolean createRemindersInternal(final Context context,
+                                            final Collection<EventInstance> intakes,
+                                            final boolean allowPlatformEffects) {
         try {
             TransactionManager.callInTransaction(DB.helper().getConnectionSource(), new Callable<Object>() {
                 @Override
@@ -100,7 +111,9 @@ public class Agenda {
                                 reminder.setPatient(e.getPatient());
                                 reminder.setAutoRepeat(getAutoRepeat(e.getType()));
                                 DB.eventReminders().save(reminder);
-                                setAlarm(context, reminder);
+                                if (allowPlatformEffects) {
+                                    setAlarm(context, reminder);
+                                }
                             } else {
                                 LogUtil.d(TAG, "Event at can not be scheduled");
                             }
@@ -108,7 +121,11 @@ public class Agenda {
                             LogUtil.d(TAG, "Reminder already exist for " + e.getType() + " at " + e.getTime().toString());
                         }
                     }
-                    cleanReminders(context);
+                    // Platform alarm cancellation is also external to SQLite.
+                    // During daily rebuild, postpone it until outer commit.
+                    if (allowPlatformEffects) {
+                        cleanReminders(context);
+                    }
                     return null;
                 }
             });
@@ -272,7 +289,7 @@ public class Agenda {
                         // fire before update event
                         onBeforeUpdate(context, today);
                         // create reminders for events
-                        if (!Agenda.instance().createReminders(context)) {
+                        if (!Agenda.instance().createRemindersForDailyUpdate(context)) {
                             // Propagate a failed nested transaction to the
                             // outer SQLiteOpenHelper transaction for rollback.
                             throw new SQLException("Could not create daily reminders");
@@ -283,6 +300,9 @@ public class Agenda {
                 // SQLite must commit and all alarms must be rescheduled before
                 // the day can be recorded as complete. Partial scheduling
                 // remains retryable after a service or process failure.
+                // Clear obsolete reminder rows and Android registrations
+                // only after the outer SQLite transaction has committed.
+                Agenda.instance().cleanReminders(context);
                 Agenda.instance().updateAllAlarms(context);
                 // This runs on both startup and background workers; a durable
                 // marker avoids reporting completion before it reaches disk.
