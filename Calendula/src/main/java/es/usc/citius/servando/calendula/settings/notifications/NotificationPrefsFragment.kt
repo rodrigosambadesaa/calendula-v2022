@@ -104,8 +104,8 @@ class NotificationPrefsFragment :
         updateExactAlarmAccessPreference()
     }
 
-    override fun onPreferenceTreeClick(preference: Preference?): Boolean {
-        when (preference?.key) {
+    override fun onPreferenceTreeClick(preference: Preference): Boolean {
+        when (preference.key) {
             PreferenceKeys.SETTINGS_NOTIFICATION_TONE.key() -> {
                 presenter.selectNotificationRingtone()
                 return true
