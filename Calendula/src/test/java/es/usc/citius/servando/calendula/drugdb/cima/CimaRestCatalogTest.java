@@ -67,6 +67,31 @@ public class CimaRestCatalogTest {
                         + "\"presentaciones\":[{\"cn\":\"123&admin=true\"}]}");
     }
 
+    @Test
+    public void rejectsResponseForDifferentRequestedMedication() {
+        String response = "{\"nregistro\":\"51347\",\"nombre\":\"Synthetic medicine\"}";
+        try {
+            CimaRestCatalog.parseMedicine(response, "99999");
+            org.junit.Assert.fail("Mismatched CIMA registration must be rejected");
+        } catch (IllegalArgumentException expected) {
+            // The parsed medical record must be tied to the requested identity.
+        }
+    }
+
+    @Test
+    public void acceptsResponseMatchingRequestedMedication() {
+        String response = "{\"nregistro\":\"51347\",\"nombre\":\"Synthetic medicine\"}";
+        assertEquals("51347",
+                CimaRestCatalog.parseMedicine(response, "51347").getRegistrationNumber());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsUnsafeExpectedRegistrationWithoutParsingResponse() {
+        CimaRestCatalog.parseMedicine(
+                "{\"nregistro\":\"51347\",\"nombre\":\"Synthetic medicine\"}",
+                "51347&evil=1");
+    }
+
     @Test(expected = UnsupportedOperationException.class)
     public void snapshotNationalCodesCannotBeMutated() {
         CimaRestCatalog.MedicineSnapshot snapshot = CimaRestCatalog.parseMedicine(
