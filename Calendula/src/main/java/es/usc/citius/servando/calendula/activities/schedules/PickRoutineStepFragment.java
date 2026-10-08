@@ -131,7 +131,7 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
             }
         });
 
-        hourlySelectionIndicator.setImageDrawable(buildActivity.selectionIcon(hourlySelection));
+        updateHourlySelectionIndicator();
         hourlySelectionIndicator.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -139,7 +139,7 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
                     buildActivity.setDosage(dosage());
                     hourlySelection = true;
                     selectedHours = hours.get(hoursRv.getValue()-1);
-                    hourlySelectionIndicator.setImageDrawable(buildActivity.selectionIcon(true));
+                    updateHourlySelectionIndicator();
                     selected.clear();
                     fastAdapter.notifyDataSetChanged();
                 }
@@ -151,13 +151,20 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
         return rootView;
     }
 
+    private void updateHourlySelectionIndicator() {
+        hourlySelectionIndicator.setImageDrawable(buildActivity.selectionIcon(hourlySelection));
+        hourlySelectionIndicator.setContentDescription(getString(hourlySelection
+                ? R.string.accessibility_hourly_repetition_selected
+                : R.string.accessibility_select_hourly_repetition));
+    }
+
     private void setSelectedHours(int hours) {
         selectedHours = hours;
         selected.clear();
         if (!hourlySelection) {
             buildActivity.setDosage(dosage());
             hourlySelection = true;
-            hourlySelectionIndicator.setImageDrawable(buildActivity.selectionIcon(true));
+            updateHourlySelectionIndicator();
             fastAdapter.notifyDataSetChanged();
         }
         updateActivity();
@@ -256,7 +263,7 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
                 if (buildActivity.getHourlyInterval() > 0) {
                     hourlySelection = true;
                     selectedHours = buildActivity.getHourlyInterval();
-                    hourlySelectionIndicator.setImageDrawable(buildActivity.selectionIcon(true));
+                    updateHourlySelectionIndicator();
                     hoursRv.setValue(selectedHours);
                 } else {
                     List<DailyFixedTime> fixedTimes = buildActivity.getRecurringEvent().getDailyFixedTimes();
@@ -270,7 +277,7 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
                         Collections.sort(timesList, Comparators.DAILY_FIXED_TIME);
                     }
                     hourlySelection = false;
-                    hourlySelectionIndicator.setImageDrawable(buildActivity.selectionIcon(false));
+                    updateHourlySelectionIndicator();
                     fastAdapter.notifyDataSetChanged();
                     updateActivity();
                 }
@@ -390,7 +397,7 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
         } else {
             hourlySelection = true;
         }
-        hourlySelectionIndicator.setImageDrawable(buildActivity.selectionIcon(hourlySelection));
+        updateHourlySelectionIndicator();
         fastAdapter.notifyDataSetChanged();
         updateActivity();
     }
@@ -512,12 +519,15 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
                     viewHolder.routineName.setText(r.getName());
                 }
                 viewHolder.offsetIcon.setImageDrawable(offsetIcon(offset));
+                viewHolder.offsetIcon.setContentDescription(
+                        getString(R.string.accessibility_change_routine_timing));
             } else {
                 viewHolder.offsetIcon.setImageDrawable(new IconicsDrawable(getContext())
                         .icon(CommunityMaterial.Icon2.cmd_plus_circle)
                         .colorRes(R.color.activity_schedule_build_foreground_alpha)
                         .paddingDp(6)
                         .sizeDp(35));
+                viewHolder.offsetIcon.setContentDescription(null);
                 viewHolder.routineTime.setText(R.string.schedule_build_add_custom_time);
             }
         }

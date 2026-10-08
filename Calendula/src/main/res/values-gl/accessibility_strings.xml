@@ -10,4 +10,9 @@
     <string name="accessibility_schedule_matches_official">O recordatorio coincide coa pauta oficial</string>
     <string name="accessibility_expand">Expandir</string>
     <string name="accessibility_collapse">Contraer</string>
+    <string name="accessibility_mark_taken">Marcar a medicación como tomada</string>
+    <string name="accessibility_mark_not_taken">Marcar a medicación como non tomada</string>
+    <string name="accessibility_select_hourly_repetition">Seleccionar repetición horaria</string>
+    <string name="accessibility_hourly_repetition_selected">Repetición horaria seleccionada</string>
+    <string name="accessibility_change_routine_timing">Cambiar horario da rutina</string>
 </resources>

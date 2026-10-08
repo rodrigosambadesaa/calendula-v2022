@@ -34,6 +34,7 @@
         android:layout_height="30dp"
         android:layout_alignParentLeft="true"
         android:layout_centerVertical="true"
+        android:contentDescription="@string/accessibility_change_routine_timing"
         android:src="@null"/>
 
     <TextView
