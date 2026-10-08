@@ -44,11 +44,7 @@ public final class CimaMedicineSearch {
         if (query.length() < 2 || query.length() > 80) {
             throw new IllegalArgumentException("Medicine search must be 2 to 80 characters");
         }
-        for (int i = 0; i < query.length(); i++) {
-            if (Character.isISOControl(query.charAt(i))) {
-                throw new IllegalArgumentException("Control characters in medicine search");
-            }
-        }
+        rejectInvalidUnicode(query);
         if (page < 1 || page > MAX_PAGE) {
             throw new IllegalArgumentException("CIMA page is outside allowed range");
         }
@@ -145,11 +141,39 @@ public final class CimaMedicineSearch {
         if (!primitive.isString()) {
             throw new IllegalArgumentException("Invalid CIMA medicine field: " + field);
         }
-        String text = primitive.getAsString().trim();
+        // Validate before trimming so control characters cannot be silently
+        // removed from medicine names or source identifiers.
+        String raw = primitive.getAsString();
+        rejectInvalidUnicode(raw);
+        String text = raw.trim();
         if (text.isEmpty() || text.length() > maxLength) {
             throw new IllegalArgumentException("Invalid length for CIMA field: " + field);
         }
         return text;
+    }
+
+    /**
+     * UTF-8 transport validation cannot detect invalid UTF-16 surrogate
+     * sequences introduced by JSON escaping or passed as a search query.
+     * Refuse these rather than letting a charset encoder silently replace
+     * medicinal names or identifiers with question marks.
+     */
+    private static void rejectInvalidUnicode(String text) {
+        for (int i = 0; i < text.length(); i++) {
+            char current = text.charAt(i);
+            if (Character.isISOControl(current)) {
+                throw new IllegalArgumentException("Control character in CIMA text");
+            }
+            if (Character.isHighSurrogate(current)) {
+                if (i + 1 >= text.length()
+                        || !Character.isLowSurrogate(text.charAt(i + 1))) {
+                    throw new IllegalArgumentException("Unpaired surrogate in CIMA text");
+                }
+                i++; // Valid supplementary Unicode code point.
+            } else if (Character.isLowSurrogate(current)) {
+                throw new IllegalArgumentException("Unpaired surrogate in CIMA text");
+            }
+        }
     }
 
     private static Boolean optionalBoolean(JsonObject object, String field) {
