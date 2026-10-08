@@ -203,7 +203,7 @@ public class ActiveMedicationListItem extends AbstractItem<ActiveMedicationListI
 
 
                 if (vo.getLastUpdated().isAfter(DateTime.now().minusDays(3)) || !vo.isUpdateSeen()) {
-
+                    holder.lastUpdateInfo.setVisibility(View.VISIBLE);
 
                     IIcon icon = isInactive ? CommunityMaterial.Icon.cmd_delete_circle : CommunityMaterial.Icon.cmd_autorenew;
 
@@ -221,6 +221,11 @@ public class ActiveMedicationListItem extends AbstractItem<ActiveMedicationListI
                             Toast.makeText(ctx, text, Toast.LENGTH_SHORT).show();
                         }
                     });
+                } else {
+                    holder.lastUpdateInfo.setVisibility(View.GONE);
+                    holder.lastUpdateInfo.setOnClickListener(null);
+                    holder.lastUpdateInfo.setText(null);
+                    holder.lastUpdateInfo.setCompoundDrawables(null, null, null, null);
                 }
 
                 if (vo.getValidityStart() != null) {
