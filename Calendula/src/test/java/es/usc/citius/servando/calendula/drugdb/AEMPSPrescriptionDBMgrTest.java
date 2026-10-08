@@ -21,6 +21,15 @@ public class AEMPSPrescriptionDBMgrTest {
     private final AEMPSPrescriptionDBMgr manager = new AEMPSPrescriptionDBMgr();
 
     @Test
+    public void prospectIdentifierIsNeverInterpretedAsRegexReplacement() {
+        Prescription prescription = new Prescription();
+        prescription.setPID("123$2");
+        assertEquals(
+                "https://www.aemps.gob.es/cima/dochtml/p/123$2/Prospecto_123$2.html",
+                manager.getProspectURL(prescription));
+    }
+
+    @Test
     public void liquidOralSuspensionMapsToSyrup() {
         assertEquals(
                 Presentation.SYRUP,
