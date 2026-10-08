@@ -161,13 +161,14 @@ public class DatabaseHelper extends OrmLiteSqliteOpenHelper {
                                 + "` VARCHAR;");
             }
         } catch (Exception e) {
-            LogUtil.e(TAG, "Can't upgrade databases", e);
-            try {
-                LogUtil.d(TAG, "Will try to recreate db...");
-                dropAndCreateAllTables();
-            } catch (Exception ex) {
-                throw new RuntimeException(e);
-            }
+            // Never try to recover an upgrade failure by deleting user data.
+            // SQLiteOpenHelper invokes onUpgrade inside a database transaction:
+            // propagating the error prevents the schema-version bump and allows
+            // Android to roll back partial ALTER TABLE operations.
+            LogUtil.e(TAG, "Database upgrade failed; preserving all existing data", e);
+            throw new IllegalStateException(
+                    "Cannot safely upgrade Calendula database from version "
+                            + oldVersion + " to " + newVersion, e);
         }
     }
 
@@ -240,7 +241,14 @@ public class DatabaseHelper extends OrmLiteSqliteOpenHelper {
 
     @Override
     public void onDowngrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-
+        // Do not mark a newer medical database as an older schema without
+        // applying a validated reverse migration. The historical empty
+        // override silently accepted this and risked corrupting subsequent data.
+        LogUtil.e(TAG, "Refusing unsupported database downgrade from "
+                + oldVersion + " to " + newVersion);
+        throw new IllegalStateException("Calendula database downgrade from "
+                + oldVersion + " to " + newVersion
+                + " is not supported without an explicit data-preserving migration");
     }
 
     public void dropAndCreateAllTables() {
