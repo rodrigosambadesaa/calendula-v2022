@@ -44,31 +44,56 @@ public final class CimaRestClient {
      */
     public static CimaRestCatalog.MedicineSnapshot fetchMedicine(
             Context context, String registrationNumber) throws IOException {
-        if (context == null) {
-            throw new IllegalArgumentException("Context is required");
-        }
         String url = CimaRestCatalog.detailUrl(registrationNumber);
-        if (!NetworkUtils.isBackendAvailable(context, url)) {
-            throw new IOException("CIMA unavailable via the current network");
-        }
-
-        // CimaRestCatalog only constructs official HTTPS URLs with numeric IDs.
-        // No caller-supplied host, protocol, userinfo or query suffix is accepted.
-        HttpsURLConnection connection =
-                (HttpsURLConnection) new URL(url).openConnection();
+        HttpsURLConnection connection = openOfficialConnection(context, url);
         try {
-            connection.setRequestMethod("GET");
-            connection.setInstanceFollowRedirects(false);
-            connection.setUseCaches(false);
-            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
-            connection.setReadTimeout(READ_TIMEOUT_MS);
-            connection.setRequestProperty("Accept", "application/json");
-            connection.setRequestProperty("Accept-Encoding", "identity");
-
             return parseResponse(connection, registrationNumber);
         } finally {
             connection.disconnect();
         }
+    }
+
+    /**
+     * Read-only medicine-name discovery. Call from a worker thread; search
+     * results must be checked with fetchMedicine before use in any importer.
+     */
+    public static CimaMedicineSearch.Page searchByName(
+            Context context, String medicineName, int page) throws IOException {
+        String url = CimaMedicineSearch.url(medicineName, page);
+        HttpsURLConnection connection = openOfficialConnection(context, url);
+        try {
+            try {
+                return CimaMedicineSearch.parsePage(readJsonResponse(connection), page);
+            } catch (IllegalArgumentException invalid) {
+                throw new IOException("Invalid CIMA medicine search data", invalid);
+            }
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private static HttpsURLConnection openOfficialConnection(
+            Context context, String url) throws IOException {
+        if (context == null) {
+            throw new IllegalArgumentException("Context is required");
+        }
+        // Both callers construct canonical CIMA URLs; never accept user hosts.
+        if (!url.startsWith("https://cima.aemps.es/cima/rest/")) {
+            throw new IOException("CIMA origin is not authorized");
+        }
+        if (!NetworkUtils.isBackendAvailable(context, url)) {
+            throw new IOException("CIMA unavailable via the current network");
+        }
+        HttpsURLConnection connection =
+                (HttpsURLConnection) new URL(url).openConnection();
+        connection.setRequestMethod("GET");
+        connection.setInstanceFollowRedirects(false);
+        connection.setUseCaches(false);
+        connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        connection.setReadTimeout(READ_TIMEOUT_MS);
+        connection.setRequestProperty("Accept", "application/json");
+        connection.setRequestProperty("Accept-Encoding", "identity");
+        return connection;
     }
 
     /**
@@ -78,6 +103,17 @@ public final class CimaRestClient {
      */
     static CimaRestCatalog.MedicineSnapshot parseResponse(
             HttpURLConnection connection, String registrationNumber) throws IOException {
+        final String json = readJsonResponse(connection);
+        try {
+            // Never associate the details of medicine A with a request for B.
+            return CimaRestCatalog.parseMedicine(json, registrationNumber);
+        } catch (IllegalArgumentException e) {
+            throw new IOException("Invalid CIMA medicine data", e);
+        }
+    }
+
+    /** Shared strict HTTP validation for both detail and paginated search. */
+    static String readJsonResponse(HttpURLConnection connection) throws IOException {
         int status = connection.getResponseCode();
         if (!isExpectedJsonResponse(status, connection.getContentType())) {
             throw new IOException(
@@ -90,15 +126,8 @@ public final class CimaRestClient {
             throw new IOException("CIMA response exceeds maximum size");
         }
 
-        final String json;
         try (InputStream input = connection.getInputStream()) {
-            json = readBoundedUtf8(input, MAX_RESPONSE_BYTES);
-        }
-        try {
-            // Never associate the details of medicine A with a request for B.
-            return CimaRestCatalog.parseMedicine(json, registrationNumber);
-        } catch (IllegalArgumentException e) {
-            throw new IOException("Invalid CIMA medicine data", e);
+            return readBoundedUtf8(input, MAX_RESPONSE_BYTES);
         }
     }
 
