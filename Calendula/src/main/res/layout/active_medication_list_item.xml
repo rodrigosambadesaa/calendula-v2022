@@ -214,6 +214,7 @@
                 android:padding="5dp"
                 android:textStyle="bold"
                 android:textSize="14sp"
+                android:visibility="gone"
                 tools:text="17/07/2017"
                 tools:visibility="visible"/>
 
