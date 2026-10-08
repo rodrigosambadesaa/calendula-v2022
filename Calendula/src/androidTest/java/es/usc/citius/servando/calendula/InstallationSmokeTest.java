@@ -91,6 +91,16 @@ public class InstallationSmokeTest {
     }
 
     @Test
+    public void prescriptionSearchHandlesUntrustedCharactersAsData() {
+        // Read-only query on disposable emulator data. Quotes, SQL comments,
+        // and operators must never become executable ORDER BY syntax.
+        assertNotNull(DB.drugDB().prescriptions()
+                .findByNameOrCn("test\" OR 1=1 --", 5));
+        assertNotNull(DB.drugDB().prescriptions()
+                .findByNameOrCn("Ácido's 100% _", 5));
+    }
+
+    @Test
     public void appDisablesSystemBackupOfMedicalData() {
         ApplicationInfo info = targetContext().getApplicationInfo();
         assertEquals(0, info.flags & ApplicationInfo.FLAG_ALLOW_BACKUP);
