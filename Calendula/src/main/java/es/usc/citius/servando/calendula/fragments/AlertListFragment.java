@@ -117,9 +117,16 @@ public class AlertListFragment extends Fragment {
 
     public void notifyDataChange() {
         try {
+            List<PatientAlert> newItems = buildItems();
+            int oldSize = items.size();
             items.clear();
-            items.addAll(buildItems());
-            rvAdapter.notifyDataSetChanged();
+            if (oldSize > 0) {
+                rvAdapter.notifyItemRangeRemoved(0, oldSize);
+            }
+            items.addAll(newItems);
+            if (!newItems.isEmpty()) {
+                rvAdapter.notifyItemRangeInserted(0, newItems.size());
+            }
             // show empty list view if there are no items
             rv.postDelayed(new Runnable() {
                 @Override
