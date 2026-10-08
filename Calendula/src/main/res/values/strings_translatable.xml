@@ -348,7 +348,6 @@ Version %1$s
     <item quantity="one">Enough for %1$d day with current schedules</item>
     <item quantity="other">Enough for %1$d days with current schedules</item>
 </plurals>
-<string name="stock_enough_for_months_days">"Enough for %1$d months and %2$d days with current schedules"</string>
 <string name="stock_enough_for_upper_limit">"Enough for more than three months with current schedules"</string>
 <string name="no_alerts_detected">"No alerts detected for this medicine"</string>
 <string name="stock_depleted">"Stock is depleted"</string>

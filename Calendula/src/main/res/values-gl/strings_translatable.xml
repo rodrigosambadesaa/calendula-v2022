@@ -368,7 +368,6 @@ Calendula está sendo desenvolvida polo Centro de Investigación en Tecnoloxías
     <item quantity="one">Suficiente para %1$d día coas pautas actuais</item>
     <item quantity="other">Suficiente para %1$d días coas pautas actuais</item>
 </plurals>
-<string name="stock_enough_for_months_days">"Suficiente para %1$d meses e %2$d días coas pautas actuais"</string>
 <string name="stock_enough_for_upper_limit">"Suficiente para máis de tres meses coas pautas actuais"</string>
 <string name="no_alerts_detected">"Non se detectaron alertas para este medicamento"</string>
 <string name="stock_depleted">"Non queda stock"</string>

@@ -368,7 +368,6 @@ Versión %1$s
     <item quantity="many">Suficiente para %1$d días con las pautas actuales</item>
     <item quantity="other">Suficiente para %1$d días con las pautas actuales</item>
 </plurals>
-<string name="stock_enough_for_months_days">"Suficiente para %1$d meses y %2$d días con las pautas actuales"</string>
 <string name="stock_enough_for_upper_limit">"Suficiente para más de tres meses con las pautas actuales"</string>
 <string name="no_alerts_detected">"No se han detectado alertas para este medicamento"</string>
 <string name="stock_depleted">"No queda stock"</string>
