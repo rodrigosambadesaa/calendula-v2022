@@ -160,12 +160,12 @@ public class HttpDownloadUtil {
         String currentUrl = fileUrl;
 
         for (int redirects = 0; redirects <= MAX_REDIRECTS; redirects++) {
-            if (!NetworkUtils.isBackendAvailable(context, currentUrl)) {
+            URL url = requireHttpUrl(currentUrl);
+            if (!NetworkUtils.isBackendAvailable(context, url.toString())) {
                 throw new IOException(
                         "No usable Internet route or backend DNS resolution failed");
             }
 
-            URL url = new URL(currentUrl);
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             connection.setInstanceFollowRedirects(false);
             connection.setRequestMethod("GET");
@@ -217,8 +217,21 @@ public class HttpDownloadUtil {
                 || responseCode == 308;
     }
 
+    static URL requireHttpUrl(String value) throws IOException {
+        if (value == null) {
+            throw new IOException("Backend URL is missing");
+        }
+        URL url = new URL(value);
+        String protocol = url.getProtocol();
+        if (!"http".equalsIgnoreCase(protocol) && !"https".equalsIgnoreCase(protocol)) {
+            throw new IOException("Unsupported backend URL protocol: " + protocol);
+        }
+        return url;
+    }
+
     static String resolveRedirectUrl(String currentUrl, String location) throws IOException {
-        return new URL(new URL(currentUrl), location).toString();
+        URL current = requireHttpUrl(currentUrl);
+        return requireHttpUrl(new URL(current, location).toString()).toString();
     }
 
     static boolean isHttpsDowngrade(String currentUrl, String nextUrl) throws IOException {

@@ -75,6 +75,31 @@ public class HttpDownloadUtilTest {
     }
 
     @Test
+    public void httpAndHttpsBackendUrlsAreAccepted() throws Exception {
+        assertEquals("http", HttpDownloadUtil.requireHttpUrl(
+                "http://example.test/db/archive.zip").getProtocol());
+        assertEquals("https", HttpDownloadUtil.requireHttpUrl(
+                "https://example.test/db/archive.zip").getProtocol());
+    }
+
+    @Test(expected = IOException.class)
+    public void missingBackendUrlIsRejected() throws Exception {
+        HttpDownloadUtil.requireHttpUrl(null);
+    }
+
+    @Test(expected = IOException.class)
+    public void nonHttpBackendUrlIsRejected() throws Exception {
+        HttpDownloadUtil.requireHttpUrl("file:///tmp/archive.zip");
+    }
+
+    @Test(expected = IOException.class)
+    public void redirectToNonHttpSchemeIsRejected() throws Exception {
+        HttpDownloadUtil.resolveRedirectUrl(
+                "https://example.test/db/archive.zip",
+                "jar:https://example.test/archive.jar!/db.zip");
+    }
+
+    @Test
     public void httpsToHttpRedirectIsRejectedAsDowngrade() throws Exception {
         assertTrue(HttpDownloadUtil.isHttpsDowngrade(
                 "https://example.test/db/archive.zip",
