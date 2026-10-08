@@ -77,21 +77,24 @@
             android:name=".activities.CheckBatterySavingActivity"
             android:exported="false"
             android:screenOrientation="portrait"
-            tools:ignore="DiscouragedApi,LockedOrientationActivity"\n            android:theme="@style/Theme.ModalIntro"/>
+            tools:ignore="DiscouragedApi,LockedOrientationActivity"
+            android:theme="@style/Theme.ModalIntro"/>
 
         <activity
             android:name=".activities.RoutinesActivity"
             android:exported="false"
             android:label="@string/title_activity_routines"
             android:screenOrientation="portrait"
-            tools:ignore="DiscouragedApi,LockedOrientationActivity"\n            android:theme="@style/AppTheme"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity"
+            android:theme="@style/AppTheme"
             android:windowSoftInputMode="adjustResize"/>
         <activity
             android:name=".HomePagerActivity"
             android:exported="false"
             android:launchMode="singleTask"
             android:screenOrientation="portrait"
-            tools:ignore="DiscouragedApi,LockedOrientationActivity"\n            android:theme="@style/AppTheme">
+            tools:ignore="DiscouragedApi,LockedOrientationActivity"
+            android:theme="@style/AppTheme">
             <!--<intent-filter>-->
             <!--<action android:name="android.intent.action.MAIN" />-->
             <!--<category android:name="android.intent.category.LAUNCHER" />-->
@@ -103,24 +106,28 @@
             android:exported="false"
             android:label="@string/title_activity_medicines"
             android:screenOrientation="portrait"
-            tools:ignore="DiscouragedApi,LockedOrientationActivity"\n            android:theme="@style/AppTheme"/>
+            tools:ignore="DiscouragedApi,LockedOrientationActivity"
+            android:theme="@style/AppTheme"/>
         <activity
             android:name=".activities.MedicinesActivity"
             android:exported="false"
             android:label="@string/title_activity_medicines"
             android:screenOrientation="portrait"
-            tools:ignore="DiscouragedApi,LockedOrientationActivity"\n            android:windowSoftInputMode="adjustPan"/>
+            tools:ignore="DiscouragedApi,LockedOrientationActivity"
+            android:windowSoftInputMode="adjustPan"/>
         <activity
             android:name=".activities.MedicinesSearchActivity"
             android:exported="false"
             android:label="@string/title_activity_medicines_search"
             android:screenOrientation="portrait"
-            tools:ignore="DiscouragedApi,LockedOrientationActivity"\n            android:windowSoftInputMode="stateVisible"/>
+            tools:ignore="DiscouragedApi,LockedOrientationActivity"
+            android:windowSoftInputMode="stateVisible"/>
         <activity
             android:name=".activities.StartActivity"
             android:exported="true"
             android:screenOrientation="portrait"
-            tools:ignore="DiscouragedApi,LockedOrientationActivity"\n            android:theme="@style/SplashTheme">
+            tools:ignore="DiscouragedApi,LockedOrientationActivity"
+            android:theme="@style/SplashTheme">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
@@ -163,7 +170,8 @@
             android:exported="false"
             android:label="@string/title_activity_patient_detail"
             android:screenOrientation="portrait"
-            tools:ignore="DiscouragedApi,LockedOrientationActivity"\n            android:theme="@style/AppTheme"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity"
+            android:theme="@style/AppTheme"
             android:windowSoftInputMode="adjustResize">
         </activity>
         <activity
@@ -221,12 +229,14 @@
             android:launchMode="singleInstance"
             android:noHistory="true"
             android:screenOrientation="portrait"
-            tools:ignore="DiscouragedApi,LockedOrientationActivity"\n            android:showOnLockScreen="true"/>
+            tools:ignore="DiscouragedApi,LockedOrientationActivity"
+            android:showOnLockScreen="true"/>
 
         <activity android:name=".pinlock.PinLockActivity"
             android:exported="false"
-            android:screenOrientation="portrait"/>
-            tools:ignore="DiscouragedApi,LockedOrientationActivity"\n
+            android:screenOrientation="portrait"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity"/>
+
         <activity
             android:name="es.usc.citius.servando.calendula.settings.CalendulaSettingsActivity"
             android:exported="false"
@@ -235,8 +245,9 @@
         <activity
             android:name=".login.LoginActivity"
             android:exported="false"
-            android:screenOrientation="portrait">
-            tools:ignore="DiscouragedApi,LockedOrientationActivity"\n        </activity>
+            android:screenOrientation="portrait"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity">
+        </activity>
         <activity
             android:name=".login.LoginReceiveActivity"
             android:exported="false"
@@ -247,14 +258,16 @@
             android:name=".activities.schedules.ScheduleBuildActivity"
             android:exported="false"
             android:screenOrientation="portrait"
-            tools:ignore="DiscouragedApi,LockedOrientationActivity"\n            android:windowSoftInputMode="stateHidden">
+            tools:ignore="DiscouragedApi,LockedOrientationActivity"
+            android:windowSoftInputMode="stateHidden">
         </activity>
 
         <activity
             android:name=".login.LogoutActivity"
             android:exported="false"
-            android:screenOrientation="portrait">
-            tools:ignore="DiscouragedApi,LockedOrientationActivity"\n        </activity>
+            android:screenOrientation="portrait"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity">
+        </activity>
 
         <activity
             android:name=".login.LogoutReceiveActivity"
