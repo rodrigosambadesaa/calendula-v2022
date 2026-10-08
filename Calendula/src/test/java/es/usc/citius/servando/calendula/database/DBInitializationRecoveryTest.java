@@ -41,24 +41,47 @@ public class DBInitializationRecoveryTest {
         if (DB.initialized) {
             DB.dispose();
         }
-        FailingThenWorkingContext isolated = new FailingThenWorkingContext(
-                ApplicationProvider.getApplicationContext(),
-                temporaryFolder.newFolder("init-recovery"));
+        Context isolated = new ContextWrapper(
+                ApplicationProvider.getApplicationContext()) {
+            @Override
+            public Context getApplicationContext() {
+                return this;
+            }
+
+            @Override
+            public File getDatabasePath(String name) {
+                return new File(temporaryFolder.getRoot(), name);
+            }
+
+            @Override
+            public SQLiteDatabase openOrCreateDatabase(
+                    String name, int mode, SQLiteDatabase.CursorFactory factory) {
+                return SQLiteDatabase.openOrCreateDatabase(getDatabasePath(name), factory);
+            }
+
+            @Override
+            public SQLiteDatabase openOrCreateDatabase(
+                    String name, int mode, SQLiteDatabase.CursorFactory factory,
+                    DatabaseErrorHandler errorHandler) {
+                return SQLiteDatabase.openOrCreateDatabase(
+                        getDatabasePath(name).getAbsolutePath(), factory, errorHandler);
+            }
+        };
+        FailFirstManager manager = new FailFirstManager();
 
         try {
             try {
-                DB.init(isolated);
-                fail("Synthetic SQLite storage failure must fail initialization");
-            } catch (RuntimeException expected) {
-                // The storage exception may be wrapped by SQLiteOpenHelper;
-                // either way a failed open must not be considered ready.
+                DB.init(isolated, manager);
+                fail("Synthetic helper failure must fail initialization");
+            } catch (IllegalStateException expected) {
+                // Invariant: no cached helper or ready flag may survive.
             }
-            assertFalse("A failed database open must be retryable", DB.initialized);
-            assertNull("The failed helper must not be exposed", DB.helper());
+            assertFalse("Failed initialization must remain retryable", DB.initialized);
+            assertNull("Failed helper must not be published", DB.helper());
 
-            isolated.failOpen = false;
-            DB.init(isolated);
-            assertTrue("A subsequent valid open must initialize successfully", DB.initialized);
+            // Retry with the same manager, context and disposable database path.
+            DB.init(isolated, manager);
+            assertTrue(DB.initialized);
             assertNotNull(DB.helper());
             assertNotNull(DB.patients());
         } finally {
@@ -68,45 +91,17 @@ public class DBInitializationRecoveryTest {
         }
     }
 
-    private static final class FailingThenWorkingContext extends ContextWrapper {
-        private final File dbFolder;
-        boolean failOpen = true;
-
-        FailingThenWorkingContext(Context base, File dbFolder) {
-            super(base);
-            this.dbFolder = dbFolder;
-        }
+    private static final class FailFirstManager extends DatabaseManager<DatabaseHelper> {
+        private boolean throwOnce = true;
 
         @Override
-        public Context getApplicationContext() {
-            // Ensure the helper uses this isolated synthetic database, never
-            // the real application's database stored in the base context.
-            return this;
-        }
-
-        @Override
-        public File getDatabasePath(String name) {
-            return new File(dbFolder, name);
-        }
-
-        @Override
-        public SQLiteDatabase openOrCreateDatabase(
-                String name, int mode, SQLiteDatabase.CursorFactory factory) {
-            if (failOpen) {
-                throw new IllegalStateException("Synthetic database storage failure");
+        public synchronized DatabaseHelper getHelper(
+                Context context, Class<DatabaseHelper> helperType) {
+            if (throwOnce) {
+                throwOnce = false;
+                throw new IllegalStateException("Synthetic helper acquisition failure");
             }
-            return SQLiteDatabase.openOrCreateDatabase(getDatabasePath(name), factory);
-        }
-
-        @Override
-        public SQLiteDatabase openOrCreateDatabase(
-                String name, int mode, SQLiteDatabase.CursorFactory factory,
-                DatabaseErrorHandler errorHandler) {
-            if (failOpen) {
-                throw new IllegalStateException("Synthetic database storage failure");
-            }
-            return SQLiteDatabase.openOrCreateDatabase(
-                    getDatabasePath(name).getAbsolutePath(), factory, errorHandler);
+            return super.getHelper(context, helperType);
         }
     }
 }
