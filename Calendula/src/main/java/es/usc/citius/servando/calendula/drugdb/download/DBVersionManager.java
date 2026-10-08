@@ -67,39 +67,16 @@ public class DBVersionManager {
                 return null;
             }
             final String result = downloaded.trim();
-            LogUtil.d(TAG, "getLastDBVersion: json is: " + result);
-
             Type type = new TypeToken<Map<String, Map<Integer, String>>>() {
             }.getType();
             Map<String, Map<Integer, String>> versions = new Gson().fromJson(result, type);
-            LogUtil.d(TAG, "getLastDBVersion: map is: " + versions);
-            Map<Integer, String> dbVersions = versions.get(databaseID);
-            if (dbVersions == null) {
-                LogUtil.e(TAG, "getLastDBVersion: Invalid database ID \"" + databaseID + "\"");
-                return null;
+            Map<Integer, String> dbVersions = versions == null ? null : versions.get(databaseID);
+            String dbVersion = selectLastCompatibleVersion(
+                    dbVersions, DatabaseHelper.DATABASE_VERSION);
+            if (dbVersion == null) {
+                LogUtil.w(TAG, "getLastDBVersion: missing or invalid compatible database version");
             }
-            List<Integer> appVersionThresholds = new ArrayList<>(dbVersions.keySet());
-            Collections.sort(appVersionThresholds);
-            LogUtil.d(TAG, "getLastDBVersion: version thresholds are: " + appVersionThresholds);
-
-            //check last valid version threshold
-            int lastValid = -1;
-            for (Integer version : appVersionThresholds) {
-                if (version <= DatabaseHelper.DATABASE_VERSION) {
-                    lastValid = version;
-                } else {
-                    break;
-                }
-            }
-
-            if (lastValid != -1) {
-                String dbVersion = dbVersions.get(lastValid);
-                LogUtil.d(TAG, "getLastDBVersion: Last valid threshold was: " + lastValid + ", corresponding db version is " + dbVersion);
-                return dbVersion;
-            } else {
-                LogUtil.e(TAG, "getLastDBVersion: No valid threshold! This probably means the version file is wrong.");
-                return null;
-            }
+            return dbVersion;
 
         } catch (Exception e) {
             LogUtil.e(TAG, "getLastDBVersion: ", e);
@@ -107,6 +84,46 @@ public class DBVersionManager {
         }
     }
 
+
+    /**
+     * Selects the most recent schema-compatible database archive from a remote manifest.
+     * Archive versions become URL path components, so accept only real basic ISO dates
+     * (yyyyMMdd) and reject malformed values instead of constructing arbitrary URLs.
+     */
+    static String selectLastCompatibleVersion(
+            Map<Integer, String> versions, int databaseSchemaVersion) {
+        if (versions == null || versions.isEmpty() || versions.containsKey(null)) {
+            return null;
+        }
+        List<Integer> thresholds = new ArrayList<>(versions.keySet());
+        Collections.sort(thresholds);
+
+        int lastValid = -1;
+        for (Integer threshold : thresholds) {
+            if (threshold <= databaseSchemaVersion) {
+                lastValid = threshold;
+            } else {
+                break;
+            }
+        }
+        return lastValid == -1 ? null : validDatabaseVersionOrNull(versions.get(lastValid));
+    }
+
+    static boolean isValidDatabaseVersion(String version) {
+        return validDatabaseVersionOrNull(version) != null;
+    }
+
+    private static String validDatabaseVersionOrNull(String version) {
+        if (version == null || !version.matches("[0-9]{8}")) {
+            return null;
+        }
+        try {
+            ISODateTimeFormat.basicDate().parseLocalDate(version);
+            return version;
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
 
     /** Backwards-compatible overload for existing callers. */
     @Deprecated
@@ -130,6 +147,10 @@ public class DBVersionManager {
 
         if (!database.equals(noneId) && !database.equals(ctx.getString(R.string.database_setting_up))) {
             if (currentVersion != null) {
+                if (!isValidDatabaseVersion(currentVersion)) {
+                    LogUtil.w(TAG, "checkForUpdate: invalid locally stored database version");
+                    return null;
+                }
                 final String lastDBVersion = DBVersionManager.getLastDBVersion(ctx, database);
                 if (lastDBVersion == null) {
                     LogUtil.w(TAG, "checkForUpdate: unable to reach database backend");
