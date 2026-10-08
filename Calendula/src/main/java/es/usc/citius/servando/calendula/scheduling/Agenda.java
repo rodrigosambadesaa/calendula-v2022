@@ -142,16 +142,36 @@ public class Agenda {
         // set the alarm
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (alarmManager != null) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
-                alarmManager.setAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        dateTime.getMillis(),
-                        pendingIntent);
-                LogUtil.w(TAG, "Exact alarm access unavailable; scheduled inexact reminder fallback");
-            } else {
-                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, dateTime.getMillis(), pendingIntent);
-                LogUtil.d(TAG, "Calling alarm manager");
+            scheduleAlarm(alarmManager, dateTime.getMillis(), pendingIntent);
+        }
+    }
+
+    /**
+     * Schedule reminders despite a race in which the user revokes special exact-alarm
+     * access between canScheduleExactAlarms() and setExactAndAllowWhileIdle().
+     * An inexact reminder is safer than dropping the reminder or crashing the app.
+     */
+    static void scheduleAlarm(AlarmManager alarmManager, long triggerAtMillis,
+                              PendingIntent pendingIntent) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                && !alarmManager.canScheduleExactAlarms()) {
+            alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent);
+            LogUtil.w(TAG, "Exact alarm access unavailable; scheduled inexact reminder fallback");
+            return;
+        }
+        try {
+            alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent);
+            LogUtil.d(TAG, "Calling alarm manager");
+        } catch (SecurityException e) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                throw e;
             }
+            // Special exact-alarm access can change after the initial check.
+            LogUtil.w(TAG, "Exact alarm access changed during scheduling; using inexact fallback");
+            alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent);
         }
     }
 
