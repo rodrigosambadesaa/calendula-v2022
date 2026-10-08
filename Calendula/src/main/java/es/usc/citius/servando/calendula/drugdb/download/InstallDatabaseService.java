@@ -347,26 +347,52 @@ public class InstallDatabaseService extends Service {
         onFailure();
     }
 
+    /** Read-only catalog lookup; never rewrite the original patient medicine CN. */
+    interface PrescriptionLookup {
+        Prescription findByNationalCode(String cn);
+    }
+
+    /** Allows timeout cancellation between records without notifying partial results. */
+    interface AbortCheck {
+        boolean shouldAbort();
+    }
+
+    /**
+     * Returns -1 if interrupted, otherwise the number of unresolved linked
+     * medicines. In particular, DO NOT clear Medicine.cn: a later catalog
+     * restoration may need its exact original national code for reconciliation.
+     */
+    static int countUnresolvedLinks(
+            Iterable<Medicine> medicines, PrescriptionLookup lookup, AbortCheck abort) {
+        if (medicines == null || lookup == null || abort == null) {
+            throw new IllegalArgumentException("Catalog reconciliation inputs are required");
+        }
+        int missing = 0;
+        for (Medicine medicine : medicines) {
+            if (abort.shouldAbort()) {
+                return -1;
+            }
+            if (medicine == null) {
+                throw new IllegalArgumentException("Null linked medicine record");
+            }
+            if (medicine.isBoundToPrescription()
+                    && lookup.findByNationalCode(medicine.getCn()) == null) {
+                missing++;
+            }
+        }
+        return missing;
+    }
+
     private void checkForInvalidData() {
         if (timedOut) {
             return;
         }
         LogUtil.d(TAG, "checkForInvalidData() called");
-        boolean anyMissing = false;
-        for (Medicine m : DB.medicines().findAll()) {
-            if (timedOut) {
-                return;
-            }
-            if (m.isBoundToPrescription()) {
-                final String cn = m.getCn();
-                final Prescription byCn = DB.drugDB().prescriptions().findByCn(cn);
-                if (byCn == null) {
-                    anyMissing = true;
-                    m.setCn(null);
-                }
-            }
-        }
-        if (anyMissing && !timedOut) {
+        int missing = countUnresolvedLinks(
+                DB.medicines().findAll(),
+                cn -> DB.drugDB().prescriptions().findByCn(cn),
+                () -> timedOut);
+        if (missing > 0 && !timedOut) {
             notifyDataMissing();
         }
     }
