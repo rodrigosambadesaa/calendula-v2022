@@ -42,16 +42,19 @@ class AlarmReceiver : BroadcastReceiver() {
             return
         }
 
-        LogUtil.d(
-            TAG,
-            "Alarm received with action " + intent.getStringExtra(IntentParams.EXTRA_ACTION)
-        )
+        val action = intent.getStringExtra(IntentParams.EXTRA_ACTION)
+        LogUtil.d(TAG, "Alarm received with action $action")
+
+        if (action == IntentParams.ACTION_DAILY_UPDATE) {
+            // One-shot daily refresh: re-arm the next LOCAL midnight before
+            // handing work to the service, so process death during dispatch
+            // cannot silently stop all future daily agenda updates.
+            Agenda.instance().setDailyUpdateAlarm(context)
+        }
+
         // call service
         val serviceIntent = Intent(context, AlarmIntentService::class.java)
-        serviceIntent.putExtra(
-            IntentParams.EXTRA_ACTION,
-            intent.getStringExtra(IntentParams.EXTRA_ACTION)
-        )
+        serviceIntent.putExtra(IntentParams.EXTRA_ACTION, action)
         serviceIntent.putExtra(
             IntentParams.EXTRA_REMINDER_ID,
             intent.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1)
