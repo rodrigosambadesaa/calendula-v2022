@@ -88,6 +88,21 @@ public final class CimaRestCatalog {
                 Collections.unmodifiableList(new ArrayList<>(codes)));
     }
 
+    /**
+     * Bind a retrieved detail response to the registration number requested from
+     * CIMA. A valid but unrelated JSON record must never be associated with the
+     * wrong medicine after a caching, proxy, or response-selection error.
+     */
+    public static MedicineSnapshot parseMedicine(String json, String expectedRegistration) {
+        validateRegistration(expectedRegistration);
+        MedicineSnapshot result = parseMedicine(json);
+        if (!expectedRegistration.equals(result.getRegistrationNumber())) {
+            throw new IllegalArgumentException(
+                    "CIMA medicine response does not match requested registration");
+        }
+        return result;
+    }
+
     private static void validateRegistration(String registration) {
         if (registration == null || !registration.matches("[0-9]{1,12}")) {
             throw new IllegalArgumentException("Invalid CIMA registration identifier");
