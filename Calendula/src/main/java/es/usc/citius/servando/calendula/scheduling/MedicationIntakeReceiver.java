@@ -31,8 +31,6 @@ import es.usc.citius.servando.calendula.scheduling.model.AgendaUpdateListener;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminderReceiver;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
-import es.usc.citius.servando.calendula.util.PreferenceKeys;
-import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
 /**
  * Receives Medication Intake reminders and show a notification
@@ -76,9 +74,7 @@ public class MedicationIntakeReceiver implements EventReminderReceiver, AgendaUp
     }
 
     public static boolean isLost(DateTime t) {
-        String delayMinutesStr = PreferenceUtils.getString(PreferenceKeys.SETTINGS_ALARM_REMINDER_WINDOW, "120");
-        long window = Long.parseLong(delayMinutesStr);
-        return t.plusMillis((int) window * 60 * 1000).isBeforeNow();
+        return t.plusMinutes(ReminderTiming.windowMinutes()).isBeforeNow();
     }
 
 }

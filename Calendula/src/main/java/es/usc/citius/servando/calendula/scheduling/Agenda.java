@@ -197,24 +197,21 @@ public class Agenda {
     * alarm window must be in the future to allow alarm scheduling, and must also be today
     */
     public boolean canBeScheduled(DateTime t) {
-        String delayMinutesStr = PreferenceUtils.getString(PreferenceKeys.SETTINGS_ALARM_REMINDER_WINDOW, "60");
-        int window = (int) Long.parseLong(delayMinutesStr);
+        int window = ReminderTiming.windowMinutes();
         DateTime midNight = DateTime.now().withTimeAtStartOfDay().plusDays(1);
         LogUtil.d(TAG, "T: " + t.toString() + ", window: " + window + ", midNight: " + midNight.toString());
         return t.plusMinutes(window).isAfterNow() && !midNight.isBefore(t);
     }
 
     public boolean shouldReschedule(EventReminder e, DateTime at) {
-        String delayMinutesStr = PreferenceUtils.getString(PreferenceKeys.SETTINGS_ALARM_REMINDER_WINDOW, "60");
-        int window = (int) Long.parseLong(delayMinutesStr);
+        int window = ReminderTiming.windowMinutes();
         return at.isAfterNow() && !at.isAfter(e.getDateTime().plusMinutes(window + 5));
     }
 
     public boolean isInIntakeWindow(DateTime t) {
-        String delayMinutesStr = PreferenceUtils.getString(PreferenceKeys.SETTINGS_ALARM_REMINDER_WINDOW, "60");
-        long window = Long.parseLong(delayMinutesStr);
+        int window = ReminderTiming.windowMinutes();
         DateTime now = DateTime.now();
-        return t.isBefore(now) && t.plusMillis((int) window * 60 * 1000).isAfter(now);
+        return t.isBefore(now) && t.plusMinutes(window).isAfter(now);
     }
 
     public void setDailyUpdateAlarm(Context ctx) {
@@ -439,8 +436,7 @@ public class Agenda {
     }
 
     private int repeatFreqSeconds() {
-        String delayMinutesStr = PreferenceUtils.getString(PreferenceKeys.SETTINGS_ALARM_REPEAT_FREQUENCY, "15");
-        return Integer.parseInt(delayMinutesStr) * 60;
+        return ReminderTiming.repeatSeconds();
     }
 
     public static class AgendaUpdatedEvent {
