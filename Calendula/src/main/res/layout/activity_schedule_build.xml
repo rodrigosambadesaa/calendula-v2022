@@ -24,7 +24,8 @@
     android:id="@+id/root_view"
     android:layout_width="fill_parent"
     android:layout_height="fill_parent"
-    android:background="@color/activity_schedule_build_primary">
+    android:background="@color/activity_schedule_build_primary"
+    tools:ignore="Overdraw">
 
     <androidx.coordinatorlayout.widget.CoordinatorLayout
 
