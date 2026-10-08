@@ -44,10 +44,14 @@ public class BootReceiver extends BroadcastReceiver {
 
         if (Intent.ACTION_BOOT_COMPLETED.equals(action)) {
             LogUtil.d(TAG, "Boot completed intent received");
+            // Android clears AlarmManager registrations after reboot.
+            // Recreate the daily agenda refresh as well as saved reminders.
+            Agenda.instance().setDailyUpdateAlarm(context);
             Agenda.instance().updateAllAlarms(context);
             LogUtil.d(TAG, "Alarms updated!");
         } else if (Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
             LogUtil.d(TAG, "Package replaced intent received");
+            Agenda.instance().setDailyUpdateAlarm(context);
             Agenda.instance().updateAllAlarms(context);
         } else if (AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED.equals(action)) {
             LogUtil.d(TAG, "Exact alarm access granted; rescheduling reminders");
