@@ -93,6 +93,9 @@ public class NullablePatientDaoSmokeTest {
             assertEquals(1, DB.eventInstances().confirm(
                     EventType.MEDICATION_INTAKE, future, null, DateTime.now()));
             assertTrue(DB.eventInstances().findById(unassigned.getId()).completed());
+            assertEquals("A repeated confirmation should be idempotent", 0,
+                    DB.eventInstances().confirm(
+                            EventType.MEDICATION_INTAKE, future, null, DateTime.now()));
             assertFalse("Null-patient confirm must not confirm another person's events",
                     DB.eventInstances().findById(assigned.getId()).completed());
 
@@ -100,6 +103,9 @@ public class NullablePatientDaoSmokeTest {
                     null, EventType.MEDICATION_INTAKE, future));
             assertNotNull("Other person's reminder must remain persisted",
                     DB.eventReminders().findById(namedReminder.getId()));
+            assertEquals("Second null-patient delete must leave named rows alone", 0,
+                    DB.eventReminders().removeBy(
+                            null, EventType.MEDICATION_INTAKE, future));
         } finally {
             for (EventInstance event : new EventInstance[]{unassigned, assigned}) {
                 if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
