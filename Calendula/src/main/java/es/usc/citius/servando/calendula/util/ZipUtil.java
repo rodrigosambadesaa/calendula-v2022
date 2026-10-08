@@ -32,7 +32,21 @@ import java.util.zip.ZipInputStream;
 
 public class ZipUtil {
 
+    // The prescription database is downloaded from a legacy, unauthenticated HTTP host.
+    // Limit extraction damage even when the archive is corrupt or attacker-controlled.
+    private static final long MAX_UNCOMPRESSED_BYTES = 512L * 1024 * 1024;
+    private static final int MAX_ENTRIES = 1024;
+
     public static void unzip(File archive, File path) throws IOException {
+        unzip(archive, path, MAX_UNCOMPRESSED_BYTES, MAX_ENTRIES);
+    }
+
+    /** Package-visible to exercise small limits without allocating huge test archives. */
+    static void unzip(File archive, File path, long maxBytes, int maxEntries)
+            throws IOException {
+        if (maxBytes < 0 || maxEntries < 0) {
+            throw new IllegalArgumentException("Extraction limits must be nonnegative");
+        }
         if (!path.exists() && !path.mkdirs()) {
             throw new IOException("Could not create ZIP destination directory");
         }
@@ -41,35 +55,61 @@ public class ZipUtil {
         final String rootPrefix = rootPath.endsWith(File.separator)
                 ? rootPath
                 : rootPath + File.separator;
+        long extractedBytes = 0L;
+        int entries = 0;
 
         try (ZipInputStream zip = new ZipInputStream(
                 new BufferedInputStream(new FileInputStream(archive)))) {
             ZipEntry zipEntry;
+            byte[] buffer = new byte[8192];
+
             while ((zipEntry = zip.getNextEntry()) != null) {
+                if (++entries > maxEntries) {
+                    throw new IOException("Too many ZIP archive entries");
+                }
+
                 final File outputFile = new File(path, zipEntry.getName());
                 final String outputPath = outputFile.getCanonicalPath();
-
-                // A plain startsWith(rootPath) check is insufficient: a sibling such
-                // as "/cache/db-evil" also starts with "/cache/db". Require the
-                // canonical destination itself or a child path separated by the
-                // platform path separator.
+                // An entry must be under the destination, not a sibling sharing its prefix.
                 if (!outputPath.equals(rootPath) && !outputPath.startsWith(rootPrefix)) {
                     throw new IOException("ZIP entry escapes destination directory");
                 }
 
                 if (zipEntry.isDirectory()) {
                     if (!outputFile.exists() && !outputFile.mkdirs()) {
-                        throw new IOException(
-                                "Could not create ZIP directory: " + zipEntry.getName());
+                        throw new IOException("Could not create ZIP directory");
                     }
                 } else {
                     File parent = outputFile.getParentFile();
-                    if (parent != null && !parent.exists() && !parent.mkdirs()) {
-                        throw new IOException(
-                                "Could not create ZIP parent directory: " + zipEntry.getName());
+                    if (parent == null) {
+                        throw new IOException("ZIP entry has no parent");
                     }
-                    try (FileOutputStream output = new FileOutputStream(outputFile)) {
-                        writeToStream(zip, output, false);
+                    if (!parent.exists() && !parent.mkdirs()) {
+                        throw new IOException("Could not create ZIP parent directory");
+                    }
+
+                    // Complete an entry in a temporary file, preserving any existing
+                    // destination if the archive fails its integrity or size checks.
+                    File temporary = File.createTempFile(".calendula-unzip-", ".tmp", parent);
+                    try {
+                        try (FileOutputStream output = new FileOutputStream(temporary)) {
+                            int read;
+                            while ((read = zip.read(buffer)) != -1) {
+                                if (read > maxBytes - extractedBytes) {
+                                    throw new IOException("ZIP exceeds uncompressed byte limit");
+                                }
+                                output.write(buffer, 0, read);
+                                extractedBytes += read;
+                            }
+                        }
+                        if (!temporary.renameTo(outputFile)) {
+                            throw new IOException("Unable to commit extracted ZIP entry");
+                        }
+                    } finally {
+                        if (temporary.exists() && !temporary.delete()) {
+                            // The original exception (if any) is more informative.
+                            // Cleanup of a partially written extraction is best effort.
+                        }
                     }
                 }
 
