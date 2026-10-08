@@ -122,9 +122,9 @@ public class CimaMedicineSearchTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsUnpairedSurrogateInJsonMedicineName() {
-        String json = "{\\"totalFilas\\":1,\\"pagina\\":1,\\"resultados\\":["
-                + "{\\"nregistro\\":\\"123\\",\\"nombre\\":\\"Med"
-                + (char) 0xD800 + "\\"}]}";
+        String json = "{\"totalFilas\":1,\"pagina\":1,\"resultados\":["
+                + "{\"nregistro\":\"123\",\"nombre\":\"Med"
+                + (char) 0xD800 + "\"}]}";
         CimaMedicineSearch.parsePage(json, 1);
     }
 
@@ -132,8 +132,8 @@ public class CimaMedicineSearchTest {
     public void rejectsControlCharactersInJsonMedicineName() {
         // Gson decodes an escaped newline; never normalize it away or
         // accept it as medication metadata.
-        String json = "{\\"totalFilas\\":1,\\"pagina\\":1,\\"resultados\\":["
-                + "{\\"nregistro\\":\\"123\\",\\"nombre\\":\\"\\\\nMedicine\\"}]}";
+        String json = "{\"totalFilas\":1,\"pagina\":1,\"resultados\":["
+                + "{\"nregistro\":\"123\",\"nombre\":\"\\\\nMedicine\"}]}";
         CimaMedicineSearch.parsePage(json, 1);
     }
 
