@@ -1,6 +1,6 @@
 # Calendula v2022 — modernization status
 
-_Last reviewed: 2026-10-08. This is an unofficial development fork, not a released medical product._
+_Last reviewed: 2026-10-08. This is an unofficial development fork, not a released or medically validated product. Tests described below were verified on their respective PR revisions; do not interpret them as end-to-end certification._
 
 ## Verified build baseline
 
@@ -13,11 +13,15 @@ _Last reviewed: 2026-10-08. This is an unofficial development fork, not a releas
 | Kotlin | 2.1.21 |
 | JDK | 17 |
 
-The Android CI workflow currently assembles the `ciDebug` APK, runs
-`minifyDevelopReleaseWithR8`, executes JVM unit tests, assembles the Android
-instrumentation-test APK, and runs Android lint. These steps have passed on
-`main` as of this review. **It does not execute on-device instrumentation
-tests.** Lint may pass despite warnings and narrowly documented suppressions.
+Android CI assembles `ciDebug`, validates `minifyDevelopReleaseWithR8`,
+executes JVM unit tests, builds the instrumentation APK and runs Android lint.
+A separate GitHub Actions workflow now **executes instrumented smoke tests on
+emulators** for API 23 (Android 6), API 33 (Android 13) and API 36 (Android 16).
+The initial matrix and the subsequent boot, notification-permission, and SQLite
+test branches have passed on all three APIs. The smoke tests are intentionally
+narrow: they verify selected Android platform integration paths, **not** a
+complete medication-administration or database-migration workflow. Lint passing
+does not imply all legacy accessibility warnings have been resolved.
 
 ## Accomplished
 
@@ -32,19 +36,28 @@ tests.** Lint may pass despite warnings and narrowly documented suppressions.
 - Added secure-window/WebView and network-related hardening in targeted changes.
 - Addressed multiple layout collision warnings and RecyclerView refresh
   inefficiencies, while documenting intentional legacy visual behavior.
+- Added GitHub Actions emulator tests for Android 6, 13 and 16, with on-device
+  checks for component registration, secure network rules, receiver recovery,
+  Android notification permissions and basic local database schema queries.
+- Introduced an owner-only, explicit-opt-in automatic squash-merge workflow
+  that requires both Android CI and the emulator matrix to succeed for the
+  same immutable commit before merging.
 
 ## Unresolved release blockers
 
 ### P0 — Prescription-database supply-chain integrity
 
 The configured database service is still
-`http://tec.citius.usc.es/calendula/dbs/`, and the app explicitly allows
-cleartext traffic to that host in its network-security configuration.
-A version manifest or prescription archive delivered over plain HTTP is
-**not authenticated**, regardless of DNS/network preflight. Correctly checking
-that a connection exists does not establish that its contents are genuine.
-A separate change validates that version strings are safe calendar-date path
-components; this is useful defense-in-depth **but does not solve authenticity**.
+`http://tec.citius.usc.es/calendula/dbs/`. A diagnostic probe dated
+2026-09-29 recorded **HTTP 404 after following the historical redirect to
+HTTPS** for `versions.json` (see issue #216). The endpoint is not presently
+a viable production source. This is a separate availability problem from the
+fact that a version manifest or archive delivered over plain HTTP is
+**unauthenticated**. VPN-aware network checks, calendar-date validation,
+redirect checks, and ZIP size/traversal defenses improve robustness but
+**do not authenticate medical content**. The AEMPS importer executes SQL
+contained in the retrieved archive; consequently this is a critical release
+gate, not merely a missing software update feature.
 
 **Acceptance criteria:** verify a working HTTPS endpoint under trusted
 certificate validation; ensure every manifest/archive request stays on an
@@ -57,16 +70,21 @@ availability and migration behavior are verified.
 
 ### P0 — Functional testing on actual Android runtimes
 
-CI compiles the instrumentation-test APK but does not call
-`connectedCiDebugAndroidTest` or run an emulator/device. Unit tests and an
-R8 compilation do not prove that alarms fire, databases install, notification
-permissions work, or OAuth/FHIR flows succeed.
+The API 23/33/36 emulator matrix now runs
+`connectedCiDebugAndroidTest` for focused installation/integration checks.
+Passing tests have exercised application installation, manifest privacy,
+notification channels and permissions, connectivity, local SQLite initialization,
+and boot/package-update receiver callbacks. This **does not yet demonstrate**
+actual delivery of medication reminders after device reboot or Doze, permission
+prompt journeys, legacy-to-current database migration, OAuth/FHIR interoperability,
+or prescription archive authenticity.
 
-**Acceptance criteria:** run a focused emulator smoke suite, then full
-instrumentation/functional tests with safe fixtures, across supported API
-levels and API 36. Verify reboot, Doze, exact-alarm permissions, notification
-permissions, background service restrictions, VPN-only states, rotations,
-process death, and data migration. Avoid using live patient data in CI.
+**Acceptance criteria:** add isolated end-to-end tests with safe synthetic
+fixtures across supported API levels and API 36. Verify actual alarm delivery
+(including Doze, reboot, permission revocation and fallback), notification
+permission requests, background service restrictions, VPN-only states,
+rotations, process death, database installation/migration, and representative
+OAuth/FHIR flows. Never use live patient records in CI.
 
 ### P1 — Android API 36 behavioral and UX audit
 
