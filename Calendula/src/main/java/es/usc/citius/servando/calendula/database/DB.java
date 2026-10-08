@@ -78,15 +78,17 @@ public class DB {
     public synchronized static void init(Context context) {
 
         if (!initialized) {
-            initialized = true;
             Context applicationContext = context.getApplicationContext();
             Context safeContext = applicationContext != null ? applicationContext : context;
             manager = new DatabaseManager<>();
-            db = manager.getHelper(safeContext, DatabaseHelper.class);
+            try {
+                db = manager.getHelper(safeContext, DatabaseHelper.class);
 
-            db.getReadableDatabase().enableWriteAheadLogging();
+                // May throw on a failed migration or inaccessible storage.
+                // Never advertise the singleton as ready before this succeeds.
+                db.getReadableDatabase().enableWriteAheadLogging();
 
-            Medicines = new MedicineDao(db);
+                Medicines = new MedicineDao(db);
             Routines = new RoutineDao(db);
 
             Pickups = new PickupInfoDao(db);
@@ -98,10 +100,38 @@ public class DB {
             Schedules = new ScheduleDao(db);
             EventInstances = new EventInstanceDao(db);
             EventReminders = new EventReminderDao(db);
-            healthcareProviderDB = HealthcareProviderDBModule.getInstance();
-            LogUtil.v(TAG, "DB initialized " + DB.DB_NAME);
+                healthcareProviderDB = HealthcareProviderDBModule.getInstance();
+                // The flag must be last: failed database opens remain retryable.
+                initialized = true;
+                LogUtil.v(TAG, "DB initialized " + DB.DB_NAME);
+            } catch (RuntimeException | Error failure) {
+                // Do not leave a partially initialized or cached helper that
+                // could mask the original upgrade/storage error on next start.
+                if (db != null) {
+                    try {
+                        manager.releaseHelper(db);
+                    } catch (RuntimeException cleanupFailure) {
+                        failure.addSuppressed(cleanupFailure);
+                    }
+                }
+                db = null;
+                manager = null;
+                Medicines = null;
+                Routines = null;
+                Schedules = null;
+                Pickups = null;
+                Patients = null;
+                DrugDB = null;
+                PatientAlerts = null;
+                PatientAllergens = null;
+                AllergyGroups = null;
+                EventInstances = null;
+                EventReminders = null;
+                healthcareProviderDB = null;
+                initialized = false;
+                throw failure;
+            }
         }
-
     }
 
     /**
