@@ -40,9 +40,10 @@ class CalendulaSettingsActivity : CalendulaActivity(),
         pref: Preference
     ): Boolean {
         try {
-            LogUtil.d(TAG, "onPreferenceStartFragment: pref fragment class is ${pref.fragment}")
+            val fragmentClassName = pref.fragment ?: return false
+            LogUtil.d(TAG, "onPreferenceStartFragment: pref fragment class is $fragmentClassName")
             val transaction = supportFragmentManager.beginTransaction()
-            val fragment = Class.forName(pref.fragment).getDeclaredConstructor().newInstance() as Fragment
+            val fragment = Class.forName(fragmentClassName).getDeclaredConstructor().newInstance() as Fragment
             transaction.setTransition(TRANSIT_FRAGMENT_FADE)
             transaction.replace(R.id.content_layout, fragment)
             transaction.addToBackStack(null)
