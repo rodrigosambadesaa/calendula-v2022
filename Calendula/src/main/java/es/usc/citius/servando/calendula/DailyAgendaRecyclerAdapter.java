@@ -48,12 +48,11 @@ import java.util.List;
 
 import es.usc.citius.servando.calendula.fragments.HomeProfileMgr;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
+import es.usc.citius.servando.calendula.scheduling.ReminderTiming;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.util.AvatarMgr;
 import es.usc.citius.servando.calendula.util.DailyAgendaItemStub;
 import es.usc.citius.servando.calendula.util.LogUtil;
-import es.usc.citius.servando.calendula.util.PreferenceKeys;
-import es.usc.citius.servando.calendula.util.PreferenceUtils;
 import es.usc.citius.servando.calendula.util.ScreenUtils;
 import es.usc.citius.servando.calendula.util.view.ParallaxImageView;
 
@@ -61,7 +60,7 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
 
     private static final String TAG = "DailyAgendaAdapter";
 
-    private final long window;
+    private final int window;
     private final int SPACER = 1;
     private final int EMPTY = 2;
     private final int NORMAL = 3;
@@ -78,8 +77,7 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
         this.ctx = ctx.getApplicationContext();
         emptyItemHeight = ScreenUtils.dpToPx(ctx.getResources(), 45);
 
-        String delayMinutesStr = PreferenceUtils.getString(PreferenceKeys.SETTINGS_ALARM_REMINDER_WINDOW, "60");
-        window = Long.parseLong(delayMinutesStr);
+        window = ReminderTiming.windowMinutes();
 
         Display display = ctx.getWindowManager().getDefaultDisplay();
         Point size = new Point();
@@ -311,7 +309,7 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
 
     boolean isAvailable(DateTime time) {
         DateTime now = DateTime.now();
-        return time.isBefore(now) && time.plusMillis((int) window * 60 * 1000).isAfter(now);
+        return time.isBefore(now) && time.plusMinutes(window).isAfter(now);
     }
 
     void updateParallax(LinearLayoutManager lm, RecyclerView rv) {

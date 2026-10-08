@@ -13,7 +13,7 @@ import es.usc.citius.servando.calendula.util.PreferenceUtils;
  * Single source of truth for reminder timing. Corrupted/legacy SharedPreferences
  * must not crash medication scheduling or overflow arithmetic.
  */
-final class ReminderTiming {
+public final class ReminderTiming {
 
     private static final int DEFAULT_WINDOW_MINUTES = 120; // pref_notifications.xml
     private static final int DEFAULT_REPEAT_MINUTES = 15;
@@ -22,7 +22,7 @@ final class ReminderTiming {
     private ReminderTiming() {
     }
 
-    static int windowMinutes() {
+    public static int windowMinutes() {
         return parseWindowMinutes(PreferenceUtils.getString(
                 PreferenceKeys.SETTINGS_ALARM_REMINDER_WINDOW,
                 Integer.toString(DEFAULT_WINDOW_MINUTES)));
