@@ -68,6 +68,22 @@ installation; test tampering, redirect and rollback scenarios.
 Do not silently change the server URL or delete old user data until
 availability and migration behavior are verified.
 
+### P0 — Preserve medical records across schema upgrades
+
+The legacy database helper previously handled an upgrade exception by calling
+`dropAndCreateAllTables()`, which erased patient, medicine, schedule and
+reminder records. A failed schema migration must now **propagate the error**
+and allow the SQLiteOpenHelper transaction to roll back, never destroy user
+data as a fallback. Isolated regression tests deliberately exercise failed
+v1/v2 upgrade paths while keeping a synthetic patient row.
+
+**Acceptance criteria:** assemble representative pre-upgrade database fixtures
+for each historical supported version and validate successful upgrade,
+interrupted upgrade, rollback, restart and referential integrity. Test the
+real upgrade journey on Android emulators and supported physical devices.
+The removal of destructive fallback is only one prerequisite, **not proof**
+that every historic database version migrates correctly.
+
 ### P0 — Functional testing on actual Android runtimes
 
 The API 23/33/36 emulator matrix now runs
