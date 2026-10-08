@@ -1,12 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 <string name="title_home">"Home"</string>
-<string name="action_settings">"Settings"</string>
 <string name="action_remove">"Remove"</string>
-<string name="home_menu_routines">"ROUTINES"</string>
 <string name="home_menu_medicines">"MEDICINES"</string>
-<string name="home_menu_pharmacies">"Pharmacies"</string>
-<string name="home_menu_plantrip">"Plan trip"</string>
 <string name="medicine">"medicine"</string>
 <string name="drawer_help_option">"Tour"</string>
 <string name="drawer_settings_option">"Settings"</string>
@@ -135,7 +131,6 @@
 <string name="notification_cancel_now">"Cancel now"</string>
 <string name="notification_delay">"Delay"</string>
 <string name="alarm_delayed_message">"Alarm delayed %1$s minutes"</string>
-<string name="moods_dialog_title">"How are you feeling?"</string>
 <string name="mood_very_bad">"Feeling very bad"</string>
 <string name="mood_bad">"Feeling bad"</string>
 <string name="mood_neutral">"Feeling nothing"</string>
@@ -151,7 +146,6 @@
 <string name="driving_warning">"Taking this medicine may have effects on your ability to drive.
 Please carefully read the leaflet or ask your pharmacist before you get behind the wheel."</string>
 <string name="driving_warning_title">"Be careful"</string>
-<string name="driving_warning_show_prospect">"Read leaflet"</string>
 <string name="driving_warning_gotit">"Understood"</string>
 <string name="repeat_every_tostr">"Every %1$s %2$s"</string>
 <string name="schedule_limits_date_format">"MMMM dd, YYYY"</string>
@@ -185,9 +179,6 @@ Calendula is being developed by the Centro de Investigación en Tecnoloxías Int
 "]]></string>
     <string name="about_privacy"><![CDATA[
 <a href=\'%1$s\'>See privacy policy</a>
-"]]></string>
-    <string name="about_version"><![CDATA[
-Version %1$s
 "]]></string>
 <string name="message_generic_pageloaderror">"There was an error loading the page"</string>
 <string name="title_prospect_webview">"Prospect view"</string>
@@ -227,7 +218,6 @@ Version %1$s
 <string name="title_medicine_allergy_alert">"Allergies detected for this medicine."</string>
 <string name="message_medicine_alert">"This medicine contains ingredients to which you have an allergy. For your safety, you will not be able to schedule this medicine."</string>
 <string name="medicine_save_error_message">"There was an error while saving your medicine."</string>
-<string name="message_schedule_medicine_allergy">"This medicine cannot be scheduled because you have an allergy to some of its components."</string>
 <string name="title_allergies_detected_dialog">"Warning"</string>
 <string name="message_allergies_detected_dialog">"Some of the medicines in your medkit contain the allergen you've just added. Please review their prospects carefully."</string>
 <string name="error_duplicate_medicine">"This medicine is already in your medkit."</string>
@@ -263,9 +253,6 @@ Version %1$s
 <string name="yesterday">"Yesterday"</string>
 <string name="today">"Today"</string>
 <string name="tomorrow">"Tomorrow"</string>
-<string name="message_delete_default_patient">"This is the default patient, and cannot be deleted. Do you want to delete all of their schedules, medicines and routines?"</string>
-<string name="yes_delete_everything">"Yes, delete everything"</string>
-<string name="default_user_data_deleted">"User data deleted!"</string>
 <string name="create_default_routines">"Create default routines"</string>
 <string name="stock_running_out">"Running out of stock"</string>
 <string name="add_more_stock">"Add more"</string>
@@ -317,16 +304,10 @@ Please, take a look at what we have for you!"</string>
 Do you take multiple medications at breakfast or lunch? Create a routine for that time, and Calendula will group all your intakes in a single notification."</string>
 <string name="intro_meds_title">"Medication kit"</string>
 <string name="intro_meds_text">"Keep all your drugs under control using the medication kit, and get easy access to package leaflets from official medicine databases."</string>
-<string name="intro_schedules_title">"Schedules"</string>
-<string name="intro_schedules_text">"Create your medication agenda by using the schedules editor. You can link your intakes to your routines, define hourly or daily repetitions and much more!"</string>
 <string name="intro_reminders_title">"Reminders"</string>
 <string name="intro_reminders_text">"Calendula will remind you about all your intakes. Remember to confirm, or we will notify you again!
 
 Customize alarms in the settings menu."</string>
-<string name="intro_multipat_title">"Multiple patients!"</string>
-<string name="intro_multipat_text">"Calendula allows you to manage the medication of several patients, with their own medication kit, routines and schedules.
-
-You will see all their intakes in the home screen."</string>
 <string name="disable_battery_saving_title">"Reliable notifications"</string>
 <string name="disable_battery_saving_text">"Battery-saving features may interfere with normal operation of Calendula.
 
@@ -339,13 +320,9 @@ Delivery of notifications, such as intake reminders, will be unreliable unless y
     <string name="battery_saving_dialog_ok">"OK"</string>
     <string name="battery_saving_dialog_cancel">"Cancel"</string>
 <string name="title_activity_settings">"Settings"</string>
-<string name="pref_header_general">"General"</string>
-<string name="pref_title_display_name">"Display name"</string>
-<string name="pref_default_display_name">"Calendula"</string>
 <string name="pref_header_notifications">"Notifications"</string>
 <string name="pref_title_new_alarm_notification">"Medicine intake alarms"</string>
 <string name="pref_title_battery_saving">"Exclude from system battery optimizations"</string>
-<string name="pref_title_pickup_notification">"Medicine pickup notifications"</string>
 <string name="pref_title_insistent_alarms">"Insistent notifications"</string>
 <string name="pref_title_repeat_alarms">"Repeat alarms"</string>
 <string name="pref_title_sync_frequency">"Repeat every"</string>
@@ -359,9 +336,7 @@ Delivery of notifications, such as intake reminders, will be unreliable unless y
 <string name="pref_alarm_reminder_thirty_min">"30 min"</string>
 <string name="pref_alarm_reminder_one_hour">"1 hour"</string>
 <string name="pref_alarm_reminder_two_hours">"2 hours"</string>
-<string name="pref_enable_databases_title">"Enable medicine database"</string>
 <string name="pref_available_databases_title">"Selected database"</string>
-<string name="pref_header_stock">"Stock control"</string>
 <string name="pref_stock_do_not_warn">"Do not warn me"</string>
 <string name="pref_stock_warn_one_week">"In less than 1 week"</string>
 <string name="pref_stock_warn_two_weeks">"In less than 2 weeks"</string>
@@ -388,10 +363,6 @@ Delivery of notifications, such as intake reminders, will be unreliable unless y
 <string name="title_database_update_data_lost">"Extra information lost after update"</string>
 <string name="preference_check_for_updates">"Check for updates"</string>
 <string name="database_update_not_available">"No database update available"</string>
-<string name="title_database_update_required">"Database update required"</string>
-<string name="message_database_update_required">"This version of the app requires a newer database. Do you want to download and configure it now?
-If you choose not to download it, some of your medicines' information may be lost."</string>
-<string name="download">"Download"</string>
 <string name="message_no_internet_error">"No internet connection available! Please establish a connection and try again."</string>
 <string name="action_edit">"Edit"</string>
 <string name="injections">"Injections"</string>
@@ -400,13 +371,11 @@ If you choose not to download it, some of your medicines' information may be los
 <string name="reset">"Reset"</string>
 <string name="edit_medicine">"Edit medicine"</string>
 <string name="sort_by">"Sort by:"</string>
-<string name="sort_by_default">"Default"</string>
 <string name="sort_by_name">"Name"</string>
 <string name="sort_by_presentation">"Presentation"</string>
 <string name="action_sort">"Sort"</string>
 <string name="sort_by_alerts">"Alerts"</string>
 <string name="title_activity_pickup_calendar_short">"Pickups"</string>
-<string name="calendar_patient_all">"All"</string>
 <string name="calendar_updating">"Updating calendar…"</string>
 <string name="best_date_recommendation_title">"Advice"</string>
 <string name="best_single_day_message">"Visit your pharmacy %1$s and you will be able to pick up %2$s medicines at the same time:"</string>
@@ -415,10 +384,6 @@ If you choose not to download it, some of your medicines' information may be los
 <string name="best_single_day_message_after_pending_one_med">"Afterwards, you could go again %1$s and pick up:"</string>
 <string name="pending_meds_msg">"There's medicines pending pick-up. Please visit your pharmacy as soon as possible:"</string>
 <string name="best_date_format">"'on' MMMM d '('EEEE')'"</string>
-<string name="best_date_reminder">"Reminder"</string>
-<string name="calendar_pickup_reminder_one_day_before">"1 day before"</string>
-<string name="calendar_pickup_reminder_two_days_before">"2 days before"</string>
-<string name="calendar_pickup_reminder_three_days_before">"3 days before"</string>
 <string name="calendar_no_medicines_to_pick_up">"There's no medicines to pick up"</string>
 <string name="ok">"OK"</string>
 <string name="stock">"Stock"</string>
@@ -453,13 +418,10 @@ If you choose not to download it, some of your medicines' information may be los
 <string name="pref_summary_pin_lock_set">"PIN set"</string>
 <string name="pref_summary_pin_lock_unset">"PIN not set"</string>
 <string name="pref_title_pin_lock">"App lock"</string>
-<string name="text_pinlock_auth_error">"The input PIN is not correct. Please try again."</string>
 <string name="text_pinlock_auth_prompt">"Please input your PIN to continue"</string>
 <string name="text_pinlock_match_error">"The input PINs don't match. Please try again."</string>
 <string name="text_pinlock_new_prompt">"Please input a four digit PIN"</string>
-<string name="text_pinlock_or_fingerprint_auth_prompt">"Please input your PIN or use your fingerprint to continue"</string>
 <string name="text_pinlock_repeat_prompt">"Now, input the same PIN again…"</string>
-<string name="use_fingerprint_message">"or use your fingerprint to authenticate"</string>
 <string name="reinstall_prescriptions_dialog_message">"In order to provide you with better medicine information, the medicine database needs to be reinstalled through the Settings screen. If you don't reinstall it, you won't be able to access med leaflets or other extra functions anymore.
 
 Your schedules, medkit, routines and other basic functions are safe either way.
@@ -484,17 +446,12 @@ Do you want to install the new database now?
 <string name="manage_stock">"Manage stock"</string>
 <string name="message_generic_error">"Oops! There was an error."</string>
 <string name="ringtone_none">"None"</string>
-<string name="patient_add">"Add patient"</string>
 <string name="db_download_and_setup">"Download and setup"</string>
 <string name="powder">"Powder"</string>
 <string name="cream">"Cream"</string>
 <plurals name="powder_units">
 <item quantity="one">"gram"</item>
 <item quantity="other">"grams"</item>
-</plurals>
-<plurals name="cream_units">
-<item quantity="one">"application"</item>
-<item quantity="other">"applications"</item>
 </plurals>
 <plurals name="generic_units">
 <item quantity="one">"unit"</item>
@@ -507,18 +464,11 @@ Do you want to install the new database now?
 <string name="pref_lock_1m">"1 minute"</string>
 <string name="pref_lock_2m">"2 minutes"</string>
 <string name="pref_lock_5m">"5 minutes"</string>
-<string name="second">"second"</string>
 <string name="seconds">"seconds"</string>
-<string name="minute">"minute"</string>
 <string name="minutes">"minutes"</string>
-<string name="hour">"hour"</string>
-<string name="day">"day"</string>
 <string name="days">"days"</string>
-<string name="week">"week"</string>
 <string name="weeks">"weeks"</string>
-<string name="month">"month"</string>
 <string name="months">"months"</string>
-<string name="year">"year"</string>
 <string name="years">"years"</string>
     <string name="channel_meds_name">Medicines</string>
     <string name="channel_meds_description">Notifications related to medicines such as intake reminders.</string>
