@@ -1,0 +1,103 @@
+name: Merge verified owner PRs
+
+# Only the workflow stored on the default branch runs with write permissions.
+# Never check out, source, or execute code from the pull request here.
+on:
+  workflow_run:
+    workflows:
+      - Android CI
+      - Android emulator smoke (API 23, 33, 36)
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Report eligible pull requests without merging
+        type: boolean
+        default: true
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: verified-owner-pr-merges
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Merge only explicitly opted-in owner branches with both CI suites green
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="${REPO%%/*}"
+
+          # The opt-in is a '[automerge] ' title AND a modernize/* branch
+          # from the repository owner's account (not a fork or bot).
+          gh api "repos/$REPO/pulls?state=open&per_page=100" |
+          jq -c --arg owner "$owner" '
+            .[] | select(
+              .base.ref == "main"
+              and .head.repo.full_name == .base.repo.full_name
+              and .user.login == $owner
+              and (.head.ref | startswith("modernize/"))
+              and (.title | startswith("[automerge] "))
+            ) | {number, sha: .head.sha, branch: .head.ref}
+          ' | while IFS= read -r pr; do
+            number=$(jq -r '.number' <<< "$pr")
+            sha=$(jq -r '.sha' <<< "$pr")
+            branch=$(jq -r '.branch' <<< "$pr")
+
+            # Query immutable commit SHA, not potentially moving branch status.
+            runs=$(gh api "repos/$REPO/actions/runs?head_sha=$sha&per_page=100")
+            all_green=true
+            for workflow in "Android CI" "Android emulator smoke (API 23, 33, 36)"; do
+              latest=$(jq -r --arg workflow "$workflow" --arg branch "$branch" --arg sha "$sha" '
+                [.workflow_runs[] | select(
+                  .name == $workflow and .head_branch == $branch and .head_sha == $sha
+                )] | sort_by(.created_at, .id) | last | .conclusion // "missing"
+              ' <<< "$runs")
+              if [[ "$latest" != success ]]; then
+                echo "PR #$number: waiting for $workflow (latest: $latest)"
+                all_green=false
+              fi
+            done
+
+            if [[ "$all_green" != true ]]; then
+              continue
+            fi
+
+            # Recheck identity and head just before the write. The merge endpoint
+            # also rejects a changed head commit via the sha precondition.
+            current=$(gh api "repos/$REPO/pulls/$number")
+            if ! jq -e --arg owner "$owner" --arg sha "$sha" '
+                .state == "open" and .base.ref == "main"
+                and .head.repo.full_name == .base.repo.full_name
+                and .user.login == $owner
+                and (.head.ref | startswith("modernize/"))
+                and (.title | startswith("[automerge] "))
+                and .head.sha == $sha
+              ' <<< "$current" >/dev/null; then
+              echo "PR #$number changed while checking; skipping"
+              continue
+            fi
+
+            if [[ "$EVENT_NAME" == workflow_dispatch && "$DRY_RUN" != false ]]; then
+              echo "Dry run: PR #$number is eligible for squash merge"
+              continue
+            fi
+
+            echo "Squash-merging verified PR #$number at $sha"
+            gh api --method PUT "repos/$REPO/pulls/$number/merge" \
+              -f sha="$sha" -f merge_method=squash
+          done
