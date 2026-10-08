@@ -328,6 +328,13 @@ public class Agenda {
         // look for not incomplete events linked to this reminder
         if (!DB.eventInstances().exists(type, time, patient, false)) {
             EventReminder r = DB.eventReminders().findBy(type, time, patient);
+            if (r == null) {
+                // Another cleanup may already have removed this reminder.
+                return;
+            }
+            // Removing the row alone does not revoke its Android alarm.
+            // Retire the stable token (and matching legacy hash token) too.
+            cancelAlarm(context, r);
             IntakeNotificationMgr.cancel(context, r);
             DB.eventReminders().remove(r);
         }
@@ -345,6 +352,8 @@ public class Agenda {
     public void deleteAllReminders(Context context) {
         List<EventReminder> eventReminders = DB.eventReminders().findAll();
         for (EventReminder r : eventReminders) {
+            // A bulk clear must revoke the OS alarms as well as SQLite rows.
+            cancelAlarm(context, r);
             IntakeNotificationMgr.cancel(context, r);
             DB.eventReminders().remove(r);
         }
