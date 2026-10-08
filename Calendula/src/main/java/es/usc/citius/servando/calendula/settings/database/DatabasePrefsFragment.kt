@@ -124,7 +124,7 @@ class DatabasePrefsFragment :
     override fun getIntent(): Intent = requireActivity().intent
 
     override fun openDatabaseSelection() {
-        preferenceManager.showDialog(dbPref)
+        dbPref?.let { preferenceManager.showDialog(it) }
     }
 
     private fun refreshUi() {
