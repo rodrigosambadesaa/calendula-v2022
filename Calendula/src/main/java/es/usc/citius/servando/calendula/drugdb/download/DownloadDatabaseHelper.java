@@ -104,17 +104,23 @@ public class DownloadDatabaseHelper {
 
         if (clearDatabaseSelection) {
             SharedPreferences settings = PreferenceUtils.instance().preferences();
-            settings.edit()
-                    .putString(PreferenceKeys.DRUGDB_LAST_VALID.key(),
-                            context.getString(R.string.database_none_id))
-                    .putString(PreferenceKeys.DRUGDB_CURRENT_DB.key(),
-                            context.getString(R.string.database_none_id))
-                    .apply();
+            // The previous database may still be intact. Clearing LAST_VALID
+            // here destroys the only saved recovery reference even when a
+            // download fails before any database modification takes place.
+            clearFailedSelection(settings,
+                    PreferenceKeys.DRUGDB_CURRENT_DB.key(),
+                    context.getString(R.string.database_none_id));
         }
 
         Intent bcIntent = new Intent(InstallDatabaseService.ACTION_ERROR);
         bcIntent.setPackage(context.getPackageName());
         context.sendBroadcast(bcIntent);
+    }
+
+    /** Keep DRUGDB_LAST_VALID for explicit recovery; do not reselect an unverified DB. */
+    static void clearFailedSelection(
+            SharedPreferences settings, String currentDatabaseKey, String noneDatabaseId) {
+        settings.edit().putString(currentDatabaseKey, noneDatabaseId).apply();
     }
 
     public boolean isDBDownloadingOrInstalling(Context context) {
