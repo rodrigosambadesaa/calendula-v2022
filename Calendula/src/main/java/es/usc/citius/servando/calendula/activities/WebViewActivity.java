@@ -562,7 +562,6 @@ public class WebViewActivity extends CalendulaActivity {
                             "('<html>'+document.getElementsByTagName('html')[0].innerHTML+'</html>');");
                 } else {
                     if (customCssSheets != null) {
-                        webView.getSettings().setJavaScriptEnabled(true);
                         injectCSS(customCssSheets, request.getCustomCssOverrides());
                         //if JavaScript is not enabled explicitly, turn it off after CSS injection
                         webView.getSettings().setJavaScriptEnabled(request.isJavaScriptEnabled());
@@ -651,7 +650,6 @@ public class WebViewActivity extends CalendulaActivity {
                                                  public void onPageFinished(WebView view, String url) {
                                                      pageLoaded = true;
                                                      if (customCssSheets != null) {
-                                                         webView.getSettings().setJavaScriptEnabled(true);
                                                          injectCSS(customCssSheets, request.getCustomCssOverrides());
                                                          //if JavaScript is not enabled explicitly, turn it off after CSS injection
                                                          webView.getSettings().setJavaScriptEnabled(request.isJavaScriptEnabled());
