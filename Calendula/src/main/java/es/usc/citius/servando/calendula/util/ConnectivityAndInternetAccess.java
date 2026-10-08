@@ -35,7 +35,6 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URL;
 import java.net.URLConnection;
-import java.security.GeneralSecurityException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -57,8 +56,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
@@ -339,7 +336,7 @@ public final class ConnectivityAndInternetAccess {
                 return;
             }
 
-            if (networkCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            if (networkCallback != null) {
                 try {
                     connectivityManager.unregisterNetworkCallback(networkCallback);
                 } catch (IllegalArgumentException ignored) {
@@ -443,7 +440,6 @@ public final class ConnectivityAndInternetAccess {
     private static final AtomicInteger PROBE_THREAD_NUMBER = new AtomicInteger(0);
 
     private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
-    private static final SSLSocketFactory TLS_12_SOCKET_FACTORY = createTls12Factory();
 
     private static final ExecutorService EXECUTOR = Executors.newCachedThreadPool(new ThreadFactory() {
         private int number;
@@ -664,9 +660,6 @@ public final class ConnectivityAndInternetAccess {
 
     public static boolean isConnected(Context context, Network network) {
         requireContext(context);
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-            return isConnected(context);
-        }
         if (network == null) {
             return false;
         }
@@ -800,33 +793,14 @@ public final class ConnectivityAndInternetAccess {
         requireContext(context);
         ConnectivityManager connectivityManager = manager(context);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Network active = connectivityManager.getActiveNetwork();
-            if (active != null
-                    && isEffectivelyUsable(connectivityManager,
-                            connectivityManager.getNetworkCapabilities(active))) {
-                clearConnectionAttempts();
-                return true;
-            }
-            return false;
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            for (Network network : connectivityManager.getAllNetworks()) {
-                if (isEffectivelyUsable(connectivityManager,
-                        connectivityManager.getNetworkCapabilities(network))) {
-                    clearConnectionAttempts();
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        boolean connected = isConnectedLegacy(connectivityManager.getActiveNetworkInfo());
-        if (connected) {
+        Network active = connectivityManager.getActiveNetwork();
+        if (active != null
+                && isEffectivelyUsable(connectivityManager,
+                        connectivityManager.getNetworkCapabilities(active))) {
             clearConnectionAttempts();
+            return true;
         }
-        return connected;
+        return false;
     }
 
     /** Returns whether a usable non-VPN network exists beneath the active path. */
@@ -845,24 +819,13 @@ public final class ConnectivityAndInternetAccess {
         requireContext(context);
         ConnectivityManager connectivityManager = manager(context);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Network active = connectivityManager.getActiveNetwork();
-            if (active == null) {
-                return disconnectedNetworkState();
-            }
-            return networkStateFromCapabilities(
-                    connectivityManager,
-                    connectivityManager.getNetworkCapabilities(active));
+        Network active = connectivityManager.getActiveNetwork();
+        if (active == null) {
+            return disconnectedNetworkState();
         }
-
-        // Before API 23 there is no default-Network object and no VALIDATED or
-        // CAPTIVE_PORTAL capability. activeNetworkInfo represents the legacy default.
-        boolean connected = isConnectedLegacy(connectivityManager.getActiveNetworkInfo());
-        return new NetworkState(
-                connected,
-                false,
-                false,
-                SystemClock.elapsedRealtime());
+        return networkStateFromCapabilities(
+                connectivityManager,
+                connectivityManager.getNetworkCapabilities(active));
     }
 
     /**
@@ -883,10 +846,6 @@ public final class ConnectivityAndInternetAccess {
      */
     public static boolean isInternetValidated(Context context) {
         requireContext(context);
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            return false;
-        }
-
         ConnectivityManager connectivityManager = manager(context);
         Network active = connectivityManager.getActiveNetwork();
         return active != null && isInternetValidated(context, active);
@@ -897,7 +856,7 @@ public final class ConnectivityAndInternetAccess {
      */
     public static boolean isInternetValidated(Context context, Network network) {
         requireContext(context);
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || network == null) {
+        if (network == null) {
             return false;
         }
 
@@ -914,10 +873,6 @@ public final class ConnectivityAndInternetAccess {
      */
     public static boolean isCaptivePortalDetected(Context context) {
         requireContext(context);
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            return false;
-        }
-
         ConnectivityManager connectivityManager = manager(context);
         Network active = connectivityManager.getActiveNetwork();
         return active != null && isCaptivePortalDetected(context, active);
@@ -928,7 +883,7 @@ public final class ConnectivityAndInternetAccess {
      */
     public static boolean isCaptivePortalDetected(Context context, Network network) {
         requireContext(context);
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || network == null) {
+        if (network == null) {
             return false;
         }
 
@@ -991,18 +946,8 @@ public final class ConnectivityAndInternetAccess {
         requireContext(context);
         ConnectivityManager connectivityManager = manager(context);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            for (Network network : connectivityManager.getAllNetworks()) {
-                if (isFast(connectivityManager.getNetworkCapabilities(network))) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        for (NetworkInfo info : legacyNetworks(connectivityManager)) {
-            if (isConnectedLegacy(info)
-                    && isConnectionFast(info.getType(), info.getSubtype())) {
+        for (Network network : connectivityManager.getAllNetworks()) {
+            if (isFast(connectivityManager.getNetworkCapabilities(network))) {
                 return true;
             }
         }
@@ -1011,12 +956,6 @@ public final class ConnectivityAndInternetAccess {
 
     public static boolean isConnectedFast(Context context, Network network) {
         requireContext(context);
-
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-            NetworkInfo info = manager(context).getActiveNetworkInfo();
-            return isConnectedLegacy(info)
-                    && isConnectionFast(info.getType(), info.getSubtype());
-        }
 
         if (network == null) {
             return false;
@@ -1027,13 +966,6 @@ public final class ConnectivityAndInternetAccess {
 
     public static boolean isAirplaneModeOn(Context context) {
         requireContext(context);
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1) {
-            return Settings.System.getInt(
-                    context.getContentResolver(),
-                    Settings.System.AIRPLANE_MODE_ON,
-                    0) != 0;
-        }
-
         return Settings.Global.getInt(
                 context.getContentResolver(),
                 Settings.Global.AIRPLANE_MODE_ON,
@@ -1042,10 +974,6 @@ public final class ConnectivityAndInternetAccess {
 
     public static boolean vpnActive(Context context) {
         requireContext(context);
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-            return false;
-        }
-
         ConnectivityManager connectivityManager = manager(context);
         for (Network network : connectivityManager.getAllNetworks()) {
             NetworkCapabilities capabilities =
@@ -1465,15 +1393,7 @@ public final class ConnectivityAndInternetAccess {
         ConnectivityManager connectivityManager = manager(context);
         Network network = selectProbeNetwork(connectivityManager);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            if (network == null) {
-                return new InternetResult(
-                        false,
-                        null,
-                        attempted,
-                        SystemClock.elapsedRealtime() - started);
-            }
-        } else if (!isConnected(context)) {
+        if (network == null) {
             return new InternetResult(
                     false,
                     null,
@@ -1651,8 +1571,7 @@ public final class ConnectivityAndInternetAccess {
     private static boolean checkEffectiveDns(Network network) {
         try {
             InetAddress[] addresses;
-            if (network != null
-                    && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            if (network != null) {
                 addresses = network.getAllByName(DNS_QUERY_NAME);
             } else {
                 addresses = InetAddress.getAllByName(DNS_QUERY_NAME);
@@ -1674,8 +1593,7 @@ public final class ConnectivityAndInternetAccess {
 
             try {
                 socket = new Socket();
-                if (network != null
-                        && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                if (network != null) {
                     network.bindSocket(socket);
                 }
 
@@ -1703,8 +1621,7 @@ public final class ConnectivityAndInternetAccess {
 
             try {
                 socket = new DatagramSocket();
-                if (network != null
-                        && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                if (network != null) {
                     network.bindSocket(socket);
                 }
 
@@ -1740,8 +1657,7 @@ public final class ConnectivityAndInternetAccess {
 
             try {
                 socket = new Socket();
-                if (network != null
-                        && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                if (network != null) {
                     network.bindSocket(socket);
                 }
 
@@ -1749,9 +1665,7 @@ public final class ConnectivityAndInternetAccess {
                 socket.connect(new InetSocketAddress(address, port), CONNECT_TIMEOUT_MS);
                 socket.setSoTimeout(READ_TIMEOUT_MS);
 
-                SSLSocketFactory factory = TLS_12_SOCKET_FACTORY != null
-                        ? TLS_12_SOCKET_FACTORY
-                        : (SSLSocketFactory) SSLSocketFactory.getDefault();
+                SSLSocketFactory factory = (SSLSocketFactory) SSLSocketFactory.getDefault();
                 sslSocket = (SSLSocket) factory.createSocket(socket, host, port, true);
                 sslSocket.setSoTimeout(READ_TIMEOUT_MS);
                 sslSocket.startHandshake();
@@ -1787,8 +1701,7 @@ public final class ConnectivityAndInternetAccess {
                 byte[] query = createDnsQuery(transactionId);
 
                 socket = new DatagramSocket();
-                if (network != null
-                        && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                if (network != null) {
                     network.bindSocket(socket);
                 }
 
@@ -1873,13 +1786,10 @@ public final class ConnectivityAndInternetAccess {
             try {
                 URL url = new URL(address);
                 URLConnection raw = network != null
-                        && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP
                         ? network.openConnection(url)
                         : url.openConnection();
 
                 connection = (HttpURLConnection) raw;
-                configureTlsIfNecessary(connection);
-
                 connection.setRequestMethod("GET");
                 connection.setInstanceFollowRedirects(false);
                 connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
@@ -1912,13 +1822,10 @@ public final class ConnectivityAndInternetAccess {
             try {
                 URL url = new URL(address);
                 URLConnection raw = network != null
-                        && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP
                         ? network.openConnection(url)
                         : url.openConnection();
 
                 connection = (HttpURLConnection) raw;
-                configureTlsIfNecessary(connection);
-
                 connection.setRequestMethod("GET");
                 connection.setInstanceFollowRedirects(false);
                 connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
@@ -1947,25 +1854,14 @@ public final class ConnectivityAndInternetAccess {
         }
     }
 
-    private static void configureTlsIfNecessary(HttpURLConnection connection) {
-        if (connection instanceof HttpsURLConnection
-                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN
-                && Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP
-                && TLS_12_SOCKET_FACTORY != null) {
-            ((HttpsURLConnection) connection).setSSLSocketFactory(TLS_12_SOCKET_FACTORY);
-        }
-    }
-
     private static NetworkState networkStateFromCapabilities(
             ConnectivityManager connectivityManager,
             NetworkCapabilities capabilities) {
         boolean connected = isEffectivelyUsable(connectivityManager, capabilities);
         boolean validated = connected
-                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                 && capabilities.hasCapability(
                         NetworkCapabilities.NET_CAPABILITY_VALIDATED);
-        boolean captivePortal = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                && capabilities != null
+        boolean captivePortal = capabilities != null
                 && capabilities.hasCapability(
                         NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL);
         return new NetworkState(
@@ -2008,8 +1904,7 @@ public final class ConnectivityAndInternetAccess {
         if (!isUsable(capabilities)) {
             return false;
         }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP
-                || !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
+        if (!capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
             return true;
         }
         // A VPN may retain INTERNET after its real underlying path disappeared.
@@ -2018,16 +1913,11 @@ public final class ConnectivityAndInternetAccess {
 
     private static boolean hasUsableNonVpnNetwork(
             ConnectivityManager connectivityManager) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-            return isConnectedLegacy(connectivityManager.getActiveNetworkInfo());
-        }
         for (Network network : connectivityManager.getAllNetworks()) {
             NetworkCapabilities capabilities =
                     connectivityManager.getNetworkCapabilities(network);
             if (isUsable(capabilities)
-                    && (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                    ? capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
-                    : !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN))) {
+                    && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)) {
                 return true;
             }
         }
@@ -2038,20 +1928,10 @@ public final class ConnectivityAndInternetAccess {
         requireContext(context);
         ConnectivityManager connectivityManager = manager(context);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            for (Network network : connectivityManager.getAllNetworks()) {
-                NetworkCapabilities capabilities =
-                        connectivityManager.getNetworkCapabilities(network);
-                if (isUsable(capabilities) && capabilities.hasTransport(transport)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        for (NetworkInfo info : legacyNetworks(connectivityManager)) {
-            if (isConnectedLegacy(info)
-                    && legacyTypeMatches(info.getType(), transport)) {
+        for (Network network : connectivityManager.getAllNetworks()) {
+            NetworkCapabilities capabilities =
+                    connectivityManager.getNetworkCapabilities(network);
+            if (isUsable(capabilities) && capabilities.hasTransport(transport)) {
                 return true;
             }
         }
@@ -2064,10 +1944,6 @@ public final class ConnectivityAndInternetAccess {
             int transport) {
         requireContext(context);
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-            return hasTransport(context, transport);
-        }
-
         if (network == null) {
             return false;
         }
@@ -2075,19 +1951,6 @@ public final class ConnectivityAndInternetAccess {
         NetworkCapabilities capabilities =
                 manager(context).getNetworkCapabilities(network);
         return isUsable(capabilities) && capabilities.hasTransport(transport);
-    }
-
-    private static boolean legacyTypeMatches(int type, int transport) {
-        if (transport == NetworkCapabilities.TRANSPORT_WIFI) {
-            return type == ConnectivityManager.TYPE_WIFI;
-        }
-        if (transport == NetworkCapabilities.TRANSPORT_CELLULAR) {
-            return type == ConnectivityManager.TYPE_MOBILE;
-        }
-        if (transport == NetworkCapabilities.TRANSPORT_ETHERNET) {
-            return type == ConnectivityManager.TYPE_ETHERNET;
-        }
-        return false;
     }
 
     private static boolean isFast(NetworkCapabilities capabilities) {
@@ -2101,57 +1964,12 @@ public final class ConnectivityAndInternetAccess {
         return networks != null ? networks : new NetworkInfo[0];
     }
 
-    private static boolean isConnectedLegacy(NetworkInfo info) {
-        return info != null && info.isAvailable() && info.isConnected();
-    }
-
-    private static boolean isConnectionFast(int type, int subType) {
-        if (type == ConnectivityManager.TYPE_WIFI
-                || type == ConnectivityManager.TYPE_ETHERNET) {
-            return true;
-        }
-
-        if (type != ConnectivityManager.TYPE_MOBILE) {
-            return false;
-        }
-
-        switch (subType) {
-            case TelephonyManager.NETWORK_TYPE_EVDO_0:
-            case TelephonyManager.NETWORK_TYPE_EVDO_A:
-            case TelephonyManager.NETWORK_TYPE_HSDPA:
-            case TelephonyManager.NETWORK_TYPE_HSPA:
-            case TelephonyManager.NETWORK_TYPE_HSUPA:
-            case TelephonyManager.NETWORK_TYPE_UMTS:
-            case TelephonyManager.NETWORK_TYPE_EHRPD:
-            case TelephonyManager.NETWORK_TYPE_EVDO_B:
-            case TelephonyManager.NETWORK_TYPE_HSPAP:
-            case TelephonyManager.NETWORK_TYPE_LTE:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     private static Network selectProbeNetwork(ConnectivityManager connectivityManager) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-            return null;
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Network active = connectivityManager.getActiveNetwork();
-            if (active != null
-                    && isEffectivelyUsable(connectivityManager,
-                            connectivityManager.getNetworkCapabilities(active))) {
-                return active;
-            }
-            return null;
-        }
-
-        for (Network network : connectivityManager.getAllNetworks()) {
-            if (isEffectivelyUsable(connectivityManager,
-                    connectivityManager.getNetworkCapabilities(network))) {
-                return network;
-            }
+        Network active = connectivityManager.getActiveNetwork();
+        if (active != null
+                && isEffectivelyUsable(connectivityManager,
+                        connectivityManager.getNetworkCapabilities(active))) {
+            return active;
         }
         return null;
     }
@@ -2391,8 +2209,7 @@ public final class ConnectivityAndInternetAccess {
 
     private static InetAddress resolveAddress(String host, Network network) throws IOException {
         InetAddress[] addresses;
-        if (network != null
-                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+        if (network != null) {
             addresses = network.getAllByName(host);
         } else {
             addresses = InetAddress.getAllByName(host);
@@ -2555,86 +2372,11 @@ public final class ConnectivityAndInternetAccess {
         }
     }
 
-    private static SSLSocketFactory createTls12Factory() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN
-                || Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            return null;
-        }
-
-        try {
-            SSLContext context = SSLContext.getInstance("TLSv1.2");
-            context.init(null, null, null);
-            return new Tls12SocketFactory(context.getSocketFactory());
-        } catch (GeneralSecurityException ignored) {
-            return null;
-        }
-    }
-
     private static void requireContext(Context context) {
         if (context == null) {
             throw new IllegalArgumentException("context == null");
         }
     }
 
-    private static final class Tls12SocketFactory extends SSLSocketFactory {
-        private final SSLSocketFactory delegate;
 
-        private Tls12SocketFactory(SSLSocketFactory delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public String[] getDefaultCipherSuites() {
-            return delegate.getDefaultCipherSuites();
-        }
-
-        @Override
-        public String[] getSupportedCipherSuites() {
-            return delegate.getSupportedCipherSuites();
-        }
-
-        @Override
-        public Socket createSocket(Socket socket, String host, int port, boolean autoClose)
-                throws IOException {
-            return enable(delegate.createSocket(socket, host, port, autoClose));
-        }
-
-        @Override
-        public Socket createSocket(String host, int port) throws IOException {
-            return enable(delegate.createSocket(host, port));
-        }
-
-        @Override
-        public Socket createSocket(
-                String host,
-                int port,
-                InetAddress localHost,
-                int localPort) throws IOException {
-            return enable(delegate.createSocket(host, port, localHost, localPort));
-        }
-
-        @Override
-        public Socket createSocket(InetAddress host, int port) throws IOException {
-            return enable(delegate.createSocket(host, port));
-        }
-
-        @Override
-        public Socket createSocket(
-                InetAddress address,
-                int port,
-                InetAddress localAddress,
-                int localPort) throws IOException {
-            return enable(delegate.createSocket(address, port, localAddress, localPort));
-        }
-
-        private Socket enable(Socket socket) {
-            if (socket instanceof SSLSocket) {
-                SSLSocket sslSocket = (SSLSocket) socket;
-                if (Arrays.asList(sslSocket.getSupportedProtocols()).contains("TLSv1.2")) {
-                    sslSocket.setEnabledProtocols(new String[]{"TLSv1.2"});
-                }
-            }
-            return socket;
-        }
-    }
 }
