@@ -4,7 +4,8 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/healthcare_provider_light">
+    android:background="@color/healthcare_provider_light"
+    tools:ignore="Overdraw">
 
     <RelativeLayout
         android:id="@+id/logging_in_layout"

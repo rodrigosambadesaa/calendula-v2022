@@ -25,7 +25,8 @@
                 android:background="@color/healthcare_provider_dark"
                 android:fitsSystemWindows="true"
                 tools:background="@color/android_blue_dark"
-                tools:context="es.usc.citius.servando.calendula.pinlock.PinLockActivity">
+                tools:context="es.usc.citius.servando.calendula.pinlock.PinLockActivity"
+    tools:ignore="Overdraw">
 
     <androidx.appcompat.widget.Toolbar
                                        android:id="@+id/toolbar"
