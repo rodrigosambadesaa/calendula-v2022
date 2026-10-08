@@ -26,7 +26,8 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
-import android.os.AsyncTask;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.Bundle;
 import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.appbar.CollapsingToolbarLayout;
@@ -61,6 +62,8 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.Locale;
 
 import butterknife.BindView;
@@ -81,6 +84,7 @@ public class CalendarActivity extends CalendulaActivity {
 
     public static final int ACTION_SHOW_REMINDERS = 1;
     private static final String TAG = "CalendarActivity";
+    private static final ExecutorService PICKUPS_EXECUTOR = Executors.newSingleThreadExecutor();
     private final DateFormat dtf2 = new SimpleDateFormat("dd/MMM", Locale.getDefault());
     private static DispensationInfoStore dispensationInfoStore;
 
@@ -169,7 +173,7 @@ public class CalendarActivity extends CalendulaActivity {
         df = getString(R.string.pickup_date_format);
         bottomSheet.setVisibility(View.INVISIBLE);
 
-        new UpdatePickupsTask().execute();
+        updatePickupsAsync();
         checkIntent();
     }
 
@@ -453,40 +457,34 @@ public class CalendarActivity extends CalendulaActivity {
         }
     }
 
-    private class UpdatePickupsTask extends AsyncTask<Void, Void, Void> {
+    private void updatePickupsAsync() {
+        LogUtil.d(TAG, "updatePickupsAsync: starting");
+        final ProgressDialog dialog = new ProgressDialog(this);
+        dialog.setIndeterminate(true);
+        dialog.setMessage(getString(R.string.calendar_updating));
+        dialog.show();
 
-
-        ProgressDialog dialog;
-
-        @Override
-        protected Void doInBackground(Void... params) {
-            final List<ActiveMedEntity> activeMedEntities = DB.healthcareProviderDB().activeMeds().findBy(ActiveMedEntity.COLUMN_PATIENT, patient);
+        final Patient patientForQuery = patient;
+        final Handler mainHandler = new Handler(Looper.getMainLooper());
+        PICKUPS_EXECUTOR.execute(() -> {
+            final List<ActiveMedEntity> activeMedEntities = DB.healthcareProviderDB().activeMeds().findBy(ActiveMedEntity.COLUMN_PATIENT, patientForQuery);
             final List<DispensationInfoEntity> dispensationInfoEntities = new ArrayList<>();
             for (ActiveMedEntity activeMedEntity : activeMedEntities) {
                 dispensationInfoEntities.addAll(activeMedEntity.getDispensationInfo());
             }
-            dispensationInfoStore = new DispensationInfoStore(dispensationInfoEntities);
-            return null;
-        }
+            final DispensationInfoStore store = new DispensationInfoStore(dispensationInfoEntities);
 
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-            LogUtil.d(TAG, "onPreExecute: starting UpdatePickupsTask");
-            dialog = new ProgressDialog(CalendarActivity.this);
-            dialog.setIndeterminate(true);
-            dialog.setMessage(getString(R.string.calendar_updating));
-            dialog.show();
-        }
-
-        @Override
-        protected void onPostExecute(Void aVoid) {
-            super.onPostExecute(aVoid);
-            if (dialog.isShowing()) {
-                dialog.dismiss();
-            }
-            setupNewCalendar();
-        }
+            mainHandler.post(() -> {
+                if (dialog.isShowing()) {
+                    dialog.dismiss();
+                }
+                if (isFinishing() || isDestroyed()) {
+                    return;
+                }
+                dispensationInfoStore = store;
+                setupNewCalendar();
+            });
+        });
     }
 
 }
