@@ -72,6 +72,23 @@ mapping and reconciliation stage. Active ingredients, authorization status,
 product discontinuations and patient-linked historical IDs still need explicit
 mapping and validation before any production import.
 
+## Legacy catalog reconciliation preview (read-only)
+
+`CimaCatalogReconciliation.preview()` compares validated CIMA presentation
+candidates with existing Caléndula `Prescription` rows **without executing
+SQL or changing any objects**. It partitions the result into new candidate
+presentations, exact metadata matches, records requiring manual review, and
+existing historical-only records that must be retained. Duplicate legacy CNs
+and conflicting official CN mappings cause a hard failure rather than arbitrary
+reassignment. Existing rows with missing CNs are explicitly counted and kept
+untouched.
+
+**An exact string match is not clinical equivalence.** Differing product name,
+registration ID or source dose is marked for review. A medicine absent from a
+**partial** CIMA response batch is never assumed withdrawn or safe to delete.
+This stage intentionally does not update the catalog, migrate patient-linked
+identifiers, or modify prescriptions and reminders.
+
 ## Release-blocking next steps
 
 1. Validate AEMPS data licensing, attribution, update cadence and rate limits.
