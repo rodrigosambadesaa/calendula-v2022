@@ -153,63 +153,25 @@ Please carefully read the leaflet or ask your pharmacist before you get behind t
 <string name="driving_warning_title">"Be careful"</string>
 <string name="driving_warning_show_prospect">"Read leaflet"</string>
 <string name="driving_warning_gotit">"Understood"</string>
-<string name="dialog_interval_title">"Interval"</string>
-<string name="every">"every"</string>
 <string name="repeat_every_tostr">"Every %1$s %2$s"</string>
-<string name="label_schedule_repeat_today">"Start"</string>
-<string name="button_schedule_repeat_today">"Today"</string>
-<string name="label_schedule_repeat_until">"Stop"</string>
-<string name="button_schedule_repeat_until">"Never"</string>
 <string name="schedule_limits_date_format">"MMMM dd, YYYY"</string>
-<string name="schedules_stop_after">"Stop after %1$s intakes"</string>
-<string name="schedule_repeat_period">"Period + rest"</string>
-<string name="schedule_repeat_type_everyday">"Every day"</string>
-<string name="schedule_repeat_type_some_week_days">"Some week days"</string>
-<string name="schedule_repeat_type_interval">"Interval"</string>
 <string name="schedule_repeat_frequency_days">"days"</string>
 <string name="schedule_repeat_frequency_weeks">"weeks"</string>
-<string name="schedule_repeat_frequency_months">"months"</string>
-<string name="summary_show_calendar">"Show calendar"</string>
 <string name="hours">"hours"</string>
-<string name="schedule_help_no_type_selected">"Please, select a schedule type to keep on creating the schedule"</string>
-<string name="schedule_type_routines_title">"Routine schedule"</string>
-<string name="schedule_type_hourly_title">"Dosing interval"</string>
-<string name="schedule_type_period_title">"Period + rest"</string>
-<string name="schedule_type_common_periods">"Common cycles"</string>
-<string name="schedule_type_routines_description">"Ex: Every 3 days, at breakfast, lunch and dinner"</string>
-<string name="schedule_type_hourly_description">"Ex: Each 8 hours"</string>
-<string name="schedule_type_period_description">"Ex: 21 days + 7 days of rest"</string>
-<string name="schedule_help_cycle">"Setup repetition cycle (intake + rest)"</string>
-<string name="schedule_help_duration">"Finally, you can specify the schedule start and end. Leave it as it is to repeat indefinitely."</string>
-<string name="schedule_help_hourly">"Please state the repeat period, dosage, and time of the first intake"</string>
-<string name="schedule_help_repeat">"State the schedule repetition. If it repeats every day, you do not have to do anything."</string>
-<string name="schedule_help_timesbyday">"Please state the number of times per day that the schedule repeats"</string>
-<string name="schedule_help_timetable">"Now, link each intake to your routines and state the dosage for each of them"</string>
 <string name="title_activity_calendar">"Pickups calendar"</string>
 <string name="title_pickups_bottom_sheet">"Pickups on %1$s"</string>
 <string name="pickup_interval">"Until %1$s"</string>
 <string name="pickup_date_format">"MMMM dd"</string>
-<string name="title_activity_confirm_schedules">"Confirm schedules"</string>
-<string name="confirm_prescription_x_of_y">"Prescription %1$s of %2$s"</string>
 <string name="scan_prescriptions_title">"Scan prescriptions"</string>
 <string name="scan_qr">"Scan QR"</string>
-<string name="duration">"Duration"</string>
 <string name="all_meds_taken">"All meds taken!"</string>
-<string name="create_schedule_select_med_before_dose">"Please, select a med first"</string>
 <string name="title_activity_patients">"Patients"</string>
-<string name="schedule_type_help_title">"You are about to create a schedule, choose the one that best suits your needs!"</string>
-<string name="schedule_type_routines_help">"This kind of schedule lets you bind intakes to your routines, such as: \"Every day at breakfast and dinner, excluding sundays\", or \"Every 3 days, with lunch.\""</string>
-<string name="schedule_type_hourly_help">"Hourly schedules are intended to those intakes that repeat by a certain period, such as: \"Every 8 hours\". Set the time of the first intake and go on."</string>
-<string name="schedule_type_intervalrest_help">"Birth control pills and other meds are taken for a while, and then there's a rest. This kind of schedule allows you to specify both periods and simplify those intakes."</string>
 <string name="routines_list_empty_text">"There are no routines yet.
 
 Routines are times when you need to take meds, like breakfast or dinner. You can reuse it for creating schedules faster."</string>
 <string name="medicines_list_empty_text">"There are no meds yet.
 
 Add your meds to the kit, and you will have easy access to leaflets and warnings."</string>
-<string name="schedules_list_empty_text">"There are no schedules yet.
-
-Add your schedules here and let us just notify you!"</string>
 <string name="about_description"><![CDATA[
 For this development, several open source libraries that are shown below are used:
 "]]></string>
@@ -410,7 +372,6 @@ Delivery of notifications, such as intake reminders, will be unreliable unless y
 <string name="database_aemps_display">"AEMPS Database (Spain)"</string>
 <string name="database_aemps_desc">"Agencia Española de Medicamentos y Productos Sanitarios database"</string>
 <string name="database_setting_up">"Setting up…"</string>
-<string name="schedule_type_from_qr">"From QR"</string>
 <string name="calendar_date_tomorrow">"tomorrow"</string>
 <string name="delays_one_min">"1 min"</string>
 <string name="delays_thirty_min">"30 min"</string>
@@ -525,7 +486,6 @@ Do you want to install the new database now?
 <string name="ringtone_none">"None"</string>
 <string name="patient_add">"Add patient"</string>
 <string name="db_download_and_setup">"Download and setup"</string>
-<string name="schedule_continue_indefinitely">"Do you want this schedule to continue indefinitely?"</string>
 <string name="powder">"Powder"</string>
 <string name="cream">"Cream"</string>
 <plurals name="powder_units">
