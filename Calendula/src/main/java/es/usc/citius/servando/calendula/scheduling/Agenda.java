@@ -257,13 +257,14 @@ public class Agenda {
                         onBeforeUpdate(context, today);
                         // create reminders for events
                         Agenda.instance().createReminders(context);
-                        // Save last date to prefs
-                        PreferenceUtils.edit()
-                                .putString(PreferenceKeys.AGENDA_LAST_UPDATED.key(), today.toString(localDateFmt))
-                                .apply();
                         return null;
                     }
                 });
+                // Persist the completion marker only after the SQLite
+                // transaction commits. A rolled-back update must be retried.
+                PreferenceUtils.edit()
+                        .putString(PreferenceKeys.AGENDA_LAST_UPDATED.key(), today.toString(localDateFmt))
+                        .apply();
             } catch (SQLException e) {
                 LogUtil.e(TAG, "Error updating agenda", e);
             }
