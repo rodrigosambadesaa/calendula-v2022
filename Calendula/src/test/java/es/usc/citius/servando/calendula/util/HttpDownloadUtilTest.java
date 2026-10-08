@@ -9,6 +9,9 @@ package es.usc.citius.servando.calendula.util;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.io.StringReader;
 
 import static org.junit.Assert.assertEquals;
@@ -83,4 +86,27 @@ public class HttpDownloadUtilTest {
                 "https://example.test/db/archive.zip",
                 "https://cdn.example.test/db/archive.zip"));
     }
+    @Test
+    public void binaryStreamAllowsExactByteLimit() throws Exception {
+        byte[] input = "12345".getBytes(StandardCharsets.UTF_8);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        assertEquals(5L, HttpDownloadUtil.copyLimited(
+                new ByteArrayInputStream(input), output, 5L));
+        assertEquals("12345", new String(output.toByteArray(), StandardCharsets.UTF_8));
+    }
+
+    @Test(expected = IOException.class)
+    public void binaryStreamRejectsUnknownLengthBeyondBudget() throws Exception {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        HttpDownloadUtil.copyLimited(
+                new ByteArrayInputStream("123456".getBytes(StandardCharsets.UTF_8)),
+                output, 5L);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void binaryStreamRejectsNegativeLimit() throws Exception {
+        HttpDownloadUtil.copyLimited(
+                new ByteArrayInputStream(new byte[0]), new ByteArrayOutputStream(), -1L);
+    }
+
 }
