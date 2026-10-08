@@ -371,15 +371,24 @@ public class Agenda {
     }
 
     private boolean needsToBeUpdated(LocalDate today) {
-        String lastDate = PreferenceUtils.getString(PreferenceKeys.AGENDA_LAST_UPDATED, null);
-        LocalDate lastUpdated;
-        if (lastDate != null) {
-            lastUpdated = localDateFmt.parseLocalDate(lastDate);
-            if (today.equals(lastUpdated)) {
-                return false;
-            }
+        return shouldRefreshAgenda(today,
+                PreferenceUtils.getString(PreferenceKeys.AGENDA_LAST_UPDATED, null));
+    }
+
+    /**
+     * Malformed stored preferences must not crash startup and permanently
+     * suppress medication schedule reconstruction. Rebuild safely instead.
+     */
+    static boolean shouldRefreshAgenda(LocalDate today, String savedDate) {
+        if (savedDate == null) {
+            return true;
         }
-        return true;
+        try {
+            return !today.equals(ISODateTimeFormat.basicDate().parseLocalDate(savedDate));
+        } catch (IllegalArgumentException invalidDate) {
+            LogUtil.w(TAG, "Invalid last agenda update date; rebuilding schedule");
+            return true;
+        }
     }
 
     private void removeRemindersBefore(LocalDate date) {
