@@ -53,6 +53,15 @@ public class BootReceiver extends BroadcastReceiver {
             LogUtil.d(TAG, "Package replaced intent received");
             Agenda.instance().setDailyUpdateAlarm(context);
             Agenda.instance().updateAllAlarms(context);
+        } else if (Intent.ACTION_TIME_CHANGED.equals(action)
+                || Intent.ACTION_TIMEZONE_CHANGED.equals(action)) {
+            // RTC_WAKEUP registrations use absolute epoch millis. A user
+            // changing the wall clock or timezone can invalidate the next
+            // locally computed midnight and medication alarm schedule.
+            // Re-register against the new device time without deleting data.
+            LogUtil.d(TAG, "Clock/timezone changed; recalculating agenda alarms");
+            Agenda.instance().setDailyUpdateAlarm(context);
+            Agenda.instance().updateAllAlarms(context);
         } else if (AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED.equals(action)) {
             LogUtil.d(TAG, "Exact alarm access granted; rescheduling reminders");
             Agenda.instance().updateAllAlarms(context);
