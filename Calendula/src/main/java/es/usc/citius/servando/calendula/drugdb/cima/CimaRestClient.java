@@ -117,7 +117,7 @@ public final class CimaRestClient {
             total += count;
         }
         // String(byte[], UTF_8) silently inserts U+FFFD for corrupted bytes.
-        // Reject malformed source data rather than importing a altered
+        // Reject malformed source data rather than importing an altered
         // medicine label or presentation name.
         try {
             return StandardCharsets.UTF_8.newDecoder()
