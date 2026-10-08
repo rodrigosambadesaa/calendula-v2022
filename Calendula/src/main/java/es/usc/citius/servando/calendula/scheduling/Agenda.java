@@ -262,12 +262,18 @@ public class Agenda {
     public void onDailyUpdate(final Context context) {
         final LocalDate today = LocalDate.now();
         if (needsToBeUpdated(today)) {
-            // Start transaction
+            // Collect expired alarm identities inside SQLite so rollback
+            // never cancels an alarm whose database removal did not commit.
+            final List<EventReminder> expiredReminders = new ArrayList<>();
             try {
                 TransactionManager.callInTransaction(DB.helper().getConnectionSource(), new Callable<Object>() {
                     @Override
                     public Object call() throws Exception {
-                        // remove old reminders
+                        // Store the identity of removed reminders before their
+                        // SQLite rows disappear; OS alarms are not transactional.
+                        DateTime cutoff = today.minusDays(1).toDateTimeAtStartOfDay();
+                        expiredReminders.addAll(expiredRemindersBefore(
+                                DB.eventReminders().findAll(), cutoff));
                         removeRemindersBefore(today.minusDays(1));
                         // fire before update event
                         onBeforeUpdate(context, today);
@@ -283,6 +289,14 @@ public class Agenda {
                 // SQLite must commit and all alarms must be rescheduled before
                 // the day can be recorded as complete. Partial scheduling
                 // remains retryable after a service or process failure.
+                // The SQLite delete is now committed; retire stale OS alarm
+                // tokens *before* rescheduling the surviving reminders.
+                for (EventReminder expired : expiredReminders) {
+                    if (expired.getId() != null && expired.getId() > 0) {
+                        cancelAlarm(context, expired);
+                        IntakeNotificationMgr.cancel(context, expired);
+                    }
+                }
                 Agenda.instance().updateAllAlarms(context);
                 // This runs on both startup and background workers; a durable
                 // marker avoids reporting completion before it reaches disk.
@@ -414,6 +428,24 @@ public class Agenda {
             // Do not expose the invalid preference (or user data) in logs.
             return true;
         }
+    }
+
+    /** Read-only snapshot of rows that the daily SQL prune is about to remove. */
+    static List<EventReminder> expiredRemindersBefore(
+            Collection<EventReminder> reminders, DateTime cutoff) {
+        if (reminders == null || cutoff == null) {
+            throw new IllegalArgumentException("Reminder snapshot and cutoff are required");
+        }
+        List<EventReminder> expired = new ArrayList<>();
+        for (EventReminder reminder : reminders) {
+            if (reminder == null || reminder.getDateTime() == null) {
+                throw new IllegalArgumentException("Malformed persisted reminder");
+            }
+            if (reminder.getDateTime().isBefore(cutoff)) {
+                expired.add(reminder);
+            }
+        }
+        return expired;
     }
 
     private void removeRemindersBefore(LocalDate date) {
