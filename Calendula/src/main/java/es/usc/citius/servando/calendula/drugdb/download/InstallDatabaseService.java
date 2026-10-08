@@ -211,6 +211,13 @@ public class InstallDatabaseService extends Service {
     }
 
     private boolean handleDownloadAndSetup(final String database, final DBInstallType type) {
+        // No remote SQL archive may reach the installer until origin, signed
+        // bytes and downgrade resistance have been verified independently.
+        if (!LegacyRemoteArchivePolicy.permitsRemoteSqlInstallation()) {
+            failDatabaseOperation("Retired unsigned medicine database download disabled",
+                    null, type);
+            return false;
+        }
         File destination = null;
         boolean downloadCommitted = false;
         try {
