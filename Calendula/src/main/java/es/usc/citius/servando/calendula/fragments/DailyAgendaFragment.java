@@ -273,7 +273,10 @@ public class DailyAgendaFragment extends Fragment {
     }
 
     public void refresh() {
-        rvAdapter.notifyDataSetChanged();
+        int itemCount = rvAdapter.getItemCount();
+        if (itemCount > 0) {
+            rvAdapter.notifyItemRangeChanged(0, itemCount);
+        }
     }
 
     public void refreshPosition(int position) {
