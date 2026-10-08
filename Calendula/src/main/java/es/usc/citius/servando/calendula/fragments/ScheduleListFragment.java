@@ -78,7 +78,7 @@ public class ScheduleListFragment extends Fragment {
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_schedule_list, container, false);
-        ButterKnife.bind(this, rootView);
+        unbinder = ButterKnife.bind(this, rootView);
 
         mSchedules = DB.schedules().findAllForActivePatient(getContext());
         if (mSchedules.size() > 0)
