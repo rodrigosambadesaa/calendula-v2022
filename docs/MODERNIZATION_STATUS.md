@@ -15,9 +15,12 @@ _Last reviewed: 2026-10-08. This is an unofficial development fork, not a releas
 
 The Android CI workflow currently assembles the `ciDebug` APK, runs
 `minifyDevelopReleaseWithR8`, executes JVM unit tests, assembles the Android
-instrumentation-test APK, and runs Android lint. These steps have passed on
-`main` as of this review. **It does not execute on-device instrumentation
-tests.** Lint may pass despite warnings and narrowly documented suppressions.
+instrumentation-test APK, and runs Android lint. A separate emulator workflow
+executes the focused `InstallationSmokeTest` on API 23 (Android 6), API 33
+(Android 13), and API 36 (Android 16). These checks have passed on `main` as
+of this review. The emulator smoke suite is intentionally narrow and does not
+replace full end-to-end functional testing. Lint may pass despite warnings and
+narrowly documented suppressions.
 
 ## Accomplished
 
@@ -32,6 +35,9 @@ tests.** Lint may pass despite warnings and narrowly documented suppressions.
 - Added secure-window/WebView and network-related hardening in targeted changes.
 - Addressed multiple layout collision warnings and RecyclerView refresh
   inefficiencies, while documenting intentional legacy visual behavior.
+- Added repeatable emulator smoke coverage on API 23, 33 and 36 for installation,
+  component privacy, backup policy, critical permissions, notification channels,
+  network-security policy and connectivity state.
 
 ## Unresolved release blockers
 
@@ -57,16 +63,19 @@ availability and migration behavior are verified.
 
 ### P0 — Functional testing on actual Android runtimes
 
-CI compiles the instrumentation-test APK but does not call
-`connectedCiDebugAndroidTest` or run an emulator/device. Unit tests and an
-R8 compilation do not prove that alarms fire, databases install, notification
-permissions work, or OAuth/FHIR flows succeed.
+CI now runs a focused `connectedCiDebugAndroidTest` smoke class on API 23,
+33 and 36. This proves that the app and instrumentation package install and that
+selected platform integrations work on real Android runtimes, but it does not
+yet prove that reminders are delivered after reboot/Doze, databases install
+correctly, runtime permission flows behave as expected, or OAuth/FHIR flows
+succeed.
 
-**Acceptance criteria:** run a focused emulator smoke suite, then full
-instrumentation/functional tests with safe fixtures, across supported API
-levels and API 36. Verify reboot, Doze, exact-alarm permissions, notification
-permissions, background service restrictions, VPN-only states, rotations,
-process death, and data migration. Avoid using live patient data in CI.
+**Acceptance criteria:** expand instrumentation/functional tests with safe
+fixtures across supported API levels and API 36. Verify reboot, Doze, actual
+alarm delivery and exact-alarm fallback, notification permission flows,
+background service restrictions, VPN-only states, rotations, process death,
+database installation/migration, and representative OAuth/FHIR flows. Avoid
+using live patient data in CI.
 
 ### P1 — Android API 36 behavioral and UX audit
 
