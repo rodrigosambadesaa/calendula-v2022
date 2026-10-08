@@ -39,7 +39,6 @@
     <!--<color name="android_blue_statusbar">#004F71</color>-->
     <color name="android_blue_statusbar">#004565</color>
     <color name="android_blue_light">#5533B5E5</color>
-    <color name="white_80">#EEFFFFFF</color>
     <color name="white_50">#55FFFFFF</color>
     <color name="white_20">#22FFFFFF</color>
     <color name="black_20">#22000000</color>
@@ -77,24 +76,24 @@
     <!-- /CALENDAR -->
 
     <!-- Material DEFAULT colors -->
-    <color name="material_drawer_primary">@color/dark_grey_text</color>
-    <color name="material_drawer_primary_dark">@color/transparent</color>
-    <color name="material_drawer_primary_light">#BBDEFB</color>
-    <color name="material_drawer_accent">#FF4081</color>
+    <color name="material_drawer_primary" tools:ignore="UnusedResources">@color/dark_grey_text</color>
+    <color name="material_drawer_primary_dark" tools:ignore="UnusedResources">@color/transparent</color>
+    <color name="material_drawer_primary_light" tools:ignore="UnusedResources">#BBDEFB</color>
+    <color name="material_drawer_accent" tools:ignore="UnusedResources">#FF4081</color>
 
     <!-- OVERWRITE THESE COLORS FOR A LIGHT THEME -->
     <!--MaterialDrawer DEFAULT colors-->
-    <color name="material_drawer_background">#F9F9F9</color>
+    <color name="material_drawer_background" tools:ignore="UnusedResources">#F9F9F9</color>
     <!--Material DEFAULT text / items colors-->
-    <color name="material_drawer_primary_text">#DE000000</color>
-    <color name="material_drawer_primary_icon">#8A000000</color>
-    <color name="material_drawer_secondary_text">#8A000000</color>
-    <color name="material_drawer_hint_text">#42000000</color>
-    <color name="material_drawer_divider">#1F222222</color>
+    <color name="material_drawer_primary_text" tools:ignore="UnusedResources">#DE000000</color>
+    <color name="material_drawer_primary_icon" tools:ignore="UnusedResources">#8A000000</color>
+    <color name="material_drawer_secondary_text" tools:ignore="UnusedResources">#8A000000</color>
+    <color name="material_drawer_hint_text" tools:ignore="UnusedResources">#42000000</color>
+    <color name="material_drawer_divider" tools:ignore="UnusedResources">#1F222222</color>
     <!--Material DEFAULT drawer colors-->
-    <color name="material_drawer_selected">#ececec</color>
-    <color name="material_drawer_selected_text">@color/dark_grey_text</color>
-    <color name="material_drawer_header_selection_text">#FFF</color>
+    <color name="material_drawer_selected" tools:ignore="UnusedResources">#ececec</color>
+    <color name="material_drawer_selected_text" tools:ignore="UnusedResources">@color/dark_grey_text</color>
+    <color name="material_drawer_header_selection_text" tools:ignore="UnusedResources">#FFF</color>
 
 
     <!-- Intro colors -->
@@ -135,10 +134,10 @@
     <color name="activity_schedule_build_foreground_alpha">#EE34495e</color>
     <color name="activity_schedule_build_foreground_50">@color/android_green</color>
 
-    <color tools:override="true" name="caldroid_holo_blue_light">#cfcfcf</color>
-    <color tools:override="true" name="caldroid_holo_blue_dark">#cfcfcf</color>
-    <color tools:override="true" name="caldroid_darker_gray">#cfcfcf</color>
-    <color tools:override="true" name="caldroid_lighter_gray">#cfcfcf</color>
+    <color tools:override="true" name="caldroid_holo_blue_light" tools:ignore="UnusedResources">#cfcfcf</color>
+    <color tools:override="true" name="caldroid_holo_blue_dark" tools:ignore="UnusedResources">#cfcfcf</color>
+    <color tools:override="true" name="caldroid_darker_gray" tools:ignore="UnusedResources">#cfcfcf</color>
+    <color tools:override="true" name="caldroid_lighter_gray" tools:ignore="UnusedResources">#cfcfcf</color>
 
 
 </resources>
