@@ -248,7 +248,6 @@ dependencies {
     androidTestImplementation 'com.google.android.material:material:1.0.0'
     androidTestImplementation 'androidx.recyclerview:recyclerview:1.1.0'
     androidTestImplementation 'androidx.annotation:annotation:1.11.0'
-    androidTestImplementation 'androidx.annotation:annotation-experimental:1.6.0'
     androidTestImplementation 'androidx.legacy:legacy-support-v4:1.0.0'
 
     /********** TESTING **********/
