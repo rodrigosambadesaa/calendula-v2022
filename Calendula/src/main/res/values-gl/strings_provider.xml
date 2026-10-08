@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-<string name="login_successful">"Sesión iniciada!"</string>
     <string name="login_failed">"O inicio de sesión fallou"</string>
 <string name="login_logging_in">"Iniciando sesión…"</string>
 <string name="login_welcome_message">"Benvido a Calendula!"</string>
@@ -10,18 +9,13 @@
 <string name="logout_successful">"Sesión pechada!"</string>
 <string name="logout_failed">"O peche de sesión fallou"</string>
 <string name="logout_logging_out">"Pechando sesión…"</string>
-<string name="dialog_continue_without_login_description">"Se continúas sen iniciar sesión, perderaste algunhas funcionalidades interesantes!
-Recorda, sempre podes iniciar sesión escollendo a opción \"Iniciar sesión\" no menú lateral."</string>
 <string name="login_continue_without_login">"Continuar sen iniciar sesión"</string>
-<string name="dialog_continue_without_login_title">"Continuar sen iniciar sesión?"</string>
 <string name="drawer_login_option">"Iniciar sesión"</string>
 <string name="dialog_logout_title">"Pechar sesión"</string>
 <string name="dialog_logout_description">"Seguro que queres pechar a sesión? Os recordatorios deixarán de funcionar, pero os teus datos seguirán aquí se volves a iniciar sesión."</string>
 <string name="title_activity_active_medication_list">"Medicación de seu servizo médico"</string>
 <string name="active_med_from">"Dende:"</string>
 <string name="active_med_to">"Ata:"</string>
-<string name="medicine_substituted_for">"Substituído por %1$s"</string>
-    <string name="message_med_provided_by_healthcare_provider">"Este medicamento foi engadido dende a túa folla de medicación. Información proporcionada polo seu proveedor de servizos de saúde."</string>
 <string name="welcome">"Benvido!"</string>
 <string name="date_none">"Ningunha"</string>
 <string name="title_info_provided_by_entity">"Información proporcionada polo seu proveedor de servizos de saúde"</string>
@@ -36,31 +30,15 @@ Recorda, sempre podes iniciar sesión escollendo a opción \"Iniciar sesión\" n
 Engade aquí as túas pautas e permite que te avisemos!"</string>
 <string name="remove_reminder_dialog_title">"Eliminar recordatorio"</string>
 <string name="remove_reminder_message">"Eliminar o recordatorio de %1$s?"</string>
-<string name="reminder_type_hourly_help">"Os recordatorios de intervalo están pensados para esas tomas que se repiten cada certo número de horas: \"Cada 8 horas\".
-
-Establece a hora da primeira toma, e listo!"</string>
-<string name="reminder_type_help_title">"Estás a piques de crear un recordatorio, selecciona o tipo que mellor se axuste ás túas necesidades!"</string>
-<string name="reminder_type_routines_help">"Este tipo de recordatorio permíteche vincular as túas tomas con rutinas, por exemplo: \"Todos os días co almorzo e a cea, excepto os domingos\", ou \"Cada 3 días, coa comida\"."</string>
-<string name="reminder_type_intervalrest_help">"Algúns anticonceptivos e outros medicamentos deben tomarse durante un tempo, e logo hai un descanso. Estes recordatorios permítenche especificar ambos períodos e simplificar este tipo de tomas."</string>
-<string name="title_create_reminder_activity">"Crear recordatorio"</string>
 <string name="reminder">"Recordatorio"</string>
-<string name="title_edit_reminder_activity">"Editar recordatorio"</string>
-<string name="reminder_help_timesbyday">"Por favor, indica o número de veces ao día que se repetirá o recordatorio"</string>
-<string name="reminder_help_repeat">"Indica como se repite o recordatorio. Se se repite todos os días non tés que facer nada."</string>
-<string name="reminder_help_duration">"Para rematar, podes indicar cando empeza e cando acaba este recordatorio. Podes deixalo como está para que se repita indefinidamente."</string>
-<string name="reminder_type_routines_title">"Vinculado a rutinas"</string>
 <string name="intro_schedules_reminders_text">"Define o teu calendario de tomas utilizando o noso editor de recordatorios. Podes vincular as túas tomas coas túas rutinas, definir pautas que se repiten diariamente ou semanalmente, e moito mais!"</string>
 <string name="intro_alarms_title">"Alarmas"</string>
 <string name="healthcare_provider">"HEALTHCARE PROVIDER"</string>
     <string name="active_med_list_header_title">"Folla de Medicación"</string>
-<string name="active_med_list_header_text">"Información proporcionada polo seu proveedor de servizos de saúde."</string>
 <string name="active_med_list_header_text_short">"Información proporcionada polo proveedor de servizos de saúde."</string>
 <string name="login_no_internet">"É necesaria unha conexión a Internet. Por favor conéctate a unha rede e inténtao de novo."</string>
-    <string name="login_failed_invalid_SSL_version">"O sistema non soporta o protocolo de comunicación segura requerido."</string>
-    <string name="login_failed_invalid_SSL_version_title">"Protocolo de seguridade non válido."</string>
 <string name="login_failed_auth_level">"O login fallou porque o nivel de seguridade é insuficiente. Recorda facer login usando un nivel de seguridade alto."</string>
 <string name="login_failed_auth_level_title">"O nivel de seguridade é insuficiente."</string>
-    <string name="remote_updating">"Actualizando folla de medicación…"</string>
     <string name="update_hma">"Actualizar"</string>
 <string name="remote_update_no_internet">"Non puidemos actualizar as túas medicinas porque non hai conexión a Internet."</string>
 <string name="remote_update_auth_error">"Erro de autorización. Requírese inicio de sesión."</string>
@@ -72,7 +50,6 @@ Establece a hora da primeira toma, e listo!"</string>
 <string name="language_switch_message">"O idioma será cambiado a %1$s."</string>
 <string name="notification_title_login_required">"Inicio de sesión requerido"</string>
 <string name="notification_text_login_required">"Por favor volve a iniciar sesión para seguir usando Calendula"</string>
-<string name="label_update_now">"Actualizar agora"</string>
 <string name="remote_update_successful">"Folla de medicación actualizada correctamente."</string>
 <string name="wait_until_reload">"Ups! A ultima actualización foi fai pouco. Podes volver intentalo %1$s."</string>
 <string name="dosage_string_period">"%1$s %2$s cada %3$s %4$s"</string>
@@ -195,13 +172,9 @@ Establece a hora da primeira toma, e listo!"</string>
 <string name="save_schedule_ignore_conflicts_msg">"Gardar igualmente?"</string>
 <string name="confirm_activity_reminder_differs_from_official">"* O recordatorio é distinto da pauta oficial proporcionada polo seu proveedor de servizos de saúde"</string>
 <string name="alarm_delayed_notification_message">"Alarma atrasada"</string>
-<string name="pref_title_locale">"Linguaxe"</string>
-<string name="pref_locale_default">"Por defecto"</string>
 <string name="pref_locale_en">"Inglés"</string>
 <string name="pref_locale_es">"Español"</string>
 <string name="pref_locale_gl">"Galego"</string>
-<string name="enable_reminders">"Activar recordatorios"</string>
-<string name="edit_reminders">"Editar recordatorio"</string>
 <string name="mandatory_routine_msg">"Esta rutina non pode ser borrada"</string>
 <string name="routine_time_already_exists">"A rutina ás %1$s xa existe"</string>
 <string name="routine_name_already_exists">"Xa hai unha rutina chanada '%1$s'"</string>
@@ -224,7 +197,6 @@ Seguinte recollida: %2$s"</string>
 <string name="sched_intakes_moved_msg">"Algunhas horas de toma non coinciden coa pauta oficial"</string>
 <string name="sched_repeat_period_msg">"O intervalo de repetición é %1$s en vez de %2$s"</string>
 <string name="sched_dosage_at_changed">"A dose da toma %1$s debería ser %2$s"</string>
-<string name="sched_dosage_for_changed">"A dose da toma %1$s debería ser %2$s"</string>
 <string name="message_cannot_delete_med_aml">"Este medicamento non pode ser borrado"</string>
 <string name="aml_schedule_info_missing">"Sen información de pautas"</string>
     <string name="aml_schedule_extra_info">"Vexa a información detallada"</string>
