@@ -78,7 +78,7 @@ public class RoutineCreateOrEditFragment extends DialogFragment implements Radia
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_create_or_edit_routine, container, false);
-        ButterKnife.bind(this, rootView);
+        unbinder = ButterKnife.bind(this, rootView);
 
         pColor = DB.patients().getActive(getActivity()).getColor();
 
