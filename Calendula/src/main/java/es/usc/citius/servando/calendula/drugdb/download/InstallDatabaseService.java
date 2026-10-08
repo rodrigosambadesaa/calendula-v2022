@@ -211,6 +211,16 @@ public class InstallDatabaseService extends Service {
     }
 
     private boolean handleDownloadAndSetup(final String database, final DBInstallType type) {
+        // No remote SQL archive may reach the installer until origin, signed
+        // bytes and downgrade resistance have been verified independently.
+        if (!LegacyRemoteArchivePolicy.permitsRemoteSqlInstallation()) {
+            LogUtil.w(TAG, "Retired unsigned medicine database download disabled");
+            // The request was refused before any I/O or installed database
+            // mutation. Never clear an existing catalog selection here.
+            DownloadDatabaseHelper.instance().onDownloadFailed(this, false);
+            onFailure();
+            return false;
+        }
         File destination = null;
         boolean downloadCommitted = false;
         try {
