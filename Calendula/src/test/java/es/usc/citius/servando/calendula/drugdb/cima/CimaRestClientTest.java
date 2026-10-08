@@ -48,6 +48,31 @@ public class CimaRestClientTest {
     }
 
     @Test
+    public void rejectsMalformedUtf8InsteadOfReplacingMedicineNameCharacters() throws IOException {
+        // 0xC3 must be followed by a UTF-8 continuation byte, not '('.
+        byte[] malformed = new byte[] {(byte) 0xc3, (byte) 0x28};
+        try {
+            CimaRestClient.readBoundedUtf8(
+                    new ByteArrayInputStream(malformed), CimaRestClient.MAX_RESPONSE_BYTES);
+            fail("Malformed UTF-8 must not become replacement characters");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("UTF-8"));
+        }
+    }
+
+    @Test
+    public void rejectsIncompleteUtf8AtEndOfStream() throws IOException {
+        byte[] truncated = new byte[] {(byte) 0xe2, (byte) 0x82};
+        try {
+            CimaRestClient.readBoundedUtf8(
+                    new ByteArrayInputStream(truncated), CimaRestClient.MAX_RESPONSE_BYTES);
+            fail("An incomplete multibyte codepoint must be rejected");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("UTF-8"));
+        }
+    }
+
+    @Test
     public void rejectsResponseBeyondLimitEvenWithoutContentLength() throws IOException {
         byte[] bytes = new byte[17];
         Arrays.fill(bytes, (byte) 'X');
