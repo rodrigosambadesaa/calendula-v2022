@@ -27,10 +27,14 @@ import es.usc.citius.servando.calendula.drugdb.download.UpdateDatabaseService;
 import es.usc.citius.servando.calendula.notifications.NotificationHelper;
 import es.usc.citius.servando.calendula.scheduling.AlarmIntentService;
 import es.usc.citius.servando.calendula.scheduling.AlarmReceiver;
+import es.usc.citius.servando.calendula.scheduling.Agenda;
 import es.usc.citius.servando.calendula.scheduling.BootReceiver;
 import es.usc.citius.servando.calendula.scheduling.PickupAlarmReceiver;
+import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
+import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.util.NetworkUtils;
 
+import org.joda.time.DateTime;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -110,6 +114,16 @@ public class InstallationSmokeTest {
                     context,
                     new Intent(AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED));
         }
+    }
+
+    @Test
+    public void futureReminderCanBeScheduledOnDevice() {
+        DateTime when = DateTime.now().plusHours(1);
+        EventReminder reminder = new EventReminder(when, EventType.MEDICATION_INTAKE);
+        reminder.setId(987654321L);
+        reminder.setNextTime(when);
+
+        Agenda.instance().setAlarm(targetContext(), reminder);
     }
 
     @SuppressWarnings("deprecation")
