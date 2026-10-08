@@ -241,7 +241,14 @@ public class DatabaseHelper extends OrmLiteSqliteOpenHelper {
 
     @Override
     public void onDowngrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-
+        // Do not mark a newer medical database as an older schema without
+        // applying a validated reverse migration. The historical empty
+        // override silently accepted this and risked corrupting subsequent data.
+        LogUtil.e(TAG, "Refusing unsupported database downgrade from "
+                + oldVersion + " to " + newVersion);
+        throw new IllegalStateException("Calendula database downgrade from "
+                + oldVersion + " to " + newVersion
+                + " is not supported without an explicit data-preserving migration");
     }
 
     public void dropAndCreateAllTables() {
