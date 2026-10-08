@@ -25,15 +25,26 @@ Do not manufacture an unauthenticated SQL archive from these results.
 
 ## Implemented foundation
 
-`CimaRestCatalog` constructs a constrained official HTTPS detail URL and
-validates a bounded JSON response into an immutable **non-persisted**
-`MedicineSnapshot`. The two-argument parser also requires the
-response registration to match the registration requested, preventing
-wrong-medicine associations after cache or proxy errors. It preserves the
-distinction between one registration
-number and potentially multiple national presentation codes. It performs
-**no network request, SQL execution, medicine import, dosage recommendation,
-prescription linkage or patient-data mutation**.
+`CimaRestCatalog` constructs a constrained HTTPS detail URL and validates a
+bounded JSON response into an immutable, **non-persisted** `MedicineSnapshot`.
+Its two-argument parser requires the returned registration to match the
+requested identifier. The model distinguishes one medicine registration from
+multiple national presentation codes and makes no dosage inference.
+
+`CimaRestClient.fetchMedicine(context, registration)` is a **read-only HTTPS
+client**. It uses the existing VPN-aware backend preflight, Android's standard
+certificate/hostname validation, an official hardcoded CIMA endpoint, fixed
+connect/read timeouts, no redirect following, strict HTTP 200/JSON response
+validation and an enforced 256 KiB streamed size limit. It always validates
+the response registration before returning data. The HTTP request must be
+invoked off the Android UI thread. The client does **not** store results,
+execute SQL, change user prescriptions, alter medication schedules or update
+installed medicine databases.
+
+Regression tests use synthetic JSON and in-memory byte streams to avoid
+making app builds dependent on an external service. The official HTTPS
+endpoint was separately checked on 2026-10-08, but full device/network
+interoperability is still an acceptance criterion.
 
 ## Release-blocking next steps
 
