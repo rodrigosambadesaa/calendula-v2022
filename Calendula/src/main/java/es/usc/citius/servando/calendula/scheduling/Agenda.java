@@ -279,12 +279,17 @@ public class Agenda {
     public void onDailyUpdate(final Context context) {
         final LocalDate today = LocalDate.now();
         if (needsToBeUpdated(today)) {
-            // Start transaction
+            // Snapshot rows before SQLite deletes them, then retire their OS
+            // tokens strictly after the transaction commits.
+            final List<EventReminder> expiredReminders = new ArrayList<>();
             try {
                 TransactionManager.callInTransaction(DB.helper().getConnectionSource(), new Callable<Object>() {
                     @Override
                     public Object call() throws Exception {
                         // remove old reminders
+                        DateTime cutoff = today.minusDays(1).toDateTimeAtStartOfDay();
+                        expiredReminders.addAll(expiredRemindersBefore(
+                                DB.eventReminders().findAll(), cutoff));
                         removeRemindersBefore(today.minusDays(1));
                         // fire before update event
                         onBeforeUpdate(context, today);
@@ -302,6 +307,14 @@ public class Agenda {
                 // remains retryable after a service or process failure.
                 // Clear obsolete reminder rows and Android registrations
                 // only after the outer SQLite transaction has committed.
+                // The database deletion has committed: retire obsolete OS
+                // alarm tokens before reconciling surviving reminders.
+                for (EventReminder removed : expiredReminders) {
+                    if (removed.getId() != null && removed.getId() > 0) {
+                        cancelAlarm(context, removed);
+                        IntakeNotificationMgr.cancel(context, removed);
+                    }
+                }
                 Agenda.instance().cleanReminders(context);
                 Agenda.instance().updateAllAlarms(context);
                 // This runs on both startup and background workers; a durable
@@ -328,8 +341,16 @@ public class Agenda {
         // look for not incomplete events linked to this reminder
         if (!DB.eventInstances().exists(type, time, patient, false)) {
             EventReminder r = DB.eventReminders().findBy(type, time, patient);
-            IntakeNotificationMgr.cancel(context, r);
+            if (r == null) {
+                // Another cleanup may already have removed this reminder.
+                return;
+            }
+            // Remove SQLite first: a failed write must not cancel the
+            // patient's still-persisted medication reminder on Android.
             DB.eventReminders().remove(r);
+            // Once removal succeeds, retire stable and matching legacy tokens.
+            cancelAlarm(context, r);
+            IntakeNotificationMgr.cancel(context, r);
         }
 
     }
@@ -345,8 +366,11 @@ public class Agenda {
     public void deleteAllReminders(Context context) {
         List<EventReminder> eventReminders = DB.eventReminders().findAll();
         for (EventReminder r : eventReminders) {
-            IntakeNotificationMgr.cancel(context, r);
+            // Keep any alarm whose SQLite deletion fails. Successful
+            // deletions must revoke their OS tokens and notifications too.
             DB.eventReminders().remove(r);
+            cancelAlarm(context, r);
+            IntakeNotificationMgr.cancel(context, r);
         }
         logReminders();
     }
@@ -434,6 +458,24 @@ public class Agenda {
             // Do not expose the invalid preference (or user data) in logs.
             return true;
         }
+    }
+
+    /** Read-only identity snapshot of rows pruned by the daily SQL cutoff. */
+    static List<EventReminder> expiredRemindersBefore(
+            Collection<EventReminder> reminders, DateTime cutoff) {
+        if (reminders == null || cutoff == null) {
+            throw new IllegalArgumentException("Reminder snapshot and cutoff are required");
+        }
+        List<EventReminder> expired = new ArrayList<>();
+        for (EventReminder reminder : reminders) {
+            if (reminder == null || reminder.getDateTime() == null) {
+                throw new IllegalArgumentException("Malformed persisted reminder");
+            }
+            if (reminder.getDateTime().isBefore(cutoff)) {
+                expired.add(reminder);
+            }
+        }
+        return expired;
     }
 
     private void removeRemindersBefore(LocalDate date) {
