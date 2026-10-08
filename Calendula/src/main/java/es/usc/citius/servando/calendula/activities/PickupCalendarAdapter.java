@@ -147,12 +147,17 @@ public class PickupCalendarAdapter extends CaldroidGridAdapter {
                 }
             }
             icon.setBackground(getIntakeDrawable(allTaken));
+            icon.setContentDescription(context.getString(allTaken
+                    ? R.string.accessibility_pickup_completed
+                    : R.string.accessibility_pickup_pending));
             tv1.setTextColor(context.getResources().getColor(R.color.android_green));
         } else if (ending != null && ending.size() > 0) {
             tv1.setTextColor(context.getResources().getColor(R.color.android_green));
             icon.setBackground(getEndingDrawable());
+            icon.setContentDescription(context.getString(R.string.accessibility_pickup_ending));
         } else {
             icon.setBackgroundResource(R.color.transparent);
+            icon.setContentDescription(null);
         }
 
         // Somehow after setBackgroundResource, the padding collapse.

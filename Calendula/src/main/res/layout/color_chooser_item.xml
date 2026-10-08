@@ -22,4 +22,5 @@
            android:layout_margin="5dp"
            android:background="#333"
            android:padding="1dp"
+           android:contentDescription="@string/accessibility_select_color"
            android:src="@drawable/ic_done_white_36dp"/>

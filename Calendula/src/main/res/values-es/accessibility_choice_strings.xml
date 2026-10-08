@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_avatar_option">Avatar %1$d de %2$d</string>
+    <string name="accessibility_select_color">Seleccionar color del paciente</string>
+    <string name="accessibility_color_option">Color %1$d de %2$d</string>
+    <string name="accessibility_pickup_completed">Recogida completada</string>
+    <string name="accessibility_pickup_pending">Recogida pendiente</string>
+    <string name="accessibility_pickup_ending">Fin del periodo de recogida</string>
+</resources>
