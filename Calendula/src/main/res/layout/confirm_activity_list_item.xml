@@ -144,7 +144,7 @@
         android:layout_below="@+id/med_item_name"
         android:layout_marginRight="16dp"
         android:contentDescription="@string/accessibility_mark_taken"
-        android:src="@drawable/ic_done_black_48dp"
+        android:src="@drawable/ic_done_black"
         android:visibility="visible"/>
 
     <ImageView
