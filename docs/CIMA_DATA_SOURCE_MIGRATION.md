@@ -89,6 +89,27 @@ registration ID or source dose is marked for review. A medicine absent from a
 This stage intentionally does not update the catalog, migrate patient-linked
 identifiers, or modify prescriptions and reminders.
 
+## Official read-only medicine-name search (paged)
+
+CIMA REST v1.23 also documents the `GET /medicamentos?nombre=...&pagina=N`
+endpoint and response properties including `totalFilas`, `pagina` and
+`resultados`. The `CimaMedicineSearch` helper encodes a bounded UTF-8 name
+query, constrains page numbers, checks registration identifiers and names,
+treats missing marketing/prescription flags as unknown, detects contradictory
+duplicate records and yields immutable search-result pages.
+
+`CimaRestClient.searchByName(context, name, page)` uses the **same official
+HTTPS-only, no-redirect, strict JSON/UTF-8 and streamed size limits** as detail
+lookups. Search results alone are never prescriptions: before a selected
+medicine can enter a catalog importer, its official detail must be fetched
+and validated against the exact registration ID and reconciled with any
+existing patient-linked records. Search currently has no screen integration
+and makes no database changes. Bulk listing, incremental paging beyond
+search and real-device network interoperability remain to be validated.
+
+Source: AEMPS CIMA REST API v1.23,
+https://cima.aemps.es/cima/resources/docs/CIMA_REST_API.pdf
+
 ## Release-blocking next steps
 
 1. Validate AEMPS data licensing, attribution, update cadence and rate limits.
