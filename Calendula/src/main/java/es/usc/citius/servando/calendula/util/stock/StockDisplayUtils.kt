@@ -48,10 +48,12 @@ object StockDisplayUtils {
                         R.plurals.stock_enough_for_days, estimatedEnd.days.toInt(), estimatedEnd.days
                     )
                 } else {
+                    val weeks = (estimatedEnd.days / 7).toInt()
+                    val days = (estimatedEnd.days % 7).toInt()
                     ctx.getString(
                         R.string.stock_enough_for_weeks_days,
-                        (estimatedEnd.days / 7).toInt(),
-                        estimatedEnd.days % 7
+                        ctx.resources.getQuantityString(R.plurals.stock_duration_weeks, weeks, weeks),
+                        ctx.resources.getQuantityString(R.plurals.stock_duration_days, days, days)
                     )
                 }
             }
@@ -63,12 +65,14 @@ object StockDisplayUtils {
     fun showStockRunningOutDialog(context: Context, m: Medicine, days: Long?) {
 
 
-        val msg = context.getString(
-            R.string.stock_running_out_dialog_message,
+        val remainingDays = requireNotNull(days) { "Stock running-out alert requires a day count" }.toInt()
+        val msg = context.resources.getQuantityString(
+            R.plurals.stock_running_out_dialog_message,
+            remainingDays,
             m.stock!!.toInt(),
             m.presentation.units(context.resources, m.stock!!.toDouble()),
             m.name,
-            days
+            remainingDays
         )
 
         MaterialStyledDialog.Builder(context)
