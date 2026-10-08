@@ -69,11 +69,26 @@ public class ActiveMedNotification {
 
         NotificationCompat.InboxStyle inboxStyle = new NotificationCompat.InboxStyle();
 
+        Resources resources = context.getResources();
+        String newSchedules = resources.getQuantityString(
+                R.plurals.aml_new_schedule_count, summary.newCount(), summary.newCount());
+        String updatedSchedules = resources.getQuantityString(
+                R.plurals.aml_updated_schedule_count, summary.updatedCount(), summary.updatedCount());
+        String deletedSchedules = resources.getQuantityString(
+                R.plurals.aml_deleted_schedule_count, summary.deletedCount(), summary.deletedCount());
+
         String summaryText;
         if (summary.hasDeleted() && summary.hasUpdated() && summary.hasNew()) {
-            summaryText = context.getString(R.string.aml_updated_summary, summary.newCount(), summary.updatedCount(), summary.deletedCount());
+            summaryText = context.getString(
+                    R.string.aml_updated_summary,
+                    newSchedules,
+                    updatedSchedules,
+                    deletedSchedules);
         } else if (summary.hasUpdated() && summary.hasNew()) {
-            summaryText = context.getString(R.string.aml_updated_new_and_updated_summary, summary.newCount(), summary.updatedCount());
+            summaryText = context.getString(
+                    R.string.aml_updated_new_and_updated_summary,
+                    newSchedules,
+                    updatedSchedules);
         } else if (summary.hasNew()) {
             summaryText = context.getResources().getQuantityString(
                     R.plurals.aml_updated_new_summary, summary.newCount(), summary.newCount());

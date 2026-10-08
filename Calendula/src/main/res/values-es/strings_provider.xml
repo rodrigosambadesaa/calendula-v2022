@@ -111,7 +111,22 @@ Establece la hora de la primera toma, ¡y listo!."</string>
 <string name="login_wrong_user_desc">"Un usuario distinto ha iniciado sesión en este dispositivo. Si continúas, todos sus datos se perderán. ¿Continuar?"</string>
 <string name="aml_updated_notification_title">"Hoja de Medicación Activa actualizada"</string>
 <string name="aml_updated_notification_text">"Tu medicación activa ha cambiado"</string>
-<string name="aml_updated_new_and_updated_summary">"Hay %1$d pautas nuevas y %2$d pautas actualizadas"</string>
+<plurals name="aml_new_schedule_count">
+    <item quantity="one">%1$d pauta nueva</item>
+    <item quantity="many">%1$d pautas nuevas</item>
+    <item quantity="other">%1$d pautas nuevas</item>
+</plurals>
+<plurals name="aml_updated_schedule_count">
+    <item quantity="one">%1$d pauta actualizada</item>
+    <item quantity="many">%1$d pautas actualizadas</item>
+    <item quantity="other">%1$d pautas actualizadas</item>
+</plurals>
+<plurals name="aml_deleted_schedule_count">
+    <item quantity="one">%1$d pauta eliminada</item>
+    <item quantity="many">%1$d pautas eliminadas</item>
+    <item quantity="other">%1$d pautas eliminadas</item>
+</plurals>
+<string name="aml_updated_new_and_updated_summary">"Hay %1$s y %2$s"</string>
 <plurals name="aml_updated_new_summary">
     <item quantity="one">Hay %1$d pauta nueva</item>
     <item quantity="many">Hay %1$d pautas nuevas</item>
@@ -122,7 +137,7 @@ Establece la hora de la primera toma, ¡y listo!."</string>
     <item quantity="many">Hay %1$d pautas actualizadas</item>
     <item quantity="other">Hay %1$d pautas actualizadas</item>
 </plurals>
-<string name="aml_updated_summary">"%1$d nuevas, %2$d actualizadas y %3$d eliminadas."</string>
+<string name="aml_updated_summary">"%1$s, %2$s y %3$s."</string>
 <string name="reminder_pending_revision">"Recordatorio pendiente de revisión"</string>
 <string name="schedule_build_control_next">"Siguiente"</string>
 <string name="schedule_build_control_confirm">"Confirmar"</string>
