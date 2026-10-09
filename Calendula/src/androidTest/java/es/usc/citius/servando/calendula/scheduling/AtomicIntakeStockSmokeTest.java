@@ -18,6 +18,7 @@ import org.junit.runner.RunWith;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Presentation;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
@@ -144,6 +145,72 @@ public class AtomicIntakeStockSmokeTest {
                     x.event.completed());
         } finally {
             sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void aPatientCannotDebitAnotherPatientsSchedule() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        Patient other = new Patient();
+        other.setCode("ci-foreign-stock-" + System.nanoTime());
+        other.setName("Synthetic unrelated patient");
+        try {
+            DB.patients().save(other);
+            x.event.setPatient(other);
+            DB.eventInstances().update(x.event);
+            try {
+                ScheduleUtils.instance().setIntakeCompleted(x.context, x.event, true);
+                fail("Mismatched event and schedule ownership must abort");
+            } catch (RuntimeException expected) {
+                // SQL event and medicine stock remain unchanged.
+            }
+            assertFalse(x.persistedIntake().completed());
+            assertEquals(INITIAL_STOCK, x.persistedStock(), 0.001f);
+            assertFalse(x.event.completed());
+        } finally {
+            x.cleanup();
+            if (other.getId() != null) DB.patients().remove(other);
+        }
+    }
+
+    @Test
+    public void missingScheduleCannotConsumeStockOrMarkIntakeTaken() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        try {
+            x.event.setRef(9000007701L);
+            DB.eventInstances().update(x.event);
+            try {
+                ScheduleUtils.instance().setIntakeCompleted(x.context, x.event, true);
+                fail("Missing schedule must never be assumed to have a valid dose");
+            } catch (RuntimeException expected) {
+                // A broken foreign reference must not modify stock or intake.
+            }
+            assertFalse(x.persistedIntake().completed());
+            assertEquals(INITIAL_STOCK, x.persistedStock(), 0.001f);
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void insufficientStockCannotProduceNegativeInventory() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        try {
+            x.medicine.setStock(1.0f);
+            DB.medicines().update(x.medicine);
+            try {
+                ScheduleUtils.instance().setIntakeCompleted(x.context, x.event, true);
+                fail("A negative inventory adjustment must not be committed");
+            } catch (RuntimeException expected) {
+                // No negative inventory or completed intake may be persisted.
+            }
+            assertEquals(1.0f, x.persistedStock(), 0.001f);
+            assertFalse(x.persistedIntake().completed());
+        } finally {
             x.cleanup();
         }
     }
