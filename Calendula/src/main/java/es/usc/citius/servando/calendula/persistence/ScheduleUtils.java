@@ -180,27 +180,36 @@ public class ScheduleUtils {
         event.setCompleted(completed);
         event.setCompletedAt(completedAt);
         if (stockChanged[0]) {
-            // Stock alerts depend on committed medicine rows and must never
-            // be published inside the intake/stock SQLite transaction.
             try {
                 Schedule schedule = DB.schedules().findById(event.getRef());
                 if (schedule != null && schedule.getMedicine() != null) {
+                    // Recalculate the stock alert only after SQL commit.
                     StockAlertHandler.checkStockAlerts(schedule.getMedicine());
                 }
+                DB.medicines().fireEvent();
             } catch (RuntimeException alertError) {
-                // Alert recalculation can be retried; never misreport a
-                // successfully committed intake as a failed medical action.
-                LogUtil.e(TAG, "Error updating post-commit stock alerts", alertError);
+                // Persisted intake and stock have already committed. Do not
+                // report them as failed because follow-up UI alerts failed.
+                LogUtil.e(TAG, "Post-commit medicine stock alert failed", alertError);
             }
-            DB.medicines().fireEvent();
         }
-        if (completed) {
-            Agenda.instance().cleanReminderIfPossible(
-                    ctx, event.getPatient(), event.getType(), event.getTime());
-        } else {
-            Agenda.instance().createReminders(ctx, Arrays.asList(event));
+        try {
+            if (completed) {
+                Agenda.instance().cleanReminderIfPossible(
+                        ctx, event.getPatient(), event.getType(), event.getTime());
+            } else if (!Agenda.instance().createReminders(ctx, Arrays.asList(event))) {
+                LogUtil.e(TAG, "Post-commit reminder recovery could not be scheduled");
+            }
+        } catch (RuntimeException schedulingError) {
+            // A later startup reconciles committed pending reminders. Never
+            // falsely describe a completed intake as rolled back here.
+            LogUtil.e(TAG, "Post-commit reminder reconciliation failed", schedulingError);
         }
-        DB.eventInstances().fireEvent();
+        try {
+            DB.eventInstances().fireEvent();
+        } catch (RuntimeException listenerError) {
+            LogUtil.e(TAG, "Post-commit intake UI update failed", listenerError);
+        }
         return true;
     }
 
