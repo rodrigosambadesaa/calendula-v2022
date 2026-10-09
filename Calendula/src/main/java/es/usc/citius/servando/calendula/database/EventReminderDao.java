@@ -70,7 +70,7 @@ public class EventReminderDao extends GenericDao<EventReminder, Long> {
             Where w = qb.where();
             w.and(w.eq(EventReminder.COLUMN_EVENT_TYPE, type),
                     w.eq(EventReminder.COLUMN_DATE_TIME, dateTime),
-                    w.eq(EventReminder.COLUMN_PATIENT, p)
+                    (p == null ? w.isNull(EventReminder.COLUMN_PATIENT) : w.eq(EventReminder.COLUMN_PATIENT, p))
             );
             qb.setWhere(w);
             return qb.countOf() > 0;
@@ -85,7 +85,7 @@ public class EventReminderDao extends GenericDao<EventReminder, Long> {
             Where w = qb.where();
             w.and(w.eq(EventReminder.COLUMN_EVENT_TYPE, type),
                     w.eq(EventReminder.COLUMN_DATE_TIME, dateTime),
-                    w.eq(EventReminder.COLUMN_PATIENT, p)
+                    (p == null ? w.isNull(EventReminder.COLUMN_PATIENT) : w.eq(EventReminder.COLUMN_PATIENT, p))
             );
             qb.setWhere(w);
             return qb.queryForFirst();
@@ -96,10 +96,32 @@ public class EventReminderDao extends GenericDao<EventReminder, Long> {
 
     public int removeBy(Patient patient, EventType eventType, DateTime dateTime) {
         try {
+            if (patient == null) {
+                // Nullable foreign keys are supported in lookups, but ORM
+                // bulk DELETE WHERE on older SQLite can match zero rows.
+                // Remove by persisted row ID under a transaction instead,
+                // guaranteeing a named patient's reminders remain untouched.
+                return com.j256.ormlite.misc.TransactionManager.callInTransaction(
+                        dbHelper.getConnectionSource(), () -> {
+                            QueryBuilder<EventReminder, Long> selection = dao.queryBuilder();
+                            Where<EventReminder, Long> where = selection.where();
+                            where.and(where.eq(EventReminder.COLUMN_EVENT_TYPE, eventType),
+                                    where.isNull(EventReminder.COLUMN_PATIENT),
+                                    where.eq(EventReminder.COLUMN_DATE_TIME, dateTime));
+                            int removed = 0;
+                            for (EventReminder row : selection.query()) {
+                                if (row.getPatient() != null || row.getId() == null) {
+                                    throw new SQLException("Unexpected reminder identity during unassigned delete");
+                                }
+                                removed += dao.deleteById(row.getId());
+                            }
+                            return removed;
+                        });
+            }
             DeleteBuilder<EventReminder, Long> qb = dao.deleteBuilder();
             Where w = qb.where();
             w.and(w.eq(EventReminder.COLUMN_EVENT_TYPE, eventType),
-                    w.eq(EventReminder.COLUMN_PATIENT, patient),
+                    (patient == null ? w.isNull(EventReminder.COLUMN_PATIENT) : w.eq(EventReminder.COLUMN_PATIENT, patient)),
                     w.eq(EventReminder.COLUMN_DATE_TIME, dateTime)
             );
             qb.setWhere(w);
