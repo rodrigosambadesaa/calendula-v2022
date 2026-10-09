@@ -94,16 +94,18 @@ public class IntakeNotificationMgr {
             if (medicine.getPresentation() == null || event.getParams() == null) {
                 return false;
             }
-            String rawDose = event.getParams().getString(EventInstance.PARAM_DOSE);
-            if (rawDose == null) {
-                return false;
-            }
             try {
+                String rawDose = event.getParams().getString(EventInstance.PARAM_DOSE);
+                if (rawDose == null) {
+                    return false;
+                }
                 double dose = Double.parseDouble(rawDose);
                 if (Double.isNaN(dose) || Double.isInfinite(dose) || dose <= 0d) {
                     return false;
                 }
-            } catch (NumberFormatException e) {
+            } catch (RuntimeException malformedDose) {
+                // Legacy/corrupted Bundles may contain a non-String entry.
+                // Never crash or display a guessed dosage.
                 return false;
             }
         }
