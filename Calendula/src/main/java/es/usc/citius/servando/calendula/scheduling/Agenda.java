@@ -483,7 +483,10 @@ public class Agenda {
     }
 
     private void sendReminderToReceiver(Context ctx, EventReminder r) {
-        boolean eventExist = DB.eventInstances().exists(r.getEventType(), r.getDateTime());
+        // A same-time event for another patient (or an already completed one)
+        // must not turn this reminder into a medication notification.
+        boolean eventExist = DB.eventInstances().exists(
+                r.getEventType(), r.getDateTime(), r.getPatient(), false);
         LogUtil.d(TAG, "There are events to remind!");
         if (eventExist) {
             // get the appropriate receiver
