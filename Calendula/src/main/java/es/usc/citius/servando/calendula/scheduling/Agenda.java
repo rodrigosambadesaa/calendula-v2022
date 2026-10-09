@@ -159,14 +159,6 @@ public class Agenda {
         return createReminders(context, DB.eventInstances().findAll());
     }
 
-    /**
-     * Restore platform alarms after boot, package replacement, clock changes
-     * or permission grants, but never immediately fire a stale past reminder
-     * or resurrect a completed/cancelled medicine intake.
-     *
-     * Reuse startup reconciliation so all restoration paths enforce the same
-     * persisted future-time and pending-event invariants.
-     */
     public void updateAllAlarms(Context context) {
         int rearmed = rearmPendingFutureReminders(context);
         LogUtil.d(TAG, "Rearmed " + rearmed + " eligible future reminders");
@@ -514,13 +506,56 @@ public class Agenda {
         delayReminder(context, DB.eventReminders().findById(reminderId), null);
     }
 
+    /**
+     * Persist a reminder delay before modifying its Android notification/alarm.
+     * A rejected SQLite write must retain the old persisted time, caller model,
+     * and existing OS token. Re-read by ID so a stale callback cannot recreate
+     * a deleted reminder or overwrite a newer delay.
+     */
     public void delayReminder(Context context, EventReminder reminder, Integer delay) {
-        if (reminder != null) {
-            IntakeNotificationMgr.cancel(context, reminder);
-            reminder.setNextTime(DateTime.now().plusSeconds(delay != null ? delay : repeatFreqSeconds()));
-            LogUtil.d(TAG, "Updating reminder");
-            DB.eventReminders().save(reminder);
-            setAlarm(context, reminder);
+        if (reminder == null) {
+            return;
+        }
+        if (reminder.getId() == null || reminder.getId() <= 0) {
+            throw new IllegalArgumentException("A persisted reminder ID is required");
+        }
+        int seconds = delay != null ? delay : repeatFreqSeconds();
+        if (seconds <= 0) {
+            throw new IllegalArgumentException("Reminder delay must be positive");
+        }
+        final DateTime delayedUntil = DateTime.now().plusSeconds(seconds);
+        final EventReminder committed;
+        try {
+            committed = TransactionManager.callInTransaction(
+                    DB.helper().getConnectionSource(), (Callable<EventReminder>) () -> {
+                        EventReminder current = DB.eventReminders().findById(reminder.getId());
+                        if (current == null) {
+                            throw new SQLException("Reminder was removed before delaying");
+                        }
+                        if (reminder.getNextTime() != null
+                                && !reminder.getNextTime().equals(current.getNextTime())) {
+                            throw new SQLException("Reminder was already rescheduled");
+                        }
+                        if (!DB.eventInstances().existsPending(
+                                current.getEventType(), current.getDateTime(),
+                                current.getPatient())) {
+                            throw new SQLException("Reminder no longer belongs to a pending event");
+                        }
+                        current.setNextTime(delayedUntil);
+                        if (DB.eventReminders().update(current) != 1) {
+                            throw new SQLException("Expected exactly one delayed reminder row");
+                        }
+                        return current;
+                    });
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not persist medication reminder delay", e);
+        }
+        // Only committed SQLite state may be reflected into the caller model
+        // or the non-transactional Android AlarmManager and notification APIs.
+        reminder.setNextTime(committed.getNextTime());
+        if (isCurrentPendingReminder(committed)) {
+            setAlarm(context, committed);
+            IntakeNotificationMgr.cancel(context, committed);
         }
     }
 
