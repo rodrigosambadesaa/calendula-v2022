@@ -74,8 +74,15 @@ public class IntakeNotificationMgr {
      * presenting any prescription-specific text or confirmation action.
      * An invalid record must produce a generic review alert instead.
      */
-    static boolean canRenderMedication(EventInstance event, Schedule schedule) {
-        if (event == null || schedule == null || event.getRef() == null) {
+    static boolean canRenderMedication(EventInstance event, Schedule schedule,
+                                       Patient expectedPatient) {
+        if (event == null || schedule == null || event.getRef() == null
+                || expectedPatient == null || expectedPatient.getId() == null
+                || event.getPatient() == null || event.getPatient().getId() == null
+                || schedule.getPatient() == null || schedule.getPatient().getId() == null
+                || !expectedPatient.getId().equals(event.getPatient().getId())
+                || !expectedPatient.getId().equals(schedule.getPatient().getId())) {
+            // A schedule for another patient must never leak medicine details.
             return false;
         }
         Medicine medicine = schedule.getMedicine();
@@ -146,6 +153,10 @@ public class IntakeNotificationMgr {
         if (!LoginStateManager.getInstance().isLoggedIn()) {
             return;
         }
+        if (reminder == null) {
+            LogUtil.e(TAG, "Null medication reminder received");
+            return;
+        }
 
         String title = context.getResources().getString(R.string.meds_time);
 
@@ -154,7 +165,8 @@ public class IntakeNotificationMgr {
         Patient patient = reminder.getPatient();
         // An unassigned patient cannot be used in ConfirmActivity; do not
         // make it possible to acknowledge an intake from invalid identity.
-        if (patient == null || patient.getId() == null || reminder.getId() == null) {
+        if (patient == null || patient.getId() == null || reminder.getId() == null
+                || dateTime == null) {
             alertUnverifiedMedicationData(context, reminder);
             return;
         }
@@ -173,7 +185,7 @@ public class IntakeNotificationMgr {
         for (EventInstance event : events) {
             Schedule schedule = event == null || event.getRef() == null
                     ? null : DB.schedules().findById(event.getRef());
-            if (!canRenderMedication(event, schedule)) {
+            if (!canRenderMedication(event, schedule, patient)) {
                 alertUnverifiedMedicationData(context, reminder);
                 return;
             }
