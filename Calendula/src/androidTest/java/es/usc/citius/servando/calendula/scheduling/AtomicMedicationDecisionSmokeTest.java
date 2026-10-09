@@ -7,6 +7,7 @@ package es.usc.citius.servando.calendula.scheduling;
 
 import android.app.PendingIntent;
 import android.content.Context;
+import android.database.sqlite.SQLiteDatabase;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -102,6 +103,76 @@ public class AtomicMedicationDecisionSmokeTest {
             }
             if (synthetic != null && synthetic.getId() != null) {
                 DB.patients().remove(synthetic);
+            }
+        }
+    }
+
+    @Test
+    public void failedDeleteRollsBackConfirmedIntakeAndPreservesAlarm() {
+        exerciseFailedDecision(true);
+    }
+
+    @Test
+    public void failedDeleteRollsBackCancelledIntakeAndPreservesAlarm() {
+        exerciseFailedDecision(false);
+    }
+
+    /**
+     * Inject a real SQLite constraint-style failure after changing the event,
+     * then verify that the entire ORMLite transaction rolls back on-device.
+     * The trigger is scoped to the synthetic row ID and removed in finally.
+     */
+    private void exerciseFailedDecision(boolean confirm) {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime time = DateTime.now().plusHours(confirm ? 19 : 20).withMillisOfSecond(0);
+        EventInstance event = new EventInstance(time, EventType.MEDICATION_INTAKE);
+        EventReminder reminder = new EventReminder(time, EventType.MEDICATION_INTAKE);
+        reminder.setNextTime(time);
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        final String trigger = "ci_test_block_medication_reminder_delete";
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            DB.eventInstances().save(event);
+            DB.eventReminders().save(reminder);
+            assertNotNull(event.getId());
+            assertNotNull(reminder.getId());
+            Agenda.instance().setAlarm(context, reminder);
+            assertNotNull(token(context, reminder));
+
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE DELETE ON EventReminders"
+                    + " WHEN OLD._id = " + reminder.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic SQLite delete failure'); END;");
+            try {
+                if (confirm) {
+                    Agenda.instance().confirmReminder(context, reminder.getId());
+                } else {
+                    Agenda.instance().cancelReminder(context, reminder.getId());
+                }
+                org.junit.Assert.fail("The injected SQL failure must abort the decision");
+            } catch (RuntimeException expected) {
+                // A SQL failure must propagate; never declare a completed intake.
+            }
+
+            EventInstance after = DB.eventInstances().findById(event.getId());
+            assertNotNull(after);
+            assertFalse("Failed SQL commit must roll back completion", after.completed());
+            assertFalse("Failed SQL commit must roll back cancellation", after.cancelled());
+            assertNotNull("Failed SQL commit must preserve the persisted reminder",
+                    DB.eventReminders().findById(reminder.getId()));
+            assertNotNull("Failed SQL commit must retain the Android alarm token",
+                    token(context, reminder));
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            if (reminder.getId() != null) {
+                Agenda.instance().cancelAlarm(context, reminder);
+                if (DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().remove(reminder);
+                }
+            }
+            if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
+                DB.eventInstances().remove(event);
             }
         }
     }
