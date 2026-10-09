@@ -354,17 +354,36 @@ public class Agenda {
         }
     }
 
+    /**
+     * Delete by persisted ID and verify the row is absent before retiring an OS
+     * alarm. GenericDao.remove() discards the affected-row count and a silent
+     * zero-row SQLite delete must not cancel an alarm for a surviving row.
+     */
+    private void deletePersistedReminderForAlarmCleanup(EventReminder reminder) {
+        if (reminder == null || reminder.getId() == null) {
+            throw new IllegalArgumentException("Persisted reminder ID required");
+        }
+        final int deleted;
+        try {
+            deleted = DB.eventReminders().delete(reminder);
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not delete persisted reminder", e);
+        }
+        if (deleted > 1 || DB.eventReminders().findById(reminder.getId()) != null) {
+            throw new IllegalStateException("Reminder still persisted after SQLite delete");
+        }
+    }
+
     public void cleanReminderIfPossible(Context context, Patient patient, EventType type, DateTime time) {
-        // look for not incomplete events linked to this reminder
-        if (!DB.eventInstances().exists(type, time, patient, false)) {
+        // A cancelled dose is not pending, even when completed is false.
+        if (!DB.eventInstances().existsPending(type, time, patient)) {
             EventReminder r = DB.eventReminders().findBy(type, time, patient);
             if (r == null) {
                 // Another cleanup may already have removed this reminder.
                 return;
             }
-            // Remove SQLite first: a failed write must not cancel the
-            // patient's still-persisted medication reminder on Android.
-            DB.eventReminders().remove(r);
+            // Verify committed SQLite deletion before revoking platform tokens.
+            deletePersistedReminderForAlarmCleanup(r);
             // Once removal succeeds, retire stable and matching legacy tokens.
             cancelAlarm(context, r);
             IntakeNotificationMgr.cancel(context, r);
@@ -383,9 +402,8 @@ public class Agenda {
     public void deleteAllReminders(Context context) {
         List<EventReminder> eventReminders = DB.eventReminders().findAll();
         for (EventReminder r : eventReminders) {
-            // Keep any alarm whose SQLite deletion fails. Successful
-            // deletions must revoke their OS tokens and notifications too.
-            DB.eventReminders().remove(r);
+            // Keep Android alarm if SQLite silently left a persisted row.
+            deletePersistedReminderForAlarmCleanup(r);
             cancelAlarm(context, r);
             IntakeNotificationMgr.cancel(context, r);
         }
@@ -556,13 +574,10 @@ public class Agenda {
             if (r.autoRepeat()) {
                 LogUtil.d(TAG, "Auto repeat enabled, try to reschedule repeat");
                 DateTime nextTime = DateTime.now().plusSeconds(repeatFreqSeconds());
-                // A lost/remediated reminder may have been removed or delayed
-                // by the receiver/user. Its old row must never be resurrected.
                 if (shouldReschedule(r, nextTime) && isCurrentPendingReminder(r)) {
                     r.setNextTime(nextTime);
                     DB.eventReminders().save(r);
-                    // Recheck after persistence in case the user has confirmed
-                    // or cancelled the dose while alarm work was running.
+                    // Avoid re-arming a dose confirmed/cancelled while processing.
                     if (isCurrentPendingReminder(r)) {
                         setAlarm(ctx, r);
                     }
@@ -573,22 +588,8 @@ public class Agenda {
         } else {
             // remove the reminder
             LogUtil.d(TAG, "Cancelling reminder with id " + r.getId());
-            // Do not explicitly cancel a surviving reminder when SQLite throws
-            // or reports zero deleted rows (which GenericDao.remove() ignores).
-            // A delivered PendingIntent is NOT proof of a future rescheduled alarm;
-            // crash/Doze recovery must be validated separately.
-            final int deleted;
-            try {
-                deleted = DB.eventReminders().delete(r);
-            } catch (SQLException e) {
-                throw new IllegalStateException("Could not delete orphan reminder", e);
-            }
-            // Older Android SQLite/ORM layers may report zero affected rows.
-            // Check the persisted identity instead of trusting that counter:
-            // only a verified ABSENT row permits retiring the Android token.
-            if (deleted > 1 || DB.eventReminders().findById(r.getId()) != null) {
-                throw new IllegalStateException("Orphan reminder is still persisted after deletion");
-            }
+            // Keep deletion ordering consistent across all alarm cleanup paths.
+            deletePersistedReminderForAlarmCleanup(r);
             cancelAlarm(ctx, r);
         }
     }
