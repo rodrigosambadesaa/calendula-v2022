@@ -484,8 +484,8 @@ public class Agenda {
 
     private void sendReminderToReceiver(Context ctx, EventReminder r) {
         // Do not deliver a reminder belonging to another patient or a completed event.
-        boolean eventExist = DB.eventInstances().exists(
-                r.getEventType(), r.getDateTime(), r.getPatient(), false);
+        boolean eventExist = DB.eventInstances().existsPending(
+                r.getEventType(), r.getDateTime(), r.getPatient());
         LogUtil.d(TAG, "There are events to remind!");
         if (eventExist) {
             // get the appropriate receiver
