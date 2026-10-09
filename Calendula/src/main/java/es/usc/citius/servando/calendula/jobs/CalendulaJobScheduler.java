@@ -20,6 +20,8 @@ package es.usc.citius.servando.calendula.jobs;
 
 import com.evernote.android.job.JobManager;
 
+import es.usc.citius.servando.calendula.drugdb.download.LegacyRemoteArchivePolicy;
+
 import es.usc.citius.servando.calendula.util.LogUtil;
 
 
@@ -32,6 +34,14 @@ public class CalendulaJobScheduler {
     }
 
     public static void scheduleJob(CalendulaJob job) {
+        // Existing installations may already have a recurring weekly SQL
+        // catalog check. Remove that request while its unsigned provider is
+        // disabled; preserve unrelated purge/FHIR jobs unchanged.
+        if (job instanceof CheckDatabaseUpdatesJob
+                && !LegacyRemoteArchivePolicy.permitsRemoteSqlInstallation()) {
+            JobManager.instance().cancelAllForTag(job.getTag());
+            return;
+        }
         // if there's already exactly one purge job running, leave it be
         int jobs = JobManager.instance().getAllJobsForTag(job.getTag()).size();
         int requests = JobManager.instance().getAllJobRequestsForTag(job.getTag()).size();
