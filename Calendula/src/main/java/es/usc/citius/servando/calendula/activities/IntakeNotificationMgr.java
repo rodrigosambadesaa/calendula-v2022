@@ -55,6 +55,7 @@ import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.util.AvatarMgr;
 import es.usc.citius.servando.calendula.util.IntentParams;
+import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
@@ -65,7 +66,84 @@ import es.usc.citius.servando.calendula.util.PreferenceUtils;
  */
 public class IntakeNotificationMgr {
 
+    private static final String TAG = "IntakeNotificationMgr";
     private static Random random = new Random();
+
+    /**
+     * The medication name, schedule and unit/dose must be verifiable before
+     * presenting any prescription-specific text or confirmation action.
+     * An invalid record must produce a generic review alert instead.
+     */
+    static boolean canRenderMedication(EventInstance event, Schedule schedule,
+                                       Patient expectedPatient) {
+        if (event == null || schedule == null || event.getRef() == null
+                || expectedPatient == null || expectedPatient.getId() == null
+                || event.getPatient() == null || event.getPatient().getId() == null
+                || schedule.getPatient() == null || schedule.getPatient().getId() == null
+                || !expectedPatient.getId().equals(event.getPatient().getId())
+                || !expectedPatient.getId().equals(schedule.getPatient().getId())) {
+            // A schedule for another patient must never leak medicine details.
+            return false;
+        }
+        Medicine medicine = schedule.getMedicine();
+        if (medicine == null || medicine.getName() == null
+                || medicine.getName().trim().isEmpty()) {
+            return false;
+        }
+        if (!schedule.hasState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL)) {
+            if (medicine.getPresentation() == null || event.getParams() == null) {
+                return false;
+            }
+            try {
+                String rawDose = event.getParams().getString(EventInstance.PARAM_DOSE);
+                if (rawDose == null) {
+                    return false;
+                }
+                double dose = Double.parseDouble(rawDose);
+                if (Double.isNaN(dose) || Double.isInfinite(dose) || dose <= 0d) {
+                    return false;
+                }
+            } catch (RuntimeException malformedDose) {
+                // Legacy/corrupted Bundles may contain a non-String entry.
+                // Never crash or display a guessed dosage.
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** No medicine names, doses, or 'taken/cancel' actions without valid data. */
+    static Notification buildUnverifiedMedicationNotification(
+            Context context, EventReminder reminder) {
+        final Intent openApp = new Intent(context, StartActivity.class);
+        openApp.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        final PendingIntent openPendingIntent = PendingIntent.getActivity(
+                context, reminder.getId().intValue(), openApp,
+                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+        return new NotificationCompat.Builder(context, NotificationHelper.CHANNEL_MEDS_ID)
+                .setSmallIcon(R.drawable.ic_pill_small_lost)
+                .setContentTitle(context.getString(R.string.medication_unverified_title))
+                .setContentText(context.getString(R.string.medication_unverified_description))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_REMINDER)
+                .setWhen(reminder.getDateTime() == null
+                        ? System.currentTimeMillis() : reminder.getDateTime().getMillis())
+                .setContentIntent(openPendingIntent)
+                .setAutoCancel(true)
+                .build();
+    }
+
+    private static void alertUnverifiedMedicationData(Context context, EventReminder reminder) {
+        // Do not include identifiers, medicine names or dosage details in logs.
+        LogUtil.e(TAG, "Medication reminder has incomplete patient or schedule data");
+        if (reminder == null || reminder.getId() == null
+                || !NotificationHelper.canPostNotifications(context)) {
+            return;
+        }
+        NotificationManagerCompat.from(context).notify(
+                makeTag(reminder), reminder.getId().intValue(),
+                buildUnverifiedMedicationNotification(context, reminder));
+    }
 
     public static void notify(final Context context, EventReminder reminder, boolean lost) {
 
@@ -77,12 +155,23 @@ public class IntakeNotificationMgr {
         if (!LoginStateManager.getInstance().isLoggedIn()) {
             return;
         }
+        if (reminder == null) {
+            LogUtil.e(TAG, "Null medication reminder received");
+            return;
+        }
 
         String title = context.getResources().getString(R.string.meds_time);
 
         EventType type = reminder.getEventType();
         DateTime dateTime = reminder.getDateTime();
         Patient patient = reminder.getPatient();
+        // An unassigned patient cannot be used in ConfirmActivity; do not
+        // make it possible to acknowledge an intake from invalid identity.
+        if (patient == null || patient.getId() == null || reminder.getId() == null
+                || dateTime == null) {
+            alertUnverifiedMedicationData(context, reminder);
+            return;
+        }
 
         // Keep the displayed doses consistent with the patient-scoped,
         // uncompleted AND uncancelled event check in Agenda.
@@ -91,6 +180,17 @@ public class IntakeNotificationMgr {
             // An intake may have been confirmed/cancelled since alarm dispatch.
             // Do not display an empty or clinically stale notification.
             return;
+        }
+
+        // Validate the entire dose set first. Rendering a partial list with
+        // one corrupted schedule could falsely imply another dose is not due.
+        for (EventInstance event : events) {
+            Schedule schedule = event == null || event.getRef() == null
+                    ? null : DB.schedules().findById(event.getRef());
+            if (!canRenderMedication(event, schedule, patient)) {
+                alertUnverifiedMedicationData(context, reminder);
+                return;
+            }
         }
 
         NotificationCompat.InboxStyle style = new NotificationCompat.InboxStyle();
