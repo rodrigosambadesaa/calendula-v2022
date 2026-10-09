@@ -7,6 +7,7 @@ package es.usc.citius.servando.calendula.scheduling;
 
 import android.app.PendingIntent;
 import android.content.Context;
+import android.database.sqlite.SQLiteDatabase;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -90,6 +91,50 @@ public class CancelledIntakeAlarmCleanupSmokeTest {
             }
             if (synthetic.getId() != null) {
                 DB.patients().remove(synthetic);
+            }
+        }
+    }
+
+    @Test
+    public void ignoredSqliteDeleteMustPreserveActualAndroidAlarm() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime time = DateTime.now().plusHours(22).withMillisOfSecond(0);
+        EventReminder reminder = new EventReminder(time, EventType.MEDICATION_INTAKE);
+        reminder.setNextTime(time);
+        SQLiteDatabase db = DB.helper().getWritableDatabase();
+        final String trigger = "ci_test_ignore_cleanup_delete";
+        db.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            DB.eventReminders().save(reminder);
+            assertNotNull(reminder.getId());
+            Agenda.instance().setAlarm(context, reminder);
+            assertNotNull(alarm(context, reminder));
+
+            // RAISE(IGNORE) returns zero deleted rows without an exception.
+            // A real SQLite row must remain, and its Android token must survive.
+            db.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE DELETE ON EventReminders"
+                    + " WHEN OLD._id = " + reminder.getId()
+                    + " BEGIN SELECT RAISE(IGNORE); END;");
+            try {
+                Agenda.instance().cleanReminderIfPossible(
+                        context, null, EventType.MEDICATION_INTAKE, time);
+                org.junit.Assert.fail("A silent zero-row delete must not succeed");
+            } catch (IllegalStateException expected) {
+                // Verified surviving SQLite row; no platform cancellation allowed.
+            }
+            assertNotNull("Synthetic reminder row must still exist",
+                    DB.eventReminders().findById(reminder.getId()));
+            assertNotNull("Persisted reminder must keep its real PendingIntent",
+                    alarm(context, reminder));
+        } finally {
+            db.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            if (reminder.getId() != null) {
+                Agenda.instance().cancelAlarm(context, reminder);
+                if (DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().remove(reminder);
+                }
             }
         }
     }
