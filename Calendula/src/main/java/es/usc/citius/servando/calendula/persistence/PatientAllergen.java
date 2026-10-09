@@ -141,25 +141,22 @@ public class PatientAllergen {
     }
 
     /**
-     * A patient's allergy identity is (patient, type, external identifier).
-     * Compare the identifier by String VALUE, not JVM object identity:
-     * identifiers loaded from SQLite/network can be distinct String objects.
+     * Compare allergy identity by patient primary key, allergen type, and
+     * identifier VALUE rather than the String object's reference.
      */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        PatientAllergen allergen = (PatientAllergen) o;
-        return type == allergen.type
-                && Objects.equals(identifier, allergen.identifier)
-                && samePatientRecord(patient, allergen.patient);
+        PatientAllergen other = (PatientAllergen) o;
+        return type == other.type
+                && Objects.equals(identifier, other.identifier)
+                && samePatientRecord(patient, other.patient);
     }
 
     private static boolean samePatientRecord(Patient a, Patient b) {
         if (a == b) return true;
         if (a == null || b == null) return false;
-        // ORMLite may hydrate the same patient as different Java objects.
-        // The database PK is stable even if name/avatar were edited.
         Long aId = a.getId();
         return aId != null && aId.equals(b.getId());
     }
@@ -167,8 +164,6 @@ public class PatientAllergen {
     @Override
     public int hashCode() {
         int result = Objects.hash(type, identifier);
-        // Unsaved patients have no PK: retain instance identity without
-        // calling the legacy Patient.hashCode(), which assumes id != null.
         int patientHash = patient == null ? 0
                 : patient.getId() != null ? patient.getId().hashCode()
                 : System.identityHashCode(patient);
