@@ -35,6 +35,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
@@ -105,6 +106,16 @@ public class PublicReminderCommitBoundaryTest {
             assertTrue("Platform reconciliation must occur after SQL COMMIT", committed.get());
             return Collections.emptyList();
         });
+        // Emulate generated SQLite primary key without a real database.
+        doAnswer(invocation -> {
+            EventReminder persisted = invocation.getArgument(0);
+            persisted.setId(9000002451L);
+            return null;
+        }).when(reminders).save(any(EventReminder.class));
+        when(reminders.findById(9000002451L)).thenAnswer(invocation -> {
+            assertTrue("New reminder must be re-read only after SQL COMMIT", committed.get());
+            return null; // Simulate removal by the post-commit cleanup.
+        });
 
         try (MockedStatic<DB> db = mockStatic(DB.class);
              MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class);
@@ -128,8 +139,10 @@ public class PublicReminderCommitBoundaryTest {
                     Collections.singletonList(event)));
             assertTrue(committed.get());
             verify(reminders, times(1)).save(any(EventReminder.class));
-            // One post-commit read for cleanup and one for re-scheduling.
-            verify(reminders, times(2)).findAll();
+            // Only a cleanup scan is allowed. Never re-arm all stale
+            // reminders; individually verify newly persisted IDs instead.
+            verify(reminders, times(1)).findAll();
+            verify(reminders, times(1)).findById(9000002451L);
             verifyNoInteractions(context);
         }
     }
