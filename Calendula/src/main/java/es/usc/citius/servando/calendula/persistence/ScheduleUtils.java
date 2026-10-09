@@ -88,6 +88,11 @@ public class ScheduleUtils {
         DB.eventInstances().fireEvent();
     }
 
+    /** A cancelled or already completed dose is never a pending intake. */
+    public static boolean isPendingIntake(EventInstance event) {
+        return event != null && !event.completed() && !event.cancelled();
+    }
+
     /**
      * Mark only pending intakes as taken. Cancelled instances are not pending,
      * even though they may still have Completed=false in the legacy schema.
@@ -103,7 +108,7 @@ public class ScheduleUtils {
         for (EventInstance event : DB.eventInstances().findPending(
                 EventType.MEDICATION_INTAKE, dateTime, patient)) {
             // This guards against objects whose status changed while querying.
-            if (!event.completed() && !event.cancelled()) {
+            if (isPendingIntake(event)) {
                 setIntakeCompleted(ctx, event, true);
                 confirmed++;
             }
