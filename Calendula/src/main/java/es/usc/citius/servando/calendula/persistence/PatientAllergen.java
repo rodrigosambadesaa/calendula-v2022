@@ -130,15 +130,13 @@ public class PatientAllergen {
         this.group = group;
     }
 
+    /** Allergen names and clinical identifiers must not leak into logs. */
     @Override
     public String toString() {
         return "PatientAllergen{" +
-                "id=" + id +
-                ", name='" + name + '\'' +
-                ", type=" + type +
-                ", identifier=" + identifier +
-                ", patient=" + patient +
-                ", group=" + group +
+                "type=" + type +
+                ", hasPatient=" + (patient != null) +
+                ", hasDetails=" + (identifier != null || name != null) +
                 '}';
     }
 

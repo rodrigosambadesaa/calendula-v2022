@@ -272,11 +272,13 @@ public class Schedule implements EventProvider {
         }
     }
 
+    /** Do not log prescription recurrence timestamps or patient identifiers. */
     @Override
     public String toString() {
         return "Schedule{" +
-                "id=" + id +
-                ", recur=" + recur.toString() +
+                "hasRecurrence=" + (recur != null) +
+                ", hasPatient=" + (patient != null) +
+                ", hasMedicine=" + (medicine != null) +
                 '}';
     }
 
