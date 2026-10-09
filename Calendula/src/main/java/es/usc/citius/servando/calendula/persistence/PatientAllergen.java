@@ -154,12 +154,26 @@ public class PatientAllergen {
         PatientAllergen allergen = (PatientAllergen) o;
         return type == allergen.type
                 && Objects.equals(identifier, allergen.identifier)
-                && Objects.equals(patient, allergen.patient);
+                && samePatientRecord(patient, allergen.patient);
+    }
+
+    private static boolean samePatientRecord(Patient a, Patient b) {
+        if (a == b) return true;
+        if (a == null || b == null) return false;
+        // ORMLite may hydrate the same patient as different Java objects.
+        // The database PK is stable even if name/avatar were edited.
+        Long aId = a.getId();
+        return aId != null && aId.equals(b.getId());
     }
 
     @Override
     public int hashCode() {
-        // Match equals even when old or partially imported rows lack an ID.
-        return Objects.hash(type, identifier, patient);
+        int result = Objects.hash(type, identifier);
+        // Unsaved patients have no PK: retain instance identity without
+        // calling the legacy Patient.hashCode(), which assumes id != null.
+        int patientHash = patient == null ? 0
+                : patient.getId() != null ? patient.getId().hashCode()
+                : System.identityHashCode(patient);
+        return 31 * result + patientHash;
     }
 }
