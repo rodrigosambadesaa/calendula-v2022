@@ -385,4 +385,33 @@ public class AtomicIntakeStockSmokeTest {
         }
     }
 
+
+    @Test
+    public void sharedStockShortageRollsBackAllConfirmedDoses() throws Exception {
+        assertTrue(DB.initialized);
+        BatchFixture x = new BatchFixture();
+        try {
+            // Both scheduled doses reference the *same* medicine. There is
+            // enough for the first dose but not both together.
+            x.medicines[0].setStock(DOSE + 0.5f);
+            assertEquals(1, DB.medicines().update(x.medicines[0]));
+            x.events[1].setRef(x.schedules[0].getId());
+            assertEquals(1, DB.eventInstances().update(x.events[1]));
+            boolean rejected = false;
+            try {
+                ScheduleUtils.instance().checkIntakeEvents(x.context, x.patient, x.time);
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("Insufficient shared stock must reject the entire confirmation", rejected);
+            assertFalse(x.completed(0));
+            assertFalse(x.completed(1));
+            assertEquals(DOSE + 0.5f, x.stock(0), 0.001f);
+            assertEquals(INITIAL_STOCK, x.stock(1), 0.001f);
+            assertNotNull("The original medication alarm must remain scheduled", x.currentAlarm());
+        } finally {
+            x.cleanup();
+        }
+    }
+
 }
