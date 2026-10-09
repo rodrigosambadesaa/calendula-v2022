@@ -24,6 +24,11 @@ import android.content.Context;
 import org.joda.time.DateTime;
 import org.joda.time.LocalTime;
 
+import com.j256.ormlite.misc.TransactionManager;
+
+import java.sql.SQLException;
+import java.util.concurrent.Callable;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -38,6 +43,8 @@ import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime;
 import es.usc.citius.servando.calendula.util.stock.StockUpdater;
+import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.alerts.StockAlertHandler;
 
 /**
  * Utilities that simplify some tasks to do after creating or updating schedules
@@ -109,8 +116,9 @@ public class ScheduleUtils {
                 EventType.MEDICATION_INTAKE, dateTime, patient)) {
             // This guards against objects whose status changed while querying.
             if (isPendingIntake(event)) {
-                setIntakeCompleted(ctx, event, true);
-                confirmed++;
+                if (setIntakeCompleted(ctx, event, true)) {
+                    confirmed++;
+                }
             }
         }
         if (confirmed > 0) {
@@ -123,17 +131,86 @@ public class ScheduleUtils {
         Agenda.instance().onDelayReminder(ctx, EventType.MEDICATION_INTAKE, dateTime, patient, delay * 60);
     }
 
-    public void setIntakeCompleted(Context ctx, EventInstance event, boolean completed) {
-        event.setCompleted(completed);
-        event.setCompletedAt(completed ? DateTime.now() : null);
-        StockUpdater.updateStockForIntake(event,true);
-        DB.eventInstances().save(event);
-        if(completed) {
-            Agenda.instance().cleanReminderIfPossible(ctx, event.getPatient(), event.getType(), event.getTime());
-        }else{
-            Agenda.instance().createReminders(ctx, Arrays.asList(event));
+    /**
+     * Confirm/undo an intake and its stock delta as ONE SQLite transaction.
+     * Never publish success or change Android alarms before that commit.
+     *
+     * @return true only if a persisted event actually changed state.
+     */
+    public boolean setIntakeCompleted(Context ctx, EventInstance event, boolean completed) {
+        if (event == null || event.getId() == null
+                || event.getType() != EventType.MEDICATION_INTAKE) {
+            throw new IllegalArgumentException("A persisted medication intake is required");
         }
-        DB.eventInstances().fireEvent();
+        final boolean[] stockChanged = {false};
+        final DateTime completedAt = completed ? DateTime.now() : null;
+        final boolean changed;
+        try {
+            changed = TransactionManager.callInTransaction(
+                    DB.helper().getConnectionSource(), (Callable<Boolean>) () -> {
+                        EventInstance stored = DB.eventInstances().findById(event.getId());
+                        if (stored == null || stored.getType() != EventType.MEDICATION_INTAKE) {
+                            throw new SQLException("Intake disappeared during confirmation");
+                        }
+                        if (stored.cancelled()) {
+                            throw new SQLException("Cancelled medication cannot be confirmed or undone");
+                        }
+                        if (stored.completed() == completed) {
+                            return false;
+                        }
+                        boolean wasCompleted = stored.completed();
+                        stored.setCompleted(completed);
+                        stored.setCompletedAt(completedAt);
+                        // Must propagate errors; never persist a completed event
+                        // without its corresponding medicine stock adjustment.
+                        stockChanged[0] = StockUpdater.applyStockForTransition(stored, wasCompleted);
+                        if (DB.eventInstances().update(stored) != 1) {
+                            throw new SQLException("Expected one intake row to change");
+                        }
+                        return true;
+                    });
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not atomically persist medication intake", e);
+        }
+        if (!changed) {
+            return false;
+        }
+
+        // Reflect only committed changes in the caller's object.
+        event.setCompleted(completed);
+        event.setCompletedAt(completedAt);
+        if (stockChanged[0]) {
+            try {
+                Schedule schedule = DB.schedules().findById(event.getRef());
+                if (schedule != null && schedule.getMedicine() != null) {
+                    // Recalculate the stock alert only after SQL commit.
+                    StockAlertHandler.checkStockAlerts(schedule.getMedicine());
+                }
+                DB.medicines().fireEvent();
+            } catch (RuntimeException alertError) {
+                // Persisted intake and stock have already committed. Do not
+                // report them as failed because follow-up UI alerts failed.
+                LogUtil.e(TAG, "Post-commit medicine stock alert failed", alertError);
+            }
+        }
+        try {
+            if (completed) {
+                Agenda.instance().cleanReminderIfPossible(
+                        ctx, event.getPatient(), event.getType(), event.getTime());
+            } else if (!Agenda.instance().createReminders(ctx, Arrays.asList(event))) {
+                LogUtil.e(TAG, "Post-commit reminder recovery could not be scheduled");
+            }
+        } catch (RuntimeException schedulingError) {
+            // A later startup reconciles committed pending reminders. Never
+            // falsely describe a completed intake as rolled back here.
+            LogUtil.e(TAG, "Post-commit reminder reconciliation failed", schedulingError);
+        }
+        try {
+            DB.eventInstances().fireEvent();
+        } catch (RuntimeException listenerError) {
+            LogUtil.e(TAG, "Post-commit intake UI update failed", listenerError);
+        }
+        return true;
     }
 
     public List<EventInstance> intakeEvents(Patient p, DateTime dateTime) {
