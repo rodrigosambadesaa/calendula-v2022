@@ -32,6 +32,7 @@ import org.joda.time.Duration;
 
 import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.drugdb.download.DBVersionManager;
+import es.usc.citius.servando.calendula.drugdb.download.LegacyRemoteArchivePolicy;
 import es.usc.citius.servando.calendula.drugdb.download.UpdateDatabaseService;
 import es.usc.citius.servando.calendula.notifications.NotificationHelper;
 import es.usc.citius.servando.calendula.util.IconUtils;
@@ -68,6 +69,11 @@ public class CheckDatabaseUpdatesJob extends CalendulaJob {
     }
 
     public boolean checkForUpdate(Context ctx) {
+        // Retired unsigned SQL archives are intentionally blocked. Do not
+        // probe the obsolete provider or display a download notification.
+        if (!LegacyRemoteArchivePolicy.permitsRemoteSqlInstallation()) {
+            return false;
+        }
         if (DBVersionManager.checkForUpdate(ctx) != null) {
             notifyUpdate(ctx, PreferenceUtils.getString(PreferenceKeys.DRUGDB_CURRENT_DB, null));
             return true;
