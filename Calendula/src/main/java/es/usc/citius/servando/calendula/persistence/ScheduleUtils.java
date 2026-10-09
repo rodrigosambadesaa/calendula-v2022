@@ -88,17 +88,35 @@ public class ScheduleUtils {
         DB.eventInstances().fireEvent();
     }
 
-    public void checkIntakeEvents(Context ctx, Patient patient, DateTime dateTime) {
-        boolean fireEvent=false;
-        for (EventInstance e : ScheduleUtils.instance().intakeEvents(patient, dateTime)) {
-            if (!e.completed()) {
-                setIntakeCompleted(ctx, e, true);
-                fireEvent=true;
+    /** A cancelled or already completed dose is never a pending intake. */
+    public static boolean isPendingIntake(EventInstance event) {
+        return event != null && !event.completed() && !event.cancelled();
+    }
+
+    /**
+     * Mark only pending intakes as taken. Cancelled instances are not pending,
+     * even though they may still have Completed=false in the legacy schema.
+     *
+     * @return number of actual intake records newly marked completed, so a
+     *         notification must not claim success for a stale reminder.
+     */
+    public int checkIntakeEvents(Context ctx, Patient patient, DateTime dateTime) {
+        if (patient == null || patient.getId() == null || dateTime == null) {
+            return 0;
+        }
+        int confirmed = 0;
+        for (EventInstance event : DB.eventInstances().findPending(
+                EventType.MEDICATION_INTAKE, dateTime, patient)) {
+            // This guards against objects whose status changed while querying.
+            if (isPendingIntake(event)) {
+                setIntakeCompleted(ctx, event, true);
+                confirmed++;
             }
         }
-         if (fireEvent) {
+        if (confirmed > 0) {
             DB.eventInstances().fireEvent();
         }
+        return confirmed;
     }
 
     public void delayIntake(Context ctx, Patient patient, DateTime dateTime, int delay) {
