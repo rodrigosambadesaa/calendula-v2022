@@ -21,50 +21,84 @@ package es.usc.citius.servando.calendula.util.stock
 import es.usc.citius.servando.calendula.database.DB
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance
 import es.usc.citius.servando.calendula.scheduling.model.EventType
-import es.usc.citius.servando.calendula.util.LogUtil
-import es.usc.citius.servando.calendula.util.alerts.StockAlertHandler
 
 
 object StockUpdater {
 
-    private const val TAG = "StockUpdater"
+    /**
+     * Persist a stock delta for an event transition. Call this from the same
+     * ORMLite transaction that persists EventInstance.Completed.
+     *
+     * @return true only when stock tracking was enabled and a row was updated.
+     * Failures MUST escape so SQLite can roll back both the stock and intake.
+     */
+    @JvmStatic
+    fun applyStockForTransition(intake: EventInstance, previouslyCompleted: Boolean): Boolean {
+        require(intake.type == EventType.MEDICATION_INTAKE) {
+            "Event instance must be a medication intake"
+        }
+        if (previouslyCompleted == intake.completed()) return false
+
+        val scheduleId = intake.ref
+            ?: throw IllegalStateException("Medication intake references no schedule")
+        val schedule = DB.schedules().findById(scheduleId)
+            ?: throw IllegalStateException("Medication intake schedule is missing")
+        val medicine = schedule.medicine
+            ?: throw IllegalStateException("Medication intake has no linked medicine")
+        // Never debit a different patient's inventory because an imported
+        // event references a wrong or detached schedule.
+        val eventPatientId = intake.patient?.id
+        val schedulePatientId = schedule.patient?.id
+        val medicinePatientId = medicine.patient?.id
+        if (eventPatientId != schedulePatientId ||
+                (medicinePatientId != null && medicinePatientId != eventPatientId)) {
+            throw IllegalStateException("Medication intake has inconsistent patient ownership")
+        }
+        if (medicine.id == null || DB.medicines().refresh(medicine) != 1) {
+            throw IllegalStateException("Medication stock row is missing")
+        }
+        if (!medicine.stockManagementEnabled()) return false
+
+        val before = medicine.stock
+            ?: throw IllegalStateException("Medication stock is unavailable")
+        val dose = try {
+            intake.getDoubleParam(EventInstance.PARAM_DOSE)
+        } catch (malformed: RuntimeException) {
+            throw IllegalStateException("Medication stock dosage is missing or malformed", malformed)
+        }
+        if (!dose.isFinite() || dose <= 0.0) {
+            throw IllegalStateException("Medication stock dosage must be finite and positive")
+        }
+        val delta = if (intake.completed()) -dose else dose
+        val updated = before.toDouble() + delta
+        if (!updated.isFinite() || updated < 0.0 || updated > Float.MAX_VALUE) {
+            throw IllegalStateException("Medication stock adjustment is outside valid bounds")
+        }
+
+        medicine.stock = updated.toFloat()
+        // Bypass MedicineDao.save(): it posts alerts before COMMIT.
+        // Restore this in-memory object on failed SQL updates; the outer
+        // transaction handles persisted rollback.
+        try {
+            if (DB.medicines().update(medicine) != 1) {
+                throw IllegalStateException("Expected one medicine stock row to change")
+            }
+        } catch (failure: Exception) {
+            medicine.stock = before
+            throw failure
+        }
+        return true
+    }
 
     @JvmStatic
     fun updateStockForIntake(intake: EventInstance, fireEvent: Boolean) {
-        if (intake.type != EventType.MEDICATION_INTAKE) {
-            throw IllegalArgumentException("Event instance must be a medication intake")
-        }
-
-        val s = DB.schedules().findById(intake.ref)
-        val m = s.medicine
-        if (m.stockManagementEnabled()) {
-            // get original value
-            val original = DB.eventInstances().findById(intake.id)
-            // ensure checked status has changed
-            val updateStock = original.completed() != intake.completed()
-
-            if (updateStock) {
-                try {
-                    var amount = intake.getDoubleParam(EventInstance.PARAM_DOSE).toFloat()
-                    // if intake is check we need to subtract the ammount
-                    // in other case we need to sum it to the current stock
-                    if (intake.completed()) {
-                        amount *= -1
-                    }
-                    m.stock = m.stock + amount
-                    DB.medicines().save(m)
-
-                    if (fireEvent) {
-                        fireEvent()
-                    }
-
-                } catch (e: Exception) {
-                    LogUtil.e(TAG, "An error occurred updating stock", e)
-                }
-            }
+        val id = intake.id ?: throw IllegalArgumentException("Persisted intake ID required")
+        val original = DB.eventInstances().findById(id)
+            ?: throw IllegalStateException("Medication intake is no longer persisted")
+        if (applyStockForTransition(intake, original.completed()) && fireEvent) {
+            fireEvent()
         }
     }
-
 
     @JvmStatic
     fun updateStockForIntakes(intakes: Collection<EventInstance>, fireEvent: Boolean) {

@@ -274,7 +274,7 @@ public class ConfirmActivity extends CalendulaActivity {
         boolean somethingChecked = false;
         for (int i = 0; i < items.size(); i++) {
             EventInstance item = items.get(i);
-            if (!item.completed()) {
+            if (ScheduleUtils.isPendingIntake(item)) {
                 ScheduleUtils.instance().setIntakeCompleted(this, item, true);
                 itemAdapter.notifyItemChanged(i);
                 somethingChecked = true;
@@ -392,7 +392,7 @@ public class ConfirmActivity extends CalendulaActivity {
 
                 boolean somethingToCheck = false;
                 for (EventInstance item : items) {
-                    if (!item.completed()) {
+                    if (ScheduleUtils.isPendingIntake(item)) {
                         somethingToCheck = true;
                         break;
                     }
@@ -768,6 +768,11 @@ public class ConfirmActivity extends CalendulaActivity {
 
             @Override
             public void onClick(View view) {
+                // A previously cancelled dose is part of the medical history,
+                // not an action eligible to be toggled into "taken" here.
+                if (event == null || event.cancelled()) {
+                    return;
+                }
                 final boolean taken = event.completed();
                 if (isDistant) {
                     showEnsureConfirmDialog(new DialogInterface.OnClickListener() {

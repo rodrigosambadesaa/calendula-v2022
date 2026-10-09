@@ -191,17 +191,16 @@ public class EventInstance {
         BEFORE
     }
 
+    /** Null-safe, non-identifying diagnostic text without dose or schedule data. */
     @Override
     public String toString() {
         return "EventInstance{" +
-                "id=" + id +
-                ", ref=" + ref +
-                ", patient=" + patient.getName() +
-                ", type=" + type +
-                ", time=" + time +
-                ", completedAt=" + completedAt +
+                "type=" + type +
+                ", hasPatient=" + (patient != null) +
+                ", hasParams=" + (params != null) +
                 ", completed=" + completed +
-                ", params=" + params.toString() +
+                ", cancelled=" + cancelled +
                 '}';
     }
+
 }
