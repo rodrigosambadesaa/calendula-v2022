@@ -84,7 +84,14 @@ public class IntakeNotificationMgr {
         DateTime dateTime = reminder.getDateTime();
         Patient patient = reminder.getPatient();
 
-        List<EventInstance> events = DB.eventInstances().find(type, dateTime, patient);
+        // Keep the displayed doses consistent with the patient-scoped,
+        // uncompleted AND uncancelled event check in Agenda.
+        List<EventInstance> events = DB.eventInstances().findPending(type, dateTime, patient);
+        if (events.isEmpty()) {
+            // An intake may have been confirmed/cancelled since alarm dispatch.
+            // Do not display an empty or clinically stale notification.
+            return;
+        }
 
         NotificationCompat.InboxStyle style = new NotificationCompat.InboxStyle();
         style.setBigContentTitle(title);
