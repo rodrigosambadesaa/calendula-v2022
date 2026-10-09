@@ -32,6 +32,24 @@ import static org.junit.Assert.assertTrue;
 public class NoReminderResurrectionSmokeTest {
 
     @Test
+    public void staleOrInvalidNotificationActionsCannotReportSuccess() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        assertFalse("Missing ID must never be reported cancelled",
+                Agenda.instance().cancelReminder(context, -1L));
+        assertFalse("Missing ID must never be reported delayed",
+                Agenda.instance().delayReminder(context, -1L));
+        assertFalse("Unknown persisted row must not be reported cancelled",
+                Agenda.instance().cancelReminder(context, Long.MAX_VALUE));
+        assertFalse("Unknown persisted row must not be reported delayed",
+                Agenda.instance().delayReminder(context, Long.MAX_VALUE));
+        assertFalse("Null ID cannot claim a successful cancel",
+                Agenda.instance().cancelReminder(context, (Long) null));
+        assertFalse("Null ID cannot claim a successful delay",
+                Agenda.instance().delayReminder(context, (Long) null));
+    }
+
+    @Test
     public void removedOrRetimedPersistedReminderCannotBeRepeatedFromStaleAlarm() {
         assertTrue(DB.initialized);
         DateTime time = DateTime.now().plusHours(16).withMillisOfSecond(0);
@@ -115,7 +133,8 @@ public class NoReminderResurrectionSmokeTest {
                             PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
 
             sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
-            Agenda.instance().delayReminder(context, reminder, 600);
+            assertTrue("Successful SQL commit and alarm setup should report success",
+                    Agenda.instance().delayReminder(context, reminder, 600));
             DateTime committedTime = DB.eventReminders().findById(reminder.getId()).getNextTime();
             assertTrue("The new future time must be persisted before rescheduling",
                     committedTime.isAfter(originalTime.minusHours(18).plusMinutes(9)));
