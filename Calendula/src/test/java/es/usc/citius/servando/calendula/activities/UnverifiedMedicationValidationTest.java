@@ -92,6 +92,35 @@ public class UnverifiedMedicationValidationTest {
     }
 
     @Test
+    public void officialNotificationMustNotReadMissingOrCorruptNumericDose() {
+        EventInstance event = syntheticEvent();
+        Medicine medicine = new Medicine("Synthetic verified catalog medicine", Presentation.PILLS);
+        Schedule schedule = new Schedule(medicine);
+        Patient patient = new Patient();
+        patient.setId(9000003313L);
+        event.setPatient(patient);
+        schedule.setPatient(patient);
+        schedule.addState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL);
+
+        // Official schedules render their verified label, not a numeric
+        // manually-entered dose; these legacy records may have no Bundle.
+        assertTrue(IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
+        assertNull("No attempt to deserialize a missing official numeric dose",
+                IntakeNotificationMgr.doseForNotification(event, schedule));
+        event.addParam(EventInstance.PARAM_DOSE, "not-a-number");
+        assertNull("A corrupted unused dose must not crash official notification",
+                IntakeNotificationMgr.doseForNotification(event, schedule));
+
+        // Manually entered doses continue using the validated numeric value.
+        schedule.removeState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL);
+        assertFalse(IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
+        event.addParam(EventInstance.PARAM_DOSE, 2.5d);
+        assertTrue(IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
+        assertEquals(2.5d,
+                IntakeNotificationMgr.doseForNotification(event, schedule), 0.0001d);
+    }
+
+    @Test
     public void fallbackAlertHasNoTakeOrCancelMedicationActions() {
         Context context = ApplicationProvider.getApplicationContext();
         DateTime time = DateTime.now().plusHours(7);
