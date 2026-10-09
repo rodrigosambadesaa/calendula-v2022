@@ -50,6 +50,28 @@ public class NoReminderResurrectionSmokeTest {
     }
 
     @Test
+    public void inactiveDoseCannotBeReportedDelayedOrModifyPersistedReminder() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime due = DateTime.now().plusHours(9).withMillisOfSecond(0);
+        EventReminder orphan = new EventReminder(due, EventType.MEDICATION_INTAKE);
+        orphan.setNextTime(due);
+        try {
+            // This reminder deliberately has no active EventInstance behind it.
+            DB.eventReminders().save(orphan);
+            assertNotNull(orphan.getId());
+            assertFalse("No pending intake means no successful snooze",
+                    Agenda.instance().delayReminder(context, orphan.getId()));
+            assertEquals("A stale action cannot silently rewrite delivery time",
+                    due, DB.eventReminders().findById(orphan.getId()).getNextTime());
+        } finally {
+            if (orphan.getId() != null && DB.eventReminders().findById(orphan.getId()) != null) {
+                DB.eventReminders().remove(orphan);
+            }
+        }
+    }
+
+    @Test
     public void removedOrRetimedPersistedReminderCannotBeRepeatedFromStaleAlarm() {
         assertTrue(DB.initialized);
         DateTime time = DateTime.now().plusHours(16).withMillisOfSecond(0);
