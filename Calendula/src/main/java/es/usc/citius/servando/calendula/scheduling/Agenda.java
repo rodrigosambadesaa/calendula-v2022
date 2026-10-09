@@ -290,6 +290,37 @@ public class Agenda {
     public void start(final Context context) {
         setDailyUpdateAlarm(context);
         onDailyUpdate(context);
+        // A same-day process restart may follow a crash between SQLite COMMIT
+        // and OS registration. Re-arm valid future tokens from persisted SQL.
+        // Do not fire old past-due reminders or resurrect cancelled intakes.
+        rearmPendingFutureReminders(context);
+    }
+
+    /**
+     * Reconcile reminders on ordinary app startup, not only at midnight or
+     * ACTION_BOOT_COMPLETED. A stable PendingIntent identity ensures rearming
+     * an already scheduled future reminder replaces rather than duplicates it.
+     *
+     * @return the number of valid future reminders submitted to AlarmManager.
+     */
+    int rearmPendingFutureReminders(Context context) {
+        int count = 0;
+        final DateTime now = DateTime.now();
+        for (EventReminder reminder : DB.eventReminders().findAll()) {
+            if (reminder == null || reminder.getId() == null
+                    || reminder.getNextTime() == null
+                    || !reminder.getNextTime().isAfter(now)) {
+                continue;
+            }
+            if (!DB.eventInstances().existsPending(
+                    reminder.getEventType(), reminder.getDateTime(),
+                    reminder.getPatient())) {
+                continue;
+            }
+            setAlarm(context, reminder);
+            count++;
+        }
+        return count;
     }
 
 

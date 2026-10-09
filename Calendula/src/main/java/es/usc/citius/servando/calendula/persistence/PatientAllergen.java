@@ -21,6 +21,8 @@ package es.usc.citius.servando.calendula.persistence;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
 
+import java.util.Objects;
+
 import es.usc.citius.servando.calendula.allergies.AllergenType;
 import es.usc.citius.servando.calendula.allergies.AllergenVO;
 
@@ -138,24 +140,33 @@ public class PatientAllergen {
                 '}';
     }
 
+    /**
+     * Compare allergy identity by patient primary key, allergen type, and
+     * identifier VALUE rather than the String object's reference.
+     */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
+        PatientAllergen other = (PatientAllergen) o;
+        return type == other.type
+                && Objects.equals(identifier, other.identifier)
+                && samePatientRecord(patient, other.patient);
+    }
 
-        PatientAllergen allergen = (PatientAllergen) o;
-
-        if (identifier != allergen.identifier) return false;
-        if (type != allergen.type) return false;
-        return patient != null ? patient.equals(allergen.patient) : allergen.patient == null;
-
+    private static boolean samePatientRecord(Patient a, Patient b) {
+        if (a == b) return true;
+        if (a == null || b == null) return false;
+        Long aId = a.getId();
+        return aId != null && aId.equals(b.getId());
     }
 
     @Override
     public int hashCode() {
-        int result = type != null ? type.hashCode() : 0;
-        result = 31 * result + identifier.hashCode();
-        result = 31 * result + (patient != null ? patient.hashCode() : 0);
-        return result;
+        int result = Objects.hash(type, identifier);
+        int patientHash = patient == null ? 0
+                : patient.getId() != null ? patient.getId().hashCode()
+                : System.identityHashCode(patient);
+        return 31 * result + patientHash;
     }
 }
