@@ -524,6 +524,23 @@ public class Agenda {
         DB.eventReminders().removeOlderThan(date.toDateTimeAtStartOfDay());
     }
 
+    /**
+     * A receiver may finalize a stale/lost dose and remove the reminder while
+     * this alarm callback is still running. Never recreate that row using an
+     * old in-memory EventReminder, nor overwrite an independently delayed dose.
+     */
+    boolean isCurrentPendingReminder(EventReminder reminder) {
+        if (reminder == null || reminder.getId() == null || reminder.getNextTime() == null) {
+            return false;
+        }
+        EventReminder persisted = DB.eventReminders().findById(reminder.getId());
+        return persisted != null
+                && reminder.getNextTime().equals(persisted.getNextTime())
+                && DB.eventInstances().existsPending(
+                        persisted.getEventType(), persisted.getDateTime(),
+                        persisted.getPatient());
+    }
+
     private void sendReminderToReceiver(Context ctx, EventReminder r) {
         // Do not deliver a reminder for another patient or inactive intake.
         boolean eventExist = DB.eventInstances().existsPending(
@@ -538,15 +555,19 @@ public class Agenda {
             // auto repeat
             if (r.autoRepeat()) {
                 LogUtil.d(TAG, "Auto repeat enabled, try to reschedule repeat");
-                DateTime now = DateTime.now();
-                DateTime nextTime = now.plusSeconds(repeatFreqSeconds());
-                if (shouldReschedule(r, nextTime)) {
+                DateTime nextTime = DateTime.now().plusSeconds(repeatFreqSeconds());
+                // A lost/remediated reminder may have been removed or delayed
+                // by the receiver/user. Its old row must never be resurrected.
+                if (shouldReschedule(r, nextTime) && isCurrentPendingReminder(r)) {
                     r.setNextTime(nextTime);
-                    LogUtil.d(TAG, "Updating reminder to " + nextTime.toString(timeFmt));
                     DB.eventReminders().save(r);
-                    setAlarm(ctx, r);
+                    // Recheck after persistence in case the user has confirmed
+                    // or cancelled the dose while alarm work was running.
+                    if (isCurrentPendingReminder(r)) {
+                        setAlarm(ctx, r);
+                    }
                 } else {
-                    LogUtil.d(TAG, "Event con not be rescheduled");
+                    LogUtil.d(TAG, "Reminder no longer pending or outside repeat window");
                 }
             }
         } else {
