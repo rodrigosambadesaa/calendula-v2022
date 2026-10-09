@@ -5,6 +5,7 @@
  */
 package es.usc.citius.servando.calendula.scheduling;
 
+import android.app.PendingIntent;
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
 
@@ -24,6 +25,7 @@ import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
+import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -234,4 +236,153 @@ public class AtomicIntakeStockSmokeTest {
             x.cleanup();
         }
     }
+
+    /**
+     * Two independently stocked, same-time doses belonging to one synthetic
+     * patient. All rows and Android tokens are removed after every test.
+     */
+    private static final class BatchFixture {
+        final Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        final DateTime time = DateTime.now().plusHours(11).withMillisOfSecond(0);
+        final Patient patient = new Patient();
+        final Medicine[] medicines = {
+                new Medicine("Synthetic batch medicine A", Presentation.PILLS),
+                new Medicine("Synthetic batch medicine B", Presentation.PILLS)};
+        final Schedule[] schedules = {new Schedule(medicines[0]), new Schedule(medicines[1])};
+        final EventInstance[] events = {
+                new EventInstance(time, EventType.MEDICATION_INTAKE),
+                new EventInstance(time, EventType.MEDICATION_INTAKE)};
+        final EventReminder reminder = new EventReminder(time, EventType.MEDICATION_INTAKE);
+
+        BatchFixture() throws Exception {
+            patient.setCode("ci-atomic-batch-" + System.nanoTime());
+            patient.setName("Synthetic isolated patient");
+            assertEquals(1, DB.patients().create(patient));
+            for (int i = 0; i < 2; i++) {
+                medicines[i].setPatient(patient);
+                medicines[i].setStock(INITIAL_STOCK);
+                assertEquals(1, DB.medicines().create(medicines[i]));
+                schedules[i].setPatient(patient);
+                assertEquals(1, DB.schedules().create(schedules[i]));
+                events[i].setPatient(patient);
+                events[i].setRef(schedules[i].getId());
+                events[i].addParam(EventInstance.PARAM_DOSE, (double) DOSE);
+                assertEquals(1, DB.eventInstances().create(events[i]));
+                assertNotNull(events[i].getId());
+            }
+            reminder.setPatient(patient);
+            reminder.setNextTime(time);
+            assertEquals(1, DB.eventReminders().create(reminder));
+            Agenda.instance().setAlarm(context, reminder);
+        }
+
+        float stock(int index) {
+            return DB.medicines().findById(medicines[index].getId()).getStock();
+        }
+
+        boolean completed(int index) {
+            return DB.eventInstances().findById(events[index].getId()).completed();
+        }
+
+        PendingIntent currentAlarm() {
+            return PendingIntent.getBroadcast(context, 0,
+                    Agenda.reminderBroadcastIntent(context, reminder),
+                    PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE));
+        }
+
+        void cleanup() {
+            if (reminder.getId() != null) {
+                Agenda.instance().cancelAlarm(context, reminder);
+                if (DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().remove(reminder);
+                }
+            }
+            for (EventInstance event : events) {
+                if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
+                    DB.eventInstances().remove(event);
+                }
+            }
+            for (Schedule schedule : schedules) {
+                if (schedule.getId() != null && DB.schedules().findById(schedule.getId()) != null) {
+                    DB.schedules().remove(schedule);
+                }
+            }
+            for (Medicine medicine : medicines) {
+                if (medicine.getId() != null && DB.medicines().findById(medicine.getId()) != null) {
+                    DB.medicines().remove(medicine);
+                }
+            }
+            if (patient.getId() != null && DB.patients().findById(patient.getId()) != null) {
+                DB.patients().remove(patient);
+            }
+        }
+    }
+
+    @Test
+    public void confirmAllCommitsBothStockBalancesAndEventsExactlyOnce() throws Exception {
+        assertTrue(DB.initialized);
+        BatchFixture x = new BatchFixture();
+        try {
+            assertNotNull("The synthetic reminder is initially registered", x.currentAlarm());
+            assertEquals(2, ScheduleUtils.instance().checkIntakeEvents(x.context, x.patient, x.time));
+            for (int i = 0; i < 2; i++) {
+                assertTrue("Every dose must be committed", x.completed(i));
+                assertEquals(INITIAL_STOCK - DOSE, x.stock(i), 0.001f);
+            }
+            assertEquals("Repeating confirmation cannot consume stock twice",
+                    0, ScheduleUtils.instance().checkIntakeEvents(x.context, x.patient, x.time));
+            for (int i = 0; i < 2; i++) {
+                assertEquals(INITIAL_STOCK - DOSE, x.stock(i), 0.001f);
+            }
+            assertFalse("After all doses commit there is no pending reminder row",
+                    DB.eventReminders().findById(x.reminder.getId()) != null);
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void secondDoseSqlFailureRollsBackFirstDoseAndKeepsAlarm() throws Exception {
+        assertTrue(DB.initialized);
+        BatchFixture x = new BatchFixture();
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        final String trigger = "ci_test_atomic_batch_abort_second";
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            assertNotNull(x.currentAlarm());
+            // The batch processes primary keys in ascending order. Trigger
+            // on the later event so the first debit has actually occurred.
+            assertTrue(x.events[0].getId() < x.events[1].getId());
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE UPDATE ON EventInstances WHEN OLD._id = " + x.events[1].getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic second dose failure'); END;");
+            boolean aborted = false;
+            try {
+                ScheduleUtils.instance().checkIntakeEvents(x.context, x.patient, x.time);
+            } catch (RuntimeException expected) {
+                aborted = true;
+            }
+            assertTrue("The entire bulk confirmation must reject the failed dose", aborted);
+            for (int i = 0; i < 2; i++) {
+                assertFalse("Both dose flags must roll back after later failure", x.completed(i));
+                assertEquals("No individual stock deduction may survive a bulk rollback",
+                        INITIAL_STOCK, x.stock(i), 0.001f);
+            }
+            assertNotNull("Rollback must retain the existing Android alarm", x.currentAlarm());
+            assertNotNull("Rollback must retain the persisted reminder",
+                    DB.eventReminders().findById(x.reminder.getId()));
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            assertEquals("Retry must now commit the entire group",
+                    2, ScheduleUtils.instance().checkIntakeEvents(x.context, x.patient, x.time));
+            for (int i = 0; i < 2; i++) {
+                assertTrue(x.completed(i));
+                assertEquals(INITIAL_STOCK - DOSE, x.stock(i), 0.001f);
+            }
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            x.cleanup();
+        }
+    }
+
 }
