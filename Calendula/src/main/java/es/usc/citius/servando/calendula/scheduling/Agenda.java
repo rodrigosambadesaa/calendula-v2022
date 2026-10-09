@@ -483,8 +483,7 @@ public class Agenda {
     }
 
     private void sendReminderToReceiver(Context ctx, EventReminder r) {
-        // A same-time event for another patient (or an already completed one)
-        // must not turn this reminder into a medication notification.
+        // Do not deliver a reminder belonging to another patient or a completed event.
         boolean eventExist = DB.eventInstances().exists(
                 r.getEventType(), r.getDateTime(), r.getPatient(), false);
         LogUtil.d(TAG, "There are events to remind!");
@@ -511,8 +510,23 @@ public class Agenda {
         } else {
             // remove the reminder
             LogUtil.d(TAG, "Cancelling reminder with id " + r.getId());
+            // Do not explicitly cancel a surviving reminder when SQLite throws
+            // or reports zero deleted rows (which GenericDao.remove() ignores).
+            // A delivered PendingIntent is NOT proof of a future rescheduled alarm;
+            // crash/Doze recovery must be validated separately.
+            final int deleted;
+            try {
+                deleted = DB.eventReminders().delete(r);
+            } catch (SQLException e) {
+                throw new IllegalStateException("Could not delete orphan reminder", e);
+            }
+            // Older Android SQLite/ORM layers may report zero affected rows.
+            // Check the persisted identity instead of trusting that counter:
+            // only a verified ABSENT row permits retiring the Android token.
+            if (deleted > 1 || DB.eventReminders().findById(r.getId()) != null) {
+                throw new IllegalStateException("Orphan reminder is still persisted after deletion");
+            }
             cancelAlarm(ctx, r);
-            DB.eventReminders().remove(r);
         }
     }
 
