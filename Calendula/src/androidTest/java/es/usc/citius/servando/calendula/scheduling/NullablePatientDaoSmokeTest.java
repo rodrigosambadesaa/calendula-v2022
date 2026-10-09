@@ -45,6 +45,9 @@ public class NullablePatientDaoSmokeTest {
             assertTrue("Event with null patient should be queryable",
                     DB.eventInstances().exists(EventType.MEDICATION_INTAKE,
                             future, null, false));
+            assertTrue("Unassigned active events must remain queryable",
+                    DB.eventInstances().existsPending(EventType.MEDICATION_INTAKE,
+                            future, null));
             assertEquals(1, DB.eventInstances().find(
                     EventType.MEDICATION_INTAKE, future, null).size());
             assertTrue("Reminder with null patient should be queryable",
@@ -55,6 +58,11 @@ public class NullablePatientDaoSmokeTest {
             assertEquals("Explicit null-patient row deletion must be scoped",
                     1, DB.eventReminders().removeBy(
                             null, EventType.MEDICATION_INTAKE, future));
+            event.setCancelled(true);
+            DB.eventInstances().save(event);
+            assertFalse("A cancelled unassigned intake must not be deliverable",
+                    DB.eventInstances().existsPending(EventType.MEDICATION_INTAKE,
+                            future, null));
         } finally {
             if (reminder.getId() != null && DB.eventReminders().findById(
                     reminder.getId()) != null) {

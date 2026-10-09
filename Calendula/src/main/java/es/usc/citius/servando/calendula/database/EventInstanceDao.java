@@ -137,6 +137,27 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
         }
     }
 
+    /**
+     * Only an actionable intake may authorize a medication notification.
+     * An uncompleted but cancelled event is NOT an active reminder.
+     */
+    public boolean existsPending(EventType type, DateTime dateTime, Patient patient) {
+        try {
+            QueryBuilder<EventInstance, Long> qb = dao.queryBuilder();
+            Where w = qb.where();
+            w.and(w.eq(EventInstance.COLUMN_EVENT_TYPE, type),
+                    w.eq(EventInstance.COLUMN_DATE_TIME, dateTime),
+                    (patient == null ? w.isNull(EventInstance.COLUMN_PATIENT)
+                            : w.eq(EventInstance.COLUMN_PATIENT, patient)),
+                    w.eq(EventInstance.COLUMN_COMPLETED, false),
+                    w.eq(EventInstance.COLUMN_CANCELLED, false));
+            qb.setWhere(w);
+            return qb.countOf() > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException("Error finding pending event instances", e);
+        }
+    }
+
     public boolean exists(EventType type, DateTime dateTime) {
         try {
             QueryBuilder<EventInstance, Long> qb = dao.queryBuilder();
