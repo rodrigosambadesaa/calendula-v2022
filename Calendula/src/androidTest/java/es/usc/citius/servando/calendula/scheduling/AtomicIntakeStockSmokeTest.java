@@ -255,17 +255,22 @@ public class AtomicIntakeStockSmokeTest {
         final EventReminder reminder = new EventReminder(time, EventType.MEDICATION_INTAKE);
 
         BatchFixture() throws Exception {
+            this(false);
+        }
+
+        BatchFixture(boolean sharedStock) throws Exception {
             patient.setCode("ci-atomic-batch-" + System.nanoTime());
             patient.setName("Synthetic isolated patient");
             assertEquals(1, DB.patients().create(patient));
             for (int i = 0; i < 2; i++) {
                 medicines[i].setPatient(patient);
-                medicines[i].setStock(INITIAL_STOCK);
+                medicines[i].setStock(sharedStock && i == 0
+                        ? DOSE + 0.5f : INITIAL_STOCK);
                 assertEquals(1, DB.medicines().create(medicines[i]));
                 schedules[i].setPatient(patient);
                 assertEquals(1, DB.schedules().create(schedules[i]));
                 events[i].setPatient(patient);
-                events[i].setRef(schedules[i].getId());
+                events[i].setRef(schedules[sharedStock ? 0 : i].getId());
                 events[i].addParam(EventInstance.PARAM_DOSE, (double) DOSE);
                 assertEquals(1, DB.eventInstances().create(events[i]));
                 assertNotNull(events[i].getId());
@@ -389,14 +394,10 @@ public class AtomicIntakeStockSmokeTest {
     @Test
     public void sharedStockShortageRollsBackAllConfirmedDoses() throws Exception {
         assertTrue(DB.initialized);
-        BatchFixture x = new BatchFixture();
+        BatchFixture x = new BatchFixture(true);
         try {
-            // Both scheduled doses reference the *same* medicine. There is
-            // enough for the first dose but not both together.
-            x.medicines[0].setStock(DOSE + 0.5f);
-            assertEquals(1, DB.medicines().update(x.medicines[0]));
-            x.events[1].setRef(x.schedules[0].getId());
-            assertEquals(1, DB.eventInstances().update(x.events[1]));
+            // Both synthetic events refer to the first schedule's medicine,
+            // whose starting stock covers one dose but not the full batch.
             boolean rejected = false;
             try {
                 ScheduleUtils.instance().checkIntakeEvents(x.context, x.patient, x.time);
