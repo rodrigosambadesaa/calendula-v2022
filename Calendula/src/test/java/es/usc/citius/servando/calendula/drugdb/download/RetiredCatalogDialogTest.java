@@ -8,12 +8,14 @@ package es.usc.citius.servando.calendula.drugdb.download;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import android.os.Looper;
 import android.widget.TextView;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.MockedStatic;
 import org.robolectric.Robolectric;
+import org.robolectric.Shadows;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowAlertDialog;
@@ -57,6 +59,9 @@ public class RetiredCatalogDialogTest {
 
             assertNotNull(dialog.getButton(DialogInterface.BUTTON_POSITIVE));
             dialog.getButton(DialogInterface.BUTTON_POSITIVE).performClick();
+            // Robolectric queues AlertDialog button listeners on the main
+            // looper. Dispatch it before inspecting the UI selection callback.
+            Shadows.shadowOf(Looper.getMainLooper()).idle();
             assertEquals("Must not silently choose or replace an existing catalog",
                     Boolean.FALSE, accepted.get());
             network.verifyNoInteractions();
