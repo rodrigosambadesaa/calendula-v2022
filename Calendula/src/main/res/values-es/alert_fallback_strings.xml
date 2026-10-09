@@ -4,4 +4,6 @@
     <string name="generic_alert_description">No hay detalles adicionales disponibles para esta alerta.</string>
     <string name="medication_unverified_title">Hay que verificar los datos de medicación</string>
     <string name="medication_unverified_description">Abre Caléndula para revisar este recordatorio. No se han podido verificar los datos del medicamento.</string>
+    <string name="remote_catalog_unavailable_title">Catálogo remoto de medicamentos no disponible</string>
+    <string name="remote_catalog_unavailable_description">La descarga histórica está desactivada porque no se puede verificar la autenticidad de su origen ni de sus datos. Tus datos locales existentes no se han modificado.</string>
 </resources>
