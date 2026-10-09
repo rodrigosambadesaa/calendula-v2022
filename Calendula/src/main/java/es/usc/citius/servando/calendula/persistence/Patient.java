@@ -151,16 +151,16 @@ public class Patient {
         return result;
     }
 
+    /**
+     * Never include patient identifiers, names or avatar details in diagnostics.
+     * Model toString() values are often propagated into exception logs.
+     */
     @Override
     public String toString() {
         return "Patient{" +
-                "id=" + id +
-                ", code='" + code + '\'' +
-                ", name='" + name + '\'' +
-                ", isDefault=" + isDefault +
+                "isDefault=" + isDefault +
                 ", dataRetrieved=" + dataRetrieved +
-                ", avatar='" + avatar + '\'' +
-                ", color=" + color +
                 '}';
     }
+
 }
