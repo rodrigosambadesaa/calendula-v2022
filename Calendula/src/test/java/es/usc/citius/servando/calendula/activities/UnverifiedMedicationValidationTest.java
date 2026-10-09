@@ -19,6 +19,7 @@ import org.robolectric.annotation.Config;
 import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Presentation;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
@@ -47,34 +48,44 @@ public class UnverifiedMedicationValidationTest {
         EventInstance event = syntheticEvent();
         Medicine medicine = new Medicine("Synthetic test medicine", Presentation.PILLS);
         Schedule schedule = new Schedule(medicine);
+        Patient patient = new Patient();
+        patient.setId(9000003311L);
+        event.setPatient(patient);
+        schedule.setPatient(patient);
 
-        assertFalse(IntakeNotificationMgr.canRenderMedication(event, null));
-        assertFalse(IntakeNotificationMgr.canRenderMedication(null, schedule));
+        assertFalse(IntakeNotificationMgr.canRenderMedication(event, null, patient));
+        assertFalse(IntakeNotificationMgr.canRenderMedication(null, schedule, patient));
         assertFalse("Null Bundle must not crash on dose access",
-                IntakeNotificationMgr.canRenderMedication(event, schedule));
+                IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
 
         event.addParam(EventInstance.PARAM_DOSE, 1.0d);
         assertTrue("Valid synthetic positive dose and presentation should render",
-                IntakeNotificationMgr.canRenderMedication(event, schedule));
+                IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
 
         event.addParam(EventInstance.PARAM_DOSE, -1.0d);
         assertFalse("Never display negative dosage",
-                IntakeNotificationMgr.canRenderMedication(event, schedule));
+                IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
         event.addParam(EventInstance.PARAM_DOSE, 0.0d);
         assertFalse("Never present zero as a scheduled intake",
-                IntakeNotificationMgr.canRenderMedication(event, schedule));
+                IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
 
         event.addParam(EventInstance.PARAM_DOSE, "not-a-dose");
         assertFalse("Malformed quantity must fail closed",
-                IntakeNotificationMgr.canRenderMedication(event, schedule));
+                IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
         event.addParam(EventInstance.PARAM_DOSE, 1.0d);
         medicine.setPresentation(null);
         assertFalse("Missing units must not be invented",
-                IntakeNotificationMgr.canRenderMedication(event, schedule));
+                IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
         medicine.setPresentation(Presentation.PILLS);
         medicine.setName(" ");
         assertFalse("Missing medicine name must not render",
-                IntakeNotificationMgr.canRenderMedication(event, schedule));
+                IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
+        medicine.setName("Synthetic test medicine");
+        Patient another = new Patient();
+        another.setId(9000003312L);
+        schedule.setPatient(another);
+        assertFalse("A reference to another patient's prescription must not render",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
     }
 
     @Test
