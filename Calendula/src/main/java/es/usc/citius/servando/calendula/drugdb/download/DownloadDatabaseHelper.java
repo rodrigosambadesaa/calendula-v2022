@@ -51,6 +51,21 @@ public class DownloadDatabaseHelper {
 
     public void showDownloadDialog(final Context dialogCtx, final String database,
                                    final DownloadDatabaseDialogCallback callback) {
+        // The historical remote medicine archive is retired and its SQL is
+        // unauthenticated. Do not offer a download button that can only fail,
+        // or touch the user's existing local catalog selection.
+        if (!LegacyRemoteArchivePolicy.permitsRemoteSqlInstallation()) {
+            new AlertDialog.Builder(dialogCtx)
+                    .setTitle(R.string.remote_catalog_unavailable_title)
+                    .setMessage(R.string.remote_catalog_unavailable_description)
+                    .setPositiveButton(android.R.string.ok, (dialog, id) -> {
+                        if (callback != null) {
+                            callback.onDownloadAcceptedOrCancelled(false);
+                        }
+                    })
+                    .show();
+            return;
+        }
         LogUtil.d(TAG, "showDownloadDialog() called for database " + database);
         final Context appContext = dialogCtx.getApplicationContext();
         AlertDialog.Builder builder = new AlertDialog.Builder(dialogCtx);
