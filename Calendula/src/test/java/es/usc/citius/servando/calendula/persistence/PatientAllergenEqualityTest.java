@@ -88,6 +88,17 @@ public class PatientAllergenEqualityTest {
     }
 
     @Test
+    public void unsavedPatientEqualityAndHashCodeDoNotThrow() {
+        Patient transientA = new Patient();
+        Patient transientB = new Patient();
+        assertEquals("Equivalent unsaved models must compare without null-ID exceptions",
+                transientA, transientB);
+        assertEquals(transientA.hashCode(), transientB.hashCode());
+        transientB.setName("synthetic changed patient");
+        assertNotEquals("Other equality fields still matter", transientA, transientB);
+    }
+
+    @Test
     public void nullableLegacyIdentifiersHaveSafeEqualityAndHashCode() {
         Patient a = new Patient();
         a.setId(9000005544L);
