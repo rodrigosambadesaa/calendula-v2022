@@ -79,6 +79,17 @@ public class StartupReminderRearmSmokeTest {
             assertNull("Past-due reminder must not be blindly triggered again",
                     token(ctx, old));
 
+            // Device reboot, time changes and exact-alarm permission changes
+            // use updateAllAlarms, not the startup-only recovery entrypoint.
+            // Both paths must enforce the same future/pending filter.
+            Agenda.instance().updateAllAlarms(ctx);
+            assertNotNull("Device recovery must retain the valid future alarm",
+                    token(ctx, valid));
+            assertNull("Device recovery must not resurrect cancelled medication",
+                    token(ctx, cancelled));
+            assertNull("Device recovery must not immediately trigger expired doses",
+                    token(ctx, old));
+
             // A second startup must reuse the same stable PendingIntent identity.
             PendingIntent first = token(ctx, valid);
             Agenda.instance().rearmPendingFutureReminders(ctx);
