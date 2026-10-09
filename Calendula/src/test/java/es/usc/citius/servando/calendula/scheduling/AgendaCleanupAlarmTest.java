@@ -20,6 +20,7 @@ import org.robolectric.annotation.Config;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.sql.SQLException;
 
 import es.usc.citius.servando.calendula.activities.IntakeNotificationMgr;
 import es.usc.citius.servando.calendula.database.DB;
@@ -66,7 +67,7 @@ public class AgendaCleanupAlarmTest {
     }
 
     @Test
-    public void staleReminderAlreadyRemovedIsANoOp() {
+    public void staleReminderAlreadyRemovedIsANoOp() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
         EventInstanceDao events = mock(EventInstanceDao.class);
         EventReminderDao reminders = mock(EventReminderDao.class);
@@ -79,18 +80,19 @@ public class AgendaCleanupAlarmTest {
             // A null findBy result means the record was already removed.
             Agenda.instance().cleanReminderIfPossible(
                     context, null, EventType.MEDICATION_INTAKE, time);
-            verify(reminders, never()).remove(org.mockito.ArgumentMatchers.nullable(EventReminder.class));
+            verify(reminders, never()).delete(org.mockito.ArgumentMatchers.nullable(EventReminder.class));
             notifications.verifyNoInteractions();
         }
     }
 
     @Test
-    public void cleaningExpiredReminderRevokesPendingIntentAndKeepsDaoConsistent() {
+    public void cleaningExpiredReminderRevokesPendingIntentAndKeepsDaoConsistent() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
         EventInstanceDao events = mock(EventInstanceDao.class);
         EventReminderDao reminders = mock(EventReminderDao.class);
         EventReminder r = reminder(9000001201L);
         when(reminders.findBy(r.getEventType(), r.getDateTime(), null)).thenReturn(r);
+        when(reminders.delete(r)).thenReturn(1);
         PendingIntent token = create(context, r);
         assertNotNull(existing(context, r));
         try (MockedStatic<DB> db = mockStatic(DB.class);
@@ -101,7 +103,7 @@ public class AgendaCleanupAlarmTest {
             Agenda.instance().cleanReminderIfPossible(
                     context, null, r.getEventType(), r.getDateTime());
             assertNull("Removing reminder must also revoke Android token", existing(context, r));
-            verify(reminders).remove(r);
+            verify(reminders).delete(r);
             notifications.verify(() -> IntakeNotificationMgr.cancel(context, r));
         } finally {
             token.cancel();
@@ -109,15 +111,15 @@ public class AgendaCleanupAlarmTest {
     }
 
     @Test
-    public void failedSqliteRemovalMustNotCancelStillPersistedReminder() {
+    public void failedSqliteRemovalMustNotCancelStillPersistedReminder() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
         EventInstanceDao events = mock(EventInstanceDao.class);
         EventReminderDao reminders = mock(EventReminderDao.class);
         EventReminder reminder = reminder(9000001204L);
         when(reminders.findBy(reminder.getEventType(),
                 reminder.getDateTime(), null)).thenReturn(reminder);
-        doThrow(new IllegalStateException("Synthetic SQLite delete failure"))
-                .when(reminders).remove(reminder);
+        when(reminders.delete(reminder))
+                .thenThrow(new SQLException("Synthetic SQLite delete failure"));
         PendingIntent token = create(context, reminder);
         try (MockedStatic<DB> db = mockStatic(DB.class);
              MockedStatic<IntakeNotificationMgr> notifications =
@@ -140,12 +142,14 @@ public class AgendaCleanupAlarmTest {
     }
 
     @Test
-    public void bulkDeleteRevokesAllScheduledAndroidTokens() {
+    public void bulkDeleteRevokesAllScheduledAndroidTokens() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
         EventReminderDao reminders = mock(EventReminderDao.class);
         EventReminder a = reminder(9000001202L);
         EventReminder b = reminder(9000001203L);
         when(reminders.findAll()).thenReturn(Arrays.asList(a, b));
+        when(reminders.delete(a)).thenReturn(1);
+        when(reminders.delete(b)).thenReturn(1);
         PendingIntent first = create(context, a);
         PendingIntent second = create(context, b);
         try (MockedStatic<DB> db = mockStatic(DB.class);
@@ -155,8 +159,8 @@ public class AgendaCleanupAlarmTest {
             Agenda.instance().deleteAllReminders(context);
             assertNull(existing(context, a));
             assertNull(existing(context, b));
-            verify(reminders).remove(a);
-            verify(reminders).remove(b);
+            verify(reminders).delete(a);
+            verify(reminders).delete(b);
         } finally {
             first.cancel();
             second.cancel();
