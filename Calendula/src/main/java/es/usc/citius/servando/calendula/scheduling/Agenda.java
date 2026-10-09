@@ -381,37 +381,62 @@ public class Agenda {
     }
 
 
+    /**
+     * Confirm or cancel a medication intake atomically with removing its
+     * persisted reminder. A failed SQLite write rolls back both changes and
+     * must never cancel the OS alarm before the transaction commits.
+     */
+    private void finalizeReminderInSqlite(Context context, EventReminder reminder,
+                                          boolean confirmIntake) {
+        if (reminder == null || reminder.getId() == null) {
+            throw new IllegalArgumentException("A persisted reminder ID is required");
+        }
+        try {
+            TransactionManager.callInTransaction(DB.helper().getConnectionSource(),
+                    (Callable<Void>) () -> {
+                        if (confirmIntake) {
+                            DB.eventInstances().confirm(reminder.getEventType(),
+                                    reminder.getDateTime(), reminder.getPatient(), DateTime.now());
+                        } else {
+                            DB.eventInstances().cancelUncompleted(reminder.getEventType(),
+                                    reminder.getDateTime(), reminder.getPatient(), DateTime.now());
+                        }
+                        final int deleted = DB.eventReminders().delete(reminder);
+                        // A zero count can mean the row was already removed;
+                        // verify its absence before committing the event change.
+                        if (deleted > 1 || DB.eventReminders().findById(reminder.getId()) != null) {
+                            throw new SQLException("Reminder persisted after attempted deletion");
+                        }
+                        return null;
+                    });
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not atomically finalize medication reminder", e);
+        }
+        // Android AlarmManager is not transactional with SQLite. Only retire
+        // OS state once the SQL transaction has committed successfully.
+        cancelAlarm(context, reminder);
+    }
+
     public void confirmReminder(Context context, Long reminderId) {
         EventReminder reminder = DB.eventReminders().findById(reminderId);
         if (reminder != null) {
+            finalizeReminderInSqlite(context, reminder, true);
             IntakeNotificationMgr.cancel(context, reminder);
-            DB.eventInstances().confirm(reminder.getEventType(),
-                    reminder.getDateTime(),
-                    reminder.getPatient(),
-                    DateTime.now());
-            // cancel the alarm and remove the reminder
-            cancelAlarm(context, reminder);
-            DB.eventReminders().remove(reminder);
         }
     }
-
 
     public void cancelReminder(Context context, Long reminderId) {
         EventReminder reminder = DB.eventReminders().findById(reminderId);
         if (reminder != null) {
-            IntakeNotificationMgr.cancel(context, reminder);
             removeReminder(context, reminder);
+            IntakeNotificationMgr.cancel(context, reminder);
         }
     }
 
     public void removeReminder(Context context, EventReminder reminder) {
-        DB.eventInstances().cancelUncompleted(reminder.getEventType(),
-                reminder.getDateTime(),
-                reminder.getPatient(),
-                DateTime.now());
-        // cancel the alarm and remove the reminder
-        cancelAlarm(context, reminder);
-        DB.eventReminders().remove(reminder);
+        // Also called for expired notifications; retain their notification
+        // behavior by cancelling OS alarms here, not UI notifications.
+        finalizeReminderInSqlite(context, reminder, false);
     }
 
     public void delayReminder(Context context, Long reminderId) {
@@ -483,7 +508,7 @@ public class Agenda {
     }
 
     private void sendReminderToReceiver(Context ctx, EventReminder r) {
-        // Do not deliver a reminder belonging to another patient or a completed event.
+        // Do not deliver a reminder for another patient or inactive intake.
         boolean eventExist = DB.eventInstances().existsPending(
                 r.getEventType(), r.getDateTime(), r.getPatient());
         LogUtil.d(TAG, "There are events to remind!");
