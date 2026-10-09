@@ -64,9 +64,12 @@ object StockUpdater {
         }
 
         medicine.stock = updated.toFloat()
-        // GenericDao.save throws on SQLException. Never hide the exception:
-        // its caller is responsible for rolling the whole transaction back.
-        DB.medicines().save(medicine)
+        // Bypass MedicineDao.save(): it posts alerts before COMMIT, which
+        // could report a stock change later rolled back by SQLite.
+        // update() preserves the affected-row count and propagates SQL errors.
+        if (DB.medicines().update(medicine) != 1) {
+            throw IllegalStateException("Expected one medicine stock row to change")
+        }
         return true
     }
 
