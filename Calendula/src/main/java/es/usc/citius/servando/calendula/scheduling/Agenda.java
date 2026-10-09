@@ -98,6 +98,9 @@ public class Agenda {
     private boolean createRemindersInternal(final Context context,
                                             final Collection<EventInstance> intakes,
                                             final boolean allowPlatformEffects) {
+        // Snapshot new SQL rows so we can schedule only these after commit.
+        // Re-arming every existing reminder could fire an old past-due alarm.
+        final List<EventReminder> newlyPersisted = new ArrayList<>();
         try {
             TransactionManager.callInTransaction(DB.helper().getConnectionSource(), new Callable<Object>() {
                 @Override
@@ -113,6 +116,9 @@ public class Agenda {
                                 // Only persist SQL rows in the transaction.
                                 // AlarmManager has no SQLite rollback.
                                 DB.eventReminders().save(reminder);
+                                if (allowPlatformEffects) {
+                                    newlyPersisted.add(reminder);
+                                }
                             } else {
                                 LogUtil.d(TAG, "Event at can not be scheduled");
                             }
@@ -126,11 +132,19 @@ public class Agenda {
                 }
             });
             if (allowPlatformEffects) {
-                // Reconcile using committed SQL rows only. Cleaning first
-                // removes stale DB rows and their Android tokens; refreshing
-                // survivors reuses their stable PendingIntent identity.
+                // Retire obsolete alarms after SQL commit, then register only
+                // newly inserted reminders that survived cleanup. Do not
+                // re-arm old records whose nextTime may already be in the past.
                 cleanReminders(context);
-                updateAllAlarms(context);
+                for (EventReminder inserted : newlyPersisted) {
+                    if (inserted.getId() == null) {
+                        throw new IllegalStateException("Reminder persistence returned no ID");
+                    }
+                    EventReminder persisted = DB.eventReminders().findById(inserted.getId());
+                    if (persisted != null) {
+                        setAlarm(context, persisted);
+                    }
+                }
             }
             return true;
         } catch (SQLException e) {
