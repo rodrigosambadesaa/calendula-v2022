@@ -491,12 +491,18 @@ public class Agenda {
         }
     }
 
-    public void cancelReminder(Context context, Long reminderId) {
-        EventReminder reminder = DB.eventReminders().findById(reminderId);
-        if (reminder != null) {
-            removeReminder(context, reminder);
-            IntakeNotificationMgr.cancel(context, reminder);
+    /** A missing/already handled reminder must not produce a success toast. */
+    public boolean cancelReminder(Context context, Long reminderId) {
+        if (reminderId == null || reminderId <= 0L) {
+            return false;
         }
+        EventReminder reminder = DB.eventReminders().findById(reminderId);
+        if (reminder == null) {
+            return false;
+        }
+        removeReminder(context, reminder);
+        IntakeNotificationMgr.cancel(context, reminder);
+        return true;
     }
 
     public void removeReminder(Context context, EventReminder reminder) {
@@ -505,8 +511,12 @@ public class Agenda {
         finalizeReminderInSqlite(context, reminder, false);
     }
 
-    public void delayReminder(Context context, Long reminderId) {
-        delayReminder(context, DB.eventReminders().findById(reminderId), null);
+    /** Returns false for a stale or invalid notification action. */
+    public boolean delayReminder(Context context, Long reminderId) {
+        if (reminderId == null || reminderId <= 0L) {
+            return false;
+        }
+        return delayReminder(context, DB.eventReminders().findById(reminderId), null);
     }
 
     /**
@@ -515,9 +525,9 @@ public class Agenda {
      * and existing OS token. Re-read by ID so a stale callback cannot recreate
      * a deleted reminder or overwrite a newer delay.
      */
-    public void delayReminder(Context context, EventReminder reminder, Integer delay) {
+    public boolean delayReminder(Context context, EventReminder reminder, Integer delay) {
         if (reminder == null) {
-            return;
+            return false;
         }
         if (reminder.getId() == null || reminder.getId() <= 0) {
             throw new IllegalArgumentException("A persisted reminder ID is required");
@@ -559,7 +569,11 @@ public class Agenda {
         if (isCurrentPendingReminder(committed)) {
             setAlarm(context, committed);
             IntakeNotificationMgr.cancel(context, committed);
+            return true;
         }
+        // Another action may have completed/cancelled the intake after commit.
+        // Never tell the user that an inactive reminder was rescheduled.
+        return false;
     }
 
     private void logReminders() {
