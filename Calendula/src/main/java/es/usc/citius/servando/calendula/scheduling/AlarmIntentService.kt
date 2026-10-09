@@ -85,12 +85,24 @@ class AlarmIntentService : JobIntentService() {
             IntentParams.ACTION_ALARM_CONFIRM -> {
                 // Tell agenda to confirm the reminder
                 val reminderId = intent.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1)
+                if (reminderId <= 0L) {
+                    LogUtil.w(TAG, "Ignoring confirmation without valid reminder ID")
+                    return
+                }
                 val reminder = DB.eventReminders().findById(reminderId)
                 if (reminder != null) {
-                    ScheduleUtils.instance()
+                    val confirmed = ScheduleUtils.instance()
                         .checkIntakeEvents(this, reminder.patient, reminder.dateTime)
+                    if (confirmed > 0) {
+                        showToast(getString(R.string.all_meds_taken))
+                    } else {
+                        LogUtil.w(TAG, "No pending medication intakes to confirm")
+                    }
+                } else {
+                    // This may be a stale notification whose SQLite row was
+                    // already cleared. Never claim that medicine was taken.
+                    LogUtil.w(TAG, "Confirmation ignored: reminder already removed")
                 }
-                showToast(getString(R.string.all_meds_taken))
             }
             else -> LogUtil.w(TAG, "Unknown action '$action', request will be ignored")
         }
