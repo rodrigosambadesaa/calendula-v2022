@@ -518,8 +518,11 @@ public class Agenda {
             } catch (SQLException e) {
                 throw new IllegalStateException("Could not delete orphan reminder", e);
             }
-            if (deleted != 1) {
-                throw new IllegalStateException("Orphan reminder deletion did not remove one row");
+            // Older Android SQLite/ORM layers may report zero affected rows.
+            // Check the persisted identity instead of trusting that counter:
+            // only a verified ABSENT row permits retiring the Android token.
+            if (deleted > 1 || DB.eventReminders().findById(r.getId()) != null) {
+                throw new IllegalStateException("Orphan reminder is still persisted after deletion");
             }
             cancelAlarm(ctx, r);
         }
