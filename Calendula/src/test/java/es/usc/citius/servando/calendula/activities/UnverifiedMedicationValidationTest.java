@@ -72,6 +72,9 @@ public class UnverifiedMedicationValidationTest {
         event.addParam(EventInstance.PARAM_DOSE, "not-a-dose");
         assertFalse("Malformed quantity must fail closed",
                 IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
+        event.getParams().putLong(EventInstance.PARAM_DOSE, 3L);
+        assertFalse("Non-String legacy Bundle dosage must not crash or display",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
         event.addParam(EventInstance.PARAM_DOSE, 1.0d);
         medicine.setPresentation(null);
         assertFalse("Missing units must not be invented",
