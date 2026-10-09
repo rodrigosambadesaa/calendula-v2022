@@ -43,6 +43,8 @@ import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime;
 import es.usc.citius.servando.calendula.util.stock.StockUpdater;
+import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.alerts.StockAlertHandler;
 
 /**
  * Utilities that simplify some tasks to do after creating or updating schedules
@@ -178,6 +180,18 @@ public class ScheduleUtils {
         event.setCompleted(completed);
         event.setCompletedAt(completedAt);
         if (stockChanged[0]) {
+            // Stock alerts depend on committed medicine rows and must never
+            // be published inside the intake/stock SQLite transaction.
+            try {
+                Schedule schedule = DB.schedules().findById(event.getRef());
+                if (schedule != null && schedule.getMedicine() != null) {
+                    StockAlertHandler.checkStockAlerts(schedule.getMedicine());
+                }
+            } catch (RuntimeException alertError) {
+                // Alert recalculation can be retried; never misreport a
+                // successfully committed intake as a failed medical action.
+                LogUtil.e(TAG, "Error updating post-commit stock alerts", alertError);
+            }
             DB.medicines().fireEvent();
         }
         if (completed) {
