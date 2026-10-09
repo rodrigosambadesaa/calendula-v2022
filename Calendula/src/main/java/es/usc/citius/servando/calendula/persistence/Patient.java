@@ -132,7 +132,7 @@ public class Patient {
         if (isDefault != patient.isDefault) return false;
         if (dataRetrieved != patient.dataRetrieved) return false;
         if (color != patient.color) return false;
-        if (!id.equals(patient.id)) return false;
+        if (id != null ? !id.equals(patient.id) : patient.id != null) return false;
         if (code != null ? !code.equals(patient.code) : patient.code != null) return false;
         if (name != null ? !name.equals(patient.name) : patient.name != null) return false;
         return avatar != null ? avatar.equals(patient.avatar) : patient.avatar == null;
@@ -141,7 +141,7 @@ public class Patient {
 
     @Override
     public int hashCode() {
-        int result = id.hashCode();
+        int result = id != null ? id.hashCode() : 0;
         result = 31 * result + (code != null ? code.hashCode() : 0);
         result = 31 * result + (name != null ? name.hashCode() : 0);
         result = 31 * result + (isDefault ? 1 : 0);
