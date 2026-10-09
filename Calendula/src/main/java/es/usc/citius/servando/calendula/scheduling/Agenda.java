@@ -552,7 +552,9 @@ public class Agenda {
                         if (!DB.eventInstances().existsPending(
                                 current.getEventType(), current.getDateTime(),
                                 current.getPatient())) {
-                            throw new SQLException("Reminder no longer belongs to a pending event");
+                            // A completed/cancelled dose makes this stale button
+                            // a no-op, not a successful medication delay.
+                            return null;
                         }
                         current.setNextTime(delayedUntil);
                         if (DB.eventReminders().update(current) != 1) {
@@ -562,6 +564,9 @@ public class Agenda {
                     });
         } catch (SQLException e) {
             throw new IllegalStateException("Could not persist medication reminder delay", e);
+        }
+        if (committed == null) {
+            return false;
         }
         // Only committed SQLite state may be reflected into the caller model
         // or the non-transactional Android AlarmManager and notification APIs.
