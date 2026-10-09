@@ -24,6 +24,11 @@ import android.content.Context;
 import org.joda.time.DateTime;
 import org.joda.time.LocalTime;
 
+import com.j256.ormlite.misc.TransactionManager;
+
+import java.sql.SQLException;
+import java.util.concurrent.Callable;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -109,8 +114,9 @@ public class ScheduleUtils {
                 EventType.MEDICATION_INTAKE, dateTime, patient)) {
             // This guards against objects whose status changed while querying.
             if (isPendingIntake(event)) {
-                setIntakeCompleted(ctx, event, true);
-                confirmed++;
+                if (setIntakeCompleted(ctx, event, true)) {
+                    confirmed++;
+                }
             }
         }
         if (confirmed > 0) {
@@ -123,17 +129,65 @@ public class ScheduleUtils {
         Agenda.instance().onDelayReminder(ctx, EventType.MEDICATION_INTAKE, dateTime, patient, delay * 60);
     }
 
-    public void setIntakeCompleted(Context ctx, EventInstance event, boolean completed) {
+    /**
+     * Confirm/undo an intake and its stock delta as ONE SQLite transaction.
+     * Never publish success or change Android alarms before that commit.
+     *
+     * @return true only if a persisted event actually changed state.
+     */
+    public boolean setIntakeCompleted(Context ctx, EventInstance event, boolean completed) {
+        if (event == null || event.getId() == null
+                || event.getType() != EventType.MEDICATION_INTAKE) {
+            throw new IllegalArgumentException("A persisted medication intake is required");
+        }
+        final boolean[] stockChanged = {false};
+        final DateTime completedAt = completed ? DateTime.now() : null;
+        final boolean changed;
+        try {
+            changed = TransactionManager.callInTransaction(
+                    DB.helper().getConnectionSource(), (Callable<Boolean>) () -> {
+                        EventInstance stored = DB.eventInstances().findById(event.getId());
+                        if (stored == null || stored.getType() != EventType.MEDICATION_INTAKE) {
+                            throw new SQLException("Intake disappeared during confirmation");
+                        }
+                        if (stored.cancelled()) {
+                            throw new SQLException("Cancelled medication cannot be confirmed or undone");
+                        }
+                        if (stored.completed() == completed) {
+                            return false;
+                        }
+                        boolean wasCompleted = stored.completed();
+                        stored.setCompleted(completed);
+                        stored.setCompletedAt(completedAt);
+                        // Must propagate errors; never persist a completed event
+                        // without its corresponding medicine stock adjustment.
+                        stockChanged[0] = StockUpdater.applyStockForTransition(stored, wasCompleted);
+                        if (DB.eventInstances().update(stored) != 1) {
+                            throw new SQLException("Expected one intake row to change");
+                        }
+                        return true;
+                    });
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not atomically persist medication intake", e);
+        }
+        if (!changed) {
+            return false;
+        }
+
+        // Reflect only committed changes in the caller's object.
         event.setCompleted(completed);
-        event.setCompletedAt(completed ? DateTime.now() : null);
-        StockUpdater.updateStockForIntake(event,true);
-        DB.eventInstances().save(event);
-        if(completed) {
-            Agenda.instance().cleanReminderIfPossible(ctx, event.getPatient(), event.getType(), event.getTime());
-        }else{
+        event.setCompletedAt(completedAt);
+        if (stockChanged[0]) {
+            DB.medicines().fireEvent();
+        }
+        if (completed) {
+            Agenda.instance().cleanReminderIfPossible(
+                    ctx, event.getPatient(), event.getType(), event.getTime());
+        } else {
             Agenda.instance().createReminders(ctx, Arrays.asList(event));
         }
         DB.eventInstances().fireEvent();
+        return true;
     }
 
     public List<EventInstance> intakeEvents(Patient p, DateTime dateTime) {
