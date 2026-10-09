@@ -85,7 +85,7 @@ public class OrphanReminderAlarmDeletionTest {
         EventReminder r = orphan(9000001602L);
         EventReminderDao reminders = mock(EventReminderDao.class);
         EventInstanceDao instances = mock(EventInstanceDao.class);
-        when(reminders.findById(r.getId())).thenReturn(r);
+        when(reminders.findById(r.getId())).thenReturn(r, null);
         when(reminders.delete(r)).thenReturn(1);
         PendingIntent original = lookup(context, r, PendingIntent.FLAG_UPDATE_CURRENT);
         try (MockedStatic<DB> db = mockStatic(DB.class)) {
@@ -106,7 +106,7 @@ public class OrphanReminderAlarmDeletionTest {
         EventReminder r = orphan(9000001603L);
         EventReminderDao reminders = mock(EventReminderDao.class);
         EventInstanceDao instances = mock(EventInstanceDao.class);
-        when(reminders.findById(r.getId())).thenReturn(r);
+        when(reminders.findById(r.getId())).thenReturn(r, r);
         when(reminders.delete(r)).thenReturn(0);
         PendingIntent original = lookup(context, r, PendingIntent.FLAG_UPDATE_CURRENT);
         try (MockedStatic<DB> db = mockStatic(DB.class)) {
@@ -120,6 +120,27 @@ public class OrphanReminderAlarmDeletionTest {
             }
             verify(reminders).delete(r);
             assertNotNull("A zero-row delete must preserve the PendingIntent token",
+                    lookup(context, r, PendingIntent.FLAG_NO_CREATE));
+        } finally {
+            original.cancel();
+        }
+    }
+
+    @Test
+    public void zeroRowDeleteWithAlreadyAbsentSqliteRecordCancelsObsoleteAlarm() throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        EventReminder r = orphan(9000001604L);
+        EventReminderDao reminders = mock(EventReminderDao.class);
+        EventInstanceDao instances = mock(EventInstanceDao.class);
+        when(reminders.findById(r.getId())).thenReturn(r, null);
+        when(reminders.delete(r)).thenReturn(0);
+        PendingIntent original = lookup(context, r, PendingIntent.FLAG_UPDATE_CURRENT);
+        try (MockedStatic<DB> db = mockStatic(DB.class)) {
+            db.when(DB::eventReminders).thenReturn(reminders);
+            db.when(DB::eventInstances).thenReturn(instances);
+            Agenda.instance().onReceiveAlarm(context, r.getId());
+            verify(reminders).delete(r);
+            assertNull("A verified absent row must not retain an obsolete OS token",
                     lookup(context, r, PendingIntent.FLAG_NO_CREATE));
         } finally {
             original.cancel();
