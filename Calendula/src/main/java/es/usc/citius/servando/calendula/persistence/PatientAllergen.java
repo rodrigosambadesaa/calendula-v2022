@@ -21,6 +21,8 @@ package es.usc.citius.servando.calendula.persistence;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
 
+import java.util.Objects;
+
 import es.usc.citius.servando.calendula.allergies.AllergenType;
 import es.usc.citius.servando.calendula.allergies.AllergenVO;
 
@@ -140,24 +142,24 @@ public class PatientAllergen {
                 '}';
     }
 
+    /**
+     * A patient's allergy identity is (patient, type, external identifier).
+     * Compare the identifier by String VALUE, not JVM object identity:
+     * identifiers loaded from SQLite/network can be distinct String objects.
+     */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
         PatientAllergen allergen = (PatientAllergen) o;
-
-        if (identifier != allergen.identifier) return false;
-        if (type != allergen.type) return false;
-        return patient != null ? patient.equals(allergen.patient) : allergen.patient == null;
-
+        return type == allergen.type
+                && Objects.equals(identifier, allergen.identifier)
+                && Objects.equals(patient, allergen.patient);
     }
 
     @Override
     public int hashCode() {
-        int result = type != null ? type.hashCode() : 0;
-        result = 31 * result + identifier.hashCode();
-        result = 31 * result + (patient != null ? patient.hashCode() : 0);
-        return result;
+        // Match equals even when old or partially imported rows lack an ID.
+        return Objects.hash(type, identifier, patient);
     }
 }
