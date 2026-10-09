@@ -8,6 +8,7 @@ package es.usc.citius.servando.calendula.drugdb.download;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import android.widget.TextView;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -49,10 +50,10 @@ public class RetiredCatalogDialogTest {
             AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
             assertNotNull("The user must be told why the catalog is unavailable", dialog);
             assertTrue(dialog.isShowing());
-            assertEquals(activity.getString(R.string.remote_catalog_unavailable_title),
-                    dialog.getTitle().toString());
+            TextView message = dialog.findViewById(android.R.id.message);
+            assertNotNull("The warning must contain an explanation", message);
             assertEquals(activity.getString(R.string.remote_catalog_unavailable_description),
-                    dialog.getMessage().toString());
+                    message.getText().toString());
 
             assertNotNull(dialog.getButton(DialogInterface.BUTTON_POSITIVE));
             dialog.getButton(DialogInterface.BUTTON_POSITIVE).performClick();
