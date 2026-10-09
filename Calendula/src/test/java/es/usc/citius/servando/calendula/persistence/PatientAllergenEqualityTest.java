@@ -6,6 +6,9 @@
 package es.usc.citius.servando.calendula.persistence;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -18,6 +21,8 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 /** Synthetic patient/allergy identifiers; no medical data or DB mutation. */
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = 28)
 public class PatientAllergenEqualityTest {
 
     @Test
