@@ -57,6 +57,37 @@ public class PatientAllergenEqualityTest {
     }
 
     @Test
+    public void reloadedPatientWithSamePrimaryKeyIsSameIdentityAfterNameChanges() {
+        Patient original = new Patient();
+        original.setId(9000005545L);
+        original.setName("Synthetic old patient name");
+        Patient reloaded = new Patient();
+        reloaded.setId(9000005545L);
+        reloaded.setName("Synthetic renamed patient");
+        PatientAllergen a = new PatientAllergen("Original allergy",
+                AllergenType.EXCIPIENT, new String("shared-key"), original);
+        PatientAllergen b = new PatientAllergen("Edited allergy",
+                AllergenType.EXCIPIENT, new String("shared-key"), reloaded);
+        assertEquals("Patient name/avatar updates cannot change persisted allergy identity", a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+    }
+
+    @Test
+    public void unsavedPatientReferencesMustNotCrashOrMatchDifferentPatients() {
+        Patient transientA = new Patient();
+        Patient transientB = new Patient();
+        PatientAllergen a = new PatientAllergen("Fixture",
+                AllergenType.ACTIVE_INGREDIENT, "synthetic-transient", transientA);
+        PatientAllergen b = new PatientAllergen("Fixture",
+                AllergenType.ACTIVE_INGREDIENT, "synthetic-transient", transientB);
+        PatientAllergen c = new PatientAllergen("Fixture",
+                AllergenType.ACTIVE_INGREDIENT, "synthetic-transient", transientA);
+        assertNotEquals("Distinct unsaved patients must not alias", a, b);
+        assertEquals("Same unsaved patient object must remain stable", a, c);
+        assertEquals(a.hashCode(), c.hashCode());
+    }
+
+    @Test
     public void nullableLegacyIdentifiersHaveSafeEqualityAndHashCode() {
         Patient a = new Patient();
         a.setId(9000005544L);
