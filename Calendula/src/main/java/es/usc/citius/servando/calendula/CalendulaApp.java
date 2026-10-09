@@ -22,7 +22,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.os.Build;
-import androidx.multidex.MultiDexApplication;
+import android.app.Application;
 
 import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
 import com.google.android.gms.common.GooglePlayServicesRepairableException;
@@ -51,7 +51,8 @@ import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.NetworkUtils;
 import es.usc.citius.servando.calendula.util.debug.StethoHelper;
 
-public class CalendulaApp extends MultiDexApplication {
+// Android API 23+ loads secondary DEX files natively; legacy support loader is obsolete.
+public class CalendulaApp extends Application {
 
     // INTENTS
     public static final String INTENT_EXTRA_ACTION = "action";
