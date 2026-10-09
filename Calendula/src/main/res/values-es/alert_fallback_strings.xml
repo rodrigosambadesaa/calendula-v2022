@@ -2,4 +2,6 @@
 <resources>
     <string name="generic_alert_title">Alerta: %1$s</string>
     <string name="generic_alert_description">No hay detalles adicionales disponibles para esta alerta.</string>
+    <string name="medication_unverified_title">Hay que verificar los datos de medicación</string>
+    <string name="medication_unverified_description">Abre Caléndula para revisar este recordatorio. No se han podido verificar los datos del medicamento.</string>
 </resources>
