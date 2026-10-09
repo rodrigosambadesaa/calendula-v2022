@@ -508,9 +508,19 @@ public class Agenda {
         } else {
             // remove the reminder
             LogUtil.d(TAG, "Cancelling reminder with id " + r.getId());
-            // A failed SQLite delete must not lose its still-persisted alarm.
-            // Only retire the Android token after the DAO confirms removal.
-            DB.eventReminders().remove(r);
+            // Do not explicitly cancel a surviving reminder when SQLite throws
+            // or reports zero deleted rows (which GenericDao.remove() ignores).
+            // A delivered PendingIntent is NOT proof of a future rescheduled alarm;
+            // crash/Doze recovery must be validated separately.
+            final int deleted;
+            try {
+                deleted = DB.eventReminders().delete(r);
+            } catch (SQLException e) {
+                throw new IllegalStateException("Could not delete orphan reminder", e);
+            }
+            if (deleted != 1) {
+                throw new IllegalStateException("Orphan reminder deletion did not remove one row");
+            }
             cancelAlarm(ctx, r);
         }
     }
