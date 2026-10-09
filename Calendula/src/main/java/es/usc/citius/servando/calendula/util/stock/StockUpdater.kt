@@ -45,6 +45,18 @@ object StockUpdater {
             ?: throw IllegalStateException("Medication intake schedule is missing")
         val medicine = schedule.medicine
             ?: throw IllegalStateException("Medication intake has no linked medicine")
+        // Never debit a different patient's inventory because an imported
+        // event references a wrong or detached schedule.
+        val eventPatientId = intake.patient?.id
+        val schedulePatientId = schedule.patient?.id
+        val medicinePatientId = medicine.patient?.id
+        if (eventPatientId != schedulePatientId ||
+                (medicinePatientId != null && medicinePatientId != eventPatientId)) {
+            throw IllegalStateException("Medication intake has inconsistent patient ownership")
+        }
+        if (medicine.id == null || DB.medicines().refresh(medicine) != 1) {
+            throw IllegalStateException("Medication stock row is missing")
+        }
         if (!medicine.stockManagementEnabled()) return false
 
         val before = medicine.stock
@@ -64,11 +76,16 @@ object StockUpdater {
         }
 
         medicine.stock = updated.toFloat()
-        // Bypass MedicineDao.save(): it posts alerts before COMMIT, which
-        // could report a stock change later rolled back by SQLite.
-        // update() preserves the affected-row count and propagates SQL errors.
-        if (DB.medicines().update(medicine) != 1) {
-            throw IllegalStateException("Expected one medicine stock row to change")
+        // Bypass MedicineDao.save(): it posts alerts before COMMIT.
+        // Restore this in-memory object on failed SQL updates; the outer
+        // transaction handles persisted rollback.
+        try {
+            if (DB.medicines().update(medicine) != 1) {
+                throw IllegalStateException("Expected one medicine stock row to change")
+            }
+        } catch (failure: Exception) {
+            medicine.stock = before
+            throw failure
         }
         return true
     }
