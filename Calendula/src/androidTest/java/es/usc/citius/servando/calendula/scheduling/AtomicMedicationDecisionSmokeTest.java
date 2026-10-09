@@ -109,12 +109,12 @@ public class AtomicMedicationDecisionSmokeTest {
 
     @Test
     public void failedDeleteRollsBackConfirmedIntakeAndPreservesAlarm() {
-        exerciseFailedDecision(true);
+        exerciseFailedDecision(true, false);
     }
 
     @Test
     public void failedDeleteRollsBackCancelledIntakeAndPreservesAlarm() {
-        exerciseFailedDecision(false);
+        exerciseFailedDecision(false, false);
     }
 
     /**
@@ -122,7 +122,17 @@ public class AtomicMedicationDecisionSmokeTest {
      * then verify that the entire ORMLite transaction rolls back on-device.
      * The trigger is scoped to the synthetic row ID and removed in finally.
      */
-    private void exerciseFailedDecision(boolean confirm) {
+    @Test
+    public void ignoredDeleteRollsBackConfirmedIntakeAndPreservesAlarm() {
+        exerciseFailedDecision(true, true);
+    }
+
+    @Test
+    public void ignoredDeleteRollsBackCancelledIntakeAndPreservesAlarm() {
+        exerciseFailedDecision(false, true);
+    }
+
+    private void exerciseFailedDecision(boolean confirm, boolean silentZeroRowDelete) {
         assertTrue(DB.initialized);
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         DateTime time = DateTime.now().plusHours(confirm ? 19 : 20).withMillisOfSecond(0);
@@ -143,14 +153,16 @@ public class AtomicMedicationDecisionSmokeTest {
             sqlite.execSQL("CREATE TRIGGER " + trigger
                     + " BEFORE DELETE ON EventReminders"
                     + " WHEN OLD._id = " + reminder.getId()
-                    + " BEGIN SELECT RAISE(ABORT, 'synthetic SQLite delete failure'); END;");
+                    + (silentZeroRowDelete
+                        ? " BEGIN SELECT RAISE(IGNORE); END;"
+                        : " BEGIN SELECT RAISE(ABORT, 'synthetic SQLite delete failure'); END;"));
             try {
                 if (confirm) {
                     Agenda.instance().confirmReminder(context, reminder.getId());
                 } else {
                     Agenda.instance().cancelReminder(context, reminder.getId());
                 }
-                org.junit.Assert.fail("The injected SQL failure must abort the decision");
+                org.junit.Assert.fail("The injected SQL failure or zero-row delete must abort the decision");
             } catch (RuntimeException expected) {
                 // A SQL failure must propagate; never declare a completed intake.
             }
