@@ -32,6 +32,7 @@ import java.util.concurrent.Callable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import es.usc.citius.servando.calendula.CalendulaApp;
@@ -121,11 +122,18 @@ public class ScheduleUtils {
                         List<CommittedIntake> changes = new ArrayList<>();
                         // Requery INSIDE the transaction; a previously selected
                         // event must not bypass the current pending/ownership check.
-                        for (EventInstance selected : DB.eventInstances().findPending(
-                                EventType.MEDICATION_INTAKE, dateTime, patient)) {
+                        List<EventInstance> pending = DB.eventInstances().findPending(
+                                EventType.MEDICATION_INTAKE, dateTime, patient);
+                        for (EventInstance selected : pending) {
                             if (selected == null || selected.getId() == null) {
                                 throw new SQLException("Pending dose has no persisted identity");
                             }
+                        }
+                        // Stable primary-key ordering makes retries and
+                        // failure-injection behavior deterministic.
+                        Collections.sort(pending,
+                                (left, right) -> Long.compare(left.getId(), right.getId()));
+                        for (EventInstance selected : pending) {
                             EventInstance stored = DB.eventInstances().findById(selected.getId());
                             if (stored == null
                                     || stored.getType() != EventType.MEDICATION_INTAKE
