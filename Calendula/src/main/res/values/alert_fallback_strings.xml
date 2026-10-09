@@ -2,4 +2,6 @@
 <resources>
     <string name="generic_alert_title">Alert: %1$s</string>
     <string name="generic_alert_description">Additional alert details are unavailable.</string>
+    <string name="medication_unverified_title">Medication details need verification</string>
+    <string name="medication_unverified_description">Open Calendula to review this reminder. Its medication details could not be verified.</string>
 </resources>
