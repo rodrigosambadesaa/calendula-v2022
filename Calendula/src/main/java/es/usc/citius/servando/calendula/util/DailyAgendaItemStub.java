@@ -60,14 +60,13 @@ public class DailyAgendaItemStub {
         return date.toDateTime(time);
     }
 
+    /** Agenda titles and exact medication times are private health information. */
     @Override
     public String toString() {
         return "DailyAgendaItemStub{" +
-                ", hasEvents=" + hasEvents +
-                ", count=" + (meds != null ? meds.size() : 0) +
-                ", title='" + title + '\'' +
-                ", time=" + time.toString("HH:mm") +
-                ", date=" + date.toString("dd/MM") +
+                "hasEvents=" + hasEvents +
+                ", hasItems=" + (meds != null && !meds.isEmpty()) +
+                ", displayable=" + displayable +
                 '}';
     }
 
