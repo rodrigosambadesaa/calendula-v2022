@@ -159,12 +159,17 @@ public class Agenda {
         return createReminders(context, DB.eventInstances().findAll());
     }
 
+    /**
+     * Restore platform alarms after boot, package replacement, clock changes
+     * or permission grants, but never immediately fire a stale past reminder
+     * or resurrect a completed/cancelled medicine intake.
+     *
+     * Reuse startup reconciliation so all restoration paths enforce the same
+     * persisted future-time and pending-event invariants.
+     */
     public void updateAllAlarms(Context context) {
-        List<EventReminder> eventReminders = DB.eventReminders().findAll();
-        LogUtil.d(TAG, "EventReminders: " + eventReminders.size());
-        for (EventReminder e : eventReminders) {
-            setAlarm(context, e);
-        }
+        int rearmed = rearmPendingFutureReminders(context);
+        LogUtil.d(TAG, "Rearmed " + rearmed + " eligible future reminders");
     }
 
     public void setAlarm(Context context, EventReminder reminder) {
