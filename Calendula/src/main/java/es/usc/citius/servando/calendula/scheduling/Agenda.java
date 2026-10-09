@@ -110,10 +110,9 @@ public class Agenda {
                                 reminder.setNextTime(e.getTime());
                                 reminder.setPatient(e.getPatient());
                                 reminder.setAutoRepeat(getAutoRepeat(e.getType()));
+                                // Only persist SQL rows in the transaction.
+                                // AlarmManager has no SQLite rollback.
                                 DB.eventReminders().save(reminder);
-                                if (allowPlatformEffects) {
-                                    setAlarm(context, reminder);
-                                }
                             } else {
                                 LogUtil.d(TAG, "Event at can not be scheduled");
                             }
@@ -121,14 +120,18 @@ public class Agenda {
                             LogUtil.d(TAG, "Reminder already exist for " + e.getType() + " at " + e.getTime().toString());
                         }
                     }
-                    // Platform alarm cancellation is also external to SQLite.
-                    // During daily rebuild, postpone it until outer commit.
-                    if (allowPlatformEffects) {
-                        cleanReminders(context);
-                    }
+                    // No platform alarms, notifications, or preference changes
+                    // are permitted before the SQLite transaction commits.
                     return null;
                 }
             });
+            if (allowPlatformEffects) {
+                // Reconcile using committed SQL rows only. Cleaning first
+                // removes stale DB rows and their Android tokens; refreshing
+                // survivors reuses their stable PendingIntent identity.
+                cleanReminders(context);
+                updateAllAlarms(context);
+            }
             return true;
         } catch (SQLException e) {
             LogUtil.e(TAG, "Error creating reminders ", e);
