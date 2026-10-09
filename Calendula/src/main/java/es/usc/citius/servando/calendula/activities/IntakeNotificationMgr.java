@@ -55,6 +55,7 @@ import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.util.AvatarMgr;
 import es.usc.citius.servando.calendula.util.IntentParams;
+import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
@@ -65,9 +66,28 @@ import es.usc.citius.servando.calendula.util.PreferenceUtils;
  */
 public class IntakeNotificationMgr {
 
+    private static final String TAG = "IntakeNotificationMgr";
     private static Random random = new Random();
 
+    /**
+     * A reminder with no persisted patient cannot safely construct a
+     * patient-specific medication notification or a confirm-intake action.
+     * Fail closed rather than dereferencing patient.getId()/getAvatar().
+     */
+    static boolean hasNotificationPatient(EventReminder reminder) {
+        return reminder != null
+                && reminder.getPatient() != null
+                && reminder.getPatient().getId() != null;
+    }
+
     public static void notify(final Context context, EventReminder reminder, boolean lost) {
+
+        if (!hasNotificationPatient(reminder)) {
+            // Do not expose raw medication/patient details in logs. These
+            // corrupted records need explicit repair (tracked by #540).
+            LogUtil.w(TAG, "Cannot render medication reminder without persisted patient identity");
+            return;
+        }
 
         if (!PreferenceUtils.getBoolean(PreferenceKeys.SETTINGS_ALARM_NOTIFICATIONS, true)) {
             return;
