@@ -36,6 +36,78 @@ import static org.junit.Assert.assertTrue;
 public class PatientScopedReminderDeliverySmokeTest {
 
     @Test
+    public void cancelledEventCannotAuthorizeMedicationNotification() {
+        exerciseInactiveEvent(false);
+    }
+
+    @Test
+    public void completedEventCannotAuthorizeMedicationNotification() {
+        exerciseInactiveEvent(true);
+    }
+
+    private void exerciseInactiveEvent(boolean completed) {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime time = DateTime.now().plusHours(completed ? 17 : 18).withMillisOfSecond(0);
+        Patient synthetic = new Patient();
+        synthetic.setCode("ci-inactive-" + System.nanoTime());
+        synthetic.setName("Synthetic inactive-event patient");
+        EventInstance inactive = new EventInstance(time, EventType.MEDICATION_INTAKE);
+        inactive.setPatient(synthetic);
+        if (completed) {
+            inactive.setCompleted(true);
+        } else {
+            inactive.setCancelled(true);
+        }
+        EventReminder reminder = new EventReminder(time, EventType.MEDICATION_INTAKE);
+        reminder.setPatient(synthetic);
+        reminder.setNextTime(time);
+        try {
+            DB.patients().save(synthetic);
+            DB.eventInstances().save(inactive);
+            DB.eventReminders().save(reminder);
+            assertNotNull(inactive.getId());
+            assertNotNull(reminder.getId());
+            assertFalse("An inactive event must not authorize a reminder",
+                    DB.eventInstances().existsPending(EventType.MEDICATION_INTAKE,
+                            time, synthetic));
+            Agenda.instance().setAlarm(context, reminder);
+            assertNotNull(PendingIntent.getBroadcast(context, 0,
+                    Agenda.reminderBroadcastIntent(context, reminder),
+                    PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+
+            // Should delete the orphan token without delivering medication
+            // data for an already cancelled or completed intake.
+            Agenda.instance().onReceiveAlarm(context, reminder.getId());
+
+            assertNull(DB.eventReminders().findById(reminder.getId()));
+            assertNull(PendingIntent.getBroadcast(context, 0,
+                    Agenda.reminderBroadcastIntent(context, reminder),
+                    PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+            EventInstance untouched = DB.eventInstances().findById(inactive.getId());
+            assertNotNull(untouched);
+            if (completed) {
+                assertTrue(untouched.completed());
+            } else {
+                assertTrue(untouched.cancelled());
+            }
+        } finally {
+            if (reminder.getId() != null) {
+                Agenda.instance().cancelAlarm(context, reminder);
+                if (DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().remove(reminder);
+                }
+            }
+            if (inactive.getId() != null && DB.eventInstances().findById(inactive.getId()) != null) {
+                DB.eventInstances().remove(inactive);
+            }
+            if (synthetic.getId() != null) {
+                DB.patients().remove(synthetic);
+            }
+        }
+    }
+
+    @Test
     public void eventForOtherPatientDoesNotAuthorizeOrphanMedicationReminder() {
         assertTrue(DB.initialized);
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
