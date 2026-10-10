@@ -668,9 +668,17 @@ public class Agenda {
                         if (current == null) {
                             throw new SQLException("Reminder was removed before delaying");
                         }
-                        if (reminder.getNextTime() != null
-                                && !reminder.getNextTime().equals(current.getNextTime())) {
-                            throw new SQLException("Reminder was already rescheduled");
+                        if (current.getEventType() != reminder.getEventType()
+                                || !java.util.Objects.equals(current.getDateTime(),
+                                        reminder.getDateTime())
+                                || !samePersistedReminderPatient(current.getPatient(),
+                                        reminder.getPatient())
+                                || !java.util.Objects.equals(current.getNextTime(),
+                                        reminder.getNextTime())) {
+                            // A stale notification must never delay an alarm
+                            // reassigned to another patient or event, even if
+                            // its next scheduled time happens to be unchanged.
+                            throw new SQLException("Reminder revision changed before delay");
                         }
                         if (!DB.eventInstances().existsPending(
                                 current.getEventType(), current.getDateTime(),
