@@ -126,7 +126,7 @@ public class PublicReminderPostCommitSmokeTest {
     }
 
     @Test
-    public void staleRepeatCannotOverwriteAnIndependentlyDelayedReminder() {
+    public void staleRepeatCannotOverwriteAnIndependentlyDelayedReminder() throws Exception {
         assertTrue(DB.initialized);
         RepeatFixture x = new RepeatFixture();
         try {
