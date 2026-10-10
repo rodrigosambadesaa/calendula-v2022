@@ -38,6 +38,52 @@ public class StartupReminderRearmSmokeTest {
     }
 
     @Test
+    public void rebootDoesNotArmLegacyReminderWithNoRegisteredReceiver() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime future = DateTime.now().plusHours(11).withMillisOfSecond(0);
+        EventInstance pharmacyEvent = new EventInstance(
+                future, EventType.PHARMACY_REMINDER);
+        EventReminder pharmacyReminder = new EventReminder(
+                future, EventType.PHARMACY_REMINDER);
+        pharmacyReminder.setNextTime(future);
+        try {
+            DB.eventInstances().save(pharmacyEvent);
+            DB.eventReminders().save(pharmacyReminder);
+            assertNotNull(pharmacyEvent.getId());
+            assertNotNull(pharmacyReminder.getId());
+            assertTrue("A pending legacy row must actually exist",
+                    DB.eventInstances().existsPending(
+                            EventType.PHARMACY_REMINDER, future, null));
+            Agenda.instance().cancelAlarm(context, pharmacyReminder);
+            assertNull(token(context, pharmacyReminder));
+
+            Agenda.instance().rearmPendingFutureReminders(context);
+            assertNull("Without a receiver, no OS alarm should be armed",
+                    token(context, pharmacyReminder));
+            Agenda.instance().updateAllAlarms(context);
+            assertNull("Boot-time alarm recovery must use the same safety filter",
+                    token(context, pharmacyReminder));
+            assertNotNull("Keep legacy row for future migration or inspection",
+                    DB.eventReminders().findById(pharmacyReminder.getId()));
+            assertTrue("Legacy event must not be marked taken or cancelled",
+                    !DB.eventInstances().findById(pharmacyEvent.getId()).completed()
+                            && !DB.eventInstances().findById(pharmacyEvent.getId()).cancelled());
+        } finally {
+            if (pharmacyReminder.getId() != null) {
+                Agenda.instance().cancelAlarm(context, pharmacyReminder);
+                if (DB.eventReminders().findById(pharmacyReminder.getId()) != null) {
+                    DB.eventReminders().remove(pharmacyReminder);
+                }
+            }
+            if (pharmacyEvent.getId() != null
+                    && DB.eventInstances().findById(pharmacyEvent.getId()) != null) {
+                DB.eventInstances().remove(pharmacyEvent);
+            }
+        }
+    }
+
+    @Test
     public void startupRearmsCommittedFutureIntakeButSkipsCancelledAndPastOnes() {
         assertTrue(DB.initialized);
         Context ctx = InstrumentationRegistry.getInstrumentation().getTargetContext();
