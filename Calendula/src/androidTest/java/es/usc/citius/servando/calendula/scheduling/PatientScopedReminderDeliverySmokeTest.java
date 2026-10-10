@@ -36,6 +36,20 @@ import static org.junit.Assert.assertTrue;
 public class PatientScopedReminderDeliverySmokeTest {
 
     @Test
+    public void missingOrNonpositiveAlarmIdCannotChangePersistedReminders() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        final int before = DB.eventReminders().count();
+
+        Agenda.instance().onReceiveAlarm(context, null);
+        Agenda.instance().onReceiveAlarm(context, -1L);
+        Agenda.instance().onReceiveAlarm(context, 0L);
+
+        assertTrue("Invalid identifiers must not create or remove any reminders",
+                before == DB.eventReminders().count());
+    }
+
+    @Test
     public void cancelledEventCannotAuthorizeMedicationNotification() {
         exerciseInactiveEvent(false);
     }
