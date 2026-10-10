@@ -1,0 +1,82 @@
+name: Android 17 runtime compatibility (API 37.0)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/android-17-compatibility.yml'
+      - 'Calendula/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - 'gradle/wrapper/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-17-compatibility-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+# Deliberately separate from the supported 23/33/36 matrix. Compile/target
+# remain at SDK 36 until the API 37 toolchain and target behavior are audited.
+jobs:
+  runtime-compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Java 17 and Gradle cache
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      # Old Ubuntu runner command-line tools can silently write target=android-0
+      # when creating a minor-versioned 37.0 AVD; that can crash SurfaceFlinger.
+      - name: Update SDK command-line tools for API 37.0 AVD metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          TOOL="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$TOOL" --install "cmdline-tools;latest" > /dev/null || test "${PIPESTATUS[1]}" -eq 0
+          if [ -d "$SDK/cmdline-tools/latest-2" ]; then
+            rm -rf "$SDK/cmdline-tools/latest"
+            mv "$SDK/cmdline-tools/latest-2" "$SDK/cmdline-tools/latest"
+          fi
+          "$SDK/cmdline-tools/latest/bin/avdmanager" list device > /dev/null
+
+      - name: Enable KVM acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run focused Android 17 smoke tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: '37.0'
+          arch: x86_64
+          target: google_apis
+          script: |
+            set -eu
+            SDK_LEVEL="$(adb shell getprop ro.build.version.sdk | tr -d '\r')"
+            test "$SDK_LEVEL" = "37"
+            ./gradlew connectedCiDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=es.usc.citius.servando.calendula.InstallationSmokeTest,es.usc.citius.servando.calendula.NotificationPermissionSmokeTest,es.usc.citius.servando.calendula.scheduling.ReminderPendingIntentSmokeTest,es.usc.citius.servando.calendula.scheduling.PublicReminderPostCommitSmokeTest,es.usc.citius.servando.calendula.scheduling.NoReminderResurrectionSmokeTest,es.usc.citius.servando.calendula.scheduling.AtomicIntakeStockSmokeTest,es.usc.citius.servando.calendula.scheduling.StartupReminderRearmSmokeTest,es.usc.citius.servando.calendula.scheduling.ClockChangeAlarmSmokeTest --stacktrace --no-daemon
+
+      - name: Upload Android 17 test evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-17-api37-smoke-results
+          path: |
+            Calendula/build/reports/androidTests/connected/
+            Calendula/build/outputs/androidTest-results/connected/
+          if-no-files-found: ignore
+          retention-days: 7
