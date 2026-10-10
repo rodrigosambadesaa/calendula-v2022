@@ -28,6 +28,7 @@ import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.database.DatabaseHelper;
 import es.usc.citius.servando.calendula.database.EventReminderDao;
 import es.usc.citius.servando.calendula.database.EventInstanceDao;
+import es.usc.citius.servando.calendula.database.ScheduleDao;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
@@ -129,9 +130,14 @@ public class AgendaDailyUpdateFailureTest {
         ConnectionSource source = mock(ConnectionSource.class);
         EventReminderDao reminders = mock(EventReminderDao.class);
         EventInstanceDao events = mock(EventInstanceDao.class);
+        ScheduleDao schedules = mock(ScheduleDao.class);
         when(helper.getConnectionSource()).thenReturn(source);
         when(reminders.findAll()).thenReturn(Collections.emptyList());
         when(events.findAll()).thenReturn(Collections.emptyList());
+        // The app's real medication agenda listener enumerates schedules
+        // before the enclosing transaction can finish. Supply an empty
+        // synthetic catalog instead of leaving its DAO null in Mockito.
+        when(schedules.findAll()).thenReturn(Collections.emptyList());
         AtomicInteger completedTransactions = new AtomicInteger();
 
         try (MockedStatic<DB> db = mockStatic(DB.class);
@@ -141,6 +147,7 @@ public class AgendaDailyUpdateFailureTest {
             db.when(DB::helper).thenReturn(helper);
             db.when(DB::eventReminders).thenReturn(reminders);
             db.when(DB::eventInstances).thenReturn(events);
+            db.when(DB::schedules).thenReturn(schedules);
             prefs.when(() -> PreferenceUtils.getString(
                     PreferenceKeys.AGENDA_LAST_UPDATED, null)).thenReturn(null);
             transactions.when(() -> TransactionManager.callInTransaction(
