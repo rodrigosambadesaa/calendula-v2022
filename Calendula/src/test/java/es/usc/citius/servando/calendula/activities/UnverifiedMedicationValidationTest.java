@@ -86,6 +86,15 @@ public class UnverifiedMedicationValidationTest {
         medicine.setName("Synthetic test medicine");
         Patient another = new Patient();
         another.setId(9000003312L);
+        medicine.setPatient(another);
+        assertFalse("An imported schedule linked to another patient's medicine must not render",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
+        medicine.setPatient(patient);
+        assertTrue("Matching patient ownership is safe to render",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
+        medicine.setPatient(null);
+        assertTrue("Legacy shared medicines with no recorded owner remain supported",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
         schedule.setPatient(another);
         assertFalse("A reference to another patient's prescription must not render",
                 IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
