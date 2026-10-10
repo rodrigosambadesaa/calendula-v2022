@@ -27,6 +27,7 @@ public class AlarmNotificationActionValidationTest {
         EventReminder reminder = new EventReminder(
                 DateTime.now().plusMinutes(10), EventType.MEDICATION_INTAKE);
         reminder.setId(9000008111L);
+        reminder.setNextTime(reminder.getDateTime());
         Patient owner = new Patient();
         owner.setId(9000008112L);
         reminder.setPatient(owner);
@@ -65,6 +66,13 @@ public class AlarmNotificationActionValidationTest {
         Patient identified = new Patient();
         identified.setId(9000008112L);
         valid.setPatient(identified);
+
+        valid.setNextTime(null);
+        assertFalse("An unscheduled or incomplete medication reminder cannot confirm a dose",
+                AlarmIntentService.isActionableMedicationReminder(valid));
+        valid.setNextTime(DateTime.now().plusMinutes(5));
+        assertTrue("Rescheduled but valid reminders remain confirmable",
+                AlarmIntentService.isActionableMedicationReminder(valid));
 
         valid.setDateTime(null);
         assertFalse(AlarmIntentService.isActionableMedicationReminder(valid));
