@@ -89,7 +89,9 @@ public class IntakeNotificationMgr {
      */
     static boolean canRenderMedication(EventInstance event, Schedule schedule,
                                        Patient expectedPatient) {
-        if (event == null || schedule == null || event.getRef() == null
+        if (event == null || event.getType() != EventType.MEDICATION_INTAKE
+                || event.completed() || event.cancelled()
+                || schedule == null || event.getRef() == null
                 || expectedPatient == null || expectedPatient.getId() == null
                 || event.getPatient() == null || event.getPatient().getId() == null
                 || schedule.getPatient() == null || schedule.getPatient().getId() == null
@@ -204,8 +206,13 @@ public class IntakeNotificationMgr {
             return;
         }
 
-        // Validate the entire dose set first. Rendering a partial list with
-        // one corrupted schedule could falsely imply another dose is not due.
+        NotificationCompat.InboxStyle style = new NotificationCompat.InboxStyle();
+        style.setBigContentTitle(title);
+
+        // Read each schedule once, validate its ownership and then format the
+        // same verified object. A second DAO lookup between validation and
+        // rendering could return a deleted or different patient's schedule.
+        // No notification is posted until ALL pending doses pass validation.
         for (EventInstance event : events) {
             Schedule schedule = event == null || event.getRef() == null
                     ? null : DB.schedules().findById(event.getRef());
@@ -213,30 +220,22 @@ public class IntakeNotificationMgr {
                 alertUnverifiedMedicationData(context, reminder);
                 return;
             }
-        }
-
-        NotificationCompat.InboxStyle style = new NotificationCompat.InboxStyle();
-        style.setBigContentTitle(title);
-
-        for (EventInstance e : events) {
-            Schedule schedule = DB.schedules().findById(e.getRef());
             Medicine medicine = schedule.getMedicine();
-
-            SpannableStringBuilder ssb = new SpannableStringBuilder();
-
+            SpannableStringBuilder line = new SpannableStringBuilder();
             if (schedule.hasState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL)) {
-                ssb.append(medicine.getName());
+                line.append(medicine.getName());
                 if (schedule.hasState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL)) {
-                    ssb.append(context.getString(R.string.notification_msg_official_schedule_modified));
+                    line.append(context.getString(R.string.notification_msg_official_schedule_modified));
                 } else {
-                    ssb.append(context.getString(R.string.notification_msg_official_schedule));
+                    line.append(context.getString(R.string.notification_msg_official_schedule));
                 }
             } else {
-                Double dose = doseForNotification(e, schedule);
-                ssb.append(medicine.getName());
-                ssb.append(":  " + dose + " " + medicine.getPresentation().units(context.getResources(), dose) + " ");
+                Double dose = doseForNotification(event, schedule);
+                line.append(medicine.getName());
+                line.append(":  " + dose + " "
+                        + medicine.getPresentation().units(context.getResources(), dose) + " ");
             }
-            style.addLine(ssb);
+            style.addLine(line);
         }
 
         // Reuse the same bounded parser as actual repeat scheduling. Legacy

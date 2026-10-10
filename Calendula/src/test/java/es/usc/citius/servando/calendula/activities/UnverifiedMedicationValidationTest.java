@@ -133,6 +133,35 @@ public class UnverifiedMedicationValidationTest {
     }
 
     @Test
+    public void completedCancelledOrNonMedicationEventsCannotExposeDoseDetails() {
+        EventInstance event = syntheticEvent();
+        Patient patient = new Patient();
+        patient.setId(9000003323L);
+        event.setPatient(patient);
+        event.addParam(EventInstance.PARAM_DOSE, 1.0d);
+        Medicine medicine = new Medicine("Synthetic status verification medicine",
+                Presentation.PILLS);
+        Schedule schedule = new Schedule(medicine);
+        schedule.setPatient(patient);
+
+        assertTrue(IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
+
+        event.setCompleted(true);
+        assertFalse("A previously taken dose must never be rendered as still due",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
+        event.setCompleted(false);
+
+        event.setCancelled(true);
+        assertFalse("A cancelled dose must never be rendered as still due",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
+        event.setCancelled(false);
+
+        event.setType(EventType.PHARMACY_REMINDER);
+        assertFalse("Non-medication events cannot show medication confirmation details",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
+    }
+
+    @Test
     public void fallbackAlertHasNoTakeOrCancelMedicationActions() {
         Context context = ApplicationProvider.getApplicationContext();
         DateTime time = DateTime.now().plusHours(7);
