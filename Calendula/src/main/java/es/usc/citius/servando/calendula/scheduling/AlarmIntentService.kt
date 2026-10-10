@@ -30,6 +30,8 @@ import android.widget.Toast
 import es.usc.citius.servando.calendula.R
 import es.usc.citius.servando.calendula.database.DB
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils
+import es.usc.citius.servando.calendula.scheduling.model.EventReminder
+import es.usc.citius.servando.calendula.scheduling.model.EventType
 import es.usc.citius.servando.calendula.util.IntentParams
 import es.usc.citius.servando.calendula.util.LogUtil
 
@@ -42,6 +44,20 @@ class AlarmIntentService : JobIntentService() {
         private const val TAG = "AlarmIntentService"
 
         private const val JOB_ID = 1
+
+        /**
+         * Never let an unrelated reminder action confirm medication doses at
+         * the same patient/time. Old notifications and corrupted imported
+         * reminders must fail closed before invoking stock-changing code.
+         */
+        @JvmStatic
+        fun isActionableMedicationReminder(reminder: EventReminder?): Boolean {
+            val persistedId = reminder?.id ?: return false
+            val patientId = reminder.patient?.id ?: return false
+            return persistedId > 0L && patientId > 0L &&
+                reminder.eventType == EventType.MEDICATION_INTAKE &&
+                reminder.dateTime != null
+        }
 
         @JvmStatic
         fun enqueueWork(context: Context, work: Intent) {
@@ -96,7 +112,7 @@ class AlarmIntentService : JobIntentService() {
                     return
                 }
                 val reminder = DB.eventReminders().findById(reminderId)
-                if (reminder != null) {
+                if (reminder != null && isActionableMedicationReminder(reminder)) {
                     val confirmed = ScheduleUtils.instance()
                         .checkIntakeEvents(this, reminder.patient, reminder.dateTime)
                     if (confirmed > 0) {
@@ -107,7 +123,7 @@ class AlarmIntentService : JobIntentService() {
                 } else {
                     // This may be a stale notification whose SQLite row was
                     // already cleared. Never claim that medicine was taken.
-                    LogUtil.w(TAG, "Confirmation ignored: reminder already removed")
+                    LogUtil.w(TAG, "Confirmation ignored: missing or invalid medication reminder")
                 }
             }
             else -> LogUtil.w(TAG, "Unknown action '$action', request will be ignored")
