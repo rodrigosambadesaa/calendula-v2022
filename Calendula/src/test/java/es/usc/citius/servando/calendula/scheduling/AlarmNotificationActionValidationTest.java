@@ -7,6 +7,9 @@ package es.usc.citius.servando.calendula.scheduling;
 
 import org.joda.time.DateTime;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
 
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
@@ -16,6 +19,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /** Pure confirmation-action predicates; never touches a real patient's data. */
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = 28)
 public class AlarmNotificationActionValidationTest {
 
     private static EventReminder medicationReminder() {
