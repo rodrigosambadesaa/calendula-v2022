@@ -739,9 +739,15 @@ public class Agenda {
                 r.getEventType(), r.getDateTime(), r.getPatient());
         LogUtil.d(TAG, "There are events to remind!");
         if (eventExist) {
-            // get the appropriate receiver
+            // Persisted legacy reminder types may outlive the module that
+            // registered their delivery handler. An absent receiver must not
+            // crash AlarmIntentService or mutate unrelated medication data.
+            // Keep the SQL row for inspection/recovery; never claim delivery.
             EventReminderReceiver receiver = receivers.get(r.getEventType());
-            // and send the event to it
+            if (receiver == null) {
+                LogUtil.w(TAG, "Ignoring reminder with no registered event receiver");
+                return;
+            }
             LogUtil.d(TAG, "Sending event to " + r.getEventType() + " receiver");
             receiver.onEvent(ctx, r);
             // auto repeat

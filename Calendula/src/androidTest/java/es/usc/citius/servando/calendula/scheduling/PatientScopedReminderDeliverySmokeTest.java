@@ -108,6 +108,54 @@ public class PatientScopedReminderDeliverySmokeTest {
     }
 
     @Test
+    public void legacyReminderWithoutRegisteredHandlerDoesNotCrashOrChangeRecords() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime time = DateTime.now().minusMinutes(10).withMillisOfSecond(0);
+        Patient patient = new Patient();
+        patient.setCode("ci-no-handler-" + System.nanoTime());
+        patient.setName("Synthetic unavailable receiver patient");
+        // The base application registers a receiver only for medication
+        // intakes. A legacy STOCK_REMINDER must not be dispatched through a
+        // null receiver or falsely reported as delivered.
+        EventInstance event = new EventInstance(time, EventType.STOCK_REMINDER);
+        event.setPatient(patient);
+        EventReminder reminder = new EventReminder(time, EventType.STOCK_REMINDER);
+        reminder.setPatient(patient);
+        reminder.setNextTime(time);
+        try {
+            DB.patients().save(patient);
+            DB.eventInstances().save(event);
+            DB.eventReminders().save(reminder);
+            assertNotNull(event.getId());
+            assertNotNull(reminder.getId());
+            assertTrue(DB.eventInstances().existsPending(
+                    EventType.STOCK_REMINDER, time, patient));
+
+            Agenda.instance().onReceiveAlarm(context, reminder.getId());
+
+            assertNotNull("Unknown receiver type must preserve the SQL reminder",
+                    DB.eventReminders().findById(reminder.getId()));
+            assertNotNull("Unknown receiver type must preserve its event",
+                    DB.eventInstances().findById(event.getId()));
+            assertFalse("The synthetic event must never be marked completed",
+                    DB.eventInstances().findById(event.getId()).completed());
+        } finally {
+            if (reminder.getId() != null
+                    && DB.eventReminders().findById(reminder.getId()) != null) {
+                DB.eventReminders().remove(reminder);
+            }
+            if (event.getId() != null
+                    && DB.eventInstances().findById(event.getId()) != null) {
+                DB.eventInstances().remove(event);
+            }
+            if (patient.getId() != null) {
+                DB.patients().remove(patient);
+            }
+        }
+    }
+
+    @Test
     public void eventForOtherPatientDoesNotAuthorizeOrphanMedicationReminder() {
         assertTrue(DB.initialized);
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
