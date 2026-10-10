@@ -45,7 +45,10 @@ import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.activities.IntakeNotificationMgr;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Patient;
+import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
+import es.usc.citius.servando.calendula.util.stock.StockUpdater;
+import es.usc.citius.servando.calendula.util.alerts.StockAlertHandler;
 import es.usc.citius.servando.calendula.scheduling.model.AgendaUpdateListener;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
@@ -445,28 +448,68 @@ public class Agenda {
 
 
     /**
-     * Confirm or cancel a medication intake atomically with removing its
-     * persisted reminder. A failed SQLite write rolls back both changes and
-     * must never cancel the OS alarm before the transaction commits.
+     * Direct reminder confirmation and stock deductions belong to the same
+     * transaction as reminder deletion. Never mark a dose taken without also
+     * updating its managed inventory. The notification worker normally uses
+     * ScheduleUtils.checkIntakeEvents; this public alternative must be safe too.
      */
     private void finalizeReminderInSqlite(Context context, EventReminder reminder,
                                           boolean confirmIntake) {
         if (reminder == null || reminder.getId() == null) {
             throw new IllegalArgumentException("A persisted reminder ID is required");
         }
+        final List<Long> stockScheduleIds = new ArrayList<>();
+        final boolean[] eventsChanged = {false};
         try {
             TransactionManager.callInTransaction(DB.helper().getConnectionSource(),
                     (Callable<Void>) () -> {
+                        // Reject a stale callback that raced with another
+                        // reminder action; do not update any unrelated intake.
+                        if (DB.eventReminders().findById(reminder.getId()) == null) {
+                            throw new SQLException("Reminder removed before decision");
+                        }
                         if (confirmIntake) {
-                            DB.eventInstances().confirm(reminder.getEventType(),
-                                    reminder.getDateTime(), reminder.getPatient(), DateTime.now());
+                            Patient patient = reminder.getPatient();
+                            if (reminder.getEventType() != EventType.MEDICATION_INTAKE
+                                    || patient == null || patient.getId() == null) {
+                                throw new SQLException("Cannot confirm an unassigned medication reminder");
+                            }
+                            List<EventInstance> pending = DB.eventInstances().findPending(
+                                    reminder.getEventType(), reminder.getDateTime(), patient);
+                            if (pending.isEmpty()) {
+                                throw new SQLException("No pending medication doses remain");
+                            }
+                            final DateTime completedAt = DateTime.now();
+                            for (EventInstance selected : pending) {
+                                if (selected == null || selected.getId() == null) {
+                                    throw new SQLException("Pending intake identity is missing");
+                                }
+                                EventInstance stored = DB.eventInstances().findById(selected.getId());
+                                if (stored == null || stored.getType() != EventType.MEDICATION_INTAKE
+                                        || stored.completed() || stored.cancelled()
+                                        || stored.getPatient() == null
+                                        || !patient.getId().equals(stored.getPatient().getId())
+                                        || !reminder.getDateTime().equals(stored.getTime())) {
+                                    throw new SQLException("Intake changed before reminder confirmation");
+                                }
+                                stored.setCompleted(true);
+                                stored.setCompletedAt(completedAt);
+                                final boolean stockChanged =
+                                        StockUpdater.applyStockForTransition(stored, false);
+                                if (DB.eventInstances().update(stored) != 1) {
+                                    throw new SQLException("Expected one completed intake row");
+                                }
+                                if (stockChanged) {
+                                    stockScheduleIds.add(stored.getRef());
+                                }
+                                eventsChanged[0] = true;
+                            }
                         } else {
-                            DB.eventInstances().cancelUncompleted(reminder.getEventType(),
-                                    reminder.getDateTime(), reminder.getPatient(), DateTime.now());
+                            eventsChanged[0] = DB.eventInstances().cancelUncompleted(
+                                    reminder.getEventType(), reminder.getDateTime(),
+                                    reminder.getPatient(), DateTime.now()) > 0;
                         }
                         final int deleted = DB.eventReminders().delete(reminder);
-                        // A zero count can mean the row was already removed;
-                        // verify its absence before committing the event change.
                         if (deleted > 1 || DB.eventReminders().findById(reminder.getId()) != null) {
                             throw new SQLException("Reminder persisted after attempted deletion");
                         }
@@ -475,9 +518,30 @@ public class Agenda {
         } catch (SQLException e) {
             throw new IllegalStateException("Could not atomically finalize medication reminder", e);
         }
-        // Android AlarmManager is not transactional with SQLite. Only retire
-        // OS state once the SQL transaction has committed successfully.
+        // Platform scheduling, stock alerts and UI events are not part of
+        // SQLite. Trigger them only after all event, stock and reminder rows
+        // have committed successfully.
         cancelAlarm(context, reminder);
+        if (!stockScheduleIds.isEmpty()) {
+            try {
+                for (Long id : stockScheduleIds) {
+                    Schedule schedule = DB.schedules().findById(id);
+                    if (schedule != null && schedule.getMedicine() != null) {
+                        StockAlertHandler.checkStockAlerts(schedule.getMedicine());
+                    }
+                }
+                DB.medicines().fireEvent();
+            } catch (RuntimeException error) {
+                LogUtil.e(TAG, "Committed stock alert could not be refreshed", error);
+            }
+        }
+        if (eventsChanged[0]) {
+            try {
+                DB.eventInstances().fireEvent();
+            } catch (RuntimeException error) {
+                LogUtil.e(TAG, "Committed intake UI event could not be published", error);
+            }
+        }
     }
 
     public void confirmReminder(Context context, Long reminderId) {
