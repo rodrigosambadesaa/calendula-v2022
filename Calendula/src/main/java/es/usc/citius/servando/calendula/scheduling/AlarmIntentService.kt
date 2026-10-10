@@ -56,7 +56,7 @@ class AlarmIntentService : JobIntentService() {
             val patientId = reminder.patient?.id ?: return false
             return persistedId > 0L && patientId > 0L &&
                 reminder.eventType == EventType.MEDICATION_INTAKE &&
-                reminder.dateTime != null
+                reminder.dateTime != null && reminder.nextTime != null
         }
 
         @JvmStatic
