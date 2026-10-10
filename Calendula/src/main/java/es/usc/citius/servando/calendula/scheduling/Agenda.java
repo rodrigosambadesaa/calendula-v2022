@@ -160,11 +160,8 @@ public class Agenda {
     }
 
     public void updateAllAlarms(Context context) {
-        List<EventReminder> eventReminders = DB.eventReminders().findAll();
-        LogUtil.d(TAG, "EventReminders: " + eventReminders.size());
-        for (EventReminder e : eventReminders) {
-            setAlarm(context, e);
-        }
+        int rearmed = rearmPendingFutureReminders(context);
+        LogUtil.d(TAG, "Rearmed " + rearmed + " eligible future reminders");
     }
 
     public void setAlarm(Context context, EventReminder reminder) {
