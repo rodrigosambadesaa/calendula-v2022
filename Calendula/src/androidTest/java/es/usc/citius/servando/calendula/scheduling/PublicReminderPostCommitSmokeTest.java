@@ -16,6 +16,7 @@ import org.joda.time.DateTime;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.Arrays;
 import java.util.Collections;
 
 import es.usc.citius.servando.calendula.database.DB;
@@ -98,6 +99,45 @@ public class PublicReminderPostCommitSmokeTest {
                     DB.eventReminders().remove(orphan);
                 }
             }
+        }
+    }
+
+    @Test
+    public void handledOrMalformedEventsNeverAttemptToInsertReminders() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime future = DateTime.now().plusMinutes(12).withMillisOfSecond(0);
+        EventInstance completed = new EventInstance(future, EventType.MEDICATION_INTAKE);
+        completed.setCompleted(true);
+        EventInstance cancelled = new EventInstance(future.plusMinutes(1),
+                EventType.MEDICATION_INTAKE);
+        cancelled.setCancelled(true);
+        EventInstance missingTime = new EventInstance(null, EventType.MEDICATION_INTAKE);
+        EventInstance missingType = new EventInstance(future.plusMinutes(2), null);
+
+        assertFalse(Agenda.isReminderEligible(completed));
+        assertFalse(Agenda.isReminderEligible(cancelled));
+        assertFalse(Agenda.isReminderEligible(missingTime));
+        assertFalse(Agenda.isReminderEligible(missingType));
+        assertFalse(Agenda.isReminderEligible(null));
+
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        final String trigger = "ci_test_disallow_handled_reminder_insert";
+        final int before = DB.eventReminders().count();
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            // Even a transient insert that is immediately cleaned up is
+            // unsafe: createReminders must never attempt one for these doses.
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE INSERT ON EventReminders"
+                    + " BEGIN SELECT RAISE(ABORT, 'attempted obsolete reminder'); END;");
+            assertTrue("An inactive or malformed event list is a safe no-op",
+                    Agenda.instance().createReminders(context, Arrays.asList(
+                            completed, cancelled, missingTime, missingType, null)));
+            assertEquals("No obsolete reminder rows may be inserted",
+                    before, DB.eventReminders().count());
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
         }
     }
 
