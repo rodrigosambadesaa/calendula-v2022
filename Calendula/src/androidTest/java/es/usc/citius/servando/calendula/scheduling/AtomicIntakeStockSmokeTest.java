@@ -163,6 +163,70 @@ public class AtomicIntakeStockSmokeTest {
     }
 
     @Test
+    public void stalePatientSelectionCannotConfirmAReassignedIntake() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        Patient other = new Patient();
+        other.setCode("ci-stale-caller-owner-" + System.nanoTime());
+        other.setName("Synthetic new intake owner");
+        try {
+            DB.patients().save(other);
+            assertNotNull(other.getId());
+            // The UI still holds patient A's EventInstance, while SQLite now
+            // associates the exact same primary key with patient B.
+            DB.helper().getWritableDatabase().execSQL(
+                    "UPDATE EventInstances SET Patient = ? WHERE _id = ?",
+                    new Object[]{other.getId(), x.event.getId()});
+            assertEquals(other.getId(),
+                    DB.eventInstances().findById(x.event.getId()).getPatient().getId());
+            try {
+                ScheduleUtils.instance().setIntakeCompleted(x.context, x.event, true);
+                fail("A stale A selection cannot authorize B's intake");
+            } catch (RuntimeException expected) {
+                // No medication or inventory changes were committed.
+            }
+            assertFalse(x.persistedIntake().completed());
+            assertFalse(x.event.completed());
+            assertEquals(INITIAL_STOCK, x.persistedStock(), 0.001f);
+        } finally {
+            x.cleanup();
+            if (other.getId() != null) DB.patients().remove(other);
+        }
+    }
+
+    @Test
+    public void staleScheduleOrTimeCannotConfirmAnotherIntakeRevision() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        try {
+            EventInstance stale = new EventInstance(x.when.plusMinutes(1),
+                    EventType.MEDICATION_INTAKE);
+            stale.setId(x.event.getId());
+            stale.setRef(x.schedule.getId());
+            stale.setPatient(x.patient);
+            try {
+                ScheduleUtils.instance().setIntakeCompleted(x.context, stale, true);
+                fail("An old event time cannot confirm a new schedule revision");
+            } catch (RuntimeException expected) {
+                // Rejected by the persisted identity comparison.
+            }
+
+            stale.setTime(x.when);
+            stale.setRef(x.schedule.getId() + 1L);
+            try {
+                ScheduleUtils.instance().setIntakeCompleted(x.context, stale, true);
+                fail("An old schedule reference cannot confirm a different dose");
+            } catch (RuntimeException expected) {
+                // Rejected before touching the medicine inventory.
+            }
+            assertEquals(INITIAL_STOCK, x.persistedStock(), 0.001f);
+            assertFalse(x.persistedIntake().completed());
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
     public void aPatientCannotDebitAnotherPatientsSchedule() throws Exception {
         assertTrue(DB.initialized);
         Fixture x = new Fixture();
