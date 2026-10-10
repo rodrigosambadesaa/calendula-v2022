@@ -80,7 +80,7 @@ public class AtomicIntakeStockSmokeTest {
 
         void cleanup() {
             EventReminder reminder = DB.eventReminders().findBy(
-                    EventType.MEDICATION_INTAKE, when, null);
+                    EventType.MEDICATION_INTAKE, when, patient);
             if (reminder != null) {
                 Agenda.instance().cancelAlarm(context, reminder);
                 DB.eventReminders().remove(reminder);
@@ -184,6 +184,49 @@ public class AtomicIntakeStockSmokeTest {
         } finally {
             x.cleanup();
             if (other.getId() != null) DB.patients().remove(other);
+        }
+    }
+
+    @Test
+    public void unassignedIntakeCannotDebitTrackedStock() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        try {
+            x.event.setPatient(null);
+            DB.eventInstances().update(x.event);
+            try {
+                ScheduleUtils.instance().setIntakeCompleted(x.context, x.event, true);
+                fail("Medication stock cannot be debited for an unassigned patient");
+            } catch (RuntimeException expected) {
+                // The missing owner must stop all changes before SQL persistence.
+            }
+            assertFalse("Unassigned intake cannot be marked taken",
+                    x.persistedIntake().completed());
+            assertEquals("No stock may be deducted without a patient",
+                    INITIAL_STOCK, x.persistedStock(), 0.001f);
+            assertFalse(x.event.completed());
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void unassignedScheduleCannotDebitPatientsStock() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        try {
+            x.schedule.setPatient(null);
+            DB.schedules().update(x.schedule);
+            try {
+                ScheduleUtils.instance().setIntakeCompleted(x.context, x.event, true);
+                fail("Medication schedule without assigned patient cannot debit stock");
+            } catch (RuntimeException expected) {
+                // SQL must remain unchanged for both event and stock.
+            }
+            assertFalse(x.persistedIntake().completed());
+            assertEquals(INITIAL_STOCK, x.persistedStock(), 0.001f);
+        } finally {
+            x.cleanup();
         }
     }
 
