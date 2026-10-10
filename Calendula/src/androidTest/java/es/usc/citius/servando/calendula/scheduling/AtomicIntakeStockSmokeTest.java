@@ -45,11 +45,18 @@ public class AtomicIntakeStockSmokeTest {
     private static final class Fixture {
         final Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         final DateTime when = DateTime.now().plusHours(13).withMillisOfSecond(0);
+        final Patient patient = new Patient();
         final Medicine medicine = new Medicine("Synthetic stock transaction medicine", Presentation.PILLS);
         final Schedule schedule = new Schedule(medicine);
         final EventInstance event = new EventInstance(when, EventType.MEDICATION_INTAKE);
 
         Fixture() throws Exception {
+            patient.setCode("ci-atomic-owned-stock-" + System.nanoTime());
+            patient.setName("Synthetic stock transaction patient");
+            assertEquals(1, DB.patients().create(patient));
+            medicine.setPatient(patient);
+            schedule.setPatient(patient);
+            event.setPatient(patient);
             medicine.setStock(INITIAL_STOCK);
             // Use raw ORM create to avoid emitting stock alerts while building
             // a deliberately incomplete synthetic recurrence fixture.
@@ -86,6 +93,9 @@ public class AtomicIntakeStockSmokeTest {
             }
             if (medicine.getId() != null && DB.medicines().findById(medicine.getId()) != null) {
                 DB.medicines().remove(medicine);
+            }
+            if (patient.getId() != null && DB.patients().findById(patient.getId()) != null) {
+                DB.patients().remove(patient);
             }
         }
     }
