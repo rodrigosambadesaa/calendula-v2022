@@ -164,10 +164,30 @@ public class AtomicMedicationDecisionSmokeTest {
         EventInstance event = new EventInstance(time, EventType.MEDICATION_INTAKE);
         EventReminder reminder = new EventReminder(time, EventType.MEDICATION_INTAKE);
         reminder.setNextTime(time);
+        Patient synthetic = null;
+        Medicine medicine = null;
+        Schedule schedule = null;
         SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
         final String trigger = "ci_test_block_medication_reminder_delete";
         sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
         try {
+            if (confirm) {
+                synthetic = new Patient();
+                synthetic.setCode("ci-decision-failure-" + System.nanoTime());
+                synthetic.setName("Synthetic confirmed failure patient");
+                DB.patients().save(synthetic);
+                event.setPatient(synthetic);
+                reminder.setPatient(synthetic);
+                medicine = new Medicine("Synthetic failure stock medicine", Presentation.PILLS);
+                medicine.setPatient(synthetic);
+                medicine.setStock(10.0f);
+                DB.medicines().create(medicine);
+                schedule = new Schedule(medicine);
+                schedule.setPatient(synthetic);
+                DB.schedules().create(schedule);
+                event.setRef(schedule.getId());
+                event.addParam(EventInstance.PARAM_DOSE, 2.0d);
+            }
             DB.eventInstances().save(event);
             DB.eventReminders().save(reminder);
             assertNotNull(event.getId());
@@ -196,6 +216,11 @@ public class AtomicMedicationDecisionSmokeTest {
             assertNotNull(after);
             assertFalse("Failed SQL commit must roll back completion", after.completed());
             assertFalse("Failed SQL commit must roll back cancellation", after.cancelled());
+            if (confirm) {
+                assertNotNull(medicine);
+                assertTrue("The stock deduction must also roll back with reminder deletion",
+                        Math.abs(DB.medicines().findById(medicine.getId()).getStock() - 10.0f) < 0.001f);
+            }
             assertNotNull("Failed SQL commit must preserve the persisted reminder",
                     DB.eventReminders().findById(reminder.getId()));
             assertNotNull("Failed SQL commit must retain the Android alarm token",
@@ -210,6 +235,15 @@ public class AtomicMedicationDecisionSmokeTest {
             }
             if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
                 DB.eventInstances().remove(event);
+            }
+            if (schedule != null && schedule.getId() != null) {
+                DB.schedules().remove(schedule);
+            }
+            if (medicine != null && medicine.getId() != null) {
+                DB.medicines().remove(medicine);
+            }
+            if (synthetic != null && synthetic.getId() != null) {
+                DB.patients().remove(synthetic);
             }
         }
     }
