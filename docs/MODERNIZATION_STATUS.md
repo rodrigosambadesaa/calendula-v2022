@@ -1,6 +1,6 @@
 # Calendula v2022 — modernization status
 
-_Last reviewed: 2026-10-08. This is an unofficial development fork, not a released or medically validated product. Tests described below were verified on their respective PR revisions; do not interpret them as end-to-end certification._
+_Last reviewed: 2026-10-10. This is an unofficial development fork, not a released or medically validated product. Tests described below were verified on their respective PR revisions; do not interpret them as end-to-end certification._
 
 ## Verified build baseline
 
@@ -12,11 +12,13 @@ _Last reviewed: 2026-10-08. This is an unofficial development fork, not a releas
 | Gradle wrapper | 8.14.6 |
 | Kotlin | 2.1.21 |
 | JDK | 17 |
+| Android 17 runtime | Isolated API 37.0 smoke workflow (SDK compile/target remain API 36) |
 
 Android CI assembles `ciDebug`, validates `minifyDevelopReleaseWithR8`,
 executes JVM unit tests, builds the instrumentation APK and runs Android lint.
-A separate GitHub Actions workflow now **executes instrumented smoke tests on
+A separate GitHub Actions workflow **executes instrumented smoke tests on
 emulators** for API 23 (Android 6), API 33 (Android 13) and API 36 (Android 16).
+Another independent workflow now runs a focused smoke subset on API 37.0 (Android 17); it completed successfully on PR #569 before merging. The existing `compileSdk` and `targetSdk` remain at 36. See [Android 17 compatibility](ANDROID_17_COMPATIBILITY.md) and #570 for the separate targetSdk 37 migration.
 The initial matrix and the subsequent boot, notification-permission, and SQLite
 test branches have passed on all three APIs. The smoke tests are intentionally
 narrow: they verify selected Android platform integration paths, **not** a
@@ -40,8 +42,10 @@ does not imply all legacy accessibility warnings have been resolved.
   checks for component registration, secure network rules, receiver recovery,
   Android notification permissions and basic local database schema queries.
 - Introduced an owner-only, explicit-opt-in automatic squash-merge workflow
-  that requires both Android CI and the emulator matrix to succeed for the
-  same immutable commit before merging.
+  that requires Android CI and the emulator matrix to succeed for the
+  same immutable commit before merging. PR #572 proposes extending its gate
+  to **also** require the Android 17 smoke run; this addition is not claimed
+  as merged until #572 is validated and integrated.
 
 ## Unresolved release blockers
 
@@ -114,9 +118,12 @@ permission requests, background service restrictions, VPN-only states,
 rotations, process death, database installation/migration, and representative
 OAuth/FHIR flows. Never use live patient records in CI.
 
-### P1 — Android API 36 behavioral and UX audit
+### P1 — Android API 36/37 behavioral and UX audit
 
 - Validate predictive back/navigation and foreground service semantics.
+- Test Android 17 runtime behavior (API 37) and audit its targetSdk 37 changes
+  independently; do not confuse an emulator smoke pass with a targetSdk migration.
+  See issue #570 and [the Android 17 validation plan](ANDROID_17_COMPATIBILITY.md).
 - Verify display insets, edge-to-edge layout and large-screen adaptation.
 - Review right-to-left/localization and accessibility; some visual lint
   exceptions intentionally preserve behavior rather than establish
