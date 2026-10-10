@@ -558,7 +558,10 @@ public class Agenda {
             return false;
         }
         EventReminder reminder = DB.eventReminders().findById(reminderId);
-        if (reminder == null) {
+        if (!isCurrentPendingReminder(reminder)) {
+            // A stale action must neither tell the user a medicine was
+            // cancelled nor retire an independently completed/already removed
+            // reminder. Alarm recovery excludes inactive rows separately.
             return false;
         }
         removeReminder(context, reminder);
