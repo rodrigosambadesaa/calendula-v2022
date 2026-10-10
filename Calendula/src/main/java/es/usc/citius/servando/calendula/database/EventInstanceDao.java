@@ -316,7 +316,8 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
             w.and(w.eq(EventInstance.COLUMN_EVENT_TYPE, type),
                     w.eq(EventInstance.COLUMN_DATE_TIME, dateTime),
                     (p == null ? w.isNull(EventInstance.COLUMN_PATIENT) : w.eq(EventInstance.COLUMN_PATIENT, p)),
-                    w.eq(EventInstance.COLUMN_COMPLETED, false)
+                    w.eq(EventInstance.COLUMN_COMPLETED, false),
+                    w.eq(EventInstance.COLUMN_CANCELLED, false)
             );
             qb.updateColumnValue(EventInstance.COLUMN_CANCELLED, true);
             qb.updateColumnValue(EventInstance.COLUMN_COMPLETED_DATETIME, completedAt);
