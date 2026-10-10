@@ -316,7 +316,18 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
         }
     }
 
+    /**
+     * Bulk status-only confirmation is never safe for medication intakes:
+     * it cannot update the linked medicine stock in the same SQLite unit of
+     * work. Use the transaction-backed ScheduleUtils/Agenda intake paths.
+     *
+     * Non-medication events retain the legacy bulk update semantics.
+     */
     public int confirm(EventType type, DateTime dateTime, Patient p, DateTime completedAt) {
+        if (type == EventType.MEDICATION_INTAKE) {
+            throw new IllegalStateException(
+                    "Medication intake confirmation must include inventory transaction");
+        }
         try {
             if (p == null) {
                 // ORMLite's bulk update SQL does not reliably handle this
