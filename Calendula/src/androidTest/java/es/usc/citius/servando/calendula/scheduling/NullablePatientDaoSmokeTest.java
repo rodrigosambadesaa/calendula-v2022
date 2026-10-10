@@ -98,13 +98,17 @@ public class NullablePatientDaoSmokeTest {
             DB.eventReminders().save(noPatient);
             DB.eventReminders().save(namedReminder);
 
-            assertEquals(1, DB.eventInstances().confirm(
-                    EventType.MEDICATION_INTAKE, future, null, DateTime.now()));
-            assertTrue(DB.eventInstances().findById(unassigned.getId()).completed());
-            assertEquals("A repeated confirmation should be idempotent", 0,
-                    DB.eventInstances().confirm(
-                            EventType.MEDICATION_INTAKE, future, null, DateTime.now()));
-            assertFalse("Null-patient confirm must not confirm another person's events",
+            boolean rejected = false;
+            try {
+                DB.eventInstances().confirm(
+                        EventType.MEDICATION_INTAKE, future, null, DateTime.now());
+            } catch (IllegalStateException expected) {
+                rejected = true;
+            }
+            assertTrue("Status-only DAO confirmation must reject medication intakes", rejected);
+            assertFalse("Unassigned intake cannot bypass medicine inventory updates",
+                    DB.eventInstances().findById(unassigned.getId()).completed());
+            assertFalse("Another patient's intake cannot be changed by a rejected request",
                     DB.eventInstances().findById(assigned.getId()).completed());
 
             assertEquals(1, DB.eventReminders().removeBy(
@@ -131,4 +135,39 @@ public class NullablePatientDaoSmokeTest {
         }
     }
 
+
+
+    @Test
+    public void nonMedicationBulkConfirmStillScopesNullablePatientCorrectly() {
+        assertTrue(DB.initialized);
+        DateTime future = DateTime.now().plusHours(10).withMillisOfSecond(0);
+        Patient named = new Patient();
+        named.setCode("ci-nonmedicine-bulk-" + System.nanoTime());
+        named.setName("Synthetic pharmacy reminder patient");
+        EventInstance unassigned = new EventInstance(future, EventType.PHARMACY_REMINDER);
+        EventInstance assigned = new EventInstance(future, EventType.PHARMACY_REMINDER);
+        assigned.setPatient(named);
+        try {
+            DB.patients().save(named);
+            DB.eventInstances().save(unassigned);
+            DB.eventInstances().save(assigned);
+            assertEquals("Pharmacy-only bulk confirmation is independent of medicine stock",
+                    1, DB.eventInstances().confirm(
+                            EventType.PHARMACY_REMINDER, future, null, DateTime.now()));
+            assertTrue(DB.eventInstances().findById(unassigned.getId()).completed());
+            assertFalse(DB.eventInstances().findById(assigned.getId()).completed());
+            assertEquals("Repeated non-medication bulk confirm stays idempotent",
+                    0, DB.eventInstances().confirm(
+                            EventType.PHARMACY_REMINDER, future, null, DateTime.now()));
+        } finally {
+            for (EventInstance item : new EventInstance[]{unassigned, assigned}) {
+                if (item.getId() != null && DB.eventInstances().findById(item.getId()) != null) {
+                    DB.eventInstances().remove(item);
+                }
+            }
+            if (named.getId() != null) {
+                DB.patients().remove(named);
+            }
+        }
+    }
 }
