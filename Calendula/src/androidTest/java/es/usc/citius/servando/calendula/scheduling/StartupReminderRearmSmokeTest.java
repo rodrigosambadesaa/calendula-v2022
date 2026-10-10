@@ -38,6 +38,39 @@ public class StartupReminderRearmSmokeTest {
     }
 
     @Test
+    public void newLegacyEventsCannotScheduleUndeliverableAlarm() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime future = DateTime.now().plusHours(13).withMillisOfSecond(0);
+        EventInstance legacy = new EventInstance(future, EventType.STOCK_REMINDER);
+        try {
+            DB.eventInstances().save(legacy);
+            assertNotNull(legacy.getId());
+            assertTrue("Synthetic stock event must be pending",
+                    DB.eventInstances().existsPending(EventType.STOCK_REMINDER, future, null));
+
+            assertTrue("A no-op must not report a transactional error",
+                    Agenda.instance().createReminders(context,
+                            java.util.Collections.singletonList(legacy)));
+            assertNull("Unsupported event cannot create a persisted reminder",
+                    DB.eventReminders().findBy(EventType.STOCK_REMINDER, future, null));
+            assertTrue("Do not mark an unsupported event completed or cancelled",
+                    !DB.eventInstances().findById(legacy.getId()).completed()
+                            && !DB.eventInstances().findById(legacy.getId()).cancelled());
+        } finally {
+            EventReminder accidental = DB.eventReminders().findBy(
+                    EventType.STOCK_REMINDER, future, null);
+            if (accidental != null) {
+                Agenda.instance().cancelAlarm(context, accidental);
+                DB.eventReminders().remove(accidental);
+            }
+            if (legacy.getId() != null && DB.eventInstances().findById(legacy.getId()) != null) {
+                DB.eventInstances().remove(legacy);
+            }
+        }
+    }
+
+    @Test
     public void rebootDoesNotArmLegacyReminderWithNoRegisteredReceiver() {
         assertTrue(DB.initialized);
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
