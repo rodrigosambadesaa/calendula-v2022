@@ -18,7 +18,7 @@ Android CI assembles `ciDebug`, validates `minifyDevelopReleaseWithR8`,
 executes JVM unit tests, builds the instrumentation APK and runs Android lint.
 A separate GitHub Actions workflow **executes instrumented smoke tests on
 emulators** for API 23 (Android 6), API 33 (Android 13) and API 36 (Android 16).
-Another independent workflow now runs a focused smoke subset on API 37.0 (Android 17); it completed successfully on PR #569 before merging. The existing `compileSdk` and `targetSdk` remain at 36. See [Android 17 compatibility](ANDROID_17_COMPATIBILITY.md) and #570 for the separate targetSdk 37 migration.
+An independent workflow now runs the same 22 synthetic instrumentation test classes on API 37.0 (Android 17); the expanded suite passed on PR #574. The original eight-class run also passed on PR #569. The existing `compileSdk` and `targetSdk` remain at 36. See [Android 17 compatibility](ANDROID_17_COMPATIBILITY.md) and #570 for the separate targetSdk 37 migration.
 The initial matrix and the subsequent boot, notification-permission, and SQLite
 test branches have passed on all three APIs. The smoke tests are intentionally
 narrow: they verify selected Android platform integration paths, **not** a
