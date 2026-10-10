@@ -200,11 +200,17 @@ public class AtomicIntakeStockSmokeTest {
             // A medication event and its schedule still belong to A, but the
             // same persisted medicine has been reassigned to B after these
             // fixture objects were created. Do not trust a cached owner.
-            Medicine changed = DB.medicines().findById(x.medicine.getId());
-            assertNotNull(changed);
-            changed.setPatient(newOwner);
-            assertEquals(1, DB.medicines().update(changed));
-            assertEquals(newOwner.getId(),
+            assertNotNull(newOwner.getId());
+            assertEquals("Fixture cache still claims A owns the medicine",
+                    x.patient.getId(), x.medicine.getPatient().getId());
+            // Simulate an independent SQLite change, not an in-memory ORM
+            // update: Android's ORMLite update() may report zero changed rows
+            // for an ownership rewrite and would not create this stale cache.
+            DB.helper().getWritableDatabase().execSQL(
+                    "UPDATE Medicines SET Patient = ? WHERE _id = ?",
+                    new Object[]{newOwner.getId(), x.medicine.getId()});
+            assertEquals("The authoritative medicine owner is now B",
+                    newOwner.getId(),
                     DB.medicines().findById(x.medicine.getId()).getPatient().getId());
 
             try {
