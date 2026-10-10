@@ -234,6 +234,11 @@ public class NullablePatientDaoSmokeTest {
             DB.patients().save(named);
             DB.eventInstances().save(unassigned);
             DB.eventInstances().save(assigned);
+            assertNotNull(assigned.getId());
+            assertEquals(named.getId(),
+                    DB.eventInstances().findById(assigned.getId()).getPatient().getId());
+            assertEquals(1, DB.eventInstances().find(
+                    EventType.MEDICATION_INTAKE, future, named).size());
             assertEquals(1, DB.eventInstances().cancelUncompleted(
                     EventType.MEDICATION_INTAKE, future, null, first));
             assertEquals(1, DB.eventInstances().cancelUncompleted(
