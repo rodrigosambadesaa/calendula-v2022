@@ -45,17 +45,19 @@ object StockUpdater {
             ?: throw IllegalStateException("Medication intake schedule is missing")
         val medicine = schedule.medicine
             ?: throw IllegalStateException("Medication intake has no linked medicine")
-        // Never debit a different patient's inventory because an imported
-        // event references a wrong or detached schedule.
+        // Re-read the authoritative inventory row before checking ownership.
+        // A previously loaded schedule can contain a stale Medicine patient;
+        // validation of that cached owner must not authorize another patient's
+        // stock adjustment after SQLite refreshed the actual medicine record.
+        if (medicine.id == null || DB.medicines().refresh(medicine) != 1) {
+            throw IllegalStateException("Medication stock row is missing")
+        }
         val eventPatientId = intake.patient?.id
         val schedulePatientId = schedule.patient?.id
         val medicinePatientId = medicine.patient?.id
         if (eventPatientId != schedulePatientId ||
                 (medicinePatientId != null && medicinePatientId != eventPatientId)) {
             throw IllegalStateException("Medication intake has inconsistent patient ownership")
-        }
-        if (medicine.id == null || DB.medicines().refresh(medicine) != 1) {
-            throw IllegalStateException("Medication stock row is missing")
         }
         if (!medicine.stockManagementEnabled()) return false
         // A historical unassigned intake with disabled stock tracking may
