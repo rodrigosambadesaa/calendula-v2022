@@ -50,6 +50,7 @@ import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.scheduling.AlarmIntentService;
 import es.usc.citius.servando.calendula.scheduling.AlarmReceiver;
+import es.usc.citius.servando.calendula.scheduling.ReminderTiming;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
@@ -70,6 +71,18 @@ public class IntakeNotificationMgr {
     private static Random random = new Random();
 
     /**
+     * Official prescription notification lines contain no numeric dose.
+     * Never parse a missing/malformed legacy Bundle field in that branch.
+     * Manually configured doses must have passed canRenderMedication first.
+     */
+    static Double doseForNotification(EventInstance event, Schedule schedule) {
+        if (schedule.hasState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL)) {
+            return null;
+        }
+        return event.getDoubleParam(EventInstance.PARAM_DOSE);
+    }
+
+    /**
      * The medication name, schedule and unit/dose must be verifiable before
      * presenting any prescription-specific text or confirmation action.
      * An invalid record must produce a generic review alert instead.
@@ -88,6 +101,15 @@ public class IntakeNotificationMgr {
         Medicine medicine = schedule.getMedicine();
         if (medicine == null || medicine.getName() == null
                 || medicine.getName().trim().isEmpty()) {
+            return false;
+        }
+        // A corrupt/imported schedule may refer to another patient's medicine
+        // even when the event and schedule themselves have matching owners.
+        // Preserve legacy shared catalog medicines with no patient owner, but
+        // never display a specifically assigned medicine to a different user.
+        Patient medicineOwner = medicine.getPatient();
+        if (medicineOwner != null && (medicineOwner.getId() == null
+                || !expectedPatient.getId().equals(medicineOwner.getId()))) {
             return false;
         }
         if (!schedule.hasState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL)) {
@@ -199,7 +221,7 @@ public class IntakeNotificationMgr {
         for (EventInstance e : events) {
             Schedule schedule = DB.schedules().findById(e.getRef());
             Medicine medicine = schedule.getMedicine();
-            Double dose = e.getDoubleParam(EventInstance.PARAM_DOSE);
+
             SpannableStringBuilder ssb = new SpannableStringBuilder();
 
             if (schedule.hasState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL)) {
@@ -210,14 +232,16 @@ public class IntakeNotificationMgr {
                     ssb.append(context.getString(R.string.notification_msg_official_schedule));
                 }
             } else {
+                Double dose = doseForNotification(e, schedule);
                 ssb.append(medicine.getName());
                 ssb.append(":  " + dose + " " + medicine.getPresentation().units(context.getResources(), dose) + " ");
             }
             style.addLine(ssb);
         }
 
-        String delayMinutesStr = PreferenceUtils.getString(PreferenceKeys.SETTINGS_ALARM_REPEAT_FREQUENCY, "15");
-        int delayMinutes = (int) Long.parseLong(delayMinutesStr);
+        // Reuse the same bounded parser as actual repeat scheduling. Legacy
+        // preferences may be null, malformed, negative or out of int range.
+        int delayMinutes = ReminderTiming.repeatMinutes();
 
         if (delayMinutes > 0 && !lost) {
             String repeatTime = DateTime.now().plusMinutes(delayMinutes).toString("HH:mm");

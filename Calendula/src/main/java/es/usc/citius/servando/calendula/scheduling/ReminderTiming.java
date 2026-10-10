@@ -28,11 +28,15 @@ public final class ReminderTiming {
                 Integer.toString(DEFAULT_WINDOW_MINUTES)));
     }
 
-    static int repeatSeconds() {
-        int minutes = parseRepeatMinutes(PreferenceUtils.getString(
+    /** Repeat interval shared by AlarmManager and notification text. */
+    public static int repeatMinutes() {
+        return parseRepeatMinutes(PreferenceUtils.getString(
                 PreferenceKeys.SETTINGS_ALARM_REPEAT_FREQUENCY,
                 Integer.toString(DEFAULT_REPEAT_MINUTES)));
-        return minutes * 60; // Bounded at one day; cannot overflow.
+    }
+
+    static int repeatSeconds() {
+        return repeatMinutes() * 60; // Bounded at one day; cannot overflow.
     }
 
     static int parseWindowMinutes(String raw) {
