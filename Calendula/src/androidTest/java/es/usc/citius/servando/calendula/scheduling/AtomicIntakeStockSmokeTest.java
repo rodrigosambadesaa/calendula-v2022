@@ -232,6 +232,34 @@ public class AtomicIntakeStockSmokeTest {
     }
 
     @Test
+    public void fullyOrphanedTrackedIntakeCannotDebitStock() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        try {
+            // This was the actual gap: three nullable owners compared equal,
+            // allowing a debit on a tracked medicine with no known patient.
+            x.event.setPatient(null);
+            x.schedule.setPatient(null);
+            x.medicine.setPatient(null);
+            DB.medicines().update(x.medicine);
+            DB.schedules().update(x.schedule);
+            DB.eventInstances().update(x.event);
+            try {
+                ScheduleUtils.instance().setIntakeCompleted(x.context, x.event, true);
+                fail("Null/null ownership cannot authorize a managed stock debit");
+            } catch (RuntimeException expected) {
+                // Neither intake state nor medicine stock can change.
+            }
+            assertFalse("Orphaned tracked dose must remain uncompleted",
+                    x.persistedIntake().completed());
+            assertEquals("Orphaned tracked stock must remain unchanged",
+                    INITIAL_STOCK, x.persistedStock(), 0.001f);
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
     public void legacyUnassignedIntakeWithoutStockManagementCanStillBeRecorded() throws Exception {
         assertTrue(DB.initialized);
         Fixture x = new Fixture();
