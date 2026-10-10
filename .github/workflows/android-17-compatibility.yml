@@ -85,9 +85,7 @@ jobs:
           arch: x86_64
           target: google_apis
           script: |
-            set -eu
-            SDK_LEVEL="$(adb shell getprop ro.build.version.sdk | tr -d '\r')"
-            test "$SDK_LEVEL" = "37"
+            test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = "37"
             ./gradlew connectedCiDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=es.usc.citius.servando.calendula.InstallationSmokeTest,es.usc.citius.servando.calendula.NotificationPermissionSmokeTest,es.usc.citius.servando.calendula.scheduling.ReminderPendingIntentSmokeTest,es.usc.citius.servando.calendula.scheduling.PublicReminderPostCommitSmokeTest,es.usc.citius.servando.calendula.scheduling.NoReminderResurrectionSmokeTest,es.usc.citius.servando.calendula.scheduling.AtomicIntakeStockSmokeTest,es.usc.citius.servando.calendula.scheduling.StartupReminderRearmSmokeTest,es.usc.citius.servando.calendula.scheduling.ClockChangeAlarmSmokeTest --stacktrace --no-daemon
 
       - name: Upload Android 17 test evidence
