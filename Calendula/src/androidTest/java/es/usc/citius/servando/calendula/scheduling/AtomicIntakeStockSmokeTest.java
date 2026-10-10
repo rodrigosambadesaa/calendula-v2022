@@ -30,6 +30,7 @@ import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -45,11 +46,18 @@ public class AtomicIntakeStockSmokeTest {
     private static final class Fixture {
         final Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         final DateTime when = DateTime.now().plusHours(13).withMillisOfSecond(0);
+        final Patient patient = new Patient();
         final Medicine medicine = new Medicine("Synthetic stock transaction medicine", Presentation.PILLS);
         final Schedule schedule = new Schedule(medicine);
         final EventInstance event = new EventInstance(when, EventType.MEDICATION_INTAKE);
 
         Fixture() throws Exception {
+            patient.setCode("ci-atomic-owned-stock-" + System.nanoTime());
+            patient.setName("Synthetic stock transaction patient");
+            assertEquals(1, DB.patients().create(patient));
+            medicine.setPatient(patient);
+            schedule.setPatient(patient);
+            event.setPatient(patient);
             medicine.setStock(INITIAL_STOCK);
             // Use raw ORM create to avoid emitting stock alerts while building
             // a deliberately incomplete synthetic recurrence fixture.
@@ -73,7 +81,7 @@ public class AtomicIntakeStockSmokeTest {
 
         void cleanup() {
             EventReminder reminder = DB.eventReminders().findBy(
-                    EventType.MEDICATION_INTAKE, when, null);
+                    EventType.MEDICATION_INTAKE, when, patient);
             if (reminder != null) {
                 Agenda.instance().cancelAlarm(context, reminder);
                 DB.eventReminders().remove(reminder);
@@ -86,6 +94,9 @@ public class AtomicIntakeStockSmokeTest {
             }
             if (medicine.getId() != null && DB.medicines().findById(medicine.getId()) != null) {
                 DB.medicines().remove(medicine);
+            }
+            if (patient.getId() != null && DB.patients().findById(patient.getId()) != null) {
+                DB.patients().remove(patient);
             }
         }
     }
@@ -174,6 +185,102 @@ public class AtomicIntakeStockSmokeTest {
         } finally {
             x.cleanup();
             if (other.getId() != null) DB.patients().remove(other);
+        }
+    }
+
+    @Test
+    public void unassignedIntakeCannotDebitTrackedStock() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        try {
+            x.event.setPatient(null);
+            DB.eventInstances().update(x.event);
+            try {
+                ScheduleUtils.instance().setIntakeCompleted(x.context, x.event, true);
+                fail("Medication stock cannot be debited for an unassigned patient");
+            } catch (RuntimeException expected) {
+                // The missing owner must stop all changes before SQL persistence.
+            }
+            assertFalse("Unassigned intake cannot be marked taken",
+                    x.persistedIntake().completed());
+            assertEquals("No stock may be deducted without a patient",
+                    INITIAL_STOCK, x.persistedStock(), 0.001f);
+            assertFalse(x.event.completed());
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void unassignedScheduleCannotDebitPatientsStock() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        try {
+            x.schedule.setPatient(null);
+            DB.schedules().update(x.schedule);
+            try {
+                ScheduleUtils.instance().setIntakeCompleted(x.context, x.event, true);
+                fail("Medication schedule without assigned patient cannot debit stock");
+            } catch (RuntimeException expected) {
+                // SQL must remain unchanged for both event and stock.
+            }
+            assertFalse(x.persistedIntake().completed());
+            assertEquals(INITIAL_STOCK, x.persistedStock(), 0.001f);
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void fullyOrphanedTrackedIntakeCannotDebitStock() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        try {
+            // This was the actual gap: three nullable owners compared equal,
+            // allowing a debit on a tracked medicine with no known patient.
+            x.event.setPatient(null);
+            x.schedule.setPatient(null);
+            x.medicine.setPatient(null);
+            DB.medicines().update(x.medicine);
+            DB.schedules().update(x.schedule);
+            DB.eventInstances().update(x.event);
+            try {
+                ScheduleUtils.instance().setIntakeCompleted(x.context, x.event, true);
+                fail("Null/null ownership cannot authorize a managed stock debit");
+            } catch (RuntimeException expected) {
+                // Neither intake state nor medicine stock can change.
+            }
+            assertFalse("Orphaned tracked dose must remain uncompleted",
+                    x.persistedIntake().completed());
+            assertEquals("Orphaned tracked stock must remain unchanged",
+                    INITIAL_STOCK, x.persistedStock(), 0.001f);
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void legacyUnassignedIntakeWithoutStockManagementCanStillBeRecorded() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        try {
+            // Historical records can have no patient and no tracked stock.
+            // Completing them must remain possible without inventing owners
+            // or manufacturing an inventory balance.
+            x.event.setPatient(null);
+            x.schedule.setPatient(null);
+            x.medicine.setPatient(null);
+            x.medicine.setStock(null);
+            DB.medicines().update(x.medicine);
+            DB.schedules().update(x.schedule);
+            DB.eventInstances().update(x.event);
+            assertTrue("Untracked legacy intake remains acknowledgeable",
+                    ScheduleUtils.instance().setIntakeCompleted(x.context, x.event, true));
+            assertTrue(x.persistedIntake().completed());
+            assertNull("Untracked stock must not be synthesized",
+                    DB.medicines().findById(x.medicine.getId()).getStock());
+        } finally {
+            x.cleanup();
         }
     }
 
