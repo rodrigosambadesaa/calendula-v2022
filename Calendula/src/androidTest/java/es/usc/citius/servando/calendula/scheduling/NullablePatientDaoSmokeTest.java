@@ -181,4 +181,110 @@ public class NullablePatientDaoSmokeTest {
             }
         }
     }
+
+    @Test
+    public void bulkCheckAllNeverConfirmsMedicationWithoutStockTransaction() {
+        assertTrue(DB.initialized);
+        DateTime future = DateTime.now().plusHours(16).withMillisOfSecond(0);
+        Patient named = new Patient();
+        named.setCode("ci-no-unsafe-bulk-" + System.nanoTime());
+        named.setName("Synthetic guarded bulk patient");
+        EventInstance unassigned = new EventInstance(future, EventType.MEDICATION_INTAKE);
+        EventInstance assigned = new EventInstance(future, EventType.MEDICATION_INTAKE);
+        assigned.setPatient(named);
+        try {
+            DB.patients().save(named);
+            DB.eventInstances().save(unassigned);
+            DB.eventInstances().save(assigned);
+            for (Patient owner : new Patient[]{null, named}) {
+                boolean rejected = false;
+                try {
+                    DB.eventInstances().checkAll(
+                            EventType.MEDICATION_INTAKE, future, owner, DateTime.now());
+                } catch (IllegalStateException expected) {
+                    rejected = true;
+                }
+                assertTrue("Status-only bulk confirmation bypasses medicine stock", rejected);
+            }
+            assertFalse(DB.eventInstances().findById(unassigned.getId()).completed());
+            assertFalse(DB.eventInstances().findById(assigned.getId()).completed());
+        } finally {
+            for (EventInstance event : new EventInstance[]{unassigned, assigned}) {
+                if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
+                    DB.eventInstances().remove(event);
+                }
+            }
+            if (named.getId() != null) DB.patients().remove(named);
+        }
+    }
+
+    @Test
+    public void repeatingCancellationPreservesOriginalTimestampForBothPatientScopes() {
+        assertTrue(DB.initialized);
+        DateTime future = DateTime.now().plusHours(17).withMillisOfSecond(0);
+        DateTime first = DateTime.now().minusMinutes(2).withMillisOfSecond(0);
+        DateTime later = first.plusMinutes(1);
+        Patient named = new Patient();
+        named.setCode("ci-immutable-cancelled-" + System.nanoTime());
+        named.setName("Synthetic cancellation patient");
+        EventInstance unassigned = new EventInstance(future, EventType.MEDICATION_INTAKE);
+        EventInstance assigned = new EventInstance(future, EventType.MEDICATION_INTAKE);
+        assigned.setPatient(named);
+        try {
+            DB.patients().save(named);
+            DB.eventInstances().save(unassigned);
+            DB.eventInstances().save(assigned);
+            assertEquals(1, DB.eventInstances().cancelUncompleted(
+                    EventType.MEDICATION_INTAKE, future, null, first));
+            assertEquals(1, DB.eventInstances().cancelUncompleted(
+                    EventType.MEDICATION_INTAKE, future, named, first));
+
+            assertEquals("Re-cancel cannot overwrite an existing unassigned decision", 0,
+                    DB.eventInstances().cancelUncompleted(
+                            EventType.MEDICATION_INTAKE, future, null, later));
+            assertEquals("Re-cancel cannot overwrite another patient's decision", 0,
+                    DB.eventInstances().cancelUncompleted(
+                            EventType.MEDICATION_INTAKE, future, named, later));
+            EventInstance persistedUnassigned =
+                    DB.eventInstances().findById(unassigned.getId());
+            EventInstance persistedNamed =
+                    DB.eventInstances().findById(assigned.getId());
+            assertTrue(persistedUnassigned.cancelled());
+            assertTrue(persistedNamed.cancelled());
+            assertFalse(persistedUnassigned.completed());
+            assertFalse(persistedNamed.completed());
+            assertEquals(first, persistedUnassigned.completedAt());
+            assertEquals(first, persistedNamed.completedAt());
+        } finally {
+            for (EventInstance event : new EventInstance[]{unassigned, assigned}) {
+                if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
+                    DB.eventInstances().remove(event);
+                }
+            }
+            if (named.getId() != null) DB.patients().remove(named);
+        }
+    }
+
+    @Test
+    public void nonMedicationBulkCheckCannotRecompleteCancelledPharmacyEvent() {
+        assertTrue(DB.initialized);
+        DateTime future = DateTime.now().plusHours(18).withMillisOfSecond(0);
+        DateTime first = DateTime.now().minusMinutes(3).withMillisOfSecond(0);
+        EventInstance event = new EventInstance(future, EventType.PHARMACY_REMINDER);
+        try {
+            DB.eventInstances().save(event);
+            assertEquals(1, DB.eventInstances().cancelUncompleted(
+                    EventType.PHARMACY_REMINDER, future, null, first));
+            assertEquals(0, DB.eventInstances().checkAll(
+                    EventType.PHARMACY_REMINDER, future, null, DateTime.now()));
+            EventInstance stored = DB.eventInstances().findById(event.getId());
+            assertTrue(stored.cancelled());
+            assertFalse(stored.completed());
+            assertEquals(first, stored.completedAt());
+        } finally {
+            if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
+                DB.eventInstances().remove(event);
+            }
+        }
+    }
 }
