@@ -46,6 +46,42 @@ public class AtomicMedicationDecisionSmokeTest {
     }
 
     @Test
+    public void unassignedIntakeCannotBeConfirmedWithoutVerifiedStockOwnership() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime time = DateTime.now().plusHours(12).withMillisOfSecond(0);
+        EventInstance orphan = new EventInstance(time, EventType.MEDICATION_INTAKE);
+        EventReminder reminder = new EventReminder(time, EventType.MEDICATION_INTAKE);
+        reminder.setNextTime(time);
+        try {
+            DB.eventInstances().save(orphan);
+            DB.eventReminders().save(reminder);
+            Agenda.instance().setAlarm(context, reminder);
+            assertNotNull(token(context, reminder));
+            boolean rejected = false;
+            try {
+                Agenda.instance().confirmReminder(context, reminder.getId());
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("Orphan intake cannot be silently marked taken", rejected);
+            assertFalse(DB.eventInstances().findById(orphan.getId()).completed());
+            assertNotNull(DB.eventReminders().findById(reminder.getId()));
+            assertNotNull(token(context, reminder));
+        } finally {
+            if (reminder.getId() != null) {
+                Agenda.instance().cancelAlarm(context, reminder);
+                if (DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().remove(reminder);
+                }
+            }
+            if (orphan.getId() != null && DB.eventInstances().findById(orphan.getId()) != null) {
+                DB.eventInstances().remove(orphan);
+            }
+        }
+    }
+
+    @Test
     public void cancellingAssignedIntakeCommitsEventAndRemovesAlarm() {
         exerciseDecision(false, true);
     }
