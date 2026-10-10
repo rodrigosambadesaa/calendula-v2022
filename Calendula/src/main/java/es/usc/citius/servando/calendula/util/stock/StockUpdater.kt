@@ -98,29 +98,9 @@ object StockUpdater {
         return true
     }
 
-    @JvmStatic
-    fun updateStockForIntake(intake: EventInstance, fireEvent: Boolean) {
-        val id = intake.id ?: throw IllegalArgumentException("Persisted intake ID required")
-        val original = DB.eventInstances().findById(id)
-            ?: throw IllegalStateException("Medication intake is no longer persisted")
-        if (applyStockForTransition(intake, original.completed()) && fireEvent) {
-            fireEvent()
-        }
-    }
-
-    @JvmStatic
-    fun updateStockForIntakes(intakes: Collection<EventInstance>, fireEvent: Boolean) {
-        for (i in intakes) {
-            updateStockForIntake(i, false)
-        }
-        if(fireEvent) {
-            fireEvent()
-        }
-    }
-
-    @JvmStatic
-    private fun fireEvent(){
-        DB.medicines().fireEvent()
-    }
+    // Intentionally no public stock-only update helpers here. A medication
+    // transition and its inventory delta MUST commit in the same SQLite
+    // transaction via ScheduleUtils or Agenda; applying only the stock delta
+    // would silently desynchronize medical history and inventory.
 
 }
