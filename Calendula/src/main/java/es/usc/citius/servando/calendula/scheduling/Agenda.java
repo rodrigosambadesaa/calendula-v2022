@@ -732,7 +732,8 @@ public class Agenda {
      */
     boolean rescheduleAutoRepeatIfCurrent(Context context, EventReminder snapshot,
                                           DateTime nextTime) {
-        if (snapshot == null || snapshot.getId() == null || snapshot.getNextTime() == null
+        if (snapshot == null || snapshot.getId() == null || snapshot.getId() <= 0
+                || snapshot.getDateTime() == null || snapshot.getNextTime() == null
                 || nextTime == null || !nextTime.isAfter(snapshot.getNextTime())
                 || !shouldReschedule(snapshot, nextTime)) {
             return false;
@@ -743,7 +744,7 @@ public class Agenda {
                     DB.helper().getConnectionSource(), (Callable<EventReminder>) () -> {
                         EventReminder current = DB.eventReminders().findById(snapshot.getId());
                         if (current == null || !current.autoRepeat()
-                                || current.getNextTime() == null
+                                || current.getDateTime() == null || current.getNextTime() == null
                                 || !snapshot.getNextTime().equals(current.getNextTime())
                                 || !nextTime.isAfter(current.getNextTime())
                                 || !shouldReschedule(current, nextTime)
