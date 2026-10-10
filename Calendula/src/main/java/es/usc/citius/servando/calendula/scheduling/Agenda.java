@@ -221,20 +221,22 @@ public class Agenda {
         // get the r from db
         EventReminder r = DB.eventReminders().findById(reminderId);
         if (r != null) {
-            if (r.getNextTime() == null) {
-                // Malformed restored state has no trustworthy delivery time.
-                LogUtil.w(TAG, "Ignoring reminder with no persisted delivery time");
-                return;
-            }
-            if (r.getNextTime().isAfterNow()) {
-                // An old/in-flight PendingIntent can arrive after the user has
-                // postponed a dose. Never deliver it before the latest SQLite
-                // NextTime; re-arm the surviving revision instead.
-                if (isCurrentPendingReminder(r)) {
-                    setAlarm(ctx, r);
+            if (r.getNextTime() == null || r.getNextTime().isAfterNow()) {
+                // An in-flight old PendingIntent may fire after the user has
+                // postponed a dose. If its intake remains pending, never deliver
+                // before the latest persisted time. Only re-arm the current
+                // revision; another action may have rescheduled it already.
+                if (DB.eventInstances().existsPending(
+                        r.getEventType(), r.getDateTime(), r.getPatient())) {
+                    if (r.getNextTime() != null && isCurrentPendingReminder(r)) {
+                        setAlarm(ctx, r);
+                    }
+                    LogUtil.d(TAG, "Ignoring premature or superseded reminder broadcast");
+                    return;
                 }
-                LogUtil.d(TAG, "Ignoring premature or superseded reminder broadcast");
-                return;
+                // No pending intake: preserve existing orphan/inactive reminder
+                // cleanup, which verifies SQLite deletion before retiring OS
+                // tokens. Do not leave cancelled/completed old alarms behind.
             }
             LogUtil.d(TAG, "Received scheduled reminder");
             sendReminderToReceiver(ctx, r);
