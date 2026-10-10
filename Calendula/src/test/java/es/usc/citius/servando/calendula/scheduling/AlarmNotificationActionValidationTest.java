@@ -51,6 +51,12 @@ public class AlarmNotificationActionValidationTest {
         Patient unsaved = new Patient();
         valid.setPatient(unsaved);
         assertFalse(AlarmIntentService.isActionableMedicationReminder(valid));
+        Patient invalid = new Patient();
+        invalid.setId(0L);
+        valid.setPatient(invalid);
+        assertFalse(AlarmIntentService.isActionableMedicationReminder(valid));
+        invalid.setId(-1L);
+        assertFalse(AlarmIntentService.isActionableMedicationReminder(valid));
         Patient identified = new Patient();
         identified.setId(9000008112L);
         valid.setPatient(identified);
