@@ -348,8 +348,17 @@ public class Agenda {
         final DateTime now = DateTime.now();
         for (EventReminder reminder : DB.eventReminders().findAll()) {
             if (reminder == null || reminder.getId() == null
+                    || reminder.getId() <= 0L
                     || reminder.getNextTime() == null
+                    || reminder.getDateTime() == null
+                    || reminder.getEventType() == null
                     || !reminder.getNextTime().isAfter(now)) {
+                continue;
+            }
+            // Only handlers registered by an active module can deliver a
+            // reminder. Keep unsupported legacy rows in SQLite for inspection,
+            // but do not repeatedly wake Android for an undeliverable alarm.
+            if (!receivers.containsKey(reminder.getEventType())) {
                 continue;
             }
             if (!DB.eventInstances().existsPending(
