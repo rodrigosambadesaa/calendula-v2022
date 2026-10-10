@@ -218,7 +218,13 @@ public class Agenda {
 
     // called from broadcast receiver
     public void onReceiveAlarm(Context ctx, Long reminderId) {
-        // get the r from db
+        // Legacy, malformed or incomplete PendingIntents may omit the stable
+        // SQL row ID. Reject them before ORMLite attempts a null/invalid query.
+        // Never act on a different reminder or invent a default identity.
+        if (reminderId == null || reminderId <= 0L) {
+            LogUtil.w(TAG, "Ignoring alarm without a persisted reminder ID");
+            return;
+        }
         EventReminder r = DB.eventReminders().findById(reminderId);
         if (r != null) {
             if (r.getNextTime() == null || r.getNextTime().isAfterNow()) {
