@@ -552,12 +552,21 @@ public class Agenda {
         }
     }
 
-    public void cancelReminder(Context context, Long reminderId) {
-        EventReminder reminder = DB.eventReminders().findById(reminderId);
-        if (reminder != null) {
-            removeReminder(context, reminder);
-            IntakeNotificationMgr.cancel(context, reminder);
+    /** A missing/already handled reminder must not produce a success toast. */
+    public boolean cancelReminder(Context context, Long reminderId) {
+        if (reminderId == null || reminderId <= 0L) {
+            return false;
         }
+        EventReminder reminder = DB.eventReminders().findById(reminderId);
+        if (!isCurrentPendingReminder(reminder)) {
+            // A stale action must neither tell the user a medicine was
+            // cancelled nor retire an independently completed/already removed
+            // reminder. Alarm recovery excludes inactive rows separately.
+            return false;
+        }
+        removeReminder(context, reminder);
+        IntakeNotificationMgr.cancel(context, reminder);
+        return true;
     }
 
     public void removeReminder(Context context, EventReminder reminder) {
@@ -566,8 +575,12 @@ public class Agenda {
         finalizeReminderInSqlite(context, reminder, false);
     }
 
-    public void delayReminder(Context context, Long reminderId) {
-        delayReminder(context, DB.eventReminders().findById(reminderId), null);
+    /** Returns false for a stale or invalid notification action. */
+    public boolean delayReminder(Context context, Long reminderId) {
+        if (reminderId == null || reminderId <= 0L) {
+            return false;
+        }
+        return delayReminder(context, DB.eventReminders().findById(reminderId), null);
     }
 
     /**
@@ -576,9 +589,9 @@ public class Agenda {
      * and existing OS token. Re-read by ID so a stale callback cannot recreate
      * a deleted reminder or overwrite a newer delay.
      */
-    public void delayReminder(Context context, EventReminder reminder, Integer delay) {
+    public boolean delayReminder(Context context, EventReminder reminder, Integer delay) {
         if (reminder == null) {
-            return;
+            return false;
         }
         if (reminder.getId() == null || reminder.getId() <= 0) {
             throw new IllegalArgumentException("A persisted reminder ID is required");
@@ -603,7 +616,9 @@ public class Agenda {
                         if (!DB.eventInstances().existsPending(
                                 current.getEventType(), current.getDateTime(),
                                 current.getPatient())) {
-                            throw new SQLException("Reminder no longer belongs to a pending event");
+                            // A completed/cancelled dose makes this stale button
+                            // a no-op, not a successful medication delay.
+                            return null;
                         }
                         current.setNextTime(delayedUntil);
                         if (DB.eventReminders().update(current) != 1) {
@@ -614,13 +629,20 @@ public class Agenda {
         } catch (SQLException e) {
             throw new IllegalStateException("Could not persist medication reminder delay", e);
         }
+        if (committed == null) {
+            return false;
+        }
         // Only committed SQLite state may be reflected into the caller model
         // or the non-transactional Android AlarmManager and notification APIs.
         reminder.setNextTime(committed.getNextTime());
         if (isCurrentPendingReminder(committed)) {
             setAlarm(context, committed);
             IntakeNotificationMgr.cancel(context, committed);
+            return true;
         }
+        // Another action may have completed/cancelled the intake after commit.
+        // Never tell the user that an inactive reminder was rescheduled.
+        return false;
     }
 
     private void logReminders() {
