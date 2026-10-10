@@ -251,15 +251,24 @@ public class AtomicMedicationDecisionSmokeTest {
         EventInstance event = new EventInstance(originalTime, EventType.MEDICATION_INTAKE);
         EventReminder snapshot = new EventReminder(originalTime, EventType.MEDICATION_INTAKE);
         snapshot.setNextTime(originalTime);
+        // Copy the raw SQLite value from a separate synthetic row, preserving
+        // ORMLite's DateTime encoding rather than relying on a 0-row ORM update.
+        EventReminder donor = new EventReminder(originalTime.plusHours(1),
+                EventType.MEDICATION_INTAKE);
+        donor.setNextTime(newerTime);
         try {
             DB.eventInstances().save(event);
             DB.eventReminders().save(snapshot);
             Agenda.instance().setAlarm(context, snapshot);
             assertNotNull(token(context, snapshot));
 
-            EventReminder reloaded = DB.eventReminders().findById(snapshot.getId());
-            reloaded.setNextTime(newerTime);
-            org.junit.Assert.assertEquals(1, DB.eventReminders().update(reloaded));
+            DB.eventReminders().save(donor);
+            assertNotNull(donor.getId());
+            DB.helper().getWritableDatabase().execSQL(
+                    "UPDATE EventReminders SET NextTime = "
+                            + "(SELECT NextTime FROM EventReminders WHERE _id = ?) "
+                            + "WHERE _id = ?",
+                    new Object[]{donor.getId(), snapshot.getId()});
             org.junit.Assert.assertEquals(newerTime,
                     DB.eventReminders().findById(snapshot.getId()).getNextTime());
 
@@ -282,6 +291,9 @@ public class AtomicMedicationDecisionSmokeTest {
                 if (DB.eventReminders().findById(snapshot.getId()) != null) {
                     DB.eventReminders().remove(snapshot);
                 }
+            }
+            if (donor.getId() != null && DB.eventReminders().findById(donor.getId()) != null) {
+                DB.eventReminders().remove(donor);
             }
             if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
                 DB.eventInstances().remove(event);
