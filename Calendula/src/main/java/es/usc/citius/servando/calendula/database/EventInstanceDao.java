@@ -246,7 +246,11 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
                         if (event.getPatient() != null || event.getId() == null) {
                             throw new SQLException("Unexpected event identity during unassigned update");
                         }
-                        if (event.completed()) {
+                        if (event.completed()
+                                || (change != UnassignedChange.CONFIRM && event.cancelled())) {
+                            // Completing/cancelling must never rewrite a dose
+                            // already cancelled; preserve its original timestamp.
+                            // Non-medication CONFIRM may explicitly re-open it.
                             continue;
                         }
                         if (change == UnassignedChange.CANCEL) {
@@ -265,6 +269,13 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
     }
 
     public int checkAll(EventType type, DateTime dateTime, Patient p, DateTime completedAt) {
+        // This legacy bulk method only updates event status and never adjusts
+        // stock. Do not expose a second medication-confirmation route that can
+        // silently bypass the atomic intake + inventory transaction.
+        if (type == EventType.MEDICATION_INTAKE) {
+            throw new IllegalStateException(
+                    "Medication intake confirmation must include inventory transaction");
+        }
         try {
             if (p == null) {
                 // ORMLite's bulk update SQL does not reliably handle this
@@ -278,7 +289,8 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
             w.and(w.eq(EventInstance.COLUMN_EVENT_TYPE, type),
                     w.eq(EventInstance.COLUMN_DATE_TIME, dateTime),
                     (p == null ? w.isNull(EventInstance.COLUMN_PATIENT) : w.eq(EventInstance.COLUMN_PATIENT, p)),
-                    w.eq(EventInstance.COLUMN_COMPLETED, false)
+                    w.eq(EventInstance.COLUMN_COMPLETED, false),
+                    w.eq(EventInstance.COLUMN_CANCELLED, false)
             );
             qb.updateColumnValue(EventInstance.COLUMN_COMPLETED, true);
             qb.updateColumnValue(EventInstance.COLUMN_COMPLETED_DATETIME, completedAt);
@@ -290,6 +302,40 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
         }
     }
 
+    /**
+     * A per-row, scoped update avoids a fragile ORMLite bulk UPDATE involving
+     * foreign Patient and primitive boolean predicates on legacy SQLite
+     * schemas. Only rows still owned by the requested patient may change.
+     * The entire selection and write batch is atomic.
+     */
+    private int cancelAssignedPendingEvents(
+            EventType type, DateTime dateTime, Patient owner, DateTime completedAt)
+            throws SQLException {
+        if (owner.getId() == null || owner.getId() <= 0) {
+            throw new SQLException("A persisted patient ID is required to cancel events");
+        }
+        return com.j256.ormlite.misc.TransactionManager.callInTransaction(
+                dbHelper.getConnectionSource(), () -> {
+                    int changed = 0;
+                    for (EventInstance event : find(type, dateTime, owner)) {
+                        if (event.getId() == null || event.getPatient() == null
+                                || !owner.getId().equals(event.getPatient().getId())) {
+                            throw new SQLException("Cancellation selection crossed patient boundary");
+                        }
+                        if (event.completed() || event.cancelled()) {
+                            continue;
+                        }
+                        event.setCancelled(true);
+                        event.setCompletedAt(completedAt);
+                        if (dao.update(event) != 1) {
+                            throw new SQLException("Failed to persist a patient-scoped cancellation");
+                        }
+                        changed++;
+                    }
+                    return changed;
+                });
+    }
+
     public int cancelUncompleted(EventType type, DateTime dateTime, Patient p, DateTime completedAt) {
         try {
             if (p == null) {
@@ -299,17 +345,7 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
                 // in one transaction; never touch a different patient's row.
                 return updateUnassignedEvents(type, dateTime, completedAt, UnassignedChange.CANCEL);
             }
-            UpdateBuilder<EventInstance, Long> qb = dao.updateBuilder();
-            Where w = qb.where();
-            w.and(w.eq(EventInstance.COLUMN_EVENT_TYPE, type),
-                    w.eq(EventInstance.COLUMN_DATE_TIME, dateTime),
-                    (p == null ? w.isNull(EventInstance.COLUMN_PATIENT) : w.eq(EventInstance.COLUMN_PATIENT, p)),
-                    w.eq(EventInstance.COLUMN_COMPLETED, false)
-            );
-            qb.updateColumnValue(EventInstance.COLUMN_CANCELLED, true);
-            qb.updateColumnValue(EventInstance.COLUMN_COMPLETED_DATETIME, completedAt);
-            qb.setWhere(w);
-            return qb.update();
+            return cancelAssignedPendingEvents(type, dateTime, p, completedAt);
         } catch (SQLException e) {
 
             throw new RuntimeException("Error finding event instances", e);
