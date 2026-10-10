@@ -41,7 +41,7 @@ public class AtomicMedicationDecisionSmokeTest {
     }
 
     @Test
-    public void confirmingAssignedIntakeCommitsEventStockAndRemovesAlarm() {
+    public void confirmingAssignedIntakeCommitsEventStockAndRemovesAlarm() throws Exception {
         exerciseDecision(true, true);
     }
 
@@ -82,11 +82,11 @@ public class AtomicMedicationDecisionSmokeTest {
     }
 
     @Test
-    public void cancellingAssignedIntakeCommitsEventAndRemovesAlarm() {
+    public void cancellingAssignedIntakeCommitsEventAndRemovesAlarm() throws Exception {
         exerciseDecision(false, true);
     }
 
-    private void exerciseDecision(boolean confirm, boolean withPatient) {
+    private void exerciseDecision(boolean confirm, boolean withPatient) throws Exception {
         assertTrue(DB.initialized);
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         DateTime time = DateTime.now().plusHours(confirm ? 15 : 16).withMillisOfSecond(0);
@@ -169,12 +169,12 @@ public class AtomicMedicationDecisionSmokeTest {
     }
 
     @Test
-    public void failedDeleteRollsBackConfirmedIntakeAndPreservesAlarm() {
+    public void failedDeleteRollsBackConfirmedIntakeAndPreservesAlarm() throws Exception {
         exerciseFailedDecision(true, false);
     }
 
     @Test
-    public void failedDeleteRollsBackCancelledIntakeAndPreservesAlarm() {
+    public void failedDeleteRollsBackCancelledIntakeAndPreservesAlarm() throws Exception {
         exerciseFailedDecision(false, false);
     }
 
@@ -184,16 +184,16 @@ public class AtomicMedicationDecisionSmokeTest {
      * The trigger is scoped to the synthetic row ID and removed in finally.
      */
     @Test
-    public void ignoredDeleteRollsBackConfirmedIntakeAndPreservesAlarm() {
+    public void ignoredDeleteRollsBackConfirmedIntakeAndPreservesAlarm() throws Exception {
         exerciseFailedDecision(true, true);
     }
 
     @Test
-    public void ignoredDeleteRollsBackCancelledIntakeAndPreservesAlarm() {
+    public void ignoredDeleteRollsBackCancelledIntakeAndPreservesAlarm() throws Exception {
         exerciseFailedDecision(false, true);
     }
 
-    private void exerciseFailedDecision(boolean confirm, boolean silentZeroRowDelete) {
+    private void exerciseFailedDecision(boolean confirm, boolean silentZeroRowDelete) throws Exception {
         assertTrue(DB.initialized);
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         DateTime time = DateTime.now().plusHours(confirm ? 19 : 20).withMillisOfSecond(0);
