@@ -86,9 +86,50 @@ public class UnverifiedMedicationValidationTest {
         medicine.setName("Synthetic test medicine");
         Patient another = new Patient();
         another.setId(9000003312L);
+        medicine.setPatient(new Patient());
+        assertFalse("An ambiguous medicine owner without database identity must not render",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
+        medicine.setPatient(another);
+        assertFalse("An imported schedule linked to another patient's medicine must not render",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
+        medicine.setPatient(patient);
+        assertTrue("Matching patient ownership is safe to render",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
+        medicine.setPatient(null);
+        assertTrue("Legacy shared medicines with no recorded owner remain supported",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
         schedule.setPatient(another);
         assertFalse("A reference to another patient's prescription must not render",
                 IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
+    }
+
+    @Test
+    public void officialNotificationMustNotReadMissingOrCorruptNumericDose() {
+        EventInstance event = syntheticEvent();
+        Medicine medicine = new Medicine("Synthetic verified catalog medicine", Presentation.PILLS);
+        Schedule schedule = new Schedule(medicine);
+        Patient patient = new Patient();
+        patient.setId(9000003313L);
+        event.setPatient(patient);
+        schedule.setPatient(patient);
+        schedule.addState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL);
+
+        // Official schedules render their verified label, not a numeric
+        // manually-entered dose; these legacy records may have no Bundle.
+        assertTrue(IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
+        assertNull("No attempt to deserialize a missing official numeric dose",
+                IntakeNotificationMgr.doseForNotification(event, schedule));
+        event.addParam(EventInstance.PARAM_DOSE, "not-a-number");
+        assertNull("A corrupted unused dose must not crash official notification",
+                IntakeNotificationMgr.doseForNotification(event, schedule));
+
+        // Manually entered doses continue using the validated numeric value.
+        schedule.removeState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL);
+        assertFalse(IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
+        event.addParam(EventInstance.PARAM_DOSE, 2.5d);
+        assertTrue(IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
+        assertEquals(2.5d,
+                IntakeNotificationMgr.doseForNotification(event, schedule), 0.0001d);
     }
 
     @Test
