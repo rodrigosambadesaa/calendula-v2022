@@ -108,8 +108,8 @@ public class IntakeNotificationMgr {
         // Preserve legacy shared catalog medicines with no patient owner, but
         // never display a specifically assigned medicine to a different user.
         Patient medicineOwner = medicine.getPatient();
-        if (medicineOwner != null && medicineOwner.getId() != null
-                && !expectedPatient.getId().equals(medicineOwner.getId())) {
+        if (medicineOwner != null && (medicineOwner.getId() == null
+                || !expectedPatient.getId().equals(medicineOwner.getId()))) {
             return false;
         }
         if (!schedule.hasState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL)) {
