@@ -98,6 +98,18 @@ public class Agenda {
         return createRemindersInternal(context, DB.eventInstances().findAll(), false);
     }
 
+    /**
+     * Only actionable events can create an Android reminder. A persisted,
+     * completed/cancelled dose must never be resurrected by a later agenda
+     * rebuild; malformed legacy events without a type/time cannot be
+     * scheduled safely. The caller may still supply transient valid events
+     * before their persistence, so an EventInstance ID is not required here.
+     */
+    static boolean isReminderEligible(EventInstance event) {
+        return event != null && event.getType() != null && event.getTime() != null
+                && !event.completed() && !event.cancelled();
+    }
+
     private boolean createRemindersInternal(final Context context,
                                             final Collection<EventInstance> intakes,
                                             final boolean allowPlatformEffects) {
@@ -109,6 +121,11 @@ public class Agenda {
                 @Override
                 public Object call() throws Exception {
                     for (EventInstance e : intakes) {
+                        if (!isReminderEligible(e)) {
+                            // Never create a reminder for an already handled or
+                            // corrupted event. Check before any SQLite lookup.
+                            continue;
+                        }
                         if (!DB.eventReminders().exists(e.getType(), e.getTime(), e.getPatient())) {
                             LogUtil.d(TAG, "Reminder needs to be created for " + e.getType() + " at " + e.getTime().toString());
                             if (canBeScheduled(e.getTime())) {
