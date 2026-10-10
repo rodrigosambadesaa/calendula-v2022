@@ -34,6 +34,24 @@ class AlarmReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "AlarmReceiver"
+
+        /**
+         * Legacy or malformed PendingIntents must never enqueue medication
+         * work or cause an invalid broadcast to reset the daily alarm.
+         * Daily agenda refresh intentionally has no medication row ID.
+         */
+        @JvmStatic
+        fun isValidAlarmDispatch(action: String?, reminderId: Long): Boolean {
+            if (action == IntentParams.ACTION_DAILY_UPDATE) return true
+            if (reminderId <= 0L) return false
+            return when (action) {
+                IntentParams.ACTION_ALARM_REMINDER,
+                IntentParams.ACTION_ALARM_DELAY,
+                IntentParams.ACTION_ALARM_CANCEL,
+                IntentParams.ACTION_ALARM_CONFIRM -> true
+                else -> false
+            }
+        }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -43,6 +61,11 @@ class AlarmReceiver : BroadcastReceiver() {
         }
 
         val action = intent.getStringExtra(IntentParams.EXTRA_ACTION)
+        val reminderId = intent.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1L)
+        if (!isValidAlarmDispatch(action, reminderId)) {
+            LogUtil.w(TAG, "Ignoring unsupported or malformed alarm broadcast")
+            return
+        }
         LogUtil.d(TAG, "Alarm received with action $action")
 
         if (action == IntentParams.ACTION_DAILY_UPDATE) {
@@ -55,10 +78,7 @@ class AlarmReceiver : BroadcastReceiver() {
         // call service
         val serviceIntent = Intent(context, AlarmIntentService::class.java)
         serviceIntent.putExtra(IntentParams.EXTRA_ACTION, action)
-        serviceIntent.putExtra(
-            IntentParams.EXTRA_REMINDER_ID,
-            intent.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1)
-        )
+        serviceIntent.putExtra(IntentParams.EXTRA_REMINDER_ID, reminderId)
         AlarmIntentService.enqueueWork(context, serviceIntent)
     }
 
