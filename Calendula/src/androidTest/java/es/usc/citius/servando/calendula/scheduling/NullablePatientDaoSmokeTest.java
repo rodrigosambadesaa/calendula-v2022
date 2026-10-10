@@ -110,6 +110,17 @@ public class NullablePatientDaoSmokeTest {
                     DB.eventInstances().findById(unassigned.getId()).completed());
             assertFalse("Another patient's intake cannot be changed by a rejected request",
                     DB.eventInstances().findById(assigned.getId()).completed());
+            boolean assignedRejected = false;
+            try {
+                DB.eventInstances().confirm(
+                        EventType.MEDICATION_INTAKE, future, named, DateTime.now());
+            } catch (IllegalStateException expected) {
+                assignedRejected = true;
+            }
+            assertTrue("A named-patient intake must also reject DAO-only confirmation",
+                    assignedRejected);
+            assertFalse("No named-patient event may bypass its medicine stock ledger",
+                    DB.eventInstances().findById(assigned.getId()).completed());
 
             assertEquals(1, DB.eventReminders().removeBy(
                     null, EventType.MEDICATION_INTAKE, future));
