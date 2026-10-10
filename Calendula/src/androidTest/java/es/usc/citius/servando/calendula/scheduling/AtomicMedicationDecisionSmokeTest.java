@@ -18,6 +18,9 @@ import org.junit.runner.RunWith;
 
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Patient;
+import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.Schedule;
+import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
@@ -38,20 +41,58 @@ public class AtomicMedicationDecisionSmokeTest {
     }
 
     @Test
-    public void confirmingUnassignedIntakeCommitsEventAndRemovesAlarm() {
-        exerciseDecision(true, false);
+    public void confirmingAssignedIntakeCommitsEventStockAndRemovesAlarm() throws Exception {
+        exerciseDecision(true, true);
     }
 
     @Test
-    public void cancellingAssignedIntakeCommitsEventAndRemovesAlarm() {
+    public void unassignedIntakeCannotBeConfirmedWithoutVerifiedStockOwnership() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime time = DateTime.now().plusHours(12).withMillisOfSecond(0);
+        EventInstance orphan = new EventInstance(time, EventType.MEDICATION_INTAKE);
+        EventReminder reminder = new EventReminder(time, EventType.MEDICATION_INTAKE);
+        reminder.setNextTime(time);
+        try {
+            DB.eventInstances().save(orphan);
+            DB.eventReminders().save(reminder);
+            Agenda.instance().setAlarm(context, reminder);
+            assertNotNull(token(context, reminder));
+            boolean rejected = false;
+            try {
+                Agenda.instance().confirmReminder(context, reminder.getId());
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("Orphan intake cannot be silently marked taken", rejected);
+            assertFalse(DB.eventInstances().findById(orphan.getId()).completed());
+            assertNotNull(DB.eventReminders().findById(reminder.getId()));
+            assertNotNull(token(context, reminder));
+        } finally {
+            if (reminder.getId() != null) {
+                Agenda.instance().cancelAlarm(context, reminder);
+                if (DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().remove(reminder);
+                }
+            }
+            if (orphan.getId() != null && DB.eventInstances().findById(orphan.getId()) != null) {
+                DB.eventInstances().remove(orphan);
+            }
+        }
+    }
+
+    @Test
+    public void cancellingAssignedIntakeCommitsEventAndRemovesAlarm() throws Exception {
         exerciseDecision(false, true);
     }
 
-    private void exerciseDecision(boolean confirm, boolean withPatient) {
+    private void exerciseDecision(boolean confirm, boolean withPatient) throws Exception {
         assertTrue(DB.initialized);
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         DateTime time = DateTime.now().plusHours(confirm ? 15 : 16).withMillisOfSecond(0);
         Patient synthetic = null;
+        Medicine medicine = null;
+        Schedule schedule = null;
         EventInstance event = new EventInstance(time, EventType.MEDICATION_INTAKE);
         EventReminder reminder = new EventReminder(time, EventType.MEDICATION_INTAKE);
         reminder.setNextTime(time);
@@ -63,6 +104,17 @@ public class AtomicMedicationDecisionSmokeTest {
                 DB.patients().save(synthetic);
                 event.setPatient(synthetic);
                 reminder.setPatient(synthetic);
+            }
+            if (confirm) {
+                medicine = new Medicine("Synthetic confirmed decision medicine", Presentation.PILLS);
+                medicine.setPatient(synthetic);
+                medicine.setStock(10.0f);
+                DB.medicines().create(medicine);
+                schedule = new Schedule(medicine);
+                schedule.setPatient(synthetic);
+                DB.schedules().create(schedule);
+                event.setRef(schedule.getId());
+                event.addParam(EventInstance.PARAM_DOSE, 2.0d);
             }
             DB.eventInstances().save(event);
             DB.eventReminders().save(reminder);
@@ -83,6 +135,9 @@ public class AtomicMedicationDecisionSmokeTest {
             if (confirm) {
                 assertTrue("The confirmed intake must be completed", updated.completed());
                 assertFalse("Confirming an intake must not mark it cancelled", updated.cancelled());
+                assertNotNull(medicine);
+                assertTrue("Direct confirmation must deduct inventory exactly once",
+                        Math.abs(DB.medicines().findById(medicine.getId()).getStock() - 8.0f) < 0.001f);
             } else {
                 assertTrue("Cancelling an intake must mark it cancelled", updated.cancelled());
                 assertFalse("Cancelling must not mark it completed", updated.completed());
@@ -101,6 +156,12 @@ public class AtomicMedicationDecisionSmokeTest {
             if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
                 DB.eventInstances().remove(event);
             }
+            if (schedule != null && schedule.getId() != null) {
+                DB.schedules().remove(schedule);
+            }
+            if (medicine != null && medicine.getId() != null) {
+                DB.medicines().remove(medicine);
+            }
             if (synthetic != null && synthetic.getId() != null) {
                 DB.patients().remove(synthetic);
             }
@@ -108,12 +169,12 @@ public class AtomicMedicationDecisionSmokeTest {
     }
 
     @Test
-    public void failedDeleteRollsBackConfirmedIntakeAndPreservesAlarm() {
+    public void failedDeleteRollsBackConfirmedIntakeAndPreservesAlarm() throws Exception {
         exerciseFailedDecision(true, false);
     }
 
     @Test
-    public void failedDeleteRollsBackCancelledIntakeAndPreservesAlarm() {
+    public void failedDeleteRollsBackCancelledIntakeAndPreservesAlarm() throws Exception {
         exerciseFailedDecision(false, false);
     }
 
@@ -123,26 +184,46 @@ public class AtomicMedicationDecisionSmokeTest {
      * The trigger is scoped to the synthetic row ID and removed in finally.
      */
     @Test
-    public void ignoredDeleteRollsBackConfirmedIntakeAndPreservesAlarm() {
+    public void ignoredDeleteRollsBackConfirmedIntakeAndPreservesAlarm() throws Exception {
         exerciseFailedDecision(true, true);
     }
 
     @Test
-    public void ignoredDeleteRollsBackCancelledIntakeAndPreservesAlarm() {
+    public void ignoredDeleteRollsBackCancelledIntakeAndPreservesAlarm() throws Exception {
         exerciseFailedDecision(false, true);
     }
 
-    private void exerciseFailedDecision(boolean confirm, boolean silentZeroRowDelete) {
+    private void exerciseFailedDecision(boolean confirm, boolean silentZeroRowDelete) throws Exception {
         assertTrue(DB.initialized);
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         DateTime time = DateTime.now().plusHours(confirm ? 19 : 20).withMillisOfSecond(0);
         EventInstance event = new EventInstance(time, EventType.MEDICATION_INTAKE);
         EventReminder reminder = new EventReminder(time, EventType.MEDICATION_INTAKE);
         reminder.setNextTime(time);
+        Patient synthetic = null;
+        Medicine medicine = null;
+        Schedule schedule = null;
         SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
         final String trigger = "ci_test_block_medication_reminder_delete";
         sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
         try {
+            if (confirm) {
+                synthetic = new Patient();
+                synthetic.setCode("ci-decision-failure-" + System.nanoTime());
+                synthetic.setName("Synthetic confirmed failure patient");
+                DB.patients().save(synthetic);
+                event.setPatient(synthetic);
+                reminder.setPatient(synthetic);
+                medicine = new Medicine("Synthetic failure stock medicine", Presentation.PILLS);
+                medicine.setPatient(synthetic);
+                medicine.setStock(10.0f);
+                DB.medicines().create(medicine);
+                schedule = new Schedule(medicine);
+                schedule.setPatient(synthetic);
+                DB.schedules().create(schedule);
+                event.setRef(schedule.getId());
+                event.addParam(EventInstance.PARAM_DOSE, 2.0d);
+            }
             DB.eventInstances().save(event);
             DB.eventReminders().save(reminder);
             assertNotNull(event.getId());
@@ -171,6 +252,11 @@ public class AtomicMedicationDecisionSmokeTest {
             assertNotNull(after);
             assertFalse("Failed SQL commit must roll back completion", after.completed());
             assertFalse("Failed SQL commit must roll back cancellation", after.cancelled());
+            if (confirm) {
+                assertNotNull(medicine);
+                assertTrue("The stock deduction must also roll back with reminder deletion",
+                        Math.abs(DB.medicines().findById(medicine.getId()).getStock() - 10.0f) < 0.001f);
+            }
             assertNotNull("Failed SQL commit must preserve the persisted reminder",
                     DB.eventReminders().findById(reminder.getId()));
             assertNotNull("Failed SQL commit must retain the Android alarm token",
@@ -185,6 +271,15 @@ public class AtomicMedicationDecisionSmokeTest {
             }
             if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
                 DB.eventInstances().remove(event);
+            }
+            if (schedule != null && schedule.getId() != null) {
+                DB.schedules().remove(schedule);
+            }
+            if (medicine != null && medicine.getId() != null) {
+                DB.medicines().remove(medicine);
+            }
+            if (synthetic != null && synthetic.getId() != null) {
+                DB.patients().remove(synthetic);
             }
         }
     }
