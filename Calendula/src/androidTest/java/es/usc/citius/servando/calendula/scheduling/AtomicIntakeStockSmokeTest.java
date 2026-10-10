@@ -30,6 +30,7 @@ import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -225,6 +226,31 @@ public class AtomicIntakeStockSmokeTest {
             }
             assertFalse(x.persistedIntake().completed());
             assertEquals(INITIAL_STOCK, x.persistedStock(), 0.001f);
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void legacyUnassignedIntakeWithoutStockManagementCanStillBeRecorded() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        try {
+            // Historical records can have no patient and no tracked stock.
+            // Completing them must remain possible without inventing owners
+            // or manufacturing an inventory balance.
+            x.event.setPatient(null);
+            x.schedule.setPatient(null);
+            x.medicine.setPatient(null);
+            x.medicine.setStock(null);
+            DB.medicines().update(x.medicine);
+            DB.schedules().update(x.schedule);
+            DB.eventInstances().update(x.event);
+            assertTrue("Untracked legacy intake remains acknowledgeable",
+                    ScheduleUtils.instance().setIntakeCompleted(x.context, x.event, true));
+            assertTrue(x.persistedIntake().completed());
+            assertNull("Untracked stock must not be synthesized",
+                    DB.medicines().findById(x.medicine.getId()).getStock());
         } finally {
             x.cleanup();
         }
