@@ -38,6 +38,47 @@ public class StartupReminderRearmSmokeTest {
     }
 
     @Test
+    public void malformedPersistedReminderRetiresOldAlarmButPreservesSqliteRecord() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime future = DateTime.now().plusHours(14).withMillisOfSecond(0);
+        EventReminder malformed = new EventReminder(
+                future, EventType.MEDICATION_INTAKE);
+        // Partially migrated legacy row: there is no authoritative next time.
+        malformed.setNextTime(null);
+        try {
+            DB.eventReminders().save(malformed);
+            assertNotNull(malformed.getId());
+            android.app.AlarmManager manager = (android.app.AlarmManager)
+                    context.getSystemService(Context.ALARM_SERVICE);
+            assertNotNull(manager);
+            PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0,
+                    Agenda.reminderBroadcastIntent(context, malformed),
+                    PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+            assertNotNull(pendingIntent);
+            manager.set(android.app.AlarmManager.RTC_WAKEUP,
+                    future.getMillis(), pendingIntent);
+            assertNotNull("Synthetic old OS token exists before delivery",
+                    token(context, malformed));
+
+            Agenda.instance().onReceiveAlarm(context, malformed.getId());
+
+            assertNull("Broken reminder must no longer wake the device",
+                    token(context, malformed));
+            assertNotNull("Retain incomplete row for migration",
+                    DB.eventReminders().findById(malformed.getId()));
+            assertNull(DB.eventReminders().findById(malformed.getId()).getNextTime());
+        } finally {
+            if (malformed.getId() != null) {
+                Agenda.instance().cancelAlarm(context, malformed);
+                if (DB.eventReminders().findById(malformed.getId()) != null) {
+                    DB.eventReminders().remove(malformed);
+                }
+            }
+        }
+    }
+
+    @Test
     public void newLegacyEventsCannotScheduleUndeliverableAlarm() {
         assertTrue(DB.initialized);
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
