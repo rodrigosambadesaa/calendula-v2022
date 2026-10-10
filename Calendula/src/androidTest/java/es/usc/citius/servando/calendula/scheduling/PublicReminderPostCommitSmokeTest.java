@@ -87,7 +87,7 @@ public class PublicReminderPostCommitSmokeTest {
                     PendingIntent.getBroadcast(context, 0,
                             Agenda.reminderBroadcastIntent(context, orphan),
                             PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
-            assertNotNull("The stale callback must not invent or delete SQL intake history",
+            assertNull("The old orphan cleanup must delete the invalid reminder",
                     DB.eventReminders().findById(orphan.getId()));
         } finally {
             if (orphan.getId() != null) {
