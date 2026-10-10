@@ -112,9 +112,9 @@ class AlarmIntentService : JobIntentService() {
                     return
                 }
                 val reminder = DB.eventReminders().findById(reminderId)
-                if (isActionableMedicationReminder(reminder)) {
+                if (reminder != null && isActionableMedicationReminder(reminder)) {
                     val confirmed = ScheduleUtils.instance()
-                        .checkIntakeEvents(this, reminder!!.patient, reminder.dateTime)
+                        .checkIntakeEvents(this, reminder.patient, reminder.dateTime)
                     if (confirmed > 0) {
                         showToast(getString(R.string.all_meds_taken))
                     } else {
