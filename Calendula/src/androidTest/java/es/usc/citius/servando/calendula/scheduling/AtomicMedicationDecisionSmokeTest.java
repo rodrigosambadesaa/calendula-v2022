@@ -209,6 +209,17 @@ public class AtomicMedicationDecisionSmokeTest {
             }
             assertTrue("Old patient context cannot cancel a reassigned reminder",
                     rejected);
+
+            boolean delayRejected = false;
+            try {
+                Agenda.instance().delayReminder(context, stale, 60);
+            } catch (RuntimeException expected) {
+                delayRejected = true;
+            }
+            assertTrue("Old patient context cannot postpone B's alarm",
+                    delayRejected);
+            org.junit.Assert.assertEquals(time,
+                    DB.eventReminders().findById(stale.getId()).getNextTime());
             EventInstance unchanged = DB.eventInstances().findById(event.getId());
             assertFalse(unchanged.cancelled());
             assertFalse(unchanged.completed());
