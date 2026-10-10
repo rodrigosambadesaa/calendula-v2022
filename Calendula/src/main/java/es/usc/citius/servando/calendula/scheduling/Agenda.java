@@ -246,7 +246,16 @@ public class Agenda {
         }
         EventReminder r = DB.eventReminders().findById(reminderId);
         if (r != null) {
-            if (r.getNextTime() == null || r.getNextTime().isAfterNow()) {
+            if (r.getDateTime() == null || r.getEventType() == null
+                    || r.getNextTime() == null) {
+                // A partially migrated SQLite row must never invoke dose
+                // delivery or cause the worker to crash. Retire its OS token,
+                // but preserve the row for explicit repair/migration.
+                LogUtil.w(TAG, "Malformed persisted reminder cannot be delivered");
+                cancelAlarm(ctx, r);
+                return;
+            }
+            if (r.getNextTime().isAfterNow()) {
                 // An in-flight old PendingIntent may fire after the user has
                 // postponed a dose. If its intake remains pending, never deliver
                 // before the latest persisted time. Only re-arm the current
