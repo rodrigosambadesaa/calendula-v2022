@@ -58,6 +58,14 @@ object StockUpdater {
             throw IllegalStateException("Medication stock row is missing")
         }
         if (!medicine.stockManagementEnabled()) return false
+        // A historical unassigned intake with disabled stock tracking may
+        // still be acknowledged without touching inventory. As soon as
+        // inventory is managed, null/null ownership is not sufficient proof
+        // of which patient's medicine should be debited.
+        if (eventPatientId == null || schedulePatientId == null) {
+            throw IllegalStateException(
+                "Stock-managed intake and schedule require an assigned patient")
+        }
 
         val before = medicine.stock
             ?: throw IllegalStateException("Medication stock is unavailable")
