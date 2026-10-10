@@ -214,6 +214,15 @@ public class ScheduleUtils {
                         if (stored == null || stored.getType() != EventType.MEDICATION_INTAKE) {
                             throw new SQLException("Intake disappeared during confirmation");
                         }
+                        // Re-query by ID is necessary but not sufficient:
+                        // a stale UI event can now refer to another patient's
+                        // intake or a changed prescription/time. Never mutate
+                        // its stock or completion flag on that old identity.
+                        if (!java.util.Objects.equals(event.getRef(), stored.getRef())
+                                || !java.util.Objects.equals(event.getTime(), stored.getTime())
+                                || !samePatientIdentity(event.getPatient(), stored.getPatient())) {
+                            throw new SQLException("Intake identity changed during confirmation");
+                        }
                         if (stored.cancelled()) {
                             throw new SQLException("Cancelled medication cannot be confirmed or undone");
                         }
@@ -235,6 +244,19 @@ public class ScheduleUtils {
         publishCommittedIntake(ctx, committed, completed);
         fireCommittedIntakeEvent();
         return true;
+    }
+
+    /**
+     * Null patient references are allowed only for matching legacy unassigned
+     * events; two transient patient objects with missing IDs do not establish
+     * identity. Persisted patient IDs must be equal and strictly positive.
+     */
+    private static boolean samePatientIdentity(Patient caller, Patient persisted) {
+        if (caller == null || persisted == null) {
+            return caller == null && persisted == null;
+        }
+        return caller.getId() != null && caller.getId() > 0
+                && caller.getId().equals(persisted.getId());
     }
 
     /** Never perform platform side effects while a SQLite transaction is open. */
