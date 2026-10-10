@@ -53,9 +53,9 @@ class AlarmIntentService : JobIntentService() {
         @JvmStatic
         fun isActionableMedicationReminder(reminder: EventReminder?): Boolean {
             val persistedId = reminder?.id ?: return false
-            return persistedId > 0L &&
+            val patientId = reminder.patient?.id ?: return false
+            return persistedId > 0L && patientId > 0L &&
                 reminder.eventType == EventType.MEDICATION_INTAKE &&
-                reminder.patient?.id != null &&
                 reminder.dateTime != null
         }
 
