@@ -62,6 +62,10 @@ public class NoReminderResurrectionSmokeTest {
             assertNotNull(orphan.getId());
             assertFalse("No pending intake means no successful snooze",
                     Agenda.instance().delayReminder(context, orphan.getId()));
+            assertFalse("No pending intake can be falsely reported cancelled",
+                    Agenda.instance().cancelReminder(context, orphan.getId()));
+            assertNotNull("Inactive orphan cleanup remains a separate alarm reconciliation task",
+                    DB.eventReminders().findById(orphan.getId()));
             assertEquals("A stale action cannot silently rewrite delivery time",
                     due, DB.eventReminders().findById(orphan.getId()).getNextTime());
         } finally {
