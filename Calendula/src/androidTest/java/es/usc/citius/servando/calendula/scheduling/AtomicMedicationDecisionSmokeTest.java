@@ -232,6 +232,53 @@ public class AtomicMedicationDecisionSmokeTest {
     }
 
     @Test
+    public void staleReminderCannotRemoveAnIndependentlyDelayedAlarm() throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime originalTime = DateTime.now().plusHours(22).withMillisOfSecond(0);
+        DateTime newerTime = originalTime.plusMinutes(10);
+        EventInstance event = new EventInstance(originalTime, EventType.MEDICATION_INTAKE);
+        EventReminder snapshot = new EventReminder(originalTime, EventType.MEDICATION_INTAKE);
+        snapshot.setNextTime(originalTime);
+        try {
+            DB.eventInstances().save(event);
+            DB.eventReminders().save(snapshot);
+            Agenda.instance().setAlarm(context, snapshot);
+            assertNotNull(token(context, snapshot));
+
+            EventReminder reloaded = DB.eventReminders().findById(snapshot.getId());
+            reloaded.setNextTime(newerTime);
+            org.junit.Assert.assertEquals(1, DB.eventReminders().update(reloaded));
+            org.junit.Assert.assertEquals(newerTime,
+                    DB.eventReminders().findById(snapshot.getId()).getNextTime());
+
+            boolean rejected = false;
+            try {
+                Agenda.instance().removeReminder(context, snapshot);
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("Stale cancellation cannot remove a later delay", rejected);
+            assertFalse(DB.eventInstances().findById(event.getId()).cancelled());
+            assertNotNull(DB.eventReminders().findById(snapshot.getId()));
+            org.junit.Assert.assertEquals(newerTime,
+                    DB.eventReminders().findById(snapshot.getId()).getNextTime());
+            assertNotNull("Rejected stale decision must not retire the Android token",
+                    token(context, snapshot));
+        } finally {
+            if (snapshot.getId() != null) {
+                Agenda.instance().cancelAlarm(context, snapshot);
+                if (DB.eventReminders().findById(snapshot.getId()) != null) {
+                    DB.eventReminders().remove(snapshot);
+                }
+            }
+            if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
+                DB.eventInstances().remove(event);
+            }
+        }
+    }
+
+    @Test
     public void failedDeleteRollsBackConfirmedIntakeAndPreservesAlarm() throws Exception {
         exerciseFailedDecision(true, false);
     }
