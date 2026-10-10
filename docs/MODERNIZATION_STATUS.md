@@ -42,10 +42,9 @@ does not imply all legacy accessibility warnings have been resolved.
   checks for component registration, secure network rules, receiver recovery,
   Android notification permissions and basic local database schema queries.
 - Introduced an owner-only, explicit-opt-in automatic squash-merge workflow
-  that requires Android CI and the emulator matrix to succeed for the
-  same immutable commit before merging. PR #572 proposes extending its gate
-  to **also** require the Android 17 smoke run; this addition is not claimed
-  as merged until #572 is validated and integrated.
+  that now requires **three** green suites on the same immutable commit:
+  Android CI, the API 23/33/36 emulator matrix and Android 17 API 37.0
+  runtime smoke (extended by merged PR #572).
 
 ## Unresolved release blockers
 
