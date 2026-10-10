@@ -48,9 +48,7 @@ object StockUpdater {
         // Never debit a different patient's inventory because an imported
         // event references a wrong or detached schedule.
         val eventPatientId = intake.patient?.id
-            ?: throw IllegalStateException("Medication intake has no assigned patient")
         val schedulePatientId = schedule.patient?.id
-            ?: throw IllegalStateException("Medication schedule has no assigned patient")
         val medicinePatientId = medicine.patient?.id
         if (eventPatientId != schedulePatientId ||
                 (medicinePatientId != null && medicinePatientId != eventPatientId)) {
@@ -60,6 +58,14 @@ object StockUpdater {
             throw IllegalStateException("Medication stock row is missing")
         }
         if (!medicine.stockManagementEnabled()) return false
+        // A historical unassigned intake with disabled stock tracking may
+        // still be acknowledged without touching inventory. As soon as
+        // inventory is managed, null/null ownership is not sufficient proof
+        // of which patient's medicine should be debited.
+        if (eventPatientId == null || schedulePatientId == null) {
+            throw IllegalStateException(
+                "Stock-managed intake and schedule require an assigned patient")
+        }
 
         val before = medicine.stock
             ?: throw IllegalStateException("Medication stock is unavailable")
