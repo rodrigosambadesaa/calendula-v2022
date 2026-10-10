@@ -169,6 +169,69 @@ public class AtomicMedicationDecisionSmokeTest {
     }
 
     @Test
+    public void staleReminderCannotCancelAnIntakeAfterPersistedPatientReassignment()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime time = DateTime.now().plusHours(21).withMillisOfSecond(0);
+        Patient originallyAssigned = new Patient();
+        originallyAssigned.setCode("ci-stale-reminder-a-" + System.nanoTime());
+        originallyAssigned.setName("Synthetic reminder patient A");
+        Patient currentOwner = new Patient();
+        currentOwner.setCode("ci-stale-reminder-b-" + System.nanoTime());
+        currentOwner.setName("Synthetic reminder patient B");
+        EventInstance event = new EventInstance(time, EventType.MEDICATION_INTAKE);
+        EventReminder stale = new EventReminder(time, EventType.MEDICATION_INTAKE);
+        stale.setNextTime(time);
+        try {
+            DB.patients().save(originallyAssigned);
+            DB.patients().save(currentOwner);
+            event.setPatient(originallyAssigned);
+            stale.setPatient(originallyAssigned);
+            DB.eventInstances().save(event);
+            DB.eventReminders().save(stale);
+            Agenda.instance().setAlarm(context, stale);
+            assertNotNull(token(context, stale));
+
+            // An independent update changed SQLite ownership, but the old
+            // notification still references the previous in-memory patient.
+            DB.helper().getWritableDatabase().execSQL(
+                    "UPDATE EventReminders SET Patient = ? WHERE _id = ?",
+                    new Object[]{currentOwner.getId(), stale.getId()});
+            org.junit.Assert.assertEquals(currentOwner.getId(),
+                    DB.eventReminders().findById(stale.getId()).getPatient().getId());
+
+            boolean rejected = false;
+            try {
+                Agenda.instance().removeReminder(context, stale);
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("Old patient context cannot cancel a reassigned reminder",
+                    rejected);
+            EventInstance unchanged = DB.eventInstances().findById(event.getId());
+            assertFalse(unchanged.cancelled());
+            assertFalse(unchanged.completed());
+            assertNotNull("Rejected action must preserve the SQLite row",
+                    DB.eventReminders().findById(stale.getId()));
+            assertNotNull("Rejected action must preserve the platform alarm token",
+                    token(context, stale));
+        } finally {
+            if (stale.getId() != null) {
+                Agenda.instance().cancelAlarm(context, stale);
+                if (DB.eventReminders().findById(stale.getId()) != null) {
+                    DB.eventReminders().remove(stale);
+                }
+            }
+            if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
+                DB.eventInstances().remove(event);
+            }
+            if (originallyAssigned.getId() != null) DB.patients().remove(originallyAssigned);
+            if (currentOwner.getId() != null) DB.patients().remove(currentOwner);
+        }
+    }
+
+    @Test
     public void failedDeleteRollsBackConfirmedIntakeAndPreservesAlarm() throws Exception {
         exerciseFailedDecision(true, false);
     }
