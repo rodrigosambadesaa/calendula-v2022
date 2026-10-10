@@ -493,6 +493,14 @@ public class Agenda {
      * updating its managed inventory. The notification worker normally uses
      * ScheduleUtils.checkIntakeEvents; this public alternative must be safe too.
      */
+    private static boolean samePersistedReminderPatient(Patient a, Patient b) {
+        if (a == null || b == null) {
+            return a == null && b == null;
+        }
+        return a.getId() != null && a.getId() > 0
+                && a.getId().equals(b.getId());
+    }
+
     private void finalizeReminderInSqlite(Context context, EventReminder reminder,
                                           boolean confirmIntake) {
         if (reminder == null || reminder.getId() == null) {
@@ -505,8 +513,19 @@ public class Agenda {
                     (Callable<Void>) () -> {
                         // Reject a stale callback that raced with another
                         // reminder action; do not update any unrelated intake.
-                        if (DB.eventReminders().findById(reminder.getId()) == null) {
-                            throw new SQLException("Reminder removed before decision");
+                        EventReminder current = DB.eventReminders().findById(reminder.getId());
+                        if (current == null
+                                || current.getEventType() != reminder.getEventType()
+                                || !java.util.Objects.equals(current.getDateTime(),
+                                        reminder.getDateTime())
+                                || !java.util.Objects.equals(current.getNextTime(),
+                                        reminder.getNextTime())
+                                || !samePersistedReminderPatient(current.getPatient(),
+                                        reminder.getPatient())) {
+                            // An independently delayed, reassigned or replaced
+                            // reminder must never be finalized from a stale
+                            // Android notification or alarm snapshot.
+                            throw new SQLException("Reminder changed before decision");
                         }
                         if (confirmIntake) {
                             Patient patient = reminder.getPatient();
