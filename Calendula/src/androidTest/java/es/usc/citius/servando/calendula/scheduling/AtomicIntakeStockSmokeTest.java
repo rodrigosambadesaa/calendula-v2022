@@ -189,6 +189,43 @@ public class AtomicIntakeStockSmokeTest {
     }
 
     @Test
+    public void reassigningMedicineToAnotherPatientNeverDebitsThatInventory() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        Patient newOwner = new Patient();
+        newOwner.setCode("ci-medicine-reassigned-" + System.nanoTime());
+        newOwner.setName("Synthetic unrelated medicine owner");
+        try {
+            DB.patients().save(newOwner);
+            // A medication event and its schedule still belong to A, but the
+            // same persisted medicine has been reassigned to B after these
+            // fixture objects were created. Do not trust a cached owner.
+            Medicine changed = DB.medicines().findById(x.medicine.getId());
+            assertNotNull(changed);
+            changed.setPatient(newOwner);
+            assertEquals(1, DB.medicines().update(changed));
+            assertEquals(newOwner.getId(),
+                    DB.medicines().findById(x.medicine.getId()).getPatient().getId());
+
+            try {
+                ScheduleUtils.instance().setIntakeCompleted(x.context, x.event, true);
+                fail("An intake for A must not deduct a medicine reassigned to B");
+            } catch (RuntimeException expected) {
+                // Patient ownership must be validated against refreshed SQLite.
+            }
+            assertEquals("Another patient's stock remains untouched",
+                    INITIAL_STOCK, x.persistedStock(), 0.001f);
+            assertFalse("No dose can be confirmed after cross-patient reassignment",
+                    x.persistedIntake().completed());
+            assertFalse("The caller must not observe a failed intake as successful",
+                    x.event.completed());
+        } finally {
+            x.cleanup();
+            if (newOwner.getId() != null) DB.patients().remove(newOwner);
+        }
+    }
+
+    @Test
     public void unassignedIntakeCannotDebitTrackedStock() throws Exception {
         assertTrue(DB.initialized);
         Fixture x = new Fixture();
