@@ -246,7 +246,11 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
                         if (event.getPatient() != null || event.getId() == null) {
                             throw new SQLException("Unexpected event identity during unassigned update");
                         }
-                        if (event.completed()) {
+                        if (event.completed()
+                                || (change != UnassignedChange.CONFIRM && event.cancelled())) {
+                            // Completing/cancelling must never rewrite a dose
+                            // already cancelled; preserve its original timestamp.
+                            // Non-medication CONFIRM may explicitly re-open it.
                             continue;
                         }
                         if (change == UnassignedChange.CANCEL) {
@@ -265,6 +269,13 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
     }
 
     public int checkAll(EventType type, DateTime dateTime, Patient p, DateTime completedAt) {
+        // This legacy bulk method only updates event status and never adjusts
+        // stock. Do not expose a second medication-confirmation route that can
+        // silently bypass the atomic intake + inventory transaction.
+        if (type == EventType.MEDICATION_INTAKE) {
+            throw new IllegalStateException(
+                    "Medication intake confirmation must include inventory transaction");
+        }
         try {
             if (p == null) {
                 // ORMLite's bulk update SQL does not reliably handle this
@@ -278,7 +289,8 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
             w.and(w.eq(EventInstance.COLUMN_EVENT_TYPE, type),
                     w.eq(EventInstance.COLUMN_DATE_TIME, dateTime),
                     (p == null ? w.isNull(EventInstance.COLUMN_PATIENT) : w.eq(EventInstance.COLUMN_PATIENT, p)),
-                    w.eq(EventInstance.COLUMN_COMPLETED, false)
+                    w.eq(EventInstance.COLUMN_COMPLETED, false),
+                    w.eq(EventInstance.COLUMN_CANCELLED, false)
             );
             qb.updateColumnValue(EventInstance.COLUMN_COMPLETED, true);
             qb.updateColumnValue(EventInstance.COLUMN_COMPLETED_DATETIME, completedAt);
