@@ -20,7 +20,8 @@ concurrency:
   group: android-17-compatibility-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
-# Deliberately separate from the supported 23/33/36 matrix. Compile/target
+# Deliberately separate from the API 23/33/36 jobs, but run the same
+# synthetic instrumentation test classes on API 37. Compile/target
 # remain at SDK 36 until the API 37 toolchain and target behavior are audited.
 jobs:
   runtime-compatibility:
@@ -78,7 +79,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Run focused Android 17 smoke tests
+      - name: Run full Android 17 medication and lifecycle smoke suite
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: '37.0'
@@ -86,7 +87,7 @@ jobs:
           target: google_apis
           script: |
             test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = "37"
-            ./gradlew connectedCiDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=es.usc.citius.servando.calendula.InstallationSmokeTest,es.usc.citius.servando.calendula.NotificationPermissionSmokeTest,es.usc.citius.servando.calendula.scheduling.ReminderPendingIntentSmokeTest,es.usc.citius.servando.calendula.scheduling.PublicReminderPostCommitSmokeTest,es.usc.citius.servando.calendula.scheduling.NoReminderResurrectionSmokeTest,es.usc.citius.servando.calendula.scheduling.AtomicIntakeStockSmokeTest,es.usc.citius.servando.calendula.scheduling.StartupReminderRearmSmokeTest,es.usc.citius.servando.calendula.scheduling.ClockChangeAlarmSmokeTest --stacktrace --no-daemon
+            ./gradlew connectedCiDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=es.usc.citius.servando.calendula.InstallationSmokeTest,es.usc.citius.servando.calendula.NotificationPermissionSmokeTest,es.usc.citius.servando.calendula.ZipExtractionSmokeTest,es.usc.citius.servando.calendula.DatabaseMigrationSmokeTest,es.usc.citius.servando.calendula.scheduling.ReminderPendingIntentSmokeTest,es.usc.citius.servando.calendula.scheduling.DailyMidnightAlarmSmokeTest,es.usc.citius.servando.calendula.scheduling.ClockChangeAlarmSmokeTest,es.usc.citius.servando.calendula.scheduling.ReminderCleanupSmokeTest,es.usc.citius.servando.calendula.scheduling.ExpiredReminderPruneSmokeTest,es.usc.citius.servando.calendula.scheduling.NullablePatientDaoSmokeTest,es.usc.citius.servando.calendula.scheduling.OrphanReminderAlarmSmokeTest,es.usc.citius.servando.calendula.scheduling.PatientScopedReminderDeliverySmokeTest,es.usc.citius.servando.calendula.scheduling.AtomicMedicationDecisionSmokeTest,es.usc.citius.servando.calendula.scheduling.PendingDoseSelectionSmokeTest,es.usc.citius.servando.calendula.scheduling.PublicReminderPostCommitSmokeTest,es.usc.citius.servando.calendula.scheduling.CancelledIntakeAlarmCleanupSmokeTest,es.usc.citius.servando.calendula.activities.UnverifiedMedicationAlertSmokeTest,es.usc.citius.servando.calendula.scheduling.NoReminderResurrectionSmokeTest,es.usc.citius.servando.calendula.scheduling.CheckAllActiveIntakesSmokeTest,es.usc.citius.servando.calendula.scheduling.StartupReminderRearmSmokeTest,es.usc.citius.servando.calendula.scheduling.AtomicIntakeStockSmokeTest,es.usc.citius.servando.calendula.NativeMultidexSmokeTest --stacktrace --no-daemon
 
       - name: Upload Android 17 test evidence
         if: always()
