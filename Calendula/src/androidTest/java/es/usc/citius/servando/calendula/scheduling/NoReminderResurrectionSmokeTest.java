@@ -32,6 +32,80 @@ import static org.junit.Assert.assertTrue;
 public class NoReminderResurrectionSmokeTest {
 
     @Test
+    public void staleOrInvalidNotificationActionsCannotReportSuccess() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        assertFalse("Missing ID must never be reported cancelled",
+                Agenda.instance().cancelReminder(context, -1L));
+        assertFalse("Missing ID must never be reported delayed",
+                Agenda.instance().delayReminder(context, -1L));
+        assertFalse("Unknown persisted row must not be reported cancelled",
+                Agenda.instance().cancelReminder(context, Long.MAX_VALUE));
+        assertFalse("Unknown persisted row must not be reported delayed",
+                Agenda.instance().delayReminder(context, Long.MAX_VALUE));
+        assertFalse("Null ID cannot claim a successful cancel",
+                Agenda.instance().cancelReminder(context, (Long) null));
+        assertFalse("Null ID cannot claim a successful delay",
+                Agenda.instance().delayReminder(context, (Long) null));
+    }
+
+    @Test
+    public void inactiveDoseCannotBeReportedDelayedOrModifyPersistedReminder() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime due = DateTime.now().plusHours(9).withMillisOfSecond(0);
+        EventReminder orphan = new EventReminder(due, EventType.MEDICATION_INTAKE);
+        orphan.setNextTime(due);
+        try {
+            // This reminder deliberately has no active EventInstance behind it.
+            DB.eventReminders().save(orphan);
+            assertNotNull(orphan.getId());
+            assertFalse("No pending intake means no successful snooze",
+                    Agenda.instance().delayReminder(context, orphan.getId()));
+            assertFalse("No pending intake can be falsely reported cancelled",
+                    Agenda.instance().cancelReminder(context, orphan.getId()));
+            assertNotNull("Inactive orphan cleanup remains a separate alarm reconciliation task",
+                    DB.eventReminders().findById(orphan.getId()));
+            assertEquals("A stale action cannot silently rewrite delivery time",
+                    due, DB.eventReminders().findById(orphan.getId()).getNextTime());
+        } finally {
+            if (orphan.getId() != null && DB.eventReminders().findById(orphan.getId()) != null) {
+                DB.eventReminders().remove(orphan);
+            }
+        }
+    }
+
+    @Test
+    public void completedMedicationCannotBeReportedCancelledFromOldNotification() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime due = DateTime.now().plusHours(12).withMillisOfSecond(0);
+        EventInstance completed = new EventInstance(due, EventType.MEDICATION_INTAKE);
+        completed.setCompleted(true);
+        EventReminder oldNotification = new EventReminder(due, EventType.MEDICATION_INTAKE);
+        oldNotification.setNextTime(due);
+        try {
+            DB.eventInstances().save(completed);
+            DB.eventReminders().save(oldNotification);
+            assertFalse("Old notification must not claim to cancel a completed dose",
+                    Agenda.instance().cancelReminder(context, oldNotification.getId()));
+            assertTrue("Previously completed intake remains completed",
+                    DB.eventInstances().findById(completed.getId()).completed());
+            assertNotNull("No stale callback may mutate the persisted reminder",
+                    DB.eventReminders().findById(oldNotification.getId()));
+        } finally {
+            if (oldNotification.getId() != null
+                    && DB.eventReminders().findById(oldNotification.getId()) != null) {
+                DB.eventReminders().remove(oldNotification);
+            }
+            if (completed.getId() != null
+                    && DB.eventInstances().findById(completed.getId()) != null) {
+                DB.eventInstances().remove(completed);
+            }
+        }
+    }
+
+    @Test
     public void removedOrRetimedPersistedReminderCannotBeRepeatedFromStaleAlarm() {
         assertTrue(DB.initialized);
         DateTime time = DateTime.now().plusHours(16).withMillisOfSecond(0);
@@ -115,7 +189,8 @@ public class NoReminderResurrectionSmokeTest {
                             PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
 
             sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
-            Agenda.instance().delayReminder(context, reminder, 600);
+            assertTrue("Successful SQL commit and alarm setup should report success",
+                    Agenda.instance().delayReminder(context, reminder, 600));
             DateTime committedTime = DB.eventReminders().findById(reminder.getId()).getNextTime();
             assertTrue("The new future time must be persisted before rescheduling",
                     committedTime.isAfter(originalTime.minusHours(18).plusMinutes(9)));
