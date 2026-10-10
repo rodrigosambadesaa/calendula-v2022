@@ -709,14 +709,7 @@ public class Agenda {
             if (r.autoRepeat()) {
                 LogUtil.d(TAG, "Auto repeat enabled, try to reschedule repeat");
                 DateTime nextTime = DateTime.now().plusSeconds(repeatFreqSeconds());
-                if (shouldReschedule(r, nextTime) && isCurrentPendingReminder(r)) {
-                    r.setNextTime(nextTime);
-                    DB.eventReminders().save(r);
-                    // Avoid re-arming a dose confirmed/cancelled while processing.
-                    if (isCurrentPendingReminder(r)) {
-                        setAlarm(ctx, r);
-                    }
-                } else {
+                if (!rescheduleAutoRepeatIfCurrent(ctx, r, nextTime)) {
                     LogUtil.d(TAG, "Reminder no longer pending or outside repeat window");
                 }
             }
@@ -727,6 +720,61 @@ public class Agenda {
             deletePersistedReminderForAlarmCleanup(r);
             cancelAlarm(ctx, r);
         }
+    }
+
+    /**
+     * Only the reminder revision that actually fired may advance auto-repeat.
+     * Another action can cancel the dose or postpone it between notification
+     * delivery and repeat scheduling; both predicates and the SQL update must
+     * therefore share one transaction. AlarmManager is updated post-commit.
+     *
+     * Package-private for real SQLite/alarm regression tests.
+     */
+    boolean rescheduleAutoRepeatIfCurrent(Context context, EventReminder snapshot,
+                                          DateTime nextTime) {
+        if (snapshot == null || snapshot.getId() == null || snapshot.getNextTime() == null
+                || nextTime == null || !nextTime.isAfter(snapshot.getNextTime())
+                || !shouldReschedule(snapshot, nextTime)) {
+            return false;
+        }
+        final EventReminder committed;
+        try {
+            committed = TransactionManager.callInTransaction(
+                    DB.helper().getConnectionSource(), (Callable<EventReminder>) () -> {
+                        EventReminder current = DB.eventReminders().findById(snapshot.getId());
+                        if (current == null || !current.autoRepeat()
+                                || current.getNextTime() == null
+                                || !snapshot.getNextTime().equals(current.getNextTime())
+                                || !nextTime.isAfter(current.getNextTime())
+                                || !shouldReschedule(current, nextTime)
+                                || current.getEventType() != snapshot.getEventType()
+                                || !current.getDateTime().equals(snapshot.getDateTime())
+                                || !DB.eventInstances().existsPending(
+                                        current.getEventType(), current.getDateTime(),
+                                        current.getPatient())) {
+                            return null;
+                        }
+                        current.setNextTime(nextTime);
+                        if (DB.eventReminders().update(current) != 1) {
+                            throw new SQLException("Expected one auto-repeat reminder row");
+                        }
+                        return current;
+                    });
+        } catch (SQLException failed) {
+            throw new IllegalStateException(
+                    "Could not persist automatic reminder repetition", failed);
+        }
+        if (committed == null) {
+            return false;
+        }
+        snapshot.setNextTime(committed.getNextTime());
+        // A concurrent action after SQL COMMIT may have retired this reminder.
+        // Never resurrect a stale dose from a cached EventReminder snapshot.
+        if (!isCurrentPendingReminder(committed)) {
+            return false;
+        }
+        setAlarm(context, committed);
+        return true;
     }
 
     private boolean getAutoRepeat(EventType type) {
