@@ -32,6 +32,73 @@ import static org.junit.Assert.assertTrue;
 public class PublicReminderPostCommitSmokeTest {
 
     @Test
+    public void supersededAlarmBroadcastNeverDeliversFutureDoseAndRearmsItsCurrentTime() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime currentDelivery = DateTime.now().plusMinutes(35).withMillisOfSecond(0);
+        EventInstance pending = new EventInstance(currentDelivery, EventType.MEDICATION_INTAKE);
+        EventReminder persisted = new EventReminder(currentDelivery, EventType.MEDICATION_INTAKE);
+        persisted.setNextTime(currentDelivery);
+        try {
+            DB.eventInstances().save(pending);
+            DB.eventReminders().save(persisted);
+            assertNotNull(persisted.getId());
+            assertNull("No OS alarm has been registered yet for this fixture",
+                    PendingIntent.getBroadcast(context, 0,
+                            Agenda.reminderBroadcastIntent(context, persisted),
+                            PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+
+            // Emulate an already queued alarm from the superseded delivery.
+            // The latest persisted NextTime is still in the future.
+            Agenda.instance().onReceiveAlarm(context, persisted.getId());
+            assertEquals("A stale delivery cannot rewrite the time chosen by the user",
+                    currentDelivery, DB.eventReminders().findById(persisted.getId()).getNextTime());
+            assertTrue("A premature callback cannot mark a medication completed",
+                    !DB.eventInstances().findById(pending.getId()).completed());
+            assertNotNull("The current, future reminder must be rearmed instead of delivered early",
+                    PendingIntent.getBroadcast(context, 0,
+                            Agenda.reminderBroadcastIntent(context, persisted),
+                            PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+        } finally {
+            if (persisted.getId() != null) {
+                Agenda.instance().cancelAlarm(context, persisted);
+                if (DB.eventReminders().findById(persisted.getId()) != null) {
+                    DB.eventReminders().remove(persisted);
+                }
+            }
+            if (pending.getId() != null && DB.eventInstances().findById(pending.getId()) != null) {
+                DB.eventInstances().remove(pending);
+            }
+        }
+    }
+
+    @Test
+    public void prematureOrphanBroadcastDoesNotCreateAnAndroidAlarm() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime future = DateTime.now().plusMinutes(40).withMillisOfSecond(0);
+        EventReminder orphan = new EventReminder(future, EventType.MEDICATION_INTAKE);
+        orphan.setNextTime(future);
+        try {
+            DB.eventReminders().save(orphan);
+            Agenda.instance().onReceiveAlarm(context, orphan.getId());
+            assertNull("A reminder with no pending intake must never rearm",
+                    PendingIntent.getBroadcast(context, 0,
+                            Agenda.reminderBroadcastIntent(context, orphan),
+                            PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+            assertNotNull("The stale callback must not invent or delete SQL intake history",
+                    DB.eventReminders().findById(orphan.getId()));
+        } finally {
+            if (orphan.getId() != null) {
+                Agenda.instance().cancelAlarm(context, orphan);
+                if (DB.eventReminders().findById(orphan.getId()) != null) {
+                    DB.eventReminders().remove(orphan);
+                }
+            }
+        }
+    }
+
+    @Test
     public void publicReminderCreationCommitsThenRegistersStableAndroidAlarm() {
         assertTrue(DB.initialized);
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
