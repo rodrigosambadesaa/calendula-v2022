@@ -48,7 +48,9 @@ object StockUpdater {
         // Never debit a different patient's inventory because an imported
         // event references a wrong or detached schedule.
         val eventPatientId = intake.patient?.id
+            ?: throw IllegalStateException("Medication intake has no assigned patient")
         val schedulePatientId = schedule.patient?.id
+            ?: throw IllegalStateException("Medication schedule has no assigned patient")
         val medicinePatientId = medicine.patient?.id
         if (eventPatientId != schedulePatientId ||
                 (medicinePatientId != null && medicinePatientId != eventPatientId)) {
