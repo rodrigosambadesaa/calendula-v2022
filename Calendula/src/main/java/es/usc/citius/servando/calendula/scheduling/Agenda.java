@@ -121,9 +121,11 @@ public class Agenda {
                 @Override
                 public Object call() throws Exception {
                     for (EventInstance e : intakes) {
-                        if (!isReminderEligible(e)) {
-                            // Never create a reminder for an already handled or
-                            // corrupted event. Check before any SQLite lookup.
+                        if (!isReminderEligible(e)
+                                || !receivers.containsKey(e.getType())) {
+                            // Never schedule handled/corrupt events or legacy
+                            // types without an active delivery receiver.
+                            // Preserve their event rows for future migration.
                             continue;
                         }
                         if (!DB.eventReminders().exists(e.getType(), e.getTime(), e.getPatient())) {
