@@ -221,6 +221,21 @@ public class Agenda {
         // get the r from db
         EventReminder r = DB.eventReminders().findById(reminderId);
         if (r != null) {
+            if (r.getNextTime() == null) {
+                // Malformed restored state has no trustworthy delivery time.
+                LogUtil.w(TAG, "Ignoring reminder with no persisted delivery time");
+                return;
+            }
+            if (r.getNextTime().isAfterNow()) {
+                // An old/in-flight PendingIntent can arrive after the user has
+                // postponed a dose. Never deliver it before the latest SQLite
+                // NextTime; re-arm the surviving revision instead.
+                if (isCurrentPendingReminder(r)) {
+                    setAlarm(ctx, r);
+                }
+                LogUtil.d(TAG, "Ignoring premature or superseded reminder broadcast");
+                return;
+            }
             LogUtil.d(TAG, "Received scheduled reminder");
             sendReminderToReceiver(ctx, r);
         } else {
