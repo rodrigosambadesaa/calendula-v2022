@@ -76,6 +76,36 @@ public class NoReminderResurrectionSmokeTest {
     }
 
     @Test
+    public void completedMedicationCannotBeReportedCancelledFromOldNotification() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime due = DateTime.now().plusHours(12).withMillisOfSecond(0);
+        EventInstance completed = new EventInstance(due, EventType.MEDICATION_INTAKE);
+        completed.setCompleted(true);
+        EventReminder oldNotification = new EventReminder(due, EventType.MEDICATION_INTAKE);
+        oldNotification.setNextTime(due);
+        try {
+            DB.eventInstances().save(completed);
+            DB.eventReminders().save(oldNotification);
+            assertFalse("Old notification must not claim to cancel a completed dose",
+                    Agenda.instance().cancelReminder(context, oldNotification.getId()));
+            assertTrue("Previously completed intake remains completed",
+                    DB.eventInstances().findById(completed.getId()).completed());
+            assertNotNull("No stale callback may mutate the persisted reminder",
+                    DB.eventReminders().findById(oldNotification.getId()));
+        } finally {
+            if (oldNotification.getId() != null
+                    && DB.eventReminders().findById(oldNotification.getId()) != null) {
+                DB.eventReminders().remove(oldNotification);
+            }
+            if (completed.getId() != null
+                    && DB.eventInstances().findById(completed.getId()) != null) {
+                DB.eventInstances().remove(completed);
+            }
+        }
+    }
+
+    @Test
     public void removedOrRetimedPersistedReminderCannotBeRepeatedFromStaleAlarm() {
         assertTrue(DB.initialized);
         DateTime time = DateTime.now().plusHours(16).withMillisOfSecond(0);
