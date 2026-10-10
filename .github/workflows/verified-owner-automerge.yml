@@ -7,6 +7,7 @@ on:
     workflows:
       - Android CI
       - Android emulator smoke (API 23, 33, 36)
+      - Android 17 runtime compatibility (API 37.0)
     types:
       - completed
   workflow_dispatch:
@@ -31,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Merge only explicitly opted-in owner branches with both CI suites green
+      - name: Merge only explicitly opted-in owner branches with all Android CI suites green
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -62,7 +63,7 @@ jobs:
             # Query immutable commit SHA, not potentially moving branch status.
             runs=$(gh api "repos/$REPO/actions/runs?head_sha=$sha&per_page=100")
             all_green=true
-            for workflow in "Android CI" "Android emulator smoke (API 23, 33, 36)"; do
+            for workflow in "Android CI" "Android emulator smoke (API 23, 33, 36)" "Android 17 runtime compatibility (API 37.0)"; do
               latest=$(jq -r --arg workflow "$workflow" --arg branch "$branch" --arg sha "$sha" '
                 [.workflow_runs[] | select(
                   .name == $workflow and .head_branch == $branch and .head_sha == $sha
@@ -103,7 +104,7 @@ jobs:
                 .behind_by == 0
                 and (.status == "ahead" or .status == "identical")
               ' <<< "$comparison" >/dev/null; then
-              echo "PR #$number is behind main; update and re-run both CI suites"
+              echo "PR #$number is behind main; update and re-run all three CI suites"
               continue
             fi
 
