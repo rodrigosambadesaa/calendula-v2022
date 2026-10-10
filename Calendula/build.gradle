@@ -86,7 +86,6 @@ android {
         versionName "2.5.8"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         applicationId "es.usc.citius.servando.calendula"
-        multiDexEnabled true
         vectorDrawables.useSupportLibrary = true
     }
 
@@ -232,8 +231,7 @@ dependencies {
     debugImplementation 'com.squareup.leakcanary:leakcanary-android:2.14'
 
     /********** SUPPORT **********/
-    // Multidex support
-    implementation 'androidx.multidex:multidex:2.0.1'
+    // minSdk 23: native multidex; no AndroidX multidex bootstrap dependency.
 
     // Support libs
     implementation 'androidx.appcompat:appcompat:1.8.0'
