@@ -7,6 +7,7 @@ package es.usc.citius.servando.calendula.scheduling;
 
 import android.app.PendingIntent;
 import android.content.Context;
+import android.database.sqlite.SQLiteDatabase;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -24,6 +25,7 @@ import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -137,4 +139,117 @@ public class PublicReminderPostCommitSmokeTest {
             }
         }
     }
+
+    private static final class RepeatFixture {
+        final Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        final DateTime due = DateTime.now().plusMinutes(2).withMillisOfSecond(0);
+        final EventInstance event = new EventInstance(due, EventType.MEDICATION_INTAKE);
+        final EventReminder reminder = new EventReminder(due, EventType.MEDICATION_INTAKE);
+
+        RepeatFixture() {
+            reminder.setNextTime(due);
+            reminder.setAutoRepeat(true);
+            DB.eventInstances().save(event);
+            DB.eventReminders().save(reminder);
+            assertNotNull(event.getId());
+            assertNotNull(reminder.getId());
+            Agenda.instance().setAlarm(context, reminder);
+        }
+
+        DateTime persistedTime() {
+            return DB.eventReminders().findById(reminder.getId()).getNextTime();
+        }
+
+        void cleanup() {
+            Agenda.instance().cancelAlarm(context, reminder);
+            if (DB.eventReminders().findById(reminder.getId()) != null) {
+                DB.eventReminders().remove(reminder);
+            }
+            if (DB.eventInstances().findById(event.getId()) != null) {
+                DB.eventInstances().remove(event);
+            }
+        }
+    }
+
+    @Test
+    public void repeatCommitsSqlFirstAndRetainsStableAndroidAlarm() {
+        assertTrue(DB.initialized);
+        RepeatFixture x = new RepeatFixture();
+        try {
+            DateTime next = x.due.plusMinutes(1);
+            assertTrue("Current pending reminder can repeat",
+                    Agenda.instance().rescheduleAutoRepeatIfCurrent(x.context, x.reminder, next));
+            assertEquals(next, x.persistedTime());
+            assertEquals(next, x.reminder.getNextTime());
+            assertNotNull("Only committed repeat schedules an OS alarm",
+                    PendingIntent.getBroadcast(x.context, 0,
+                            Agenda.reminderBroadcastIntent(x.context, x.reminder),
+                            PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+            assertFalse("Same alarm delivery must not repeat at the same time again",
+                    Agenda.instance().rescheduleAutoRepeatIfCurrent(x.context, x.reminder, next));
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void staleRepeatCannotOverwriteAnIndependentlyDelayedReminder() throws Exception {
+        assertTrue(DB.initialized);
+        RepeatFixture x = new RepeatFixture();
+        try {
+            EventReminder newer = DB.eventReminders().findById(x.reminder.getId());
+            newer.setNextTime(x.due.plusMinutes(2));
+            DB.eventReminders().update(newer);
+            assertFalse("An outdated broadcast must not undo the user's newer delay",
+                    Agenda.instance().rescheduleAutoRepeatIfCurrent(
+                            x.context, x.reminder, x.due.plusMinutes(1)));
+            assertEquals(x.due.plusMinutes(2), x.persistedTime());
+            assertEquals("Stale callback cannot mutate in-memory reminder",
+                    x.due, x.reminder.getNextTime());
+            x.event.setCompleted(true);
+            DB.eventInstances().update(x.event);
+            assertFalse("A completed dose cannot be automatically repeated",
+                    Agenda.instance().rescheduleAutoRepeatIfCurrent(
+                            x.context, newer, x.due.plusMinutes(3)));
+            assertEquals(x.due.plusMinutes(2), x.persistedTime());
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void sqlAbortCannotChangeRepeatTimeOrRetireExistingAlarm() {
+        assertTrue(DB.initialized);
+        RepeatFixture x = new RepeatFixture();
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        final String trigger = "ci_test_auto_repeat_sql_abort";
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE UPDATE ON EventReminders WHEN OLD._id = " + x.reminder.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic repeat rollback'); END;");
+            boolean rejected = false;
+            try {
+                Agenda.instance().rescheduleAutoRepeatIfCurrent(
+                        x.context, x.reminder, x.due.plusMinutes(1));
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("A real SQLite failure must abort automatic repetition", rejected);
+            assertEquals(x.due, x.persistedTime());
+            assertEquals(x.due, x.reminder.getNextTime());
+            assertNotNull("Failed SQL update must preserve original OS alarm",
+                    PendingIntent.getBroadcast(x.context, 0,
+                            Agenda.reminderBroadcastIntent(x.context, x.reminder),
+                            PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            assertTrue("Retry must work after the database error is removed",
+                    Agenda.instance().rescheduleAutoRepeatIfCurrent(
+                            x.context, x.reminder, x.due.plusMinutes(1)));
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            x.cleanup();
+        }
+    }
+
 }
