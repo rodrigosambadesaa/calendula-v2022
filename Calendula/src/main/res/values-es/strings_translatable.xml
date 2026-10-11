@@ -499,4 +499,5 @@ Quieres instalar la nueva base de datos ahora?"</string>
     <string name="channel_setup_name">Configuración</string>
     <string name="channel_setup_description">Notificaciones relacionadas con la configuración de la aplicación.</string>
     <string name="agenda_medication_review_warning">Hay registros de medicación de este paciente pendientes de revisión. Abre sus pautas y comprueba los datos antes de tomar una dosis.</string>
+    <string name="routine_profile_unavailable">Rutina no disponible. Selecciona el perfil de paciente correcto y vuelve a abrir el editor.</string>
 </resources>
