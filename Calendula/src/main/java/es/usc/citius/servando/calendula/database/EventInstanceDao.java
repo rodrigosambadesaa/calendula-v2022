@@ -187,21 +187,49 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
         }
     }
 
-    public int removeDistinctTime(EventType type, Long ref, Collection<DateTime> timesToPreserve, DateTime from) {
+    /**
+     * A schedule revision may remove obsolete *pending* future occurrences,
+     * but must never erase an already completed/cancelled intake decision.
+     * Empty time filters are valid (a recurrence can have no remaining times).
+     */
+    public int removeDistinctTime(EventType type, Long ref,
+                                  Collection<DateTime> timesToPreserve, DateTime from) {
         try {
-            DeleteBuilder<EventInstance, Long> qb = dao.deleteBuilder();
-            Where w = qb.where();
-            w.and(w.eq(EventInstance.COLUMN_EVENT_TYPE, type),
-                    w.eq(EventInstance.COLUMN_REF, ref),
-                    w.notIn(EventInstance.COLUMN_DATE_TIME, timesToPreserve),
-                    w.gt(EventInstance.COLUMN_DATE_TIME,from)
-            );
-            qb.setWhere(w);
-            return qb.delete();
+            return com.j256.ormlite.misc.TransactionManager.callInTransaction(
+                    dbHelper.getConnectionSource(), () -> {
+                        QueryBuilder<EventInstance, Long> query = dao.queryBuilder();
+                        Where<EventInstance, Long> where = query.where();
+                        if (timesToPreserve == null || timesToPreserve.isEmpty()) {
+                            where.and(where.eq(EventInstance.COLUMN_EVENT_TYPE, type),
+                                    where.eq(EventInstance.COLUMN_REF, ref),
+                                    where.gt(EventInstance.COLUMN_DATE_TIME, from));
+                        } else {
+                            where.and(where.eq(EventInstance.COLUMN_EVENT_TYPE, type),
+                                    where.eq(EventInstance.COLUMN_REF, ref),
+                                    where.notIn(EventInstance.COLUMN_DATE_TIME, timesToPreserve),
+                                    where.gt(EventInstance.COLUMN_DATE_TIME, from));
+                        }
+                        query.setWhere(where);
+                        int removed = 0;
+                        for (EventInstance event : query.query()) {
+                            if (event.getId() == null) {
+                                throw new SQLException("Future schedule event has no persisted ID");
+                            }
+                            if (event.completed() || event.cancelled()) {
+                                // Preserve historical decisions, including
+                                // doses taken early or cancelled for tomorrow.
+                                continue;
+                            }
+                            if (dao.deleteById(event.getId()) != 1) {
+                                throw new SQLException("Expected one obsolete pending event to be removed");
+                            }
+                            removed++;
+                        }
+                        return removed;
+                    });
         } catch (SQLException e) {
-            throw new RuntimeException("Error finding event instances", e);
+            throw new RuntimeException("Error removing obsolete pending event instances", e);
         }
-
     }
 
     public int removeByRef(Long ref) {
@@ -216,16 +244,37 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
         }
     }
 
+    /**
+     * Blocking an active medication or prescription removes unhandled future
+     * occurrences, not decisions already recorded for those times.
+     * Preserve completion/cancellation history while cleaning pending events.
+     */
     public int removeByRefAndTime(Long ref, DateTime startTime) {
         try {
-            DeleteBuilder<EventInstance, Long> qb = dao.deleteBuilder();
-            Where w = qb.where();
-            w.and(w.eq(EventInstance.COLUMN_REF, ref),
-                  w.gt(EventInstance.COLUMN_DATE_TIME, startTime)  );
-            qb.setWhere(w);
-            return qb.delete();
+            return com.j256.ormlite.misc.TransactionManager.callInTransaction(
+                    dbHelper.getConnectionSource(), () -> {
+                        QueryBuilder<EventInstance, Long> query = dao.queryBuilder();
+                        Where<EventInstance, Long> where = query.where();
+                        where.and(where.eq(EventInstance.COLUMN_REF, ref),
+                                where.gt(EventInstance.COLUMN_DATE_TIME, startTime));
+                        query.setWhere(where);
+                        int removed = 0;
+                        for (EventInstance event : query.query()) {
+                            if (event.getId() == null) {
+                                throw new SQLException("Future event has no persisted identity");
+                            }
+                            if (event.completed() || event.cancelled()) {
+                                continue;
+                            }
+                            if (dao.deleteById(event.getId()) != 1) {
+                                throw new SQLException("Could not remove obsolete pending event");
+                            }
+                            removed++;
+                        }
+                        return removed;
+                    });
         } catch (SQLException e) {
-            throw new RuntimeException("Error finding event instances", e);
+            throw new RuntimeException("Error removing unhandled future events", e);
         }
     }
 
@@ -390,20 +439,45 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
         }
     }
 
+    /**
+     * Rescheduling may change the dose of a still-pending occurrence, but a
+     * completed or cancelled occurrence is a historical decision. Its dose
+     * snapshot must not be rewritten by a later prescription edit.
+     *
+     * Select eligible rows and update only Params by persisted primary key
+     * within the same transaction. This avoids overwriting status fields
+     * from a stale EventInstance and works across legacy SQLite versions.
+     */
     public int updateParams(EventType type, DateTime dateTime, Long ref, Bundle params) {
         try {
-            UpdateBuilder<EventInstance, Long> qb = dao.updateBuilder();
-            Where w = qb.where();
-            w.and(w.eq(EventInstance.COLUMN_EVENT_TYPE, type),
-                    w.eq(EventInstance.COLUMN_DATE_TIME, dateTime),
-                    w.eq(EventInstance.COLUMN_REF, ref)
-            );
-            qb.updateColumnValue(EventInstance.COLUMN_PARAMS, params);
-            qb.setWhere(w);
-            return qb.update();
+            return com.j256.ormlite.misc.TransactionManager.callInTransaction(
+                    dbHelper.getConnectionSource(), () -> {
+                        QueryBuilder<EventInstance, Long> query = dao.queryBuilder();
+                        Where<EventInstance, Long> where = query.where();
+                        where.and(where.eq(EventInstance.COLUMN_EVENT_TYPE, type),
+                                where.eq(EventInstance.COLUMN_DATE_TIME, dateTime),
+                                where.eq(EventInstance.COLUMN_REF, ref));
+                        query.setWhere(where);
+                        int changed = 0;
+                        for (EventInstance event : query.query()) {
+                            if (event.getId() == null) {
+                                throw new SQLException("Schedule event has no persisted ID");
+                            }
+                            if (event.completed() || event.cancelled()) {
+                                continue;
+                            }
+                            UpdateBuilder<EventInstance, Long> update = dao.updateBuilder();
+                            update.updateColumnValue(EventInstance.COLUMN_PARAMS, params);
+                            update.where().eq(EventInstance.COLUMN_ID, event.getId());
+                            if (update.update() != 1) {
+                                throw new SQLException("Expected one pending dose parameter update");
+                            }
+                            changed++;
+                        }
+                        return changed;
+                    });
         } catch (SQLException e) {
-
-            throw new RuntimeException("Error updating event params", e);
+            throw new RuntimeException("Error updating pending event params", e);
         }
     }
 
