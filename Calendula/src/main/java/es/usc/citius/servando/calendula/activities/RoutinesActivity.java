@@ -31,9 +31,11 @@ import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.fragments.RoutineCreateOrEditFragment;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Routine;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.util.FragmentUtils;
+import es.usc.citius.servando.calendula.util.RoutineOwnerGuard;
 
 public class RoutinesActivity extends CalendulaActivity implements RoutineCreateOrEditFragment.OnRoutineEditListener {
 
@@ -56,7 +58,14 @@ public class RoutinesActivity extends CalendulaActivity implements RoutineCreate
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.action_remove:
-                routineFragment.showDeleteConfirmationDialog(Routine.findById(mRoutineId));
+                // Recheck persistence and active ownership at click time: the
+                // profile may have changed while the editor was on screen.
+                Routine toDelete = DB.routines().findById(mRoutineId);
+                if (!RoutineOwnerGuard.isOwnedBy(toDelete, DB.patients().getActive(this))) {
+                    finish();
+                    return true;
+                }
+                routineFragment.showDeleteConfirmationDialog(toDelete);
                 break;
             default:
                 finish();
@@ -67,14 +76,28 @@ public class RoutinesActivity extends CalendulaActivity implements RoutineCreate
 
     @Override
     public void onRoutineEdited(Routine r) {
+        if (!RoutineOwnerGuard.isOwnedBy(
+                DB.routines().findById(r == null ? null : r.getId()),
+                DB.patients().getActive(this))) {
+            finish();
+            return;
+        }
         ScheduleUtils.instance().onUpdateRoutine(this, r);
         finish();
     }
 
     @Override
     public void onRoutineDeleted(Routine r) {
-        DB.routines().remove(r);
-        ScheduleUtils.instance().onDeleteRoutine(this, r);
+        Routine persisted = DB.routines().findById(r == null ? null : r.getId());
+        Patient active = DB.patients().getActive(this);
+        if (mRoutineId == -1 || r == null || r.getId() == null
+                || r.getId().longValue() != mRoutineId
+                || !RoutineOwnerGuard.isOwnedBy(persisted, active)) {
+            finish();
+            return;
+        }
+        DB.routines().remove(persisted);
+        ScheduleUtils.instance().onDeleteRoutine(this, persisted);
         finish();
     }
 
@@ -90,14 +113,22 @@ public class RoutinesActivity extends CalendulaActivity implements RoutineCreate
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Reject a stale or foreign routine ID *before* inflating the editor
+        // (which would otherwise prefill another patient's routine name).
+        processIntent();
+        Patient active = DB.patients().getActive(this);
+        if (!RoutineOwnerGuard.hasActivePatient(active)
+                || (mRoutineId != -1 && !RoutineOwnerGuard.isOwnedBy(
+                        DB.routines().findById(mRoutineId), active))) {
+            finish();
+            return;
+        }
+
         setContentView(R.layout.activity_routines);
         ButterKnife.bind(this);
-
-        int color = DB.patients().getActive(this).getColor();
+        int color = active.getColor();
         setupToolbar(null, color);
         setupStatusBar(color);
-
-        processIntent();
 
         routineFragment = (RoutineCreateOrEditFragment) getSupportFragmentManager().findFragmentById(R.id.routine_fragment);
         routineFragment.setRoutine(mRoutineId);
