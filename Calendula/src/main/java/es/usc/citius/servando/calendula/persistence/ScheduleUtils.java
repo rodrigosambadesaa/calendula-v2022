@@ -113,7 +113,22 @@ public class ScheduleUtils {
      *         number selected before commit.
      */
     public int checkIntakeEvents(Context ctx, Patient patient, DateTime dateTime) {
-        if (patient == null || patient.getId() == null || dateTime == null) {
+        return checkIntakeEvents(ctx, patient, dateTime, null);
+    }
+
+    /**
+     * When invoked from a confirmation screen, expectedEvents is the actual
+     * on-screen set the user agreed to acknowledge. An event added, removed,
+     * reassigned, or given a different dose after preflight must not be
+     * silently committed. The comparison is performed inside the write
+     * transaction, not in a separate earlier UI database read.
+     *
+     * A null snapshot preserves the legacy, non-interactive call contract.
+     */
+    public int checkIntakeEvents(Context ctx, Patient patient, DateTime dateTime,
+                                 List<EventInstance> expectedEvents) {
+        if (patient == null || patient.getId() == null
+                || patient.getId() <= 0L || dateTime == null) {
             return 0;
         }
         final List<CommittedIntake> committed;
@@ -122,6 +137,14 @@ public class ScheduleUtils {
             committed = TransactionManager.callInTransaction(
                     DB.helper().getConnectionSource(), (Callable<List<CommittedIntake>>) () -> {
                         List<CommittedIntake> changes = new ArrayList<>();
+                        if (expectedEvents != null) {
+                            if (DB.patients().findById(patient.getId()) == null) {
+                                throw new SQLException("Confirmation patient is no longer present");
+                            }
+                            requireExactVisibleIntakeSet(expectedEvents,
+                                    DB.eventInstances().find(
+                                            EventType.MEDICATION_INTAKE, dateTime, patient));
+                        }
                         // Requery INSIDE the transaction; a previously selected
                         // event must not bypass the current pending/ownership check.
                         List<EventInstance> pending = DB.eventInstances().findPending(
@@ -172,6 +195,48 @@ public class ScheduleUtils {
             fireCommittedIntakeEvent();
         }
         return committed.size();
+    }
+
+    /**
+     * Match every displayed dose to exactly one current SQLite row.
+     * Checks status and dose as well as identity, so an out-of-date screen
+     * cannot accidentally authorize a newly inserted or revised intake.
+     */
+    private static void requireExactVisibleIntakeSet(List<EventInstance> visible,
+                                                       List<EventInstance> persisted)
+            throws SQLException {
+        if (visible.isEmpty() || persisted == null || visible.size() != persisted.size()) {
+            throw new SQLException("Visible intake selection no longer matches SQLite");
+        }
+        java.util.HashSet<Long> seen = new java.util.HashSet<>();
+        for (EventInstance old : visible) {
+            if (old == null || old.getId() == null || !seen.add(old.getId())) {
+                throw new SQLException("Visible intake selection has no unique identity");
+            }
+            EventInstance current = null;
+            for (EventInstance row : persisted) {
+                if (row != null && old.getId().equals(row.getId())) {
+                    current = row;
+                    break;
+                }
+            }
+            if (current == null || !ConfirmIntakeGuard.matchesPersistedEvent(old, current)
+                    || old.completed() != current.completed()
+                    || old.cancelled() != current.cancelled()) {
+                throw new SQLException("Visible intake identity or status changed");
+            }
+            try {
+                double shownDose = old.getDoubleParam(EventInstance.PARAM_DOSE);
+                double storedDose = current.getDoubleParam(EventInstance.PARAM_DOSE);
+                if (Double.isNaN(shownDose) || Double.isInfinite(shownDose)
+                        || shownDose <= 0d
+                        || Double.compare(shownDose, storedDose) != 0) {
+                    throw new SQLException("Visible intake dose changed");
+                }
+            } catch (RuntimeException malformed) {
+                throw new SQLException("Visible intake dose is not valid", malformed);
+            }
+        }
     }
 
     public void delayIntake(Context ctx, Patient patient, DateTime dateTime, int delay) {

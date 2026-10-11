@@ -278,7 +278,8 @@ public class ConfirmActivity extends CalendulaActivity {
         try {
             // Confirm all pending doses in a single SQLite transaction: a
             // later stock/dose failure must not leave earlier doses committed.
-            int updated = ScheduleUtils.instance().checkIntakeEvents(this, patient, dateTime);
+            int updated = ScheduleUtils.instance().checkIntakeEvents(this, patient, dateTime,
+                    new ArrayList<>(items));
             if (updated > 0) {
                 if (!loadItems()) {
                     blockUnverifiedConfirmation();
