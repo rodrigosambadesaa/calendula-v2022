@@ -79,6 +79,16 @@ class AlarmReceiver : BroadcastReceiver() {
         val serviceIntent = Intent(context, AlarmIntentService::class.java)
         serviceIntent.putExtra(IntentParams.EXTRA_ACTION, action)
         serviceIntent.putExtra(IntentParams.EXTRA_REMINDER_ID, reminderId)
+        if (action == IntentParams.ACTION_ALARM_CONFIRM) {
+            val snapshot = intent.getStringExtra(IntentParams.EXTRA_MEDICATION_SNAPSHOT)
+            if (snapshot == null || !snapshot.matches(Regex("[0-9a-f]{64}"))) {
+                // Old notification buttons lack a consented selection; do not
+                // silently confirm today's potentially different doses.
+                LogUtil.w(TAG, "Ignoring notification confirmation without valid snapshot")
+                return
+            }
+            serviceIntent.putExtra(IntentParams.EXTRA_MEDICATION_SNAPSHOT, snapshot)
+        }
         AlarmIntentService.enqueueWork(context, serviceIntent)
     }
 

@@ -33,6 +33,7 @@ public class IntentParams {
     // Intent extras
     public static final String EXTRA_ACTION = extra("ACTION");
     public static final String EXTRA_REMINDER_ID = extra("REMINDER_ID");
+    public static final String EXTRA_MEDICATION_SNAPSHOT = extra("MEDICATION_SNAPSHOT");
     public static final String EXTRA_DATETIME = extra("DATETIME");
     public static final String EXTRA_TIME = extra("TIME");
     public static final String EXTRA_PATIENT_ID = extra("PATIENT_ID");

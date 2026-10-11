@@ -36,6 +36,7 @@ import android.text.SpannableStringBuilder;
 import org.joda.time.DateTime;
 import org.joda.time.format.ISODateTimeFormat;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
@@ -50,6 +51,7 @@ import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.scheduling.AlarmIntentService;
 import es.usc.citius.servando.calendula.scheduling.AlarmReceiver;
+import es.usc.citius.servando.calendula.scheduling.MedicationIntakeSnapshot;
 import es.usc.citius.servando.calendula.scheduling.ReminderTiming;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
@@ -197,12 +199,31 @@ public class IntakeNotificationMgr {
             return;
         }
 
-        // Keep the displayed doses consistent with the patient-scoped,
-        // uncompleted AND uncancelled event check in Agenda.
-        List<EventInstance> events = DB.eventInstances().findPending(type, dateTime, patient);
+        // Capture one complete SQLite event set before rendering: a later
+        // notification action must not confirm doses absent from this snapshot.
+        // Only pending rows appear in the notification's visible content.
+        final List<EventInstance> allEvents;
+        try {
+            allEvents = DB.eventInstances().find(type, dateTime, patient);
+        } catch (RuntimeException unreadable) {
+            alertUnverifiedMedicationData(context, reminder);
+            return;
+        }
+        List<EventInstance> events = new ArrayList<>();
+        for (EventInstance event : allEvents) {
+            if (event != null && !event.completed() && !event.cancelled()) {
+                events.add(event);
+            }
+        }
         if (events.isEmpty()) {
             // An intake may have been confirmed/cancelled since alarm dispatch.
             // Do not display an empty or clinically stale notification.
+            return;
+        }
+
+        final String notifiedSnapshot = MedicationIntakeSnapshot.fingerprint(allEvents);
+        if (notifiedSnapshot == null) {
+            alertUnverifiedMedicationData(context, reminder);
             return;
         }
 
@@ -266,6 +287,9 @@ public class IntakeNotificationMgr {
         final Intent confirmAll = new Intent(context, AlarmReceiver.class);
         confirmAll.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_CONFIRM);
         confirmAll.putExtra(IntentParams.EXTRA_REMINDER_ID, reminder.getId());
+        // Only a digest crosses the PendingIntent boundary, never clear-text
+        // medication quantities, names, or patient identifiers.
+        confirmAll.putExtra(IntentParams.EXTRA_MEDICATION_SNAPSHOT, notifiedSnapshot);
 
         NotificationOptions options = new NotificationOptions();
         options.style = style;

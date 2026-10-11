@@ -112,13 +112,27 @@ class AlarmIntentService : JobIntentService() {
                     return
                 }
                 val reminder = DB.eventReminders().findById(reminderId)
+                val notifiedSnapshot =
+                    intent.getStringExtra(IntentParams.EXTRA_MEDICATION_SNAPSHOT)
+                if (notifiedSnapshot == null) {
+                    // Legacy PendingIntents contain no original displayed set.
+                    LogUtil.w(TAG, "Notification confirmation has no consent snapshot")
+                    return
+                }
                 if (reminder != null && isActionableMedicationReminder(reminder)) {
-                    val confirmed = ScheduleUtils.instance()
-                        .checkIntakeEvents(this, reminder.patient, reminder.dateTime)
-                    if (confirmed > 0) {
-                        showToast(getString(R.string.all_meds_taken))
-                    } else {
-                        LogUtil.w(TAG, "No pending medication intakes to confirm")
+                    try {
+                        val confirmed = ScheduleUtils.instance()
+                            .checkNotifiedIntakeEvents(
+                                this, reminder.patient, reminder.dateTime, notifiedSnapshot)
+                        if (confirmed > 0) {
+                            showToast(getString(R.string.all_meds_taken))
+                        } else {
+                            LogUtil.w(TAG, "No pending medication intakes to confirm")
+                        }
+                    } catch (invalid: RuntimeException) {
+                        // Never claim success or reveal a prescription after
+                        // a stale notification loses its SQLite identity.
+                        LogUtil.w(TAG, "Stale medication notification confirmation rejected")
                     }
                 } else {
                     // This may be a stale notification whose SQLite row was

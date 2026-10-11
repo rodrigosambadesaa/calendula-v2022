@@ -340,6 +340,80 @@ public class AtomicIntakeStockSmokeTest {
     }
 
     @Test
+    public void unchangedNotificationSnapshotConfirmsAtomicDoseAndInventory() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        try {
+            String snapshot = MedicationIntakeSnapshot.fingerprint(
+                    DB.eventInstances().find(EventType.MEDICATION_INTAKE, x.when, x.patient));
+            assertNotNull(snapshot);
+            assertEquals(1, ScheduleUtils.instance().checkNotifiedIntakeEvents(
+                    x.context, x.patient, x.when, snapshot));
+            assertTrue(x.persistedIntake().completed());
+            assertEquals(INITIAL_STOCK - DOSE, x.persistedStock(), 0.001f);
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void staleNotificationSnapshotNeverConfirmsNewlyInsertedDose() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        EventInstance inserted = new EventInstance(x.when, EventType.MEDICATION_INTAKE);
+        inserted.setRef(x.schedule.getId());
+        inserted.setPatient(x.patient);
+        inserted.addParam(EventInstance.PARAM_DOSE, 1.0d);
+        try {
+            String snapshot = MedicationIntakeSnapshot.fingerprint(
+                    DB.eventInstances().find(EventType.MEDICATION_INTAKE, x.when, x.patient));
+            assertNotNull(snapshot);
+            assertEquals(1, DB.eventInstances().create(inserted));
+            try {
+                ScheduleUtils.instance().checkNotifiedIntakeEvents(
+                        x.context, x.patient, x.when, snapshot);
+                fail("Stale notification cannot confirm a newly inserted medication");
+            } catch (RuntimeException expected) {
+                // Snapshot does not match the SQLite set inside the commit.
+            }
+            assertFalse(x.persistedIntake().completed());
+            assertFalse(DB.eventInstances().findById(inserted.getId()).completed());
+            assertEquals(INITIAL_STOCK, x.persistedStock(), 0.001f);
+        } finally {
+            if (inserted.getId() != null && DB.eventInstances().findById(inserted.getId()) != null) {
+                DB.eventInstances().remove(inserted);
+            }
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void staleNotificationSnapshotNeverConfirmsRevisedDose() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        try {
+            String snapshot = MedicationIntakeSnapshot.fingerprint(
+                    DB.eventInstances().find(EventType.MEDICATION_INTAKE, x.when, x.patient));
+            assertNotNull(snapshot);
+            android.os.Bundle revised = new android.os.Bundle();
+            revised.putString(EventInstance.PARAM_DOSE, "3.0");
+            assertEquals(1, DB.eventInstances().updateParams(
+                    EventType.MEDICATION_INTAKE, x.when, x.schedule.getId(), revised));
+            try {
+                ScheduleUtils.instance().checkNotifiedIntakeEvents(
+                        x.context, x.patient, x.when, snapshot);
+                fail("Revised dose requires a new notification snapshot");
+            } catch (RuntimeException expected) {
+                // The consented dose differs from the updated SQLite value.
+            }
+            assertFalse(x.persistedIntake().completed());
+            assertEquals(INITIAL_STOCK, x.persistedStock(), 0.001f);
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
     public void medicineUpdateSqlFailureRollsBackIntake() throws Exception {
         assertRollbackOnInjectedFailure("Medicines", "medicine_update", true);
     }

@@ -40,6 +40,7 @@ import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.events.PersistenceEvents;
 import es.usc.citius.servando.calendula.activities.ConfirmIntakeGuard;
+import es.usc.citius.servando.calendula.scheduling.MedicationIntakeSnapshot;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
 import es.usc.citius.servando.calendula.scheduling.Agenda;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
@@ -113,7 +114,22 @@ public class ScheduleUtils {
      *         number selected before commit.
      */
     public int checkIntakeEvents(Context ctx, Patient patient, DateTime dateTime) {
-        return checkIntakeEvents(ctx, patient, dateTime, null);
+        return checkIntakeEvents(ctx, patient, dateTime, (List<EventInstance>) null);
+    }
+
+    /**
+     * Notification actions carry a compact fingerprint of the exact persisted
+     * event set when the notification was rendered. Unlike a fresh lookup at
+     * click time, this cannot silently authorize newly added or revised doses.
+     * Missing or malformed fingerprints are rejected, including old actions.
+     */
+    public int checkNotifiedIntakeEvents(Context ctx, Patient patient, DateTime dateTime,
+                                         String notifiedFingerprint) {
+        if (notifiedFingerprint == null
+                || !notifiedFingerprint.matches("[0-9a-f]{64}")) {
+            throw new IllegalArgumentException("A valid notification snapshot is required");
+        }
+        return checkIntakeEventsAtomic(ctx, patient, dateTime, null, notifiedFingerprint);
     }
 
     /**
@@ -127,6 +143,12 @@ public class ScheduleUtils {
      */
     public int checkIntakeEvents(Context ctx, Patient patient, DateTime dateTime,
                                  List<EventInstance> expectedEvents) {
+        return checkIntakeEventsAtomic(ctx, patient, dateTime, expectedEvents, null);
+    }
+
+    private int checkIntakeEventsAtomic(Context ctx, Patient patient, DateTime dateTime,
+                                        List<EventInstance> expectedEvents,
+                                        String notifiedFingerprint) {
         if (patient == null || patient.getId() == null
                 || patient.getId() <= 0L || dateTime == null) {
             return 0;
@@ -137,6 +159,18 @@ public class ScheduleUtils {
             committed = TransactionManager.callInTransaction(
                     DB.helper().getConnectionSource(), (Callable<List<CommittedIntake>>) () -> {
                         List<CommittedIntake> changes = new ArrayList<>();
+                        if (notifiedFingerprint != null) {
+                            if (DB.patients().findById(patient.getId()) == null) {
+                                throw new SQLException("Notified patient no longer exists");
+                            }
+                            String currentFingerprint = MedicationIntakeSnapshot.fingerprint(
+                                    DB.eventInstances().find(
+                                            EventType.MEDICATION_INTAKE, dateTime, patient));
+                            if (!notifiedFingerprint.equals(currentFingerprint)) {
+                                throw new SQLException(
+                                        "Notification selection changed before confirmation");
+                            }
+                        }
                         if (expectedEvents != null) {
                             if (DB.patients().findById(patient.getId()) == null) {
                                 throw new SQLException("Confirmation patient is no longer present");
