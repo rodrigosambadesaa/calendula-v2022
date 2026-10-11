@@ -622,12 +622,31 @@ public class ConfirmActivity extends CalendulaActivity {
         if (invalidClinicalContext || items.isEmpty()) {
             return false;
         }
-        for (EventInstance event : items) {
-            if (!isVerifiedIntake(event)) {
+        try {
+            // Do not allow a stale screen to confirm a newly-added dose that
+            // was not part of the user's visible confirmation selection.
+            List<EventInstance> current = ScheduleUtils.instance()
+                    .intakeEvents(patient, dateTime);
+            if (current == null || current.size() != items.size()) {
                 return false;
             }
+            for (EventInstance event : current) {
+                boolean selected = false;
+                for (EventInstance visible : items) {
+                    if (ConfirmIntakeGuard.matchesPersistedEvent(visible, event)) {
+                        selected = true;
+                        break;
+                    }
+                }
+                if (!selected || !isVerifiedIntake(event)) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (RuntimeException invalid) {
+            LogUtil.w(TAG, "Medication batch selection could not be verified");
+            return false;
         }
-        return true;
     }
 
     private void blockUnverifiedConfirmation() {
