@@ -25,6 +25,7 @@ import com.j256.ormlite.stmt.QueryBuilder;
 import com.j256.ormlite.stmt.Where;
 
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
 
@@ -66,11 +67,16 @@ public class MedicineDao extends GenericDao<Medicine, Long> {
     }
 
     public List<Medicine> findAll(Patient p) {
-        return findAll(p.getId());
+        // No active owner means no patient data; never query NULL-owned rows.
+        return p == null || p.getId() == null
+                ? Collections.<Medicine>emptyList() : findAll(p.getId());
     }
 
 
     public List<Medicine> findAll(Long patientId) {
+        if (patientId == null) {
+            return Collections.emptyList();
+        }
         try {
             return dao.queryBuilder()
                     .where().eq(Medicine.COLUMN_PATIENT, patientId)
