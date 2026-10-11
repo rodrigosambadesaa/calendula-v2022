@@ -17,6 +17,11 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import es.usc.citius.servando.calendula.database.DB;
+import es.usc.citius.servando.calendula.healthcareprovider.model.ActiveMedVisualizationType;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedType;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageEntity;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageType;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Schedule;
@@ -152,6 +157,112 @@ public class AtomicMedicationDecisionSmokeTest {
             }
             if (medicine.getId() != null && DB.medicines().findById(medicine.getId()) != null) {
                 DB.medicines().remove(medicine);
+            }
+            if (patient.getId() != null && DB.patients().findById(patient.getId()) != null) {
+                DB.patients().remove(patient);
+            }
+        }
+    }
+
+    @Test
+    public void notificationRejectsImportedTreatmentOwnedByAnotherPatient()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime time = DateTime.now().plusHours(20).withMillisOfSecond(0);
+        Patient patient = new Patient();
+        patient.setCode("ci-reminder-official-patient-" + System.nanoTime());
+        patient.setName("Synthetic reminder owner");
+        Patient other = new Patient();
+        other.setCode("ci-reminder-official-other-" + System.nanoTime());
+        other.setName("Synthetic imported treatment owner");
+        Medicine medicine = new Medicine("Synthetic official reminder medicine",
+                Presentation.PILLS);
+        Schedule schedule = new Schedule(medicine);
+        EventInstance event = new EventInstance(time, EventType.MEDICATION_INTAKE);
+        EventReminder reminder = new EventReminder(time, EventType.MEDICATION_INTAKE);
+        reminder.setNextTime(time);
+        DosageEntity officialDosage = new DosageEntity();
+        officialDosage.setType(DosageType.AS_NEEDED);
+        ActiveMedEntity official = new ActiveMedEntity();
+        official.setType(ActiveMedType.DCPF);
+        official.setVisualizationType(ActiveMedVisualizationType.INSULIN_TYPE);
+        official.setCode("ci-reminder-treatment-" + System.nanoTime());
+        official.setDefaultDisplay("Synthetic official treatment");
+        try {
+            DB.patients().save(patient);
+            DB.patients().save(other);
+            medicine.setPatient(patient);
+            medicine.setStock(10.0f);
+            DB.medicines().create(medicine);
+            official.setPatient(other);
+            DB.healthcareProviderDB().dosages().create(officialDosage);
+            official.setDosage(officialDosage);
+            DB.healthcareProviderDB().activeMeds().create(official);
+            assertNotNull(official.getId());
+
+            schedule.setPatient(patient);
+            schedule.setActiveMedId(official.getId());
+            DB.schedules().create(schedule);
+            event.setPatient(patient);
+            event.setRef(schedule.getId());
+            event.addParam(EventInstance.PARAM_DOSE, 2.0d);
+            DB.eventInstances().save(event);
+            reminder.setPatient(patient);
+            DB.eventReminders().save(reminder);
+            Agenda.instance().setAlarm(context, reminder);
+            assertNotNull(token(context, reminder));
+
+            boolean rejected = false;
+            try {
+                Agenda.instance().confirmReminder(context, reminder.getId());
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("A patient cannot acknowledge another patient's imported treatment",
+                    rejected);
+            assertFalse(DB.eventInstances().findById(event.getId()).completed());
+            assertTrue("Rejected official prescription cannot consume stock",
+                    Math.abs(DB.medicines().findById(medicine.getId()).getStock()
+                            - 10.0f) < 0.001f);
+            assertNotNull(DB.eventReminders().findById(reminder.getId()));
+            assertNotNull(token(context, reminder));
+
+            official.setPatient(patient);
+            DB.healthcareProviderDB().activeMeds().update(official);
+            Agenda.instance().confirmReminder(context, reminder.getId());
+            assertTrue("After repairing the official owner, the same dose is valid",
+                    DB.eventInstances().findById(event.getId()).completed());
+            assertTrue(Math.abs(DB.medicines().findById(medicine.getId()).getStock()
+                    - 8.0f) < 0.001f);
+            assertNull(DB.eventReminders().findById(reminder.getId()));
+            assertNull(token(context, reminder));
+        } finally {
+            if (reminder.getId() != null) {
+                Agenda.instance().cancelAlarm(context, reminder);
+                if (DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().remove(reminder);
+                }
+            }
+            if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
+                DB.eventInstances().remove(event);
+            }
+            if (schedule.getId() != null && DB.schedules().findById(schedule.getId()) != null) {
+                DB.schedules().remove(schedule);
+            }
+            if (medicine.getId() != null && DB.medicines().findById(medicine.getId()) != null) {
+                DB.medicines().remove(medicine);
+            }
+            if (official.getId() != null
+                    && DB.healthcareProviderDB().activeMeds().findById(official.getId()) != null) {
+                DB.healthcareProviderDB().activeMeds().remove(official);
+            }
+            if (officialDosage.getId() != null
+                    && DB.healthcareProviderDB().dosages().findById(officialDosage.getId()) != null) {
+                DB.healthcareProviderDB().dosages().remove(officialDosage);
+            }
+            if (other.getId() != null && DB.patients().findById(other.getId()) != null) {
+                DB.patients().remove(other);
             }
             if (patient.getId() != null && DB.patients().findById(patient.getId()) != null) {
                 DB.patients().remove(patient);
