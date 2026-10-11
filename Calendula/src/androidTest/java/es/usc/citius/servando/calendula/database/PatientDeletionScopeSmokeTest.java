@@ -142,7 +142,7 @@ public class PatientDeletionScopeSmokeTest {
      * patient's unnamed automatic routines. Verified on real Android SQLite.
      */
     @Test
-    public void autoRoutineCleanupIsScopedToSelectedPatient() {
+    public void autoRoutineCleanupIsScopedToSelectedPatient() throws Exception {
         assertTrue(DB.initialized);
         String seed = String.valueOf(System.nanoTime());
         Patient patientA = new Patient();
