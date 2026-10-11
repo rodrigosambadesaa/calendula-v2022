@@ -476,4 +476,5 @@ Do you want to install the new database now?
     <string name="channel_default_description">Other notifications.</string>
     <string name="channel_setup_name">Setup</string>
     <string name="channel_setup_description">Setup notifications.</string>
+    <string name="routine_profile_unavailable">Routine unavailable. Select the correct patient profile and reopen the editor.</string>
 </resources>
