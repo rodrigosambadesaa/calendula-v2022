@@ -823,6 +823,66 @@ public class AtomicIntakeStockSmokeTest {
 
 
     @Test
+    public void batchReassignedSecondMedicineRollsBackFirstDoseAndAlarm() throws Exception {
+        assertTrue(DB.initialized);
+        BatchFixture x = new BatchFixture();
+        Patient newOwner = new Patient();
+        newOwner.setCode("ci-batch-reassigned-owner-" + System.nanoTime());
+        newOwner.setName("Synthetic unrelated batch medicine owner");
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        try {
+            assertEquals(1, DB.patients().create(newOwner));
+            assertNotNull(newOwner.getId());
+            assertTrue("First dose must precede the rejected second dose",
+                    x.events[0].getId() < x.events[1].getId());
+            assertNotNull(x.currentAlarm());
+            assertEquals(x.patient.getId(), x.medicines[1].getPatient().getId());
+
+            // A cached schedule still points to patient A while the live
+            // medicine now belongs to B. The second dose must fail after
+            // the first dose has been processed within the same transaction.
+            sqlite.execSQL("UPDATE Medicines SET Patient = ? WHERE _id = ?",
+                    new Object[]{newOwner.getId(), x.medicines[1].getId()});
+            assertEquals(newOwner.getId(),
+                    DB.medicines().findById(x.medicines[1].getId()).getPatient().getId());
+
+            boolean rejected = false;
+            try {
+                ScheduleUtils.instance().checkIntakeEvents(x.context, x.patient, x.time);
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("Batch must reject a medicine reassigned to another patient",
+                    rejected);
+            for (int i = 0; i < 2; i++) {
+                assertFalse("Neither dose may be recorded after rollback", x.completed(i));
+                assertEquals("Neither stock balance may change after rollback",
+                        INITIAL_STOCK, x.stock(i), 0.001f);
+            }
+            assertNotNull("A rejected batch must retain the Android alarm",
+                    x.currentAlarm());
+            assertNotNull("A rejected batch must retain the reminder row",
+                    DB.eventReminders().findById(x.reminder.getId()));
+
+            // Once the owner is repaired the exact same batch is retryable.
+            sqlite.execSQL("UPDATE Medicines SET Patient = ? WHERE _id = ?",
+                    new Object[]{x.patient.getId(), x.medicines[1].getId()});
+            assertEquals(2, ScheduleUtils.instance().checkIntakeEvents(
+                    x.context, x.patient, x.time));
+            for (int i = 0; i < 2; i++) {
+                assertTrue(x.completed(i));
+                assertEquals(INITIAL_STOCK - DOSE, x.stock(i), 0.001f);
+            }
+        } finally {
+            x.cleanup();
+            if (newOwner.getId() != null
+                    && DB.patients().findById(newOwner.getId()) != null) {
+                DB.patients().remove(newOwner);
+            }
+        }
+    }
+
+    @Test
     public void sharedStockShortageRollsBackAllConfirmedDoses() throws Exception {
         assertTrue(DB.initialized);
         BatchFixture x = new BatchFixture(true);
