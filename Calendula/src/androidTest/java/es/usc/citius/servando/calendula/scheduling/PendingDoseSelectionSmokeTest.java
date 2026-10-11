@@ -210,6 +210,84 @@ public class PendingDoseSelectionSmokeTest {
     }
 
     @Test
+    public void replayingAgendaGenerationCannotDuplicateOrRewriteTakenDose() {
+        assertTrue(DB.initialized);
+        DateTime slot = DateTime.now().plusHours(17).withMillisOfSecond(0);
+        Long syntheticRef = -System.nanoTime();
+
+        EventInstance original = new EventInstance(slot, EventType.MEDICATION_INTAKE);
+        original.setRef(syntheticRef);
+        original.addParam(EventInstance.PARAM_DOSE, 1.25d);
+        original.setCompleted(true);
+        DateTime takenAt = DateTime.now().minusMinutes(4).withMillisOfSecond(0);
+        original.setCompletedAt(takenAt);
+
+        EventInstance replay = new EventInstance(slot, EventType.MEDICATION_INTAKE);
+        replay.setRef(syntheticRef);
+        replay.addParam(EventInstance.PARAM_DOSE, 8.0d);
+        EventInstance replayTwice = new EventInstance(slot, EventType.MEDICATION_INTAKE);
+        replayTwice.setRef(syntheticRef);
+        replayTwice.addParam(EventInstance.PARAM_DOSE, 9.0d);
+        EventInstance newSlot = new EventInstance(slot.plusMinutes(1),
+                EventType.MEDICATION_INTAKE);
+        newSlot.setRef(syntheticRef);
+        newSlot.addParam(EventInstance.PARAM_DOSE, 2.0d);
+        try {
+            Agenda.instance().addEvents(java.util.Collections.singletonList(original));
+            assertNotNull(original.getId());
+            Agenda.instance().addEvents(java.util.Arrays.asList(replay, replayTwice, newSlot));
+
+            int sameSlotCount = 0;
+            for (EventInstance event : DB.eventInstances().findByTypeAndTime(
+                    EventType.MEDICATION_INTAKE, slot)) {
+                if (syntheticRef.equals(event.getRef())) sameSlotCount++;
+            }
+            assertEquals("Replaying a known schedule/time may not insert another intake",
+                    1, sameSlotCount);
+            assertTrue("A genuinely new time must still be added", newSlot.getId() != null);
+            EventInstance persisted = DB.eventInstances().findById(original.getId());
+            assertTrue(persisted.completed());
+            assertEquals(takenAt, persisted.completedAt());
+            assertEquals("Newer prescription parameters must not rewrite a taken dose",
+                    1.25d, persisted.getDoubleParam(EventInstance.PARAM_DOSE), 0.0001d);
+            assertTrue("Replay objects should not get fresh SQL identities",
+                    replay.getId() == null && replayTwice.getId() == null);
+        } finally {
+            for (EventInstance event : new EventInstance[]{original, replay, replayTwice, newSlot}) {
+                if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
+                    DB.eventInstances().remove(event);
+                }
+            }
+        }
+    }
+
+    @Test
+    public void agendaEventBatchFailureRollsBackPreviouslyInsertedRows() {
+        assertTrue(DB.initialized);
+        DateTime slot = DateTime.now().plusHours(19).withMillisOfSecond(0);
+        Long syntheticRef = -System.nanoTime();
+        EventInstance candidate = new EventInstance(slot, EventType.MEDICATION_INTAKE);
+        candidate.setRef(syntheticRef);
+        try {
+            boolean rejected = false;
+            try {
+                Agenda.instance().addEvents(java.util.Arrays.asList(candidate, null));
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("Malformed batch must abort rather than partially commit", rejected);
+            assertFalse("An inserted row must be rolled back with the invalid batch",
+                    DB.eventInstances().exists(
+                            EventType.MEDICATION_INTAKE, slot, syntheticRef));
+        } finally {
+            if (candidate.getId() != null
+                    && DB.eventInstances().findById(candidate.getId()) != null) {
+                DB.eventInstances().remove(candidate);
+            }
+        }
+    }
+
+    @Test
     public void pendingMedicationItemsExcludeCompletedCancelledAndOtherPatients() {
         assertTrue(DB.initialized);
         DateTime time = DateTime.now().plusHours(14).withMillisOfSecond(0);
