@@ -210,6 +210,78 @@ public class PendingDoseSelectionSmokeTest {
     }
 
     @Test
+    public void pendingMedicationItemsExcludeCompletedCancelledAndOtherPatients() {
+        assertTrue(DB.initialized);
+        DateTime time = DateTime.now().plusHours(14).withMillisOfSecond(0);
+        Patient a = new Patient();
+        a.setCode("ci-pending-dose-a-" + System.nanoTime());
+        a.setName("Synthetic pending dose A");
+        Patient b = new Patient();
+        b.setCode("ci-pending-dose-b-" + System.nanoTime());
+        b.setName("Synthetic pending dose B");
+
+        EventInstance activeA = new EventInstance(time, EventType.MEDICATION_INTAKE);
+        activeA.setPatient(a);
+        EventInstance completedA = new EventInstance(time, EventType.MEDICATION_INTAKE);
+        completedA.setPatient(a);
+        completedA.setCompleted(true);
+        EventInstance cancelledA = new EventInstance(time, EventType.MEDICATION_INTAKE);
+        cancelledA.setPatient(a);
+        cancelledA.setCancelled(true);
+        EventInstance activeB = new EventInstance(time, EventType.MEDICATION_INTAKE);
+        activeB.setPatient(b);
+
+        EventInstance[] fixtures = {activeA, completedA, cancelledA, activeB};
+        try {
+            DB.patients().save(a);
+            DB.patients().save(b);
+            for (EventInstance event : fixtures) {
+                DB.eventInstances().save(event);
+                assertNotNull(event.getId());
+            }
+
+            List<EventInstance> dueForA = DB.eventInstances().findPending(
+                    EventType.MEDICATION_INTAKE, time, a);
+            assertEquals("Only A's active dose may appear in A's notification",
+                    1, dueForA.size());
+            assertEquals(activeA.getId(), dueForA.get(0).getId());
+            assertTrue(DB.eventInstances().existsPending(
+                    EventType.MEDICATION_INTAKE, time, a));
+
+            List<EventInstance> dueForB = DB.eventInstances().findPending(
+                    EventType.MEDICATION_INTAKE, time, b);
+            assertEquals("A's events must never appear in B's notification",
+                    1, dueForB.size());
+            assertEquals(activeB.getId(), dueForB.get(0).getId());
+
+            activeA.setCompleted(true);
+            DB.eventInstances().save(activeA);
+            assertFalse("No remaining active dose for A should authorize delivery",
+                    DB.eventInstances().existsPending(
+                            EventType.MEDICATION_INTAKE, time, a));
+            assertTrue("A completed/cancelled patient's dose list must be empty",
+                    DB.eventInstances().findPending(
+                            EventType.MEDICATION_INTAKE, time, a).isEmpty());
+            assertEquals("B remains unaffected after A's completion",
+                    activeB.getId(), DB.eventInstances().findPending(
+                            EventType.MEDICATION_INTAKE, time, b).get(0).getId());
+        } finally {
+            for (EventInstance event : fixtures) {
+                if (event.getId() != null
+                        && DB.eventInstances().findById(event.getId()) != null) {
+                    DB.eventInstances().remove(event);
+                }
+            }
+            if (a.getId() != null) {
+                DB.patients().remove(a);
+            }
+            if (b.getId() != null) {
+                DB.patients().remove(b);
+            }
+        }
+    }
+
+    @Test
     public void replayingAgendaGenerationCannotDuplicateOrRewriteTakenDose() {
         assertTrue(DB.initialized);
         DateTime slot = DateTime.now().plusHours(17).withMillisOfSecond(0);
@@ -283,78 +355,6 @@ public class PendingDoseSelectionSmokeTest {
             if (candidate.getId() != null
                     && DB.eventInstances().findById(candidate.getId()) != null) {
                 DB.eventInstances().remove(candidate);
-            }
-        }
-    }
-
-    @Test
-    public void pendingMedicationItemsExcludeCompletedCancelledAndOtherPatients() {
-        assertTrue(DB.initialized);
-        DateTime time = DateTime.now().plusHours(14).withMillisOfSecond(0);
-        Patient a = new Patient();
-        a.setCode("ci-pending-dose-a-" + System.nanoTime());
-        a.setName("Synthetic pending dose A");
-        Patient b = new Patient();
-        b.setCode("ci-pending-dose-b-" + System.nanoTime());
-        b.setName("Synthetic pending dose B");
-
-        EventInstance activeA = new EventInstance(time, EventType.MEDICATION_INTAKE);
-        activeA.setPatient(a);
-        EventInstance completedA = new EventInstance(time, EventType.MEDICATION_INTAKE);
-        completedA.setPatient(a);
-        completedA.setCompleted(true);
-        EventInstance cancelledA = new EventInstance(time, EventType.MEDICATION_INTAKE);
-        cancelledA.setPatient(a);
-        cancelledA.setCancelled(true);
-        EventInstance activeB = new EventInstance(time, EventType.MEDICATION_INTAKE);
-        activeB.setPatient(b);
-
-        EventInstance[] fixtures = {activeA, completedA, cancelledA, activeB};
-        try {
-            DB.patients().save(a);
-            DB.patients().save(b);
-            for (EventInstance event : fixtures) {
-                DB.eventInstances().save(event);
-                assertNotNull(event.getId());
-            }
-
-            List<EventInstance> dueForA = DB.eventInstances().findPending(
-                    EventType.MEDICATION_INTAKE, time, a);
-            assertEquals("Only A's active dose may appear in A's notification",
-                    1, dueForA.size());
-            assertEquals(activeA.getId(), dueForA.get(0).getId());
-            assertTrue(DB.eventInstances().existsPending(
-                    EventType.MEDICATION_INTAKE, time, a));
-
-            List<EventInstance> dueForB = DB.eventInstances().findPending(
-                    EventType.MEDICATION_INTAKE, time, b);
-            assertEquals("A's events must never appear in B's notification",
-                    1, dueForB.size());
-            assertEquals(activeB.getId(), dueForB.get(0).getId());
-
-            activeA.setCompleted(true);
-            DB.eventInstances().save(activeA);
-            assertFalse("No remaining active dose for A should authorize delivery",
-                    DB.eventInstances().existsPending(
-                            EventType.MEDICATION_INTAKE, time, a));
-            assertTrue("A completed/cancelled patient's dose list must be empty",
-                    DB.eventInstances().findPending(
-                            EventType.MEDICATION_INTAKE, time, a).isEmpty());
-            assertEquals("B remains unaffected after A's completion",
-                    activeB.getId(), DB.eventInstances().findPending(
-                            EventType.MEDICATION_INTAKE, time, b).get(0).getId());
-        } finally {
-            for (EventInstance event : fixtures) {
-                if (event.getId() != null
-                        && DB.eventInstances().findById(event.getId()) != null) {
-                    DB.eventInstances().remove(event);
-                }
-            }
-            if (a.getId() != null) {
-                DB.patients().remove(a);
-            }
-            if (b.getId() != null) {
-                DB.patients().remove(b);
             }
         }
     }
