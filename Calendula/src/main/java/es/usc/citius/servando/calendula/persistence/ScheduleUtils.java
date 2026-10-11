@@ -172,6 +172,15 @@ public class ScheduleUtils {
                             // guarantee. Validate the live prescription graph
                             // inside the same transaction as stock and intake.
                             Schedule schedule = DB.schedules().findById(stored.getRef());
+                            // ORMLite may expose a schedule's cached medicine even
+                            // after another operation reassigned its owner. Match
+                            // the single-dose path: refresh the authoritative
+                            // SQLite medicine before checking its patient.
+                            if (schedule != null && schedule.getMedicine() != null
+                                    && (schedule.getMedicine().getId() == null
+                                    || DB.medicines().refresh(schedule.getMedicine()) != 1)) {
+                                throw new SQLException("Batch intake medicine is missing");
+                            }
                             ActiveMedEntity official = schedule != null && schedule.isBoundToActiveMed()
                                     ? DB.healthcareProviderDB().activeMeds()
                                             .findById(schedule.getActiveMedId())
