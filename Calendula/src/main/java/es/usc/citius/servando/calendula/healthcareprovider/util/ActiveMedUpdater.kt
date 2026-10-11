@@ -46,6 +46,10 @@ object ActiveMedUpdater {
 
     private const val TAG = "ActiveMedUpdater"
 
+    /** Pure comparison to avoid overlooking an updated server display name. */
+    internal fun displayNameChanged(received: String?, stored: String?): Boolean =
+        received != stored
+
     /**
      * Called when active med list has changed
      *
@@ -58,10 +62,9 @@ object ActiveMedUpdater {
         ctx: Context,
         notify: Boolean = true
     ) {
-        LogUtil.d(
-            TAG,
-            "onNewMeds() called with: newHash = [$newHash], meds = [${activeMedication.map { it.defaultDisplay }}]"
-        )
+        // Medication display names and remote hashes are sensitive clinical
+        // context: log a count only, never identifiers or prescription data.
+        LogUtil.d(TAG, "onNewMeds: received medication count=${activeMedication.size}")
         val patient = DB.patients().getActive(ctx)!!
         val summary = UpdateSummary()
         // update active med list
@@ -74,13 +77,13 @@ object ActiveMedUpdater {
                     }
                     // update med and set pending review if something changed
                     if (shouldBeUpdated(it)) {
-                        LogUtil.d(TAG, "onNewMeds: Updating med ${it.defaultDisplay}")
+                        LogUtil.d(TAG, "onNewMeds: Updating a medication")
                         val updatedMed = updateActiveMed(it, summary)
                         setPendingReview(ctx, updatedMed)
                     }
                     // or create a new active med if it not exists
                     else if (shouldBeCreated(it)) {
-                        LogUtil.d(TAG, "onNewMeds: Creating med ${it.defaultDisplay}")
+                        LogUtil.d(TAG, "onNewMeds: Creating a medication")
                         addToKit(createActiveMed(it, summary), patient)
                     }
                 }
@@ -106,7 +109,7 @@ object ActiveMedUpdater {
         for (e in DB.healthcareProviderDB().activeMeds().findBy(ActiveMedEntity.COLUMN_PATIENT, patientId)) {
             val isInActiveMedList = meds.any { it.code == e.code }
             if (!isInActiveMedList) {
-                LogUtil.d(TAG, "cleanOldActiveMeds: Removing med ${e.defaultDisplay}")
+                LogUtil.d(TAG, "cleanOldActiveMeds: Removing a medication")
                 summary.addDeleted(e)
                 onRemovedFromActiveMeds(c, e)
             }
@@ -317,7 +320,7 @@ object ActiveMedUpdater {
             LogUtil.d(TAG, "ActiveMedType changed")
             return true
         }
-        if (activeMed.defaultDisplay != activeMed.defaultDisplay) {
+        if (displayNameChanged(activeMed.defaultDisplay, candidate.defaultDisplay)) {
             LogUtil.d(TAG, "DefaultDisplay changed")
             return true
         }

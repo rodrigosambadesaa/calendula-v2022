@@ -59,7 +59,8 @@ public class DailyAgendaPostCommitAlarmTest {
         when(helper.getConnectionSource()).thenReturn(source);
         when(synthetic.getTime()).thenReturn(future);
         when(synthetic.getType()).thenReturn(EventType.MEDICATION_INTAKE);
-        when(instances.findAll()).thenReturn(Collections.singletonList(synthetic));
+        when(instances.findInWindow(any(DateTime.class), any(DateTime.class)))
+                .thenReturn(Collections.singletonList(synthetic));
 
         try (MockedStatic<DB> db = mockStatic(DB.class);
              MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class);
