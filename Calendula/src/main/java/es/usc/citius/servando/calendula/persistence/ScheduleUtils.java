@@ -312,7 +312,7 @@ public class ScheduleUtils {
         // remove the schedule
         DB.schedules().remove(s);
         // remove unlinked auto-created routines
-        removeUnlinkedAutoRoutines(false);
+        removeUnlinkedAutoRoutines(s.getPatient(), false);
         if (fireEvent) {
             DB.schedules().fireEvent();
         }
@@ -386,12 +386,26 @@ public class ScheduleUtils {
         return linked;
     }
 
-    public void removeUnlinkedAutoRoutines(boolean fireEvent) {
+    /**
+     * Schedule operations only own the selected patient's routine graph.
+     * In particular, deleting a schedule for patient A must never sweep
+     * unrelated unnamed routines belonging to patient B.
+     */
+    public void removeUnlinkedAutoRoutines(Patient owner, boolean fireEvent) {
+        if (owner == null || owner.getId() == null || owner.getId() <= 0L) {
+            return;
+        }
         boolean somethingRemoved = false;
-        for (Routine r : DB.routines().findWithoutName()) {
-            int linked = ScheduleUtils.instance().schedulesLinkedTo(r);
+        for (Routine routine : DB.routines().findWithoutName(owner)) {
+            if (routine == null || routine.getPatient() == null
+                    || routine.getPatient().getId() == null
+                    || !owner.getId().equals(routine.getPatient().getId())) {
+                // Defensive revalidation: never trust a cross-owner query row.
+                continue;
+            }
+            int linked = ScheduleUtils.instance().schedulesLinkedTo(routine);
             if (linked <= 0) {
-                DB.routines().remove(r);
+                DB.routines().remove(routine);
                 somethingRemoved = true;
             }
         }

@@ -73,6 +73,7 @@ import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
@@ -149,6 +150,7 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
     private Future<?> checkChangesTask;
     private EditMode editMode = EditMode.CREATE;
     private ActiveMedVO activeMed;
+    private Patient routineCleanupOwner;
 
     private boolean differsFromPrescription = false;
 
@@ -394,7 +396,11 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
                 .paddingDp(5)
                 .sizeDp(30);
 
-        ScheduleUtils.instance().removeUnlinkedAutoRoutines(true);
+        // Opening one patient's schedule editor must not prune another
+        // patient's unnamed routines.
+        routineCleanupOwner = DB.patients().getActive(this);
+        ScheduleUtils.instance().removeUnlinkedAutoRoutines(
+                routineCleanupOwner, true);
 
         String action = getIntent().getStringExtra(IntentParams.EXTRA_ACTION);
         Long editScheduleId = getIntent().getLongExtra(CalendulaApp.INTENT_EXTRA_SCHEDULE_ID, -1);
@@ -962,7 +968,10 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
 
     @Override
     protected void onDestroy() {
-        ScheduleUtils.instance().removeUnlinkedAutoRoutines(true);
+        // Use the patient captured when this editor opened, rather than a
+        // potentially different profile selected while it was on screen.
+        ScheduleUtils.instance().removeUnlinkedAutoRoutines(
+                routineCleanupOwner, true);
         super.onDestroy();
     }
 }
