@@ -37,7 +37,6 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 /**
@@ -117,4 +116,30 @@ public class PatientActiveSelectionSafetyTest {
             assertFalse(subject.isActive(null, null));
         }
     }
+    @Test
+    public void existingPatientStillActivatesAndNotifiesListeners() throws Exception {
+        Dao<Patient, Long> raw = rawDao();
+        PatientDao subject = createSubject(raw);
+        Context context = ApplicationProvider.getApplicationContext();
+        Patient existing = new Patient();
+        existing.setId(98435L);
+        when(raw.queryForId(98435L)).thenReturn(existing);
+        SharedPreferences.Editor editor = mock(SharedPreferences.Editor.class);
+        EventBus eventBus = mock(EventBus.class);
+        when(editor.putLong(anyString(), eq(98435L))).thenReturn(editor);
+
+        try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class);
+             MockedStatic<CalendulaApp> app = mockStatic(CalendulaApp.class)) {
+            app.when(CalendulaApp::getContext).thenReturn(context);
+            app.when(CalendulaApp::eventBus).thenReturn(eventBus);
+            prefs.when(PreferenceUtils::edit).thenReturn(editor);
+            subject.setActiveById(98435L);
+            verify(editor).putLong(PreferenceKeys.PATIENTS_ACTIVE.key(), 98435L);
+            verify(editor).apply();
+            verify(eventBus).post(org.mockito.ArgumentMatchers.any(
+                    es.usc.citius.servando.calendula.events.PersistenceEvents.ActiveUserChangeEvent.class));
+        }
+    }
+
+
 }
