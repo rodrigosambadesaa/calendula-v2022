@@ -121,17 +121,23 @@ public class PatientDao extends GenericDao<Patient, Long> {
     }
 
     public void removeAllStuff(Patient p) {
-        for (Medicine m : DB.medicines().findAll()) {
-            if (m.getPatient().getId() == p.getId()) {
-                // this also remove schedules
-                DB.medicines().deleteCascade(m, true);
-            }
+        // Never run a patient-data deletion using an absent or unsaved owner:
+        // filtering by NULL would also match unrelated, unassigned records.
+        final Long patientId = p == null ? null : p.getId();
+        if (patientId == null) {
+            throw new IllegalArgumentException("A persisted patient is required for deletion");
         }
-        // remove routines
-        for (Routine r : DB.routines().findAll()) {
-            if (r.getPatient().getId() == p.getId()) {
-                DB.routines().remove(r);
-            }
+
+        // Query the owner's rows in SQLite. Comparing boxed Long IDs with ==
+        // previously checked object identity, potentially leaving another
+        // Long instance with the same value undeleted (notably IDs > 127).
+        // Do not scan or mutate another patient's medications or routines.
+        for (Medicine m : DB.medicines().findAll(patientId)) {
+            // This also removes the medication's schedules, pickups and alerts.
+            DB.medicines().deleteCascade(m, true);
+        }
+        for (Routine r : DB.routines().findAll(patientId)) {
+            DB.routines().remove(r);
         }
     }
 }
