@@ -79,6 +79,32 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
         }
     }
 
+    /**
+     * Bound the daily agenda query to its visible calendar days. Historical
+     * medication decisions remain in SQLite but must not be read, grouped or
+     * rendered for every app-start as the archive grows.
+     */
+    public List<EventInstance> findByTypeInWindow(
+            EventType type, DateTime fromInclusive, DateTime toExclusive) {
+        if (type == null || fromInclusive == null || toExclusive == null) {
+            throw new IllegalArgumentException("Agenda query needs a valid type and time window");
+        }
+        if (!fromInclusive.isBefore(toExclusive)) {
+            return java.util.Collections.emptyList();
+        }
+        try {
+            QueryBuilder<EventInstance, Long> query = dao.queryBuilder();
+            Where<EventInstance, Long> where = query.where();
+            where.and(where.eq(EventInstance.COLUMN_EVENT_TYPE, type),
+                    where.ge(EventInstance.COLUMN_DATE_TIME, fromInclusive),
+                    where.lt(EventInstance.COLUMN_DATE_TIME, toExclusive));
+            query.setWhere(where);
+            return query.query();
+        } catch (SQLException e) {
+            throw new RuntimeException("Error querying bounded agenda events", e);
+        }
+    }
+
     public List<EventInstance> findByTypeAndTime(EventType type, DateTime dateTime) {
         try {
             QueryBuilder<EventInstance, Long> qb = dao.queryBuilder();
