@@ -108,13 +108,19 @@ public class PatientDao extends GenericDao<Patient, Long> {
         // Avoid persisting references to unsaved/deleted users. Revalidate
         // against SQLite rather than trusting an object from stale UI state.
         final Long id = patient == null ? null : patient.getId();
-        if (id == null || findById(id) == null) {
+        if (id == null) {
+            throw new IllegalArgumentException("Cannot activate a missing patient");
+        }
+        Patient persisted = findById(id);
+        if (persisted == null) {
             throw new IllegalArgumentException("Cannot activate a missing patient");
         }
         PreferenceUtils.edit()
                 .putLong(PreferenceKeys.PATIENTS_ACTIVE.key(), id)
                 .apply();
-        CalendulaApp.eventBus().post(new PersistenceEvents.ActiveUserChangeEvent(patient));
+        // A stale UI model may carry outdated attributes even if the ID still
+        // exists. Notify listeners with SQLite's authoritative patient record.
+        CalendulaApp.eventBus().post(new PersistenceEvents.ActiveUserChangeEvent(persisted));
     }
 
     /**
