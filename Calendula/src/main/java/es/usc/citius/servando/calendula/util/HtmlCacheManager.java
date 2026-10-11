@@ -63,27 +63,42 @@ public class HtmlCacheManager {
         return null;
     }
 
+    /**
+     * Cache key collisions must not evict an unrelated medication document.
+     * Refresh an existing URL in place so a failed SQLite write cannot erase
+     * a previously usable leaflet. A URL-less legacy row is safely replaced
+     * in place because its original identity cannot be established.
+     */
     public boolean put(final String url, final String data, final Duration ttlDuration) {
+        if (url == null || url.isEmpty()) {
+            return false;
+        }
         final Long ttl = ttlDuration == null ? DEFAULT_TTL_MILLIS : ttlDuration.getMillis();
         final int hashCode = url.hashCode();
         HtmlCacheEntry entry = retrieveByHash(hashCode);
-        if (entry != null)
-            remove(entry);
-
-        HtmlCacheEntry newEntry = new HtmlCacheEntry(
-                hashCode,
-                url,
-                new Date(DateTime.now().getMillis()),
-                data,
-                ttl);
-        try {
-            LogUtil.d(TAG, "put: writing entry: " + newEntry);
-            return getDao().create(newEntry) == 1;
-        } catch (SQLException e) {
-            LogUtil.e(TAG, "put: ", e);
+        if (entry != null && entry.getUrl() != null && !url.equals(entry.getUrl())) {
+            LogUtil.w(TAG, "Ignoring HTML cache hash collision without evicting prior content");
             return false;
         }
 
+        final Date now = new Date(DateTime.now().getMillis());
+        try {
+            if (entry != null) {
+                // The UPDATE is atomic on SQLite; on failure the previously
+                // committed HTML remains intact. Do not delete-then-insert.
+                entry.setUrl(url);
+                entry.setTimestamp(now);
+                entry.setData(data);
+                entry.setTtl(ttl);
+                return getDao().update(entry) == 1;
+            }
+            HtmlCacheEntry newEntry = new HtmlCacheEntry(
+                    hashCode, url, now, data, ttl);
+            return getDao().create(newEntry) == 1;
+        } catch (SQLException e) {
+            LogUtil.e(TAG, "Could not persist HTML cache entry", e);
+            return false;
+        }
     }
 
     public boolean remove(final String url) {
