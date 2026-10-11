@@ -38,6 +38,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.TextView;
 
 import com.mikepenz.community_material_typeface_library.CommunityMaterial;
 import com.mikepenz.iconics.IconicsDrawable;
@@ -87,6 +88,8 @@ public class DailyAgendaFragment extends Fragment {
 
     private static final String TAG = "DailyAgendaFragment";
     View emptyView;
+    TextView medicationReviewWarning;
+    private boolean needsMedicationReview;
 
     LinearLayoutManager llm;
 
@@ -110,6 +113,7 @@ public class DailyAgendaFragment extends Fragment {
         View rootView = inflater.inflate(R.layout.fragment_daily_agenda, container, false);
         rv = (RecyclerView) rootView.findViewById(R.id.rv);
         emptyView = rootView.findViewById(R.id.empty_view_placeholder);
+        medicationReviewWarning = rootView.findViewById(R.id.agenda_medication_review_warning);
         CalendulaApp.eventBus().register(this);
         setupRecyclerView();
         setupEmptyView();
@@ -147,6 +151,8 @@ public class DailyAgendaFragment extends Fragment {
 
         List<DailyAgendaItemStub> stubs = new ArrayList<>();
         Map<DateTime, List<EventInstance>> grouped = new HashMap<>();
+        needsMedicationReview = false;
+        Patient activePatient = DB.patients().getActive(getContext());
 
         // The home agenda displays yesterday, today and tomorrow. Keep
         // decided doses in historical SQLite storage without loading years of
@@ -176,12 +182,13 @@ public class DailyAgendaFragment extends Fragment {
 
                 DailyAgendaItemStub stub;
                 Long scheduleId = e.getRef();
-                if (scheduleId == null || scheduleId <= 0L) {
-                    // Keep incomplete historical rows in SQLite for explicit
-                    // repair; they must not crash the home agenda.
-                    continue;
+                Schedule s = scheduleId == null || scheduleId <= 0L
+                        ? null : DB.schedules().findById(scheduleId);
+                // Only this patient's invalid events can activate the banner.
+                // It contains no medicine data, dosage or timestamps.
+                if (DailyAgendaReviewPolicy.needsReview(e, s, activePatient)) {
+                    needsMedicationReview = true;
                 }
-                Schedule s = DB.schedules().findById(scheduleId);
                 Double dose = DailyAgendaEventValidator.verifiedDose(e, s);
                 if (dose == null) {
                     // No cross-patient details or unverified numeric doses
@@ -327,10 +334,18 @@ public class DailyAgendaFragment extends Fragment {
         return rvAdapter.isExpanded();
     }
 
+    private void updateMedicationReviewWarning() {
+        if (medicationReviewWarning != null) {
+            medicationReviewWarning.setVisibility(
+                    needsMedicationReview ? View.VISIBLE : View.GONE);
+        }
+    }
+
     public void notifyDataChange() {
         try {
             LogUtil.d(TAG, "AgendaView NotifyDataChange");
             List<DailyAgendaItemStub> newItems = buildItems();
+            updateMedicationReviewWarning();
             int oldSize = items.size();
             items.clear();
             if (oldSize > 0) {
@@ -345,7 +360,7 @@ public class DailyAgendaFragment extends Fragment {
             rv.postDelayed(new Runnable() {
                 @Override
                 public void run() {
-                    showOrHideEmptyView(!rvAdapter.isShowingSomething());
+                    showOrHideEmptyView(!rvAdapter.isShowingSomething() && !needsMedicationReview);
                 }
             }, 100);
         } catch (Exception e) {
