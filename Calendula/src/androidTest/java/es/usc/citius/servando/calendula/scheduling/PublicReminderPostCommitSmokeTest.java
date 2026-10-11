@@ -142,6 +142,64 @@ public class PublicReminderPostCommitSmokeTest {
     }
 
     @Test
+    public void invalidReminderConfirmationIdsCannotQueryOrChangeMedication() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        int beforeEvents = DB.eventInstances().count();
+        int beforeReminders = DB.eventReminders().count();
+
+        Agenda.instance().confirmReminder(context, null);
+        Agenda.instance().confirmReminder(context, -1L);
+        Agenda.instance().confirmReminder(context, 0L);
+
+        assertEquals("No invalid confirmation can modify medication events",
+                beforeEvents, DB.eventInstances().count());
+        assertEquals("Invalid IDs cannot remove or create reminder rows",
+                beforeReminders, DB.eventReminders().count());
+    }
+
+    @Test
+    public void incompleteReminderCannotRegisterAndroidAlarm() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime future = DateTime.now().plusMinutes(24).withMillisOfSecond(0);
+        EventReminder incomplete = new EventReminder(future, EventType.MEDICATION_INTAKE);
+        try {
+            DB.eventReminders().save(incomplete);
+            assertNotNull(incomplete.getId());
+            assertNull(incomplete.getNextTime());
+            boolean rejected = false;
+            try {
+                Agenda.instance().setAlarm(context, incomplete);
+            } catch (IllegalArgumentException expected) {
+                rejected = true;
+            }
+            assertTrue("Missing next time must be rejected before AlarmManager", rejected);
+            assertNull("Rejected incomplete row cannot produce an OS token",
+                    PendingIntent.getBroadcast(context, 0,
+                            Agenda.reminderBroadcastIntent(context, incomplete),
+                            PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+
+            incomplete.setNextTime(future);
+            incomplete.setEventType(null);
+            rejected = false;
+            try {
+                Agenda.instance().setAlarm(context, incomplete);
+            } catch (IllegalArgumentException expected) {
+                rejected = true;
+            }
+            assertTrue("Missing event type must also fail before OS scheduling", rejected);
+        } finally {
+            if (incomplete.getId() != null) {
+                Agenda.instance().cancelAlarm(context, incomplete);
+                if (DB.eventReminders().findById(incomplete.getId()) != null) {
+                    DB.eventReminders().remove(incomplete);
+                }
+            }
+        }
+    }
+
+    @Test
     public void publicReminderCreationCommitsThenRegistersStableAndroidAlarm() {
         assertTrue(DB.initialized);
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
