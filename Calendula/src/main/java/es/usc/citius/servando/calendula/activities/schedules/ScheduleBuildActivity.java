@@ -394,7 +394,10 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
                 .paddingDp(5)
                 .sizeDp(30);
 
-        ScheduleUtils.instance().removeUnlinkedAutoRoutines(true);
+        // Opening one patient's schedule editor must not prune another
+        // patient's unnamed routines.
+        ScheduleUtils.instance().removeUnlinkedAutoRoutines(
+                DB.patients().getActive(this), true);
 
         String action = getIntent().getStringExtra(IntentParams.EXTRA_ACTION);
         Long editScheduleId = getIntent().getLongExtra(CalendulaApp.INTENT_EXTRA_SCHEDULE_ID, -1);
