@@ -914,11 +914,11 @@ public class ConfirmActivity extends CalendulaActivity {
                     showEnsureConfirmDialog(new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialogInterface, int i) {
-                            confirmSelectedIntake(event, !taken, getBindingAdapterPosition());
+                            confirmSelectedIntake(event, !taken, getAdapterPosition());
                         }
                     }, taken);
                 } else {
-                    confirmSelectedIntake(event, !taken, getBindingAdapterPosition());
+                    confirmSelectedIntake(event, !taken, getAdapterPosition());
                 }
             }
         }
