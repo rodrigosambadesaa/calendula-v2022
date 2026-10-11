@@ -117,13 +117,20 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
         }
     }
 
+    private static boolean hasPersistedPatient(Patient patient) {
+        return patient != null && patient.getId() != null && patient.getId() > 0L;
+    }
+
     public List<EventInstance> find(EventType type, DateTime dateTime, Patient p) {
+        if (!hasPersistedPatient(p) || type == null || dateTime == null) {
+            return java.util.Collections.emptyList();
+        }
         try {
             QueryBuilder<EventInstance, Long> qb = dao.queryBuilder();
             Where w = qb.where();
             w.and(w.eq(EventInstance.COLUMN_EVENT_TYPE, type),
                     w.eq(EventInstance.COLUMN_DATE_TIME, dateTime),
-                    (p == null ? w.isNull(EventInstance.COLUMN_PATIENT) : w.eq(EventInstance.COLUMN_PATIENT, p))
+                    w.eq(EventInstance.COLUMN_PATIENT, p.getId())
             );
             qb.setWhere(w);
             return qb.query();
@@ -148,12 +155,15 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
     }
 
     public boolean exists(EventType type, DateTime dateTime, Patient p, boolean completed) {
+        if (!hasPersistedPatient(p) || type == null || dateTime == null) {
+            return false;
+        }
         try {
             QueryBuilder<EventInstance, Long> qb = dao.queryBuilder();
             Where w = qb.where();
             w.and(w.eq(EventInstance.COLUMN_EVENT_TYPE, type),
                     w.eq(EventInstance.COLUMN_DATE_TIME, dateTime),
-                    (p == null ? w.isNull(EventInstance.COLUMN_PATIENT) : w.eq(EventInstance.COLUMN_PATIENT, p)),
+                    w.eq(EventInstance.COLUMN_PATIENT, p.getId()),
                     w.eq(EventInstance.COLUMN_COMPLETED, completed)
             );
             qb.setWhere(w);
@@ -173,8 +183,7 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
         Where<EventInstance, Long> w = qb.where();
         w.and(w.eq(EventInstance.COLUMN_EVENT_TYPE, type),
                 w.eq(EventInstance.COLUMN_DATE_TIME, dateTime),
-                (patient == null ? w.isNull(EventInstance.COLUMN_PATIENT)
-                        : w.eq(EventInstance.COLUMN_PATIENT, patient)),
+                w.eq(EventInstance.COLUMN_PATIENT, patient.getId()),
                 w.eq(EventInstance.COLUMN_COMPLETED, false),
                 w.eq(EventInstance.COLUMN_CANCELLED, false));
         qb.setWhere(w);
@@ -183,6 +192,9 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
 
     /** Only currently actionable intake events may authorize a reminder. */
     public boolean existsPending(EventType type, DateTime dateTime, Patient patient) {
+        if (!hasPersistedPatient(patient) || type == null || dateTime == null) {
+            return false;
+        }
         try {
             return pendingQuery(type, dateTime, patient).countOf() > 0;
         } catch (SQLException e) {
@@ -192,6 +204,9 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
 
     /** Only actionable doses belonging to this patient appear in notifications. */
     public List<EventInstance> findPending(EventType type, DateTime dateTime, Patient patient) {
+        if (!hasPersistedPatient(patient) || type == null || dateTime == null) {
+            return java.util.Collections.emptyList();
+        }
         try {
             return pendingQuery(type, dateTime, patient).query();
         } catch (SQLException e) {
