@@ -20,6 +20,7 @@ package es.usc.citius.servando.calendula.util;
 
 import com.j256.ormlite.dao.CloseableIterator;
 import com.j256.ormlite.dao.Dao;
+import com.j256.ormlite.stmt.UpdateBuilder;
 
 import org.joda.time.DateTime;
 import org.joda.time.Duration;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 import es.usc.citius.servando.calendula.database.DB;
+import es.usc.citius.servando.calendula.database.DatabaseHelper;
 import es.usc.citius.servando.calendula.database.HtmlCacheDAO;
 import es.usc.citius.servando.calendula.persistence.HtmlCacheEntry;
 
@@ -40,6 +42,7 @@ public class HtmlCacheManager {
     private static final String TAG = "HtmlCacheManager";
     private static HtmlCacheManager theInstance = null;
     private Dao<HtmlCacheEntry, Long> dao = null;
+    private DatabaseHelper daoHelper = null;
 
     private HtmlCacheManager() {
     }
@@ -63,27 +66,75 @@ public class HtmlCacheManager {
         return null;
     }
 
+    /**
+     * Cache key collisions must not evict an unrelated medication document.
+     * Refresh an existing URL in place so a failed SQLite write cannot erase
+     * a previously usable leaflet. A URL-less legacy row is safely replaced
+     * in place because its original identity cannot be established.
+     */
     public boolean put(final String url, final String data, final Duration ttlDuration) {
+        if (url == null || url.isEmpty()) {
+            return false;
+        }
         final Long ttl = ttlDuration == null ? DEFAULT_TTL_MILLIS : ttlDuration.getMillis();
         final int hashCode = url.hashCode();
         HtmlCacheEntry entry = retrieveByHash(hashCode);
-        if (entry != null)
-            remove(entry);
-
-        HtmlCacheEntry newEntry = new HtmlCacheEntry(
-                hashCode,
-                url,
-                new Date(DateTime.now().getMillis()),
-                data,
-                ttl);
-        try {
-            LogUtil.d(TAG, "put: writing entry: " + newEntry);
-            return getDao().create(newEntry) == 1;
-        } catch (SQLException e) {
-            LogUtil.e(TAG, "put: ", e);
+        if (entry != null && entry.getUrl() != null && !url.equals(entry.getUrl())) {
+            LogUtil.w(TAG, "Ignoring HTML cache hash collision without evicting prior content");
             return false;
         }
 
+        final Date now = new Date(DateTime.now().getMillis());
+        try {
+            if (entry != null) {
+                // The UPDATE is atomic on SQLite; on failure the previously
+                // committed HTML remains intact. Do not delete-then-insert.
+                // Match the full cache identity in SQLite (not only its
+                // Java hash). Legacy rows without URL can be adopted safely,
+                // while concurrent hash collisions can never overwrite
+                // another document. A failed UPDATE does not remove content.
+                UpdateBuilder<HtmlCacheEntry, Long> update = getDao().updateBuilder();
+                update.updateColumnValue(HtmlCacheEntry.COLUMN_URL, url);
+                update.updateColumnValue(HtmlCacheEntry.COLUMN_TIMESTAMP, now);
+                update.updateColumnValue(HtmlCacheEntry.COLUMN_DATA, data);
+                update.updateColumnValue(HtmlCacheEntry.COLUMN_TTL, ttl);
+                if (entry.getUrl() == null) {
+                    update.where().eq(HtmlCacheEntry.COLUMN_HASHCODE, hashCode)
+                            .and().isNull(HtmlCacheEntry.COLUMN_URL);
+                } else {
+                    update.where().eq(HtmlCacheEntry.COLUMN_HASHCODE, hashCode)
+                            .and().eq(HtmlCacheEntry.COLUMN_URL, url);
+                }
+                int changed = update.update();
+                if (changed == 1) {
+                    return true;
+                }
+                if (changed != 0) {
+                    return false;
+                }
+                // Some SQLite/ORM test drivers report zero affected rows even
+                // after the UPDATE commits. Never assume success from that
+                // count alone: re-read and verify the persisted URL, payload,
+                // TTL, timestamp and original row identity.
+                HtmlCacheEntry verified = retrieveByHash(hashCode);
+                return verified != null
+                        && entry.getId() != null
+                        && entry.getId().equals(verified.getId())
+                        && url.equals(verified.getUrl())
+                        && (data == null ? verified.getData() == null
+                                : data.equals(verified.getData()))
+                        && ttl.equals(verified.getTtl())
+                        && verified.getTimestamp() != null
+                        && Math.abs(verified.getTimestamp().getTime()
+                                - now.getTime()) <= 1000L;
+            }
+            HtmlCacheEntry newEntry = new HtmlCacheEntry(
+                    hashCode, url, now, data, ttl);
+            return getDao().create(newEntry) == 1;
+        } catch (SQLException e) {
+            LogUtil.e(TAG, "Could not persist HTML cache entry", e);
+            return false;
+        }
     }
 
     public boolean remove(final String url) {
@@ -210,9 +261,14 @@ public class HtmlCacheManager {
         }
     }
 
-    private Dao<HtmlCacheEntry, Long> getDao() {
-        if (dao == null)
-            dao = new HtmlCacheDAO(DB.helper()).getConcreteDao();
+    private synchronized Dao<HtmlCacheEntry, Long> getDao() {
+        // DB.dispose()/DB.init() replace the SQLite helper (also in tests).
+        // A singleton must not retain a DAO bound to a closed prior database.
+        DatabaseHelper currentHelper = DB.helper();
+        if (dao == null || daoHelper != currentHelper) {
+            dao = new HtmlCacheDAO(currentHelper).getConcreteDao();
+            daoHelper = currentHelper;
+        }
         return dao;
     }
 
