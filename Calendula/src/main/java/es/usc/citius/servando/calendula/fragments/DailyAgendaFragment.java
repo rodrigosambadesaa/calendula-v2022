@@ -148,7 +148,14 @@ public class DailyAgendaFragment extends Fragment {
         List<DailyAgendaItemStub> stubs = new ArrayList<>();
         Map<DateTime, List<EventInstance>> grouped = new HashMap<>();
 
-        for (EventInstance evt : DB.eventInstances().findByType(EventType.MEDICATION_INTAKE)) {
+        // The home agenda displays yesterday, today and tomorrow. Keep
+        // decided doses in historical SQLite storage without loading years of
+        // archive rows (or orphaned past prescriptions) into this RecyclerView.
+        final DateTime todayStart = new LocalDate().toDateTimeAtStartOfDay();
+        final DateTime visibleFrom = todayStart.minusDays(1);
+        final DateTime visibleUntil = todayStart.plusDays(2);
+        for (EventInstance evt : DB.eventInstances().findByTypeInWindow(
+                EventType.MEDICATION_INTAKE, visibleFrom, visibleUntil)) {
             if (!grouped.containsKey(evt.getTime())) {
                 grouped.put(evt.getTime(), new ArrayList<EventInstance>());
             }
@@ -164,7 +171,16 @@ public class DailyAgendaFragment extends Fragment {
 
                 DailyAgendaItemStub stub;
                 Long scheduleId = e.getRef();
+                if (scheduleId == null || scheduleId <= 0L) {
+                    // Keep incomplete historical rows in SQLite for explicit
+                    // repair; they must not crash the home agenda.
+                    continue;
+                }
                 Schedule s = DB.schedules().findById(scheduleId);
+                if (s == null || s.getPatient() == null
+                        || s.getPatient().getId() == null || s.getMedicine() == null) {
+                    continue;
+                }
                 Patient p = s.getPatient();
 
                 if (patStubs.containsKey(p.getId())) {
