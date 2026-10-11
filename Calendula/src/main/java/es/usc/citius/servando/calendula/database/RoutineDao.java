@@ -129,6 +129,10 @@ public class RoutineDao extends GenericDao<Routine, Long> {
     }
 
     public Routine findByPatientAndName(String name, Patient p) {
+        // Never match null-owned routines when the active patient is missing.
+        if (p == null || p.getId() == null) {
+            return null;
+        }
         try {
             QueryBuilder<Routine, Long> qb = dao.queryBuilder();
             Where w = qb.where();
@@ -141,6 +145,9 @@ public class RoutineDao extends GenericDao<Routine, Long> {
     }
 
     public Routine findByPatientAndDailyEvent(Patient patient, RepeatType dailyEvent) {
+        if (patient == null || patient.getId() == null) {
+            return null;
+        }
         try {
             QueryBuilder<Routine, Long> qb = dao.queryBuilder();
             Where w = qb.where();
@@ -153,6 +160,10 @@ public class RoutineDao extends GenericDao<Routine, Long> {
     }
 
     public Routine findByPatientAndTime(Patient p, LocalTime time) {
+        // A null timestamp is not a valid patient routine lookup either.
+        if (p == null || p.getId() == null || time == null) {
+            return null;
+        }
         try {
             QueryBuilder<Routine, Long> qb = dao.queryBuilder();
             Where w = qb.where();
