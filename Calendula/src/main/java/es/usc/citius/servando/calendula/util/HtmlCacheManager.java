@@ -105,7 +105,28 @@ public class HtmlCacheManager {
                     update.where().eq(HtmlCacheEntry.COLUMN_HASHCODE, hashCode)
                             .and().eq(HtmlCacheEntry.COLUMN_URL, url);
                 }
-                return update.update() == 1;
+                int changed = update.update();
+                if (changed == 1) {
+                    return true;
+                }
+                if (changed != 0) {
+                    return false;
+                }
+                // Some SQLite/ORM test drivers report zero affected rows even
+                // after the UPDATE commits. Never assume success from that
+                // count alone: re-read and verify the persisted URL, payload,
+                // TTL, timestamp and original row identity.
+                HtmlCacheEntry verified = retrieveByHash(hashCode);
+                return verified != null
+                        && entry.getId() != null
+                        && entry.getId().equals(verified.getId())
+                        && url.equals(verified.getUrl())
+                        && (data == null ? verified.getData() == null
+                                : data.equals(verified.getData()))
+                        && ttl.equals(verified.getTtl())
+                        && verified.getTimestamp() != null
+                        && Math.abs(verified.getTimestamp().getTime()
+                                - now.getTime()) <= 1000L;
             }
             HtmlCacheEntry newEntry = new HtmlCacheEntry(
                     hashCode, url, now, data, ttl);
