@@ -1,0 +1,51 @@
+/*
+ * Calendula - An assistant for personal medication management.
+ * Distributed under the GNU General Public License v3.0 or later.
+ */
+package es.usc.citius.servando.calendula.activities;
+
+import org.joda.time.DateTime;
+
+import java.util.Objects;
+
+import es.usc.citius.servando.calendula.fragments.DailyAgendaEventValidator;
+import es.usc.citius.servando.calendula.fragments.DailyAgendaOfficialTreatmentValidator;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
+import es.usc.citius.servando.calendula.persistence.Patient;
+import es.usc.citius.servando.calendula.persistence.Schedule;
+import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
+
+/**
+ * Confirmation is a clinical action, not just a display. An unknown owner,
+ * missing dose, changed event or mismatched imported prescription cannot
+ * authorize changing the intake/stock state.
+ */
+public final class ConfirmIntakeGuard {
+    private ConfirmIntakeGuard() {
+    }
+
+    public static boolean matchesPersistedEvent(EventInstance selected, EventInstance stored) {
+        return selected != null && stored != null
+                && selected.getId() != null && selected.getId().equals(stored.getId())
+                && Objects.equals(selected.getRef(), stored.getRef())
+                && Objects.equals(selected.getTime(), stored.getTime())
+                && selected.getPatient() != null && stored.getPatient() != null
+                && selected.getPatient().getId() != null
+                && selected.getPatient().getId().equals(stored.getPatient().getId());
+    }
+
+    public static boolean verified(EventInstance event, Patient selectedPatient,
+                                   DateTime selectedTime, Schedule schedule,
+                                   ActiveMedEntity importedSource) {
+        if (selectedPatient == null || selectedPatient.getId() == null
+                || selectedPatient.getId() <= 0L || selectedTime == null
+                || event == null || event.getPatient() == null
+                || !selectedPatient.getId().equals(event.getPatient().getId())
+                || !selectedTime.equals(event.getTime())
+                || DailyAgendaEventValidator.verifiedDose(event, schedule) == null) {
+            return false;
+        }
+        return schedule == null || !schedule.isBoundToActiveMed()
+                || DailyAgendaOfficialTreatmentValidator.verifiedLink(schedule, importedSource);
+    }
+}
