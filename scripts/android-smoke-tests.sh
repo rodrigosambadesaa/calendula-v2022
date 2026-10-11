@@ -9,6 +9,7 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.scheduling.Remind
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.database.PatientDeletionScopeSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.RoutineEditorOwnershipSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.fragments.DailyAgendaReviewWarningSmokeTest"
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.fragments.OfficialTreatmentPatientIsolationSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.fragments.DailyAgendaPatientIsolationSmokeTest"
 exec ./gradlew connectedCiDebugAndroidTest \
   "-Pandroid.testInstrumentationRunnerArguments.class=${TEST_CLASSES}" \
