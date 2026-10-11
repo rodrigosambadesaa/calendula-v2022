@@ -50,6 +50,7 @@ import es.usc.citius.servando.calendula.persistence.Routine;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.util.KeyboardUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.RoutineOwnerGuard;
 import es.usc.citius.servando.calendula.util.Snack;
 
 
@@ -74,13 +75,17 @@ public class RoutineCreateOrEditFragment extends DialogFragment implements Radia
     int minute;
 
     int pColor;
+    private boolean blockedByPatientChange;
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_create_or_edit_routine, container, false);
         unbinder = ButterKnife.bind(this, rootView);
 
-        pColor = DB.patients().getActive(getActivity()).getColor();
+        Patient openingPatient = DB.patients().getActive(getActivity());
+        pColor = RoutineOwnerGuard.hasActivePatient(openingPatient)
+                ? openingPatient.getColor()
+                : getResources().getColor(R.color.android_blue_dark);
 
         timeButton.setTextColor(pColor);
 
@@ -138,15 +143,42 @@ public class RoutineCreateOrEditFragment extends DialogFragment implements Radia
     }
 
     public void setRoutine(long routineId) {
+        Patient active = DB.patients().getActive(getContext());
+        Routine persisted = routineId == -1 ? null : DB.routines().findById(routineId);
+        blockedByPatientChange = !RoutineOwnerGuard.hasActivePatient(active)
+                || (routineId != -1 && !RoutineOwnerGuard.isOwnedBy(persisted, active));
+        if (blockedByPatientChange) {
+            // Never prefill the name of a stale/deleted/foreign routine.
+            mRoutine = null;
+            mNameTextView.setText("");
+            mNameTextView.setEnabled(false);
+            timeButton.setEnabled(false);
+            if (mConfirmButton != null) {
+                mConfirmButton.setEnabled(false);
+            }
+            LogUtil.w(TAG, "Routine editor unavailable for active patient");
+            return;
+        }
+        mNameTextView.setEnabled(true);
+        timeButton.setEnabled(true);
+        if (mConfirmButton != null) {
+            mConfirmButton.setEnabled(true);
+        }
         if (routineId != -1) {
-            mRoutine = Routine.findById(routineId);
-            if (mRoutine == null) {
-                throw new IllegalStateException("Trying to access null routine with ID: " + routineId);
+            mRoutine = persisted;
+            if (mRoutine.getTime() == null) {
+                blockedByPatientChange = true;
+                mRoutine = null;
+                mNameTextView.setText("");
+                mNameTextView.setEnabled(false);
+                timeButton.setEnabled(false);
+                return;
             }
             hour = mRoutine.getTime().getHourOfDay();
             minute = mRoutine.getTime().getMinuteOfHour();
             setRoutine(mRoutine);
         } else {
+            mRoutine = null;
             DateTime now = DateTime.now();
             hour = now.getHourOfDay();
             minute = now.getMinuteOfHour();
@@ -193,6 +225,15 @@ public class RoutineCreateOrEditFragment extends DialogFragment implements Radia
 
         String name = mNameTextView.getText().toString();
         Patient p = DB.patients().getActive(getContext());
+        // A patient can be switched/deleted while this editor is open.
+        // Re-read stored ownership immediately before any mutation.
+        if (blockedByPatientChange || !RoutineOwnerGuard.hasActivePatient(p)
+                || (mRoutine != null && (!RoutineOwnerGuard.isOwnedBy(mRoutine, p)
+                    || !RoutineOwnerGuard.isOwnedBy(
+                        DB.routines().findById(mRoutine.getId()), p)))) {
+            Snack.show(R.string.routine_profile_unavailable, getActivity());
+            return;
+        }
         LocalTime time = new LocalTime(hour, minute);
 
         if (name != null && name.length() > 0) {
@@ -236,6 +277,13 @@ public class RoutineCreateOrEditFragment extends DialogFragment implements Radia
     }
 
     public void showDeleteConfirmationDialog(final Routine r) {
+        Patient active = DB.patients().getActive(getContext());
+        if (!RoutineOwnerGuard.isOwnedBy(r, active)
+                || !RoutineOwnerGuard.isOwnedBy(
+                        DB.routines().findById(r.getId()), active)) {
+            Snack.show(R.string.routine_profile_unavailable, getActivity());
+            return;
+        }
         AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
 
         String message;
