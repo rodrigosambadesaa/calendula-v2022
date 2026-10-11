@@ -187,6 +187,14 @@ public class Agenda {
     }
 
     public void setAlarm(Context context, EventReminder reminder) {
+        // Malformed or unsaved reminder rows must not create a PendingIntent,
+        // enqueue undefined work, or crash while unboxing a null SQL ID/time.
+        if (reminder == null || reminder.getId() == null || reminder.getId() <= 0L
+                || reminder.getDateTime() == null || reminder.getNextTime() == null
+                || reminder.getEventType() == null) {
+            throw new IllegalArgumentException(
+                    "A complete, persisted reminder is required to schedule its alarm");
+        }
         // build a bundle with the alarm params
         Bundle alarmParams = new Bundle();
         alarmParams.putString("action", "reminder");
@@ -624,6 +632,10 @@ public class Agenda {
     }
 
     public void confirmReminder(Context context, Long reminderId) {
+        if (reminderId == null || reminderId <= 0L) {
+            // Incomplete legacy actions cannot resolve to any persisted dose.
+            return;
+        }
         EventReminder reminder = DB.eventReminders().findById(reminderId);
         if (reminder != null) {
             finalizeReminderInSqlite(context, reminder, true);
