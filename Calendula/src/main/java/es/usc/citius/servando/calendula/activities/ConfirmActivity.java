@@ -336,7 +336,15 @@ public class ConfirmActivity extends CalendulaActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        processIntent();
+        if (!processIntent()) {
+            // finish() alone does not stop onCreate: no view may dereference
+            // an absent patient or a malformed medication reminder timestamp.
+            Intent home = new Intent(this, HomePagerActivity.class);
+            home.putExtra("invalid_notification_error", true);
+            startActivity(home);
+            finish();
+            return;
+        }
         setContentView(R.layout.activity_confirm);
         ButterKnife.bind(this);
 
@@ -515,25 +523,46 @@ public class ConfirmActivity extends CalendulaActivity {
         listView.setItemAnimator(new DefaultItemAnimator());
     }
 
-    private void processIntent() {
+    /**
+     * An Intent can outlive the selected patient or originate from an old
+     * alarm after restoring a database. Never create a confirm screen without
+     * both a persisted patient and a valid intake timestamp.
+     */
+    private boolean processIntent() {
         Intent i = getIntent();
-
-        Long patientId = i.getLongExtra(IntentParams.EXTRA_PATIENT_ID, -1);
-        String dateTimeStr = i.getStringExtra(IntentParams.EXTRA_DATETIME);
+        if (i == null) {
+            return false;
+        }
+        long patientId = i.getLongExtra(IntentParams.EXTRA_PATIENT_ID, -1);
+        dateTime = parseIntakeDate(i.getStringExtra(IntentParams.EXTRA_DATETIME));
+        if (patientId <= 0L || dateTime == null) {
+            return false;
+        }
+        patient = DB.patients().findById(patientId);
+        if (!hasValidIntakeContext(patient, dateTime)) {
+            return false;
+        }
         action = i.getStringExtra(IntentParams.EXTRA_ACTION);
         position = i.getIntExtra(IntentParams.EXTRA_POSITION, -1);
         fromNotification = position == -1;
-        patient = DB.patients().findById(patientId);
+        return true;
+    }
 
-        if (dateTimeStr != null) {
-            dateTime = DateTime.parse(dateTimeStr, dateTimeFormatter);
-        } else {
-            // this should never happen, but, just in case, redirect to home and show error
-            Intent intent = new Intent(this, HomePagerActivity.class);
-            intent.putExtra("invalid_notification_error", true);
-            startActivity(intent);
-            finish();
+    static DateTime parseIntakeDate(String raw) {
+        if (raw == null || raw.trim().isEmpty()) {
+            return null;
         }
+        try {
+            return ISODateTimeFormat.dateTimeNoMillis().parseDateTime(raw);
+        } catch (IllegalArgumentException invalid) {
+            // Malformed stale reminder Intents must not crash the Activity.
+            return null;
+        }
+    }
+
+    static boolean hasValidIntakeContext(Patient patient, DateTime time) {
+        return patient != null && patient.getId() != null
+                && patient.getId() > 0L && time != null;
     }
 
     private void loadItems() {
