@@ -35,6 +35,11 @@ public class HtmlCacheManagerTest {
     @Before
     public void setUp() {
         CalendulaApp.disableReceivers = true;
+        // Robolectric creates a fresh SQLite environment for each method.
+        // Release the old helper so the cached DAO cannot point to a closed DB.
+        if (DB.initialized) {
+            DB.dispose();
+        }
         DB.init(ApplicationProvider.getApplicationContext());
         DB.dropAndCreateDatabase();
     }
