@@ -279,9 +279,13 @@ public class AtomicIntakeStockSmokeTest {
         try {
             // Simulate a stale imported prescription link. The local schedule
             // and medicine still exist, but its official source was removed.
-            x.schedule.setActiveMedId(Long.MAX_VALUE - 1L);
-            assertEquals(1, DB.schedules().update(x.schedule));
-            assertNotNull(DB.schedules().findById(x.schedule.getId()).getActiveMedId());
+            long missingExternalId = Long.MAX_VALUE - 1L;
+            DB.helper().getWritableDatabase().execSQL(
+                    "UPDATE NewSchedules SET BoundTo = ? WHERE _id = ?",
+                    new Object[]{missingExternalId, x.schedule.getId()});
+            assertEquals("The synthetic orphan link must actually be persisted",
+                    Long.valueOf(missingExternalId),
+                    DB.schedules().findById(x.schedule.getId()).getActiveMedId());
             try {
                 ScheduleUtils.instance().setVerifiedIntakeCompleted(
                         x.context, x.event, true);
@@ -311,11 +315,15 @@ public class AtomicIntakeStockSmokeTest {
             // A medicine without stock tracking used to bypass StockUpdater's
             // deeper validations. The interactive transaction must reject a
             // changed owner even if no inventory row would be debited.
-            x.medicine.setStock(-1.0f);
-            assertEquals(1, DB.medicines().update(x.medicine));
             DB.helper().getWritableDatabase().execSQL(
-                    "UPDATE Medicines SET Patient = ? WHERE _id = ?",
-                    new Object[]{other.getId(), x.medicine.getId()});
+                    "UPDATE Medicines SET Stock = ?, Patient = ? WHERE _id = ?",
+                    new Object[]{-1.0f, other.getId(), x.medicine.getId()});
+            Medicine persisted = DB.medicines().findById(x.medicine.getId());
+            assertNotNull(persisted);
+            assertFalse("Synthetic fixture must disable stock tracking",
+                    persisted.stockManagementEnabled());
+            assertEquals("Synthetic reassignment must reach SQLite",
+                    other.getId(), persisted.getPatient().getId());
             try {
                 ScheduleUtils.instance().setVerifiedIntakeCompleted(
                         x.context, x.event, true);
