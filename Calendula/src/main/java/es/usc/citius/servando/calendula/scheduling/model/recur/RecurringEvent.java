@@ -663,16 +663,19 @@ public class RecurringEvent {
         return recurrence.getFreq();
     }
 
+    /**
+     * Recurrence rules, day cycles, and exact dose times can reveal a patient's
+     * treatment. Only include structural presence in accidental diagnostics.
+     * Use explicit accessors for persisted recurrence serialization.
+     */
     @Override
     public String toString() {
         return "RecurringEvent{" +
-                "dtc=" + dtc +
-                ", startDateTime=" + startDateTime +
-                ", endDateTime=" + endDateTime +
-                ", cycleActiveDays=" + cycleActiveDays +
-                ", cycleInactiveDays=" + cycleInactiveDays +
-                ", recurrence=" + recurrence +
-                ", dailyFixedTimes=" + (dailyFixedTimes != null ? dailyFixedTimes.size() : "0") +
+                "hasStart=" + (startDateTime != null) +
+                ", hasEnd=" + (endDateTime != null) +
+                ", hasRecurrence=" + (recurrence != null) +
+                ", hasCycle=" + (cycleActiveDays != null || cycleInactiveDays != null) +
+                ", hasFixedTimes=" + (dailyFixedTimes != null && !dailyFixedTimes.isEmpty()) +
                 '}';
     }
 
