@@ -98,6 +98,50 @@ public class HtmlCacheManagerTest {
     }
 
     @Test
+    public void purgeCountsOnlyRemovedExpiredRowsAndPreservesValidDocuments() {
+        HtmlCacheManager cache = HtmlCacheManager.getInstance();
+        String validUrl = "https://example.test/synthetic-valid-leaflet";
+        String expiredUrl = "https://example.test/synthetic-expired-leaflet";
+
+        assertTrue(cache.put(validUrl, "Still valid synthetic content",
+                Duration.standardMinutes(30)));
+        assertTrue(cache.put(expiredUrl, "Expired synthetic content",
+                Duration.millis(-1)));
+
+        assertEquals("Exactly one expired row is removed, not two scanned rows",
+                Integer.valueOf(1), cache.purgeCache());
+        assertEquals("Still valid synthetic content", cache.get(validUrl));
+        assertNull(cache.get(expiredUrl));
+        assertEquals("Second cleanup should find nothing to delete",
+                Integer.valueOf(0), cache.purgeCache());
+    }
+
+    @Test
+    public void purgeHandlesIncompleteLegacyCacheMetadataWithoutDeletingValidRows()
+            throws Exception {
+        HtmlCacheManager cache = HtmlCacheManager.getInstance();
+        String validUrl = "https://example.test/synthetic-retained-document";
+        assertTrue(cache.put(validUrl, "Healthy synthetic content",
+                Duration.standardMinutes(30)));
+
+        String missingDateUrl = "https://example.test/synthetic-missing-date";
+        String missingTtlUrl = "https://example.test/synthetic-missing-ttl";
+        com.j256.ormlite.dao.Dao<es.usc.citius.servando.calendula.persistence.HtmlCacheEntry, Long> dao =
+                DB.helper().getDao(es.usc.citius.servando.calendula.persistence.HtmlCacheEntry.class);
+        dao.create(new es.usc.citius.servando.calendula.persistence.HtmlCacheEntry(
+                missingDateUrl.hashCode(), missingDateUrl, null, "Malformed date", 60000L));
+        dao.create(new es.usc.citius.servando.calendula.persistence.HtmlCacheEntry(
+                missingTtlUrl.hashCode(), missingTtlUrl, new java.util.Date(),
+                "Malformed TTL", null));
+
+        assertEquals(Integer.valueOf(2), cache.purgeCache());
+        assertEquals("Healthy synthetic content", cache.get(validUrl));
+        assertNull(cache.get(missingDateUrl));
+        assertNull(cache.get(missingTtlUrl));
+        assertEquals(Integer.valueOf(0), cache.purgeCache());
+    }
+
+    @Test
     public void missingUrlCannotCreateCacheRow() {
         assertFalse(HtmlCacheManager.getInstance().put(
                 null, "Unkeyed synthetic content", Duration.standardMinutes(5)));
