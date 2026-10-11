@@ -27,6 +27,7 @@ import com.j256.ormlite.stmt.Where;
 import org.joda.time.LocalTime;
 
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
 
@@ -75,15 +76,22 @@ public class RoutineDao extends GenericDao<Routine, Long> {
     }
 
     public List<Routine> findAllWithNameForActivePatient(Context ctx) {
-        return findAllWithName(DB.patients().getActive(ctx).getId());
+        Patient patient = DB.patients().getActive(ctx);
+        return patient == null ? Collections.<Routine>emptyList()
+                : findAllWithName(patient.getId());
     }
 
     public List<Routine> findAll(Patient p) {
-        return findAll(p.getId());
+        // No active owner means no patient data; never query NULL-owned rows.
+        return p == null || p.getId() == null
+                ? Collections.<Routine>emptyList() : findAll(p.getId());
     }
 
 
     public List<Routine> findAll(Long patientId) {
+        if (patientId == null) {
+            return Collections.emptyList();
+        }
         try {
             return dao.queryBuilder()
                     .orderBy(Routine.COLUMN_TIME, true)
@@ -95,6 +103,9 @@ public class RoutineDao extends GenericDao<Routine, Long> {
     }
 
     public List<Routine> findAllWithName(Long patientId) {
+        if (patientId == null) {
+            return Collections.emptyList();
+        }
         try {
             return dao.queryBuilder()
                     .orderBy(Routine.COLUMN_TIME, true)
