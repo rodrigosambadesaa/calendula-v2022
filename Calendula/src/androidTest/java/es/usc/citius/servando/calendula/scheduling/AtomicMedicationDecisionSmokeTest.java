@@ -82,6 +82,84 @@ public class AtomicMedicationDecisionSmokeTest {
     }
 
     @Test
+    public void untrackedMalformedReminderDoseCannotBeMarkedTakenAndRemainsRetryable()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime time = DateTime.now().plusHours(19).withMillisOfSecond(0);
+        Patient patient = new Patient();
+        patient.setCode("ci-untracked-reminder-" + System.nanoTime());
+        patient.setName("Synthetic untracked reminder patient");
+        Medicine medicine = new Medicine("Synthetic untracked medicine", Presentation.PILLS);
+        Schedule schedule = new Schedule(medicine);
+        EventInstance event = new EventInstance(time, EventType.MEDICATION_INTAKE);
+        EventReminder reminder = new EventReminder(time, EventType.MEDICATION_INTAKE);
+        reminder.setNextTime(time);
+        try {
+            DB.patients().save(patient);
+            medicine.setPatient(patient);
+            // A missing stock balance intentionally disables inventory tracking.
+            // Invalid clinical doses must still be rejected by the reminder path.
+            medicine.setStock(null);
+            DB.medicines().create(medicine);
+            schedule.setPatient(patient);
+            DB.schedules().create(schedule);
+            event.setPatient(patient);
+            event.setRef(schedule.getId());
+            event.addParam(EventInstance.PARAM_DOSE, "NaN");
+            DB.eventInstances().save(event);
+            reminder.setPatient(patient);
+            DB.eventReminders().save(reminder);
+            Agenda.instance().setAlarm(context, reminder);
+            assertNotNull(token(context, reminder));
+
+            boolean rejected = false;
+            try {
+                Agenda.instance().confirmReminder(context, reminder.getId());
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("An untracked invalid dose is not valid medication history", rejected);
+            assertFalse(DB.eventInstances().findById(event.getId()).completed());
+            assertNull("A rejected dose must not synthesize inventory",
+                    DB.medicines().findById(medicine.getId()).getStock());
+            assertNotNull("Failed confirmation must retain its SQLite reminder",
+                    DB.eventReminders().findById(reminder.getId()));
+            assertNotNull("Failed confirmation must retain its Android alarm",
+                    token(context, reminder));
+
+            event.addParam(EventInstance.PARAM_DOSE, 2.0d);
+            DB.eventInstances().update(event);
+            Agenda.instance().confirmReminder(context, reminder.getId());
+            assertTrue("A valid untracked dose remains confirmable",
+                    DB.eventInstances().findById(event.getId()).completed());
+            assertNull("Untracked stock is not created after success",
+                    DB.medicines().findById(medicine.getId()).getStock());
+            assertNull(DB.eventReminders().findById(reminder.getId()));
+            assertNull(token(context, reminder));
+        } finally {
+            if (reminder.getId() != null) {
+                Agenda.instance().cancelAlarm(context, reminder);
+                if (DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().remove(reminder);
+                }
+            }
+            if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
+                DB.eventInstances().remove(event);
+            }
+            if (schedule.getId() != null && DB.schedules().findById(schedule.getId()) != null) {
+                DB.schedules().remove(schedule);
+            }
+            if (medicine.getId() != null && DB.medicines().findById(medicine.getId()) != null) {
+                DB.medicines().remove(medicine);
+            }
+            if (patient.getId() != null && DB.patients().findById(patient.getId()) != null) {
+                DB.patients().remove(patient);
+            }
+        }
+    }
+
+    @Test
     public void cancellingAssignedIntakeCommitsEventAndRemovesAlarm() throws Exception {
         exerciseDecision(false, true);
     }
