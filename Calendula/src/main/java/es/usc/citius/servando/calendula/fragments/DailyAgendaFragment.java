@@ -69,8 +69,6 @@ import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
-import es.usc.citius.servando.calendula.healthcareprovider.model.ActiveMedVO;
-import es.usc.citius.servando.calendula.healthcareprovider.model.DosageEntryVO;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
 import es.usc.citius.servando.calendula.util.DailyAgendaItemStub;
 import es.usc.citius.servando.calendula.util.DailyAgendaItemStub.DailyAgendaItemStubElement;
@@ -197,6 +195,21 @@ public class DailyAgendaFragment extends Fragment {
                     continue;
                 }
                 Patient p = s.getPatient();
+                ActiveMedEntity linkedOfficial = null;
+                if (s.isBoundToActiveMed()) {
+                    linkedOfficial = DB.healthcareProviderDB().activeMeds()
+                            .findById(s.getActiveMedId());
+                    if (!DailyAgendaOfficialTreatmentValidator.verifiedLink(s, linkedOfficial)) {
+                        // Do not render another patient's imported treatment
+                        // under this profile or hide a missing source silently.
+                        if (activePatient != null && activePatient.getId() != null
+                                && activePatient.getId().equals(p.getId())) {
+                            needsMedicationReview = true;
+                        }
+                        LogUtil.w(TAG, "Skipping unverified imported treatment reference");
+                        continue;
+                    }
+                }
 
                 if (patStubs.containsKey(p.getId())) {
                     stub = patStubs.get(p.getId());
@@ -217,22 +230,15 @@ public class DailyAgendaFragment extends Fragment {
                 el.taken = e.completed();
                 el.eventId = e.getId();
                 if (s.isBoundToActiveMed()) {
-                    ActiveMedEntity am = DB.healthcareProviderDB().activeMeds().findById(s.getActiveMedId());
-                    ActiveMedVO vo = ActiveMedVO.forEntity(am);
-                    List<DosageEntryVO> entries = vo.getDosage().getEntries();
-                    if (entries == null || entries.size()==0) {
-                        el.instructions = null;
-                    }
-                    else {
-                        String instructions = vo.getDosage().getEntries().get(0).getPatientInstruction();
-                        if (instructions == null || org.apache.commons.lang3.StringUtils.isBlank(instructions)) {
-                            el.instructions = null;
-                        } else {
-                            el.instructions = getInfoMessage(getContext().getString(R.string.instructions_prefix) + " " + instructions, CommunityMaterial.Icon2.cmd_medical_bag, getContext());
-                        }
-                    }
+                    String instruction = DailyAgendaOfficialTreatmentValidator
+                            .firstInstruction(s, linkedOfficial);
+                    el.instructions = instruction == null ? null
+                            : getInfoMessage(getContext().getString(R.string.instructions_prefix)
+                                    + " " + instruction,
+                                    CommunityMaterial.Icon2.cmd_medical_bag, getContext());
+                } else {
+                    el.instructions = null;
                 }
-                else el.instructions = null;
                 if (s.hasState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL)) {
                     el.medNameDecorator = providerDecorator;
                 }
