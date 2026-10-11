@@ -17,6 +17,7 @@ import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.PatientAllergen;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.persistence.Routine;
+import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -136,4 +137,66 @@ public class PatientDeletionScopeSmokeTest {
             }
         }
     }
+    /**
+     * Opening or editing one patient's schedule must never prune another
+     * patient's unnamed automatic routines. Verified on real Android SQLite.
+     */
+    @Test
+    public void autoRoutineCleanupIsScopedToSelectedPatient() {
+        assertTrue(DB.initialized);
+        String seed = String.valueOf(System.nanoTime());
+        Patient patientA = new Patient();
+        patientA.setCode("ci-routine-cleanup-A-" + seed);
+        patientA.setName("Synthetic cleanup patient A");
+        Patient patientB = new Patient();
+        patientB.setCode("ci-routine-cleanup-B-" + seed);
+        patientB.setName("Synthetic cleanup patient B");
+        Routine aUnnamed = new Routine(patientA, new LocalTime(5, 12), null);
+        Routine aNamed = new Routine(patientA, new LocalTime(5, 13),
+                "Keep named routine A " + seed);
+        Routine bUnnamed = new Routine(patientB, new LocalTime(5, 14), null);
+        try {
+            DB.patients().save(patientA);
+            DB.patients().save(patientB);
+            DB.routines().create(aUnnamed);
+            DB.routines().create(aNamed);
+            DB.routines().create(bUnnamed);
+
+            assertTrue("A has one unnamed routine",
+                    DB.routines().findWithoutName(patientA).size() == 1);
+            assertTrue("B has one unnamed routine",
+                    DB.routines().findWithoutName(patientB).size() == 1);
+            assertTrue("No owner means no routine reads",
+                    DB.routines().findWithoutName(null).isEmpty());
+            assertTrue("Unsaved owner means no routine reads",
+                    DB.routines().findWithoutName(new Patient()).isEmpty());
+
+            ScheduleUtils.instance().removeUnlinkedAutoRoutines(patientA, false);
+
+            assertNull("A's unlinked auto-created routine may be removed",
+                    DB.routines().findById(aUnnamed.getId()));
+            assertNotNull("A's named routine is not automatically deleted",
+                    DB.routines().findById(aNamed.getId()));
+            assertNotNull("B's unrelated orphan routine must survive A cleanup",
+                    DB.routines().findById(bUnnamed.getId()));
+
+            ScheduleUtils.instance().removeUnlinkedAutoRoutines(null, false);
+            assertNotNull("No active patient may never trigger global cleanup",
+                    DB.routines().findById(bUnnamed.getId()));
+        } finally {
+            for (Routine routine : new Routine[]{aUnnamed, aNamed, bUnnamed}) {
+                if (routine.getId() != null
+                        && DB.routines().findById(routine.getId()) != null) {
+                    DB.routines().remove(routine);
+                }
+            }
+            for (Patient patient : new Patient[]{patientA, patientB}) {
+                if (patient.getId() != null
+                        && DB.patients().findById(patient.getId()) != null) {
+                    DB.patients().remove(patient);
+                }
+            }
+        }
+    }
+
 }
