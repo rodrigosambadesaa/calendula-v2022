@@ -381,11 +381,33 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
     }
 
     private void updateStub(DailyAgendaItemStub stub) {
-        List<EventInstance> evs = ScheduleUtils.instance().intakeEvents(stub.patient, stub.dateTime());
-        for(EventInstance ev : evs){
-            for (DailyAgendaItemStub.DailyAgendaItemStubElement el : stub.meds) {
-                if (el.eventId == ev.getId()) {
-                    el.taken = ev.completed();
+        // Empty timeline placeholders do not belong to a patient. Never
+        // query null-owned clinical events simply to update a blank row.
+        if (stub == null || stub.patient == null || stub.patient.getId() == null
+                || stub.meds == null || stub.meds.isEmpty()) {
+            return;
+        }
+        List<EventInstance> evs = ScheduleUtils.instance()
+                .intakeEvents(stub.patient, stub.dateTime());
+        refreshTakenStatus(stub, evs);
+    }
+
+    /** Refresh only confirmed status for the same persisted event and patient. */
+    static void refreshTakenStatus(DailyAgendaItemStub stub, List<EventInstance> events) {
+        if (stub == null || stub.patient == null || stub.patient.getId() == null
+                || stub.meds == null || events == null) {
+            return;
+        }
+        for (EventInstance event : events) {
+            if (event == null || event.getId() == null || event.getPatient() == null
+                    || !stub.patient.getId().equals(event.getPatient().getId())) {
+                continue;
+            }
+            for (DailyAgendaItemStub.DailyAgendaItemStubElement element : stub.meds) {
+                // Boxed Long reference equality (==) can fail for SQLite IDs
+                // over 127 even when both refer to the same recorded dose.
+                if (element != null && event.getId().equals(element.eventId)) {
+                    element.taken = event.completed();
                 }
             }
         }
