@@ -17,6 +17,9 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
 import es.usc.citius.servando.calendula.R;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedType;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageEntity;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.persistence.Patient;
@@ -159,6 +162,53 @@ public class UnverifiedMedicationValidationTest {
         event.setType(EventType.PHARMACY_REMINDER);
         assertFalse("Non-medication events cannot show medication confirmation details",
                 IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
+    }
+
+    @Test
+    public void importedNotificationRequiresSamePatientAndOfficialTreatmentIdentity() {
+        Patient owner = new Patient();
+        owner.setId(9000003501L);
+        Patient other = new Patient();
+        other.setId(9000003502L);
+
+        EventInstance event = syntheticEvent();
+        event.setPatient(owner);
+        event.addParam(EventInstance.PARAM_DOSE, 1.0d);
+        Medicine medicine = new Medicine("Synthetic imported source", Presentation.PILLS);
+        medicine.setPatient(owner);
+        Schedule schedule = new Schedule(medicine);
+        schedule.setPatient(owner);
+        schedule.setActiveMedId(9000003503L);
+        schedule.addState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL);
+
+        ActiveMedEntity official = new ActiveMedEntity();
+        official.setId(9000003503L);
+        official.setPatient(owner);
+        official.setType(ActiveMedType.NATIONAL_CODE);
+        official.setDosage(new DosageEntity());
+
+        assertFalse("Missing official source cannot expose a linked medication",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, owner));
+        assertFalse("A provider record is required when the schedule has an official link",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, owner, null));
+        assertTrue("A matching official source may render without inventing an imported numeric dose",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, owner, official));
+
+        official.setPatient(other);
+        assertFalse("Other patient's official treatment must never appear in notification",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, owner, official));
+        official.setPatient(owner);
+        official.setId(9000003504L);
+        assertFalse("Changed official source identity requires clinical review",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, owner, official));
+        official.setId(9000003503L);
+        official.setDosage(null);
+        assertFalse("Incomplete official prescription cannot authorize medication details",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, owner, official));
+        official.setDosage(new DosageEntity());
+        schedule.setActiveMedId(null);
+        assertTrue("Legacy locally authored schedule without official link remains displayable",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, owner));
     }
 
     @Test

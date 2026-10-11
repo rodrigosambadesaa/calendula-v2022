@@ -45,6 +45,8 @@ import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.login.LoginStateManager;
 import es.usc.citius.servando.calendula.notifications.LockScreenAlarmActivity;
 import es.usc.citius.servando.calendula.notifications.NotificationHelper;
+import es.usc.citius.servando.calendula.fragments.DailyAgendaOfficialTreatmentValidator;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Schedule;
@@ -89,6 +91,16 @@ public class IntakeNotificationMgr {
      */
     static boolean canRenderMedication(EventInstance event, Schedule schedule,
                                        Patient expectedPatient) {
+        return canRenderMedication(event, schedule, expectedPatient, null);
+    }
+
+    /**
+     * Official sources must be reverified against the intended patient before
+     * their medication name is rendered. Without a verified provider row, a
+     * stale imported schedule can only produce the generic review alert.
+     */
+    static boolean canRenderMedication(EventInstance event, Schedule schedule,
+                                       Patient expectedPatient, ActiveMedEntity officialSource) {
         if (event == null || event.getType() != EventType.MEDICATION_INTAKE
                 || event.completed() || event.cancelled()
                 || schedule == null || event.getRef() == null
@@ -98,6 +110,11 @@ public class IntakeNotificationMgr {
                 || !expectedPatient.getId().equals(event.getPatient().getId())
                 || !expectedPatient.getId().equals(schedule.getPatient().getId())) {
             // A schedule for another patient must never leak medicine details.
+            return false;
+        }
+        if (schedule.isBoundToActiveMed()
+                && !DailyAgendaOfficialTreatmentValidator.verifiedLink(
+                        schedule, officialSource)) {
             return false;
         }
         Medicine medicine = schedule.getMedicine();
@@ -214,9 +231,21 @@ public class IntakeNotificationMgr {
         // rendering could return a deleted or different patient's schedule.
         // No notification is posted until ALL pending doses pass validation.
         for (EventInstance event : events) {
-            Schedule schedule = event == null || event.getRef() == null
-                    ? null : DB.schedules().findById(event.getRef());
-            if (!canRenderMedication(event, schedule, patient)) {
+            Schedule schedule;
+            ActiveMedEntity officialSource;
+            try {
+                schedule = event == null || event.getRef() == null
+                        ? null : DB.schedules().findById(event.getRef());
+                officialSource = schedule != null && schedule.isBoundToActiveMed()
+                        ? DB.healthcareProviderDB().activeMeds()
+                                .findById(schedule.getActiveMedId())
+                        : null;
+            } catch (RuntimeException unreadable) {
+                // Never expose prescription-specific data after a failed ORM read.
+                alertUnverifiedMedicationData(context, reminder);
+                return;
+            }
+            if (!canRenderMedication(event, schedule, patient, officialSource)) {
                 alertUnverifiedMedicationData(context, reminder);
                 return;
             }
