@@ -289,10 +289,13 @@ public class IntakeNotificationMgr {
      * Cancels any notifications of this type previously shown using
      */
     public static void cancel(final Context context, EventReminder e) {
-        if (e != null) {
-            final NotificationManagerCompat nm = NotificationManagerCompat.from(context);
-            nm.cancel(makeTag(e), e.getId().intValue());
+        // A rolled-back/unsaved reminder has no notification identity.
+        // Never dereference its missing SQLite primary key while cleaning up.
+        if (e == null || e.getId() == null) {
+            return;
         }
+        final NotificationManagerCompat nm = NotificationManagerCompat.from(context);
+        nm.cancel(makeTag(e), e.getId().intValue());
     }
 
     private static String makeTag(EventReminder reminder) {
