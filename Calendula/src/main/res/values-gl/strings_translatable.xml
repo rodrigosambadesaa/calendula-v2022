@@ -500,4 +500,5 @@ Queres instalar a nova base de datos agora?"</string>
 <string name="channel_default_description">"Outras notificacións."</string>
     <string name="channel_setup_name">Configuración</string>
     <string name="channel_setup_description">Notificacións relacionadas coa configuración da aplicación.</string>
+    <string name="agenda_medication_review_warning">Hai rexistros de medicación deste paciente pendentes de revisión. Abre as súas pautas e comproba os datos antes de tomar unha dose.</string>
 </resources>
