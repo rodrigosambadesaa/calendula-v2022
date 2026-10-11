@@ -95,6 +95,73 @@ public class PendingDoseSelectionSmokeTest {
     }
 
     @Test
+    public void editingRecurrenceDeletesOnlyObsoletePendingEvents() {
+        assertTrue(DB.initialized);
+        DateTime base = DateTime.now().plusHours(8).withMillisOfSecond(0);
+        DateTime cutoff = DateTime.now();
+        Long syntheticScheduleRef = -System.nanoTime();
+
+        EventInstance pendingObsolete = new EventInstance(base, EventType.MEDICATION_INTAKE);
+        EventInstance alreadyTaken = new EventInstance(
+                base.plusMinutes(1), EventType.MEDICATION_INTAKE);
+        EventInstance alreadyCancelled = new EventInstance(
+                base.plusMinutes(2), EventType.MEDICATION_INTAKE);
+        EventInstance retainedPending = new EventInstance(
+                base.plusMinutes(3), EventType.MEDICATION_INTAKE);
+        EventInstance differentSchedule = new EventInstance(
+                base, EventType.MEDICATION_INTAKE);
+
+        for (EventInstance event : new EventInstance[]{
+                pendingObsolete, alreadyTaken, alreadyCancelled, retainedPending}) {
+            event.setRef(syntheticScheduleRef);
+        }
+        alreadyTaken.setCompleted(true);
+        alreadyTaken.setCompletedAt(DateTime.now().minusMinutes(5));
+        alreadyCancelled.setCancelled(true);
+        alreadyCancelled.setCompletedAt(DateTime.now().minusMinutes(3));
+        differentSchedule.setRef(syntheticScheduleRef - 1L);
+        EventInstance[] fixtures = {
+                pendingObsolete, alreadyTaken, alreadyCancelled,
+                retainedPending, differentSchedule
+        };
+        try {
+            for (EventInstance event : fixtures) {
+                DB.eventInstances().save(event);
+                assertNotNull(event.getId());
+            }
+
+            assertEquals("Only obsolete pending times may be removed", 1,
+                    DB.eventInstances().removeDistinctTime(EventType.MEDICATION_INTAKE,
+                            syntheticScheduleRef,
+                            java.util.Collections.singletonList(retainedPending.getTime()),
+                            cutoff));
+            assertTrue(DB.eventInstances().findById(pendingObsolete.getId()) == null);
+            assertNotNull(DB.eventInstances().findById(alreadyTaken.getId()));
+            assertNotNull(DB.eventInstances().findById(alreadyCancelled.getId()));
+            assertNotNull(DB.eventInstances().findById(retainedPending.getId()));
+            assertNotNull("Different schedules must never be affected",
+                    DB.eventInstances().findById(differentSchedule.getId()));
+
+            assertEquals("Clearing a recurrence must also accept an empty time list", 1,
+                    DB.eventInstances().removeDistinctTime(EventType.MEDICATION_INTAKE,
+                            syntheticScheduleRef, java.util.Collections.emptyList(), cutoff));
+            assertTrue(DB.eventInstances().findById(retainedPending.getId()) == null);
+            EventInstance takenAfter = DB.eventInstances().findById(alreadyTaken.getId());
+            EventInstance cancelledAfter = DB.eventInstances().findById(alreadyCancelled.getId());
+            assertTrue("Taken history must survive a schedule edit", takenAfter.completed());
+            assertTrue("Cancelled history must survive a schedule edit", cancelledAfter.cancelled());
+            assertEquals(alreadyTaken.completedAt(), takenAfter.completedAt());
+            assertEquals(alreadyCancelled.completedAt(), cancelledAfter.completedAt());
+        } finally {
+            for (EventInstance event : fixtures) {
+                if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
+                    DB.eventInstances().remove(event);
+                }
+            }
+        }
+    }
+
+    @Test
     public void pendingMedicationItemsExcludeCompletedCancelledAndOtherPatients() {
         assertTrue(DB.initialized);
         DateTime time = DateTime.now().plusHours(14).withMillisOfSecond(0);
