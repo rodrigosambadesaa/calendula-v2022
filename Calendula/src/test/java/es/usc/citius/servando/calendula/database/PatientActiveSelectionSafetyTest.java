@@ -15,6 +15,7 @@ import com.j256.ormlite.dao.Dao;
 import org.greenrobot.eventbus.EventBus;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
@@ -30,6 +31,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertSame;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -123,6 +125,10 @@ public class PatientActiveSelectionSafetyTest {
         Context context = ApplicationProvider.getApplicationContext();
         Patient existing = new Patient();
         existing.setId(98435L);
+        existing.setName("Canonical synthetic profile");
+        Patient staleFromUi = new Patient();
+        staleFromUi.setId(98435L);
+        staleFromUi.setName("Outdated synthetic profile");
         when(raw.queryForId(98435L)).thenReturn(existing);
         SharedPreferences.Editor editor = mock(SharedPreferences.Editor.class);
         EventBus eventBus = mock(EventBus.class);
@@ -133,11 +139,15 @@ public class PatientActiveSelectionSafetyTest {
             app.when(CalendulaApp::getContext).thenReturn(context);
             app.when(CalendulaApp::eventBus).thenReturn(eventBus);
             prefs.when(PreferenceUtils::edit).thenReturn(editor);
-            subject.setActiveById(98435L);
+            subject.setActive(staleFromUi);
             verify(editor).putLong(PreferenceKeys.PATIENTS_ACTIVE.key(), 98435L);
             verify(editor).apply();
-            verify(eventBus).post(org.mockito.ArgumentMatchers.any(
-                    es.usc.citius.servando.calendula.events.PersistenceEvents.ActiveUserChangeEvent.class));
+            ArgumentCaptor<es.usc.citius.servando.calendula.events.PersistenceEvents.ActiveUserChangeEvent> event =
+                    ArgumentCaptor.forClass(
+                            es.usc.citius.servando.calendula.events.PersistenceEvents.ActiveUserChangeEvent.class);
+            verify(eventBus).post(event.capture());
+            assertSame("The change event must carry the persisted profile, not stale UI data",
+                    existing, event.getValue().patient);
         }
     }
 
