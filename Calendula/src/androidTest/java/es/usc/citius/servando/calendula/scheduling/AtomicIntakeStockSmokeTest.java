@@ -230,6 +230,116 @@ public class AtomicIntakeStockSmokeTest {
     }
 
     @Test
+    public void interactiveSingleDoseUsesValidatedAtomicStockCommit() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        try {
+            assertTrue(ScheduleUtils.instance().setVerifiedIntakeCompleted(
+                    x.context, x.event, true));
+            assertTrue(x.persistedIntake().completed());
+            assertEquals(INITIAL_STOCK - DOSE, x.persistedStock(), 0.001f);
+            assertTrue(ScheduleUtils.instance().setVerifiedIntakeCompleted(
+                    x.context, x.event, false));
+            assertFalse(x.persistedIntake().completed());
+            assertEquals(INITIAL_STOCK, x.persistedStock(), 0.001f);
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void interactiveSingleDoseRejectsRevisedPrescriptionAmount() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        try {
+            android.os.Bundle updated = new android.os.Bundle();
+            updated.putString(EventInstance.PARAM_DOSE, "3.0");
+            assertEquals(1, DB.eventInstances().updateParams(
+                    EventType.MEDICATION_INTAKE, x.when, x.schedule.getId(), updated));
+            try {
+                ScheduleUtils.instance().setVerifiedIntakeCompleted(
+                        x.context, x.event, true);
+                fail("A stale displayed dose must not confirm a revised prescription");
+            } catch (RuntimeException expected) {
+                // The caller still sees 2.0, but SQLite now requires 3.0.
+            }
+            assertFalse(x.persistedIntake().completed());
+            assertFalse(x.event.completed());
+            assertEquals(INITIAL_STOCK, x.persistedStock(), 0.001f);
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void interactiveSingleDoseRejectsMissingOfficialTreatmentSource()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        try {
+            // Simulate a stale imported prescription link. The local schedule
+            // and medicine still exist, but its official source was removed.
+            long missingExternalId = Long.MAX_VALUE - 1L;
+            DB.helper().getWritableDatabase().execSQL(
+                    "UPDATE NewSchedules SET BoundTo = ? WHERE _id = ?",
+                    new Object[]{missingExternalId, x.schedule.getId()});
+            assertEquals("The synthetic orphan link must actually be persisted",
+                    Long.valueOf(missingExternalId),
+                    DB.schedules().findById(x.schedule.getId()).getActiveMedId());
+            try {
+                ScheduleUtils.instance().setVerifiedIntakeCompleted(
+                        x.context, x.event, true);
+                fail("An orphan official prescription cannot authorize a dose");
+            } catch (RuntimeException expected) {
+                // Confirmation must fail without debiting stock or history.
+            }
+            assertFalse(x.persistedIntake().completed());
+            assertEquals(INITIAL_STOCK, x.persistedStock(), 0.001f);
+            assertFalse(x.event.completed());
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void interactiveSingleDoseRejectsForeignMedicineWithoutStockTracking()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        Patient other = new Patient();
+        other.setCode("ci-untracked-cross-owner-" + System.nanoTime());
+        other.setName("Synthetic unrelated medication owner");
+        try {
+            DB.patients().save(other);
+            assertNotNull(other.getId());
+            // A medicine without stock tracking used to bypass StockUpdater's
+            // deeper validations. The interactive transaction must reject a
+            // changed owner even if no inventory row would be debited.
+            DB.helper().getWritableDatabase().execSQL(
+                    "UPDATE Medicines SET Stock = ?, Patient = ? WHERE _id = ?",
+                    new Object[]{-1.0f, other.getId(), x.medicine.getId()});
+            Medicine persisted = DB.medicines().findById(x.medicine.getId());
+            assertNotNull(persisted);
+            assertFalse("Synthetic fixture must disable stock tracking",
+                    persisted.stockManagementEnabled());
+            assertEquals("Synthetic reassignment must reach SQLite",
+                    other.getId(), persisted.getPatient().getId());
+            try {
+                ScheduleUtils.instance().setVerifiedIntakeCompleted(
+                        x.context, x.event, true);
+                fail("Medicine reassigned to B cannot be confirmed for patient A");
+            } catch (RuntimeException expected) {
+                // Clinical association must be verified independently of stock.
+            }
+            assertFalse(x.persistedIntake().completed());
+            assertFalse(x.event.completed());
+        } finally {
+            x.cleanup();
+            if (other.getId() != null) DB.patients().remove(other);
+        }
+    }
+
+    @Test
     public void medicineUpdateSqlFailureRollsBackIntake() throws Exception {
         assertRollbackOnInjectedFailure("Medicines", "medicine_update", true);
     }
