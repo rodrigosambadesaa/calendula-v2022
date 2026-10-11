@@ -39,6 +39,8 @@ import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.events.PersistenceEvents;
+import es.usc.citius.servando.calendula.activities.ConfirmIntakeGuard;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
 import es.usc.citius.servando.calendula.scheduling.Agenda;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
@@ -142,6 +144,18 @@ public class ScheduleUtils {
                                     || !dateTime.equals(stored.getTime())
                                     || !isPendingIntake(stored)) {
                                 throw new SQLException("Pending dose changed during confirmation");
+                            }
+                            // The UI's earlier preflight is not a commit-time
+                            // guarantee. Validate the live prescription graph
+                            // inside the same transaction as stock and intake.
+                            Schedule schedule = DB.schedules().findById(stored.getRef());
+                            ActiveMedEntity official = schedule != null && schedule.isBoundToActiveMed()
+                                    ? DB.healthcareProviderDB().activeMeds()
+                                            .findById(schedule.getActiveMedId())
+                                    : null;
+                            if (!ConfirmIntakeGuard.verified(stored, patient, dateTime,
+                                    schedule, official)) {
+                                throw new SQLException("Intake prescription failed commit-time validation");
                             }
                             changes.add(persistIntakeTransition(stored, true, completedAt));
                         }
