@@ -11,8 +11,10 @@ import org.joda.time.LocalTime;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import es.usc.citius.servando.calendula.allergies.AllergenType;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Patient;
+import es.usc.citius.servando.calendula.persistence.PatientAllergen;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.persistence.Routine;
 
@@ -40,6 +42,8 @@ public class PatientDeletionScopeSmokeTest {
         Medicine retainedMed = null;
         Routine deletedRoutine = null;
         Routine retainedRoutine = null;
+        PatientAllergen deletedAllergen = null;
+        PatientAllergen retainedAllergen = null;
         try {
             // Seed explicit non-interned Long IDs. Auto-generated test IDs near
             // 1 can mask the legacy boxed-object reference comparison.
@@ -66,6 +70,19 @@ public class PatientDeletionScopeSmokeTest {
             retainedRoutine = new Routine(retained, new LocalTime(7, 19), "Synthetic routine B");
             DB.routines().create(retainedRoutine);
 
+            // Both patients carry the same synthetic allergy. Patient deletion
+            // must erase only the deleted owner's private allergy record.
+            deletedAllergen = new PatientAllergen("Synthetic ingredient",
+                    AllergenType.ACTIVE_INGREDIENT, "SYNTHETIC-ID-ALLERGY",
+                    deleted);
+            retainedAllergen = new PatientAllergen("Synthetic ingredient",
+                    AllergenType.ACTIVE_INGREDIENT, "SYNTHETIC-ID-ALLERGY",
+                    retained);
+            DB.patientAllergens().create(deletedAllergen);
+            DB.patientAllergens().create(retainedAllergen);
+
+            assertNotNull(DB.patientAllergens().findById(deletedAllergen.getId()));
+            assertNotNull(DB.patientAllergens().findById(retainedAllergen.getId()));
             assertNotNull(DB.medicines().findById(deletedMed.getId()));
             assertNotNull(DB.routines().findById(deletedRoutine.getId()));
             DB.patients().removeCascade(DB.patients().findById(deletedId));
@@ -76,13 +93,25 @@ public class PatientDeletionScopeSmokeTest {
                     DB.medicines().findById(deletedMed.getId()));
             assertNull("Removed patient's routine must not remain orphaned",
                     DB.routines().findById(deletedRoutine.getId()));
+            assertNull("Removed patient's allergy must not remain orphaned",
+                    DB.patientAllergens().findById(deletedAllergen.getId()));
             assertNotNull("Other patient's record must survive",
                     DB.patients().findById(retainedId));
             assertNotNull("Other patient's medicine must survive",
                     DB.medicines().findById(retainedMed.getId()));
             assertNotNull("Other patient's routine must survive",
                     DB.routines().findById(retainedRoutine.getId()));
+            assertNotNull("Other patient's identical allergy must survive",
+                    DB.patientAllergens().findById(retainedAllergen.getId()));
         } finally {
+            if (deletedAllergen != null && deletedAllergen.getId() != null
+                    && DB.patientAllergens().findById(deletedAllergen.getId()) != null) {
+                DB.patientAllergens().remove(deletedAllergen);
+            }
+            if (retainedAllergen != null && retainedAllergen.getId() != null
+                    && DB.patientAllergens().findById(retainedAllergen.getId()) != null) {
+                DB.patientAllergens().remove(retainedAllergen);
+            }
             if (deletedMed != null && deletedMed.getId() != null
                     && DB.medicines().findById(deletedMed.getId()) != null) {
                 DB.medicines().remove(deletedMed);
