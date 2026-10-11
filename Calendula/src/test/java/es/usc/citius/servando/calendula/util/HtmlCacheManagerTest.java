@@ -22,6 +22,8 @@ import es.usc.citius.servando.calendula.database.DB;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 28)
@@ -42,14 +44,55 @@ public class HtmlCacheManagerTest {
         assertEquals(COLLIDING_URL_A.hashCode(), COLLIDING_URL_B.hashCode());
 
         HtmlCacheManager cache = HtmlCacheManager.getInstance();
-        cache.put(COLLIDING_URL_A, "<html>A</html>", Duration.standardMinutes(5));
+        assertTrue(cache.put(COLLIDING_URL_A, "<html>A</html>", Duration.standardMinutes(5)));
 
         assertEquals("<html>A</html>", cache.get(COLLIDING_URL_A));
         assertNull(cache.get(COLLIDING_URL_B));
 
-        cache.put(COLLIDING_URL_B, "<html>B</html>", Duration.standardMinutes(5));
+        assertFalse("Colliding URL must not evict another cached medicine document",
+                cache.put(COLLIDING_URL_B, "<html>B</html>", Duration.standardMinutes(5)));
+        assertEquals("The existing URL must retain its original cached HTML",
+                "<html>A</html>", cache.get(COLLIDING_URL_A));
+        assertNull("The collision cannot return another URL's document",
+                cache.get(COLLIDING_URL_B));
+    }
 
-        assertNull(cache.get(COLLIDING_URL_A));
-        assertEquals("<html>B</html>", cache.get(COLLIDING_URL_B));
+    @Test
+    public void refreshingSameUrlReplacesHtmlWithoutDeletingCacheRecord() {
+        String url = "https://example.test/synthetic-prescription";
+        HtmlCacheManager cache = HtmlCacheManager.getInstance();
+        assertTrue(cache.put(url, "Original synthetic leaflet", Duration.standardMinutes(5)));
+        assertEquals("Original synthetic leaflet", cache.get(url));
+
+        assertTrue(cache.put(url, "Updated synthetic leaflet", Duration.standardMinutes(5)));
+        assertEquals("Updated synthetic leaflet", cache.get(url));
+    }
+
+    @Test
+    public void sqliteRefreshFailureKeepsPreviouslyCommittedHtml() {
+        String url = "https://example.test/failure-injected-leaflet";
+        HtmlCacheManager cache = HtmlCacheManager.getInstance();
+        assertTrue(cache.put(url, "Original synthetic leaflet", Duration.standardMinutes(5)));
+        android.database.sqlite.SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        String trigger = "ci_test_html_cache_update_failure";
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE UPDATE ON HtmlCache"
+                    + " WHEN OLD.HashCode = " + url.hashCode()
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic cache refresh failure'); END;");
+            assertFalse("Injected SQL error must not erase the previous HTML",
+                    cache.put(url, "Incomplete replacement", Duration.standardMinutes(5)));
+            assertEquals("Original leaflet must remain readable after failed refresh",
+                    "Original synthetic leaflet", cache.get(url));
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        }
+    }
+
+    @Test
+    public void missingUrlCannotCreateCacheRow() {
+        assertFalse(HtmlCacheManager.getInstance().put(
+                null, "Unkeyed synthetic content", Duration.standardMinutes(5)));
     }
 }
