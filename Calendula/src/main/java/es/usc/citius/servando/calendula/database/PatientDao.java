@@ -64,8 +64,10 @@ public class PatientDao extends GenericDao<Patient, Long> {
 
     public boolean isActive(Patient p, Context ctx) {
 
-        Long activeId = PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1);
-        return activeId.equals(p.getId());
+        // An unsaved/null patient cannot match an active persisted record.
+        return p != null && p.getId() != null
+                && PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1)
+                        == p.getId().longValue();
     }
 
     public Patient getActive(Context ctx) {
@@ -75,7 +77,16 @@ public class PatientDao extends GenericDao<Patient, Long> {
             p = findById(id);
             if (p == null) {
                 p = getDefault();
-                setActive(p);
+                if (p != null) {
+                    setActive(p);
+                } else {
+                    // The selected account was removed, and there is no
+                    // default to select. Never retain a dangling patient ID
+                    // that could be reused by a different SQLite record.
+                    PreferenceUtils.edit()
+                            .remove(PreferenceKeys.PATIENTS_ACTIVE.key())
+                            .apply();
+                }
             }
             return p;
         } else {
@@ -94,8 +105,14 @@ public class PatientDao extends GenericDao<Patient, Long> {
      * @param patient the patient
      */
     public void setActive(Patient patient) {
+        // Avoid persisting references to unsaved/deleted users. Revalidate
+        // against SQLite rather than trusting an object from stale UI state.
+        final Long id = patient == null ? null : patient.getId();
+        if (id == null || findById(id) == null) {
+            throw new IllegalArgumentException("Cannot activate a missing patient");
+        }
         PreferenceUtils.edit()
-                .putLong(PreferenceKeys.PATIENTS_ACTIVE.key(), patient.getId())
+                .putLong(PreferenceKeys.PATIENTS_ACTIVE.key(), id)
                 .apply();
         CalendulaApp.eventBus().post(new PersistenceEvents.ActiveUserChangeEvent(patient));
     }
@@ -104,11 +121,11 @@ public class PatientDao extends GenericDao<Patient, Long> {
      * @see #setActive(Patient)
      */
     public void setActiveById(Long id) {
-        Patient patient = findById(id);
-        PreferenceUtils.edit()
-                .putLong(PreferenceKeys.PATIENTS_ACTIVE.key(), patient.getId())
-                .apply();
-        CalendulaApp.eventBus().post(new PersistenceEvents.ActiveUserChangeEvent(patient));
+        if (id == null) {
+            throw new IllegalArgumentException("Cannot activate a missing patient");
+        }
+        // Centralize the persisted-record guard and change notification.
+        setActive(findById(id));
     }
 
 
