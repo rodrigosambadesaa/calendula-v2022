@@ -156,6 +156,80 @@ public class AtomicIntakeStockSmokeTest {
     }
 
     @Test
+    public void unchangedVisibleBatchConfirmsExactlyOneDose() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        try {
+            assertEquals(1, ScheduleUtils.instance().checkIntakeEvents(
+                    x.context, x.patient, x.when,
+                    java.util.Collections.singletonList(x.event)));
+            assertTrue("Matching, consented dose must still be confirmable",
+                    x.persistedIntake().completed());
+            assertEquals(INITIAL_STOCK - DOSE, x.persistedStock(), 0.001f);
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void newlyInsertedDoseCannotJoinVisibleConfirmationBatch() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        EventInstance addedAfterScreenOpened =
+                new EventInstance(x.when, EventType.MEDICATION_INTAKE);
+        addedAfterScreenOpened.setRef(x.schedule.getId());
+        addedAfterScreenOpened.setPatient(x.patient);
+        addedAfterScreenOpened.addParam(EventInstance.PARAM_DOSE, 1.0d);
+        try {
+            // x.event is the only intake the patient saw on the confirmation
+            // screen. A second dose arrives before the commit transaction.
+            assertEquals(1, DB.eventInstances().create(addedAfterScreenOpened));
+            try {
+                ScheduleUtils.instance().checkIntakeEvents(x.context, x.patient,
+                        x.when, java.util.Collections.singletonList(x.event));
+                fail("A newly inserted, unapproved dose must abort the batch");
+            } catch (RuntimeException expected) {
+                // Neither original nor newly inserted dose was authorized.
+            }
+            assertFalse(x.persistedIntake().completed());
+            assertFalse(DB.eventInstances().findById(addedAfterScreenOpened.getId()).completed());
+            assertEquals(INITIAL_STOCK, x.persistedStock(), 0.001f);
+        } finally {
+            if (addedAfterScreenOpened.getId() != null
+                    && DB.eventInstances().findById(addedAfterScreenOpened.getId()) != null) {
+                DB.eventInstances().remove(addedAfterScreenOpened);
+            }
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void revisedDoseCannotBeConfirmedFromStaleVisibleAmount() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        try {
+            android.os.Bundle updatedDose = new android.os.Bundle();
+            updatedDose.putString(EventInstance.PARAM_DOSE, "3.0");
+            // The user saw the original 2.0 dose; SQLite now specifies 3.0.
+            assertEquals(1, DB.eventInstances().updateParams(
+                    EventType.MEDICATION_INTAKE, x.when, x.schedule.getId(), updatedDose));
+            assertEquals(3.0d, x.persistedIntake().getDoubleParam(
+                    EventInstance.PARAM_DOSE), 0.001d);
+            try {
+                ScheduleUtils.instance().checkIntakeEvents(x.context, x.patient,
+                        x.when, java.util.Collections.singletonList(x.event));
+                fail("A changed prescription amount requires fresh user confirmation");
+            } catch (RuntimeException expected) {
+                // A changed visible dose cannot silently debit inventory.
+            }
+            assertFalse(x.persistedIntake().completed());
+            assertEquals(INITIAL_STOCK, x.persistedStock(), 0.001f);
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
     public void medicineUpdateSqlFailureRollsBackIntake() throws Exception {
         assertRollbackOnInjectedFailure("Medicines", "medicine_update", true);
     }
