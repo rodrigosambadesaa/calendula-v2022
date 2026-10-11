@@ -89,15 +89,22 @@ public class HtmlCacheManager {
             if (entry != null) {
                 // The UPDATE is atomic on SQLite; on failure the previously
                 // committed HTML remains intact. Do not delete-then-insert.
-                // Update the existing primary key only; do not DELETE on a
-                // failed refresh. ORMLite's builder binds typed Date/Long
-                // values and returns the actual number of affected rows.
+                // Match the full cache identity in SQLite (not only its
+                // Java hash). Legacy rows without URL can be adopted safely,
+                // while concurrent hash collisions can never overwrite
+                // another document. A failed UPDATE does not remove content.
                 UpdateBuilder<HtmlCacheEntry, Long> update = getDao().updateBuilder();
                 update.updateColumnValue(HtmlCacheEntry.COLUMN_URL, url);
                 update.updateColumnValue(HtmlCacheEntry.COLUMN_TIMESTAMP, now);
                 update.updateColumnValue(HtmlCacheEntry.COLUMN_DATA, data);
                 update.updateColumnValue(HtmlCacheEntry.COLUMN_TTL, ttl);
-                update.where().eq(HtmlCacheEntry.COLUMN_ID, entry.getId());
+                if (entry.getUrl() == null) {
+                    update.where().eq(HtmlCacheEntry.COLUMN_HASHCODE, hashCode)
+                            .and().isNull(HtmlCacheEntry.COLUMN_URL);
+                } else {
+                    update.where().eq(HtmlCacheEntry.COLUMN_HASHCODE, hashCode)
+                            .and().eq(HtmlCacheEntry.COLUMN_URL, url);
+                }
                 return update.update() == 1;
             }
             HtmlCacheEntry newEntry = new HtmlCacheEntry(
