@@ -123,6 +123,39 @@ public class AtomicIntakeStockSmokeTest {
     }
 
     @Test
+    public void batchInvalidSecondPrescriptionRollsBackFirstDoseAndStock() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        EventInstance invalid = new EventInstance(x.when, EventType.MEDICATION_INTAKE);
+        invalid.setPatient(x.patient);
+        invalid.setRef(x.schedule.getId());
+        // A malformed second dose must abort the entire batch even when
+        // the first dose was clinically valid and would deduct stock.
+        invalid.addParam(EventInstance.PARAM_DOSE, "NaN");
+        try {
+            assertEquals(1, DB.eventInstances().create(invalid));
+            assertNotNull(invalid.getId());
+            try {
+                ScheduleUtils.instance().checkIntakeEvents(x.context, x.patient, x.when);
+                fail("Malformed second dose must roll back the entire batch");
+            } catch (RuntimeException expected) {
+                // Validation fails inside the transaction, before commit.
+            }
+            assertFalse("First dose must be rolled back", x.persistedIntake().completed());
+            assertFalse("Invalid second dose cannot be completed",
+                    DB.eventInstances().findById(invalid.getId()).completed());
+            assertEquals("Neither dose may debit stock", INITIAL_STOCK,
+                    x.persistedStock(), 0.001f);
+        } finally {
+            if (invalid.getId() != null
+                    && DB.eventInstances().findById(invalid.getId()) != null) {
+                DB.eventInstances().remove(invalid);
+            }
+            x.cleanup();
+        }
+    }
+
+    @Test
     public void medicineUpdateSqlFailureRollsBackIntake() throws Exception {
         assertRollbackOnInjectedFailure("Medicines", "medicine_update", true);
     }
