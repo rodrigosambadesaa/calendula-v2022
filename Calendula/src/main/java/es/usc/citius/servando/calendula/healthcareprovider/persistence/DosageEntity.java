@@ -101,12 +101,17 @@ public class DosageEntity {
         this.activeMed = activeMed;
     }
 
+    /**
+     * Do not expose prescription names, codes, identifiers or doses in logs.
+     * A detached dosage entity must also be printable before it is linked to
+     * a healthcare-provider medication (activeMed may be null).
+     */
     @Override
     public String toString() {
         return "DosageEntity{" +
-                "id=" + id +
-                ", type=" + type +
-                ", activeMed=" + activeMed.getDefaultDisplay() + ", " + activeMed.getCode() +
+                "hasType=" + (type != null) +
+                ", hasActiveMed=" + (activeMed != null) +
+                ", hasEntries=" + (entries != null) +
                 '}';
     }
 

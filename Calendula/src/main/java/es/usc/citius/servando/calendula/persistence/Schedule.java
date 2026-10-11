@@ -132,7 +132,8 @@ public class Schedule implements EventProvider {
 
     public Double getDosage(LocalTime time) {
 
-        LogUtil.d(TAG, "Get dosages: " + time + ", " + (dosages != null ? dosages.size() : 0));
+        // Exact medication times are treatment data and must never enter Logcat.
+        LogUtil.d(TAG, "Dosage lookup; configured entries=" + (dosages != null ? dosages.size() : 0));
         if (dosages == null || dosages.isEmpty()) {
             return null;
         } else if (recur != null && getRecur().hasHourlyFrequency()) {

@@ -117,12 +117,13 @@ public class AllergenVO implements Parcelable {
         return result;
     }
 
+    /** Allergy names and external identifiers must never enter device logs. */
     @Override
     public String toString() {
         return "AllergenVO{" +
-                "type=" + type +
-                ", name='" + name + '\'' +
-                ", identifier='" + identifier + '\'' +
+                "hasType=" + (type != null) +
+                ", hasName=" + (name != null) +
+                ", hasIdentifier=" + (identifier != null) +
                 '}';
     }
 

@@ -263,7 +263,7 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
     }
 
     void setMedicine(Medicine medicine) {
-        LogUtil.d(TAG, "setMedicine() called with: medicine = [" + medicine + "]");
+        LogUtil.d(TAG, "Medication selection changed");
         tmpSchedule.setMedicine(medicine);
         launchCheckChangesTask();
     }
@@ -273,7 +273,8 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
     }
 
     void setRecurringEvent(RecurringEvent recurringEvent) {
-        LogUtil.d(TAG, "setRecurringEvent() called with: recurringEvent = [" + recurringEvent + "]");
+        // Recurrence patterns reveal a treatment schedule: log only the action.
+        LogUtil.d(TAG, "Medication recurrence updated");
         tmpSchedule.setRecur(recurringEvent);
         launchCheckChangesTask();
     }
@@ -289,7 +290,7 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
     }
 
     void setHourlyInterval(Integer hourlyInterval) {
-        LogUtil.d(TAG, "setHourlyInterval() called with: hourlyInterval = [" + hourlyInterval + "]");
+        LogUtil.d(TAG, "Medication frequency updated");
         try {
             this.tmpSchedule.getRecur().edit().repeatEvery(hourlyInterval, Freq.HOURLY)
                     .clearDailyFixedTimes()
@@ -325,13 +326,14 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
     }
 
     void setDosages(Map<Long, Double> dosages) {
-        LogUtil.d(TAG, "setDosages() called with: dosages = [" + dosages + "]");
+        // Dosage amounts and routine identifiers belong in SQLite, not Logcat.
+        LogUtil.d(TAG, "Medication dosage mapping updated");
         this.tmpSchedule.setDosages(dosages);
         launchCheckChangesTask();
     }
 
     void setDosage(Double dosage) {
-        LogUtil.d(TAG, "setDosage() called with: dosages = [" + dosage + "]");
+        LogUtil.d(TAG, "Medication dosage updated");
         this.tmpSchedule.setDosage(dosage);
         launchCheckChangesTask();
     }
