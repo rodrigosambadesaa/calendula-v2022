@@ -39,10 +39,19 @@ public class MedicationIntakeReceiver implements EventReminderReceiver, AgendaUp
 
     @Override
     public void onEvent(Context context, EventReminder reminder) {
-        boolean alarmLost = isLost(reminder.getDateTime());
+        if (reminder == null) {
+            // Nothing was persisted for this alarm. In particular, do not
+            // dereference a missing reminder or update the clinical agenda.
+            return;
+        }
+        DateTime time = reminder.getDateTime();
+        // A partially restored reminder may lack its timestamp. Forward it
+        // to the existing generic, unverified-data notification instead of
+        // crashing before the privacy/identity validation in notify().
+        boolean alarmLost = time != null && isLost(time);
         IntakeNotificationMgr.notify(context, reminder, alarmLost);
         CalendulaApp.eventBus().post(new Agenda.AgendaUpdatedEvent());
-        if(alarmLost){
+        if (alarmLost) {
             Agenda.instance().removeReminder(context, reminder);
         }
     }
