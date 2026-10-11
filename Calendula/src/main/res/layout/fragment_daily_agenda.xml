@@ -22,20 +22,35 @@
                 android:layout_height="match_parent"
                 android:addStatesFromChildren="false">
 
-    <FrameLayout
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
+        <!-- No unverified medicine name, dose, time or patient identity here.
+             One generic, accessible warning for the selected patient only. -->
+        <TextView
+            android:id="@+id/agenda_medication_review_warning"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="12dp"
+            android:background="#FFF3CD"
+            android:textColor="#4A3000"
+            android:text="@string/agenda_medication_review_warning"
+            android:importantForAccessibility="yes"
+            android:accessibilityLiveRegion="polite"
+            android:visibility="gone" />
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rv"
-            android:layout_width="fill_parent"
-            android:layout_height="fill_parent"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
             android:layout_gravity="fill_vertical"
             android:fillViewport="true"
             app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
-    </FrameLayout>
+    </LinearLayout>
 
     <FrameLayout
         android:id="@+id/empty_view_placeholder"
