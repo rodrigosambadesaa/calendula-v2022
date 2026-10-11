@@ -175,6 +175,20 @@ public class RoutineCreateOrEditFragment extends DialogFragment implements Radia
         }
     }
 
+    /**
+     * SQLite may materialize the same routine ID as a different boxed Long.
+     * A routine must not conflict with itself simply because the objects
+     * are different; other existing routines must still be rejected.
+     */
+    static boolean conflictsWithEditedRoutine(Routine candidate, Routine edited) {
+        if (candidate == null || candidate == edited) {
+            return false;
+        }
+        Long candidateId = candidate.getId();
+        Long editedId = edited == null ? null : edited.getId();
+        return candidateId == null || editedId == null || !candidateId.equals(editedId);
+    }
+
     public void onEdit() {
 
         String name = mNameTextView.getText().toString();
@@ -186,9 +200,9 @@ public class RoutineCreateOrEditFragment extends DialogFragment implements Radia
             if (mRoutine != null) {
                 Routine pt = DB.routines().findByPatientAndTime(p, time);
                 Routine pn = DB.routines().findByPatientAndName(name, p);
-                if (pt != null && pt.getId() != mRoutine.getId()) {
+                if (conflictsWithEditedRoutine(pt, mRoutine)) {
                     Snack.show(getString(R.string.routine_time_already_exists, time.toString("HH:mm")), getActivity());
-                } else if (pn != null && pn.getId() != mRoutine.getId()) {
+                } else if (conflictsWithEditedRoutine(pn, mRoutine)) {
                     Snack.show(getString(R.string.routine_name_already_exists, name), getActivity());
                 } else {
                     mRoutine.setName(name);
