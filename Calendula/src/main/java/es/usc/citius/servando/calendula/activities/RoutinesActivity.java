@@ -76,9 +76,9 @@ public class RoutinesActivity extends CalendulaActivity implements RoutineCreate
 
     @Override
     public void onRoutineEdited(Routine r) {
-        if (!RoutineOwnerGuard.isOwnedBy(
-                DB.routines().findById(r == null ? null : r.getId()),
-                DB.patients().getActive(this))) {
+        Routine stored = r == null || r.getId() == null
+                ? null : DB.routines().findById(r.getId());
+        if (!RoutineOwnerGuard.isOwnedBy(stored, DB.patients().getActive(this))) {
             finish();
             return;
         }
@@ -88,7 +88,8 @@ public class RoutinesActivity extends CalendulaActivity implements RoutineCreate
 
     @Override
     public void onRoutineDeleted(Routine r) {
-        Routine persisted = DB.routines().findById(r == null ? null : r.getId());
+        Routine persisted = r == null || r.getId() == null
+                ? null : DB.routines().findById(r.getId());
         Patient active = DB.patients().getActive(this);
         if (mRoutineId == -1 || r == null || r.getId() == null
                 || r.getId().longValue() != mRoutineId
