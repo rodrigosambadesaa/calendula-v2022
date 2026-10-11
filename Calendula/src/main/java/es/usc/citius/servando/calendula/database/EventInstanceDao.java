@@ -390,20 +390,45 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
         }
     }
 
+    /**
+     * Rescheduling may change the dose of a still-pending occurrence, but a
+     * completed or cancelled occurrence is a historical decision. Its dose
+     * snapshot must not be rewritten by a later prescription edit.
+     *
+     * Select eligible rows and update only Params by persisted primary key
+     * within the same transaction. This avoids overwriting status fields
+     * from a stale EventInstance and works across legacy SQLite versions.
+     */
     public int updateParams(EventType type, DateTime dateTime, Long ref, Bundle params) {
         try {
-            UpdateBuilder<EventInstance, Long> qb = dao.updateBuilder();
-            Where w = qb.where();
-            w.and(w.eq(EventInstance.COLUMN_EVENT_TYPE, type),
-                    w.eq(EventInstance.COLUMN_DATE_TIME, dateTime),
-                    w.eq(EventInstance.COLUMN_REF, ref)
-            );
-            qb.updateColumnValue(EventInstance.COLUMN_PARAMS, params);
-            qb.setWhere(w);
-            return qb.update();
+            return com.j256.ormlite.misc.TransactionManager.callInTransaction(
+                    dbHelper.getConnectionSource(), () -> {
+                        QueryBuilder<EventInstance, Long> query = dao.queryBuilder();
+                        Where<EventInstance, Long> where = query.where();
+                        where.and(where.eq(EventInstance.COLUMN_EVENT_TYPE, type),
+                                where.eq(EventInstance.COLUMN_DATE_TIME, dateTime),
+                                where.eq(EventInstance.COLUMN_REF, ref));
+                        query.setWhere(where);
+                        int changed = 0;
+                        for (EventInstance event : query.query()) {
+                            if (event.getId() == null) {
+                                throw new SQLException("Schedule event has no persisted ID");
+                            }
+                            if (event.completed() || event.cancelled()) {
+                                continue;
+                            }
+                            UpdateBuilder<EventInstance, Long> update = dao.updateBuilder();
+                            update.updateColumnValue(EventInstance.COLUMN_PARAMS, params);
+                            update.where().eq(EventInstance.COLUMN_ID, event.getId());
+                            if (update.update() != 1) {
+                                throw new SQLException("Expected one pending dose parameter update");
+                            }
+                            changed++;
+                        }
+                        return changed;
+                    });
         } catch (SQLException e) {
-
-            throw new RuntimeException("Error updating event params", e);
+            throw new RuntimeException("Error updating pending event params", e);
         }
     }
 
