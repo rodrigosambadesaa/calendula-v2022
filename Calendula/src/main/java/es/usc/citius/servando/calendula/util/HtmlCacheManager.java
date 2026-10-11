@@ -159,17 +159,23 @@ public class HtmlCacheManager {
             Integer count = (Integer) DB.transaction(new Callable<Integer>() {
                 @Override
                 public Integer call() throws Exception {
-                    Integer count = 0;
+                    int removed = 0;
                     CloseableIterator<HtmlCacheEntry> iterator = getDao().iterator();
-                    while (iterator.hasNext()) {
-                        HtmlCacheEntry entry = iterator.nextThrow();
-                        if (!checkTtl(entry))
-                            remove(entry);
-                        count++;
+                    try {
+                        while (iterator.hasNext()) {
+                            HtmlCacheEntry entry = iterator.nextThrow();
+                            // Return the number actually removed, not the
+                            // number scanned (valid leaflets must survive).
+                            if (!checkTtl(entry) && remove(entry)) {
+                                removed++;
+                            }
+                        }
+                    } finally {
+                        // Closing on failure is essential: the iterator owns
+                        // SQLite resources while the transaction is active.
+                        iterator.close();
                     }
-                    iterator.close();
-
-                    return count;
+                    return removed;
                 }
             });
             LogUtil.v(TAG, "purgeCache: purged " + count + " entries");
@@ -236,10 +242,17 @@ public class HtmlCacheManager {
     }
 
     private boolean checkTtl(HtmlCacheEntry entry) {
+        // Old or interrupted imports can contain incomplete cache metadata.
+        // Treat those rows as expired instead of allowing one malformed row
+        // to abort the entire cleanup or crash a leaflet lookup.
+        if (entry == null || entry.getTimestamp() == null
+                || entry.getTtl() == null || entry.getTtl() <= 0L) {
+            return false;
+        }
         final Date timestamp = entry.getTimestamp();
         long diff = DateTime.now().getMillis() - timestamp.getTime();
 
-        return diff < entry.getTtl();
+        return diff >= 0L && diff < entry.getTtl();
     }
 
     private boolean remove(HtmlCacheEntry entry) {
