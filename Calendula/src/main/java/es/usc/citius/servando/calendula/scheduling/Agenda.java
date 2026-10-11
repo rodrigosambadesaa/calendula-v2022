@@ -131,7 +131,21 @@ public class Agenda {
 
     /** Only persist rows while the enclosing daily SQLite transaction is open. */
     boolean createRemindersForDailyUpdate(final Context context) {
-        return createRemindersInternal(context, DB.eventInstances().findAll(), false);
+        return createRemindersInternal(context, reminderWindowCandidates(), false);
+    }
+
+    /**
+     * Match canBeScheduled's original time constraints before allocating ORM
+     * models. Keep one millisecond of slack at each strict window boundary;
+     * createRemindersInternal still validates every event independently.
+     */
+    private Collection<EventInstance> reminderWindowCandidates() {
+        DateTime now = DateTime.now();
+        int windowMinutes = Math.max(0, ReminderTiming.windowMinutes());
+        DateTime earliest = now.minusMinutes(windowMinutes).minusMillis(1);
+        DateTime midnightTomorrow = now.plusDays(1).withTimeAtStartOfDay();
+        DateTime endExclusive = midnightTomorrow.plusMillis(1);
+        return DB.eventInstances().findInWindow(earliest, endExclusive);
     }
 
     /**
@@ -214,7 +228,7 @@ public class Agenda {
     }
 
     public boolean createReminders(Context context) {
-        return createReminders(context, DB.eventInstances().findAll());
+        return createReminders(context, reminderWindowCandidates());
     }
 
     public void updateAllAlarms(Context context) {

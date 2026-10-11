@@ -507,6 +507,31 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
         }
     }
 
+    /**
+     * Fetch only potential reminder candidates from the current time window.
+     * Unbounded findAll() includes years of completed/cancelled dose history
+     * which must not be scanned every time the agenda regenerates.
+     */
+    public List<EventInstance> findInWindow(
+            DateTime fromInclusive, DateTime toExclusive) {
+        if (fromInclusive == null || toExclusive == null) {
+            throw new IllegalArgumentException("Reminder window timestamps are required");
+        }
+        if (!fromInclusive.isBefore(toExclusive)) {
+            return java.util.Collections.emptyList();
+        }
+        try {
+            QueryBuilder<EventInstance, Long> query = dao.queryBuilder();
+            Where<EventInstance, Long> where = query.where();
+            where.and(where.ge(EventInstance.COLUMN_DATE_TIME, fromInclusive),
+                    where.lt(EventInstance.COLUMN_DATE_TIME, toExclusive));
+            query.setWhere(where);
+            return query.query();
+        } catch (SQLException e) {
+            throw new RuntimeException("Error querying reminder candidate window", e);
+        }
+    }
+
     public boolean existBetween(EventType type, DateTime start, DateTime end) {
 
         try {
