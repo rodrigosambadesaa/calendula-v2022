@@ -105,6 +105,7 @@ public class RoutineCreateOrEditFragment extends DialogFragment implements Radia
             getDialog().setTitle(R.string.title_create_routine_activity);
             mConfirmButton = (Button) rootView.findViewById(R.id.done_button);
             mConfirmButton.setVisibility(View.VISIBLE);
+            mConfirmButton.setEnabled(!blockedByPatientChange);
             mConfirmButton.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
