@@ -179,7 +179,7 @@ public class Agenda {
                             continue;
                         }
                         if (!DB.eventReminders().exists(e.getType(), e.getTime(), e.getPatient())) {
-                            LogUtil.d(TAG, "Reminder needs to be created for " + e.getType() + " at " + e.getTime().toString());
+                            LogUtil.d(TAG, "A pending event needs a reminder");
                             if (canBeScheduled(e.getTime())) {
                                 EventReminder reminder = new EventReminder(e.getTime(), e.getType());
                                 reminder.setNextTime(e.getTime());
@@ -195,7 +195,7 @@ public class Agenda {
                                 LogUtil.d(TAG, "Event at can not be scheduled");
                             }
                         } else {
-                            LogUtil.d(TAG, "Reminder already exist for " + e.getType() + " at " + e.getTime().toString());
+                            LogUtil.d(TAG, "Reminder already exists for an event");
                         }
                     }
                     // No platform alarms, notifications, or preference changes
@@ -333,7 +333,7 @@ public class Agenda {
             LogUtil.d(TAG, "Received scheduled reminder");
             sendReminderToReceiver(ctx, r);
         } else {
-            LogUtil.w(TAG, "Reminder with id " + reminderId + " not found");
+            LogUtil.w(TAG, "Reminder not found");
         }
     }
 
@@ -349,7 +349,8 @@ public class Agenda {
     public boolean canBeScheduled(DateTime t) {
         int window = ReminderTiming.windowMinutes();
         DateTime midNight = DateTime.now().withTimeAtStartOfDay().plusDays(1);
-        LogUtil.d(TAG, "T: " + t.toString() + ", window: " + window + ", midNight: " + midNight.toString());
+        // Exact medication occurrence dates and patient reminder settings must not enter Logcat.
+        LogUtil.d(TAG, "Checking whether medication reminder is eligible for scheduling");
         return t.plusMinutes(window).isAfterNow() && !midNight.isBefore(t);
     }
 
@@ -892,7 +893,7 @@ public class Agenda {
             }
         } else {
             // remove the reminder
-            LogUtil.d(TAG, "Cancelling reminder with id " + r.getId());
+            LogUtil.d(TAG, "Cancelling a reminder");
             // Keep deletion ordering consistent across all alarm cleanup paths.
             deletePersistedReminderForAlarmCleanup(r);
             cancelAlarm(ctx, r);
