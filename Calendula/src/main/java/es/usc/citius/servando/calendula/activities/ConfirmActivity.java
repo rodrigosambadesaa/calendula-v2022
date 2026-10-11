@@ -744,7 +744,7 @@ public class ConfirmActivity extends CalendulaActivity {
             return;
         }
         try {
-            if (ScheduleUtils.instance().setIntakeCompleted(this, selected, completed)) {
+            if (ScheduleUtils.instance().setVerifiedIntakeCompleted(this, selected, completed)) {
                 stateChanged = true;
                 onDailyAgendaItemCheck(null);
                 if (itemAdapter != null && position != RecyclerView.NO_POSITION) {

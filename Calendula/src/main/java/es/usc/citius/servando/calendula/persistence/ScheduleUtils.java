@@ -280,6 +280,21 @@ public class ScheduleUtils {
      * the all-doses path.
      */
     public boolean setIntakeCompleted(Context ctx, EventInstance event, boolean completed) {
+        return setIntakeCompleted(ctx, event, completed, false);
+    }
+
+    /**
+     * The interactive confirmation screen must validate the live clinical
+     * graph inside the same transaction that persists the intake and stock.
+     * The historical method remains available for legacy non-UI callers.
+     */
+    public boolean setVerifiedIntakeCompleted(Context ctx, EventInstance event,
+                                              boolean completed) {
+        return setIntakeCompleted(ctx, event, completed, true);
+    }
+
+    private boolean setIntakeCompleted(Context ctx, EventInstance event,
+                                       boolean completed, boolean requireClinicalVerification) {
         if (event == null || event.getId() == null
                 || event.getType() != EventType.MEDICATION_INTAKE) {
             throw new IllegalArgumentException("A persisted medication intake is required");
@@ -302,6 +317,34 @@ public class ScheduleUtils {
                                 || !samePatientIdentity(event.getPatient(), stored.getPatient())) {
                             throw new SQLException("Intake identity changed during confirmation");
                         }
+                        if (requireClinicalVerification) {
+                            if (stored.getPatient() == null
+                                    || stored.getPatient().getId() == null
+                                    || stored.getPatient().getId() <= 0L) {
+                                throw new SQLException("Interactive confirmation has no persisted patient");
+                            }
+                            Patient persistedPatient = DB.patients()
+                                    .findById(stored.getPatient().getId());
+                            Schedule schedule = stored.getRef() == null ? null
+                                    : DB.schedules().findById(stored.getRef());
+                            if (schedule != null && schedule.getMedicine() != null
+                                    && (schedule.getMedicine().getId() == null
+                                    || DB.medicines().refresh(schedule.getMedicine()) != 1)) {
+                                throw new SQLException("Interactive confirmation medicine is missing");
+                            }
+                            ActiveMedEntity official = schedule != null && schedule.isBoundToActiveMed()
+                                    ? DB.healthcareProviderDB().activeMeds()
+                                            .findById(schedule.getActiveMedId())
+                                    : null;
+                            if (persistedPatient == null
+                                    || !ConfirmIntakeGuard.verified(stored, persistedPatient,
+                                            stored.getTime(), schedule, official)
+                                    || stored.completed() != event.completed()
+                                    || stored.cancelled() != event.cancelled()
+                                    || !sameExactIntakeDose(event, stored)) {
+                                throw new SQLException("Interactive intake prescription changed");
+                            }
+                        }
                         if (stored.cancelled()) {
                             throw new SQLException("Cancelled medication cannot be confirmed or undone");
                         }
@@ -323,6 +366,19 @@ public class ScheduleUtils {
         publishCommittedIntake(ctx, committed, completed);
         fireCommittedIntakeEvent();
         return true;
+    }
+
+    /** Only a finite, positive and unchanged dose matches consented UI data. */
+    private static boolean sameExactIntakeDose(EventInstance visible,
+                                               EventInstance persisted) {
+        try {
+            double shown = visible.getDoubleParam(EventInstance.PARAM_DOSE);
+            double current = persisted.getDoubleParam(EventInstance.PARAM_DOSE);
+            return !Double.isNaN(shown) && !Double.isInfinite(shown)
+                    && shown > 0d && Double.compare(shown, current) == 0;
+        } catch (RuntimeException malformed) {
+            return false;
+        }
     }
 
     /**
