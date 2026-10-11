@@ -476,5 +476,6 @@ Do you want to install the new database now?
     <string name="channel_default_description">Other notifications.</string>
     <string name="channel_setup_name">Setup</string>
     <string name="channel_setup_description">Setup notifications.</string>
+    <string name="agenda_medication_review_warning">Medication entries need review for this patient. Open their medication schedules and verify the details before taking a dose.</string>
     <string name="routine_profile_unavailable">Routine unavailable. Select the correct patient profile and reopen the editor.</string>
 </resources>

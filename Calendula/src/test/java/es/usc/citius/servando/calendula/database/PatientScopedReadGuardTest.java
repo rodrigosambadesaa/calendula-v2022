@@ -9,6 +9,9 @@ import android.content.Context;
 import androidx.test.core.app.ApplicationProvider;
 
 import com.j256.ormlite.dao.Dao;
+import org.joda.time.LocalTime;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.RepeatType;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.MockedStatic;
@@ -22,6 +25,7 @@ import es.usc.citius.servando.calendula.persistence.Routine;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -79,6 +83,18 @@ public class PatientScopedReadGuardTest {
         assertTrue(routines.findAll(unsaved).isEmpty());
         assertTrue(routines.findAll((Long) null).isEmpty());
         assertTrue(routines.findAllWithName(null).isEmpty());
+        // Single-routine lookups must also fail closed without a persisted
+        // patient instead of selecting SQLite rows with Patient IS NULL.
+        LocalTime syntheticTime = new LocalTime(13, 45);
+        assertNull(routines.findByPatientAndName("synthetic", null));
+        assertNull(routines.findByPatientAndName("synthetic", unsaved));
+        assertNull(routines.findByPatientAndDailyEvent(null, RepeatType.CD));
+        assertNull(routines.findByPatientAndDailyEvent(unsaved, RepeatType.CD));
+        assertNull(routines.findByPatientAndTime(null, syntheticTime));
+        assertNull(routines.findByPatientAndTime(unsaved, syntheticTime));
+        Patient savedIdentity = new Patient();
+        savedIdentity.setId(900001L);
+        assertNull(routines.findByPatientAndTime(savedIdentity, null));
         assertTrue(schedules.findAll((Patient) null).isEmpty());
         assertTrue(schedules.findAll(unsaved).isEmpty());
         assertTrue(schedules.findAll((Long) null).isEmpty());
