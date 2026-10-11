@@ -16,6 +16,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
+import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.util.IntentParams;
 import org.joda.time.DateTime;
 import es.usc.citius.servando.calendula.util.PendingIntentFlags;
@@ -59,6 +60,7 @@ public class ReminderPendingIntentSmokeTest {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         EventReminder reminder = new EventReminder();
         reminder.setId(9000000004L);
+        reminder.setEventType(EventType.MEDICATION_INTAKE);
         DateTime future = DateTime.now().plusHours(2);
         reminder.setDateTime(future);
         reminder.setNextTime(future);
@@ -86,6 +88,7 @@ public class ReminderPendingIntentSmokeTest {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         EventReminder reminder = new EventReminder();
         reminder.setId(9000000005L);
+        reminder.setEventType(EventType.MEDICATION_INTAKE);
         DateTime future = DateTime.now().plusHours(2);
         reminder.setDateTime(future);
         reminder.setNextTime(future);
