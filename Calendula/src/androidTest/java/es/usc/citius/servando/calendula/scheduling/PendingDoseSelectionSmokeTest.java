@@ -5,6 +5,8 @@
  */
 package es.usc.citius.servando.calendula.scheduling;
 
+import android.os.Bundle;
+
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import org.joda.time.DateTime;
@@ -30,6 +32,67 @@ import static org.junit.Assert.assertTrue;
  */
 @RunWith(AndroidJUnit4.class)
 public class PendingDoseSelectionSmokeTest {
+
+    @Test
+    public void editingScheduleDoseCannotRewriteDecidedMedicationHistory() {
+        assertTrue(DB.initialized);
+        DateTime future = DateTime.now().plusHours(7).withMillisOfSecond(0);
+        Long syntheticScheduleRef = -System.nanoTime();
+        EventInstance completed = new EventInstance(future, EventType.MEDICATION_INTAKE);
+        completed.setRef(syntheticScheduleRef);
+        completed.addParam(EventInstance.PARAM_DOSE, 1.0d);
+        completed.setCompleted(true);
+        DateTime completedAt = DateTime.now().minusMinutes(10).withMillisOfSecond(0);
+        completed.setCompletedAt(completedAt);
+
+        EventInstance cancelled = new EventInstance(future, EventType.MEDICATION_INTAKE);
+        cancelled.setRef(syntheticScheduleRef);
+        cancelled.addParam(EventInstance.PARAM_DOSE, 2.0d);
+        cancelled.setCancelled(true);
+        DateTime cancelledAt = completedAt.plusMinutes(1);
+        cancelled.setCompletedAt(cancelledAt);
+
+        EventInstance pending = new EventInstance(future, EventType.MEDICATION_INTAKE);
+        pending.setRef(syntheticScheduleRef);
+        pending.addParam(EventInstance.PARAM_DOSE, 3.0d);
+
+        EventInstance[] fixtures = {completed, cancelled, pending};
+        try {
+            for (EventInstance event : fixtures) {
+                DB.eventInstances().save(event);
+                assertNotNull(event.getId());
+            }
+            Bundle edited = new Bundle();
+            edited.putString(EventInstance.PARAM_DOSE, "4.0");
+
+            assertEquals("Only the active dose may adopt the edited prescription", 1,
+                    DB.eventInstances().updateParams(
+                            EventType.MEDICATION_INTAKE, future, syntheticScheduleRef, edited));
+
+            EventInstance takenAfter = DB.eventInstances().findById(completed.getId());
+            EventInstance skippedAfter = DB.eventInstances().findById(cancelled.getId());
+            EventInstance pendingAfter = DB.eventInstances().findById(pending.getId());
+            assertEquals("The historical taken dose must remain unchanged",
+                    1.0d, takenAfter.getDoubleParam(EventInstance.PARAM_DOSE), 0.0001d);
+            assertEquals("The historical skipped dose must remain unchanged",
+                    2.0d, skippedAfter.getDoubleParam(EventInstance.PARAM_DOSE), 0.0001d);
+            assertEquals("Only the future unhandled dose receives edited parameters",
+                    4.0d, pendingAfter.getDoubleParam(EventInstance.PARAM_DOSE), 0.0001d);
+            assertTrue(takenAfter.completed());
+            assertTrue(skippedAfter.cancelled());
+            assertEquals(completedAt, takenAfter.completedAt());
+            assertEquals(cancelledAt, skippedAfter.completedAt());
+            assertFalse(pendingAfter.completed());
+            assertFalse(pendingAfter.cancelled());
+        } finally {
+            for (EventInstance event : fixtures) {
+                if (event.getId() != null
+                        && DB.eventInstances().findById(event.getId()) != null) {
+                    DB.eventInstances().remove(event);
+                }
+            }
+        }
+    }
 
     @Test
     public void pendingMedicationItemsExcludeCompletedCancelledAndOtherPatients() {
