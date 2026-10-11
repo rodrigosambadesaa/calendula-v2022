@@ -23,6 +23,7 @@ import android.content.Context;
 import com.j256.ormlite.dao.Dao;
 
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.List;
 
 import es.usc.citius.servando.calendula.persistence.Patient;
@@ -54,11 +55,16 @@ public class PatientAllergenDao extends GenericDao<PatientAllergen, Long> {
     }
 
     public List<PatientAllergen> findAll(Patient p) {
-        return findAll(p.getId());
+        // No active owner means no patient data; never query NULL-owned rows.
+        return p == null || p.getId() == null
+                ? Collections.<PatientAllergen>emptyList() : findAll(p.getId());
     }
 
 
     public List<PatientAllergen> findAll(Long patientId) {
+        if (patientId == null) {
+            return Collections.emptyList();
+        }
         try {
             return dao.queryBuilder()
                     .where().eq(PatientAllergen.COLUMN_PATIENT, patientId)
