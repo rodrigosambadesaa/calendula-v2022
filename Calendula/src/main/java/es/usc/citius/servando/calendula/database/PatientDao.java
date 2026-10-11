@@ -29,6 +29,7 @@ import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.events.PersistenceEvents;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Patient;
+import es.usc.citius.servando.calendula.persistence.PatientAllergen;
 import es.usc.citius.servando.calendula.persistence.Routine;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
@@ -138,6 +139,14 @@ public class PatientDao extends GenericDao<Patient, Long> {
         }
         for (Routine r : DB.routines().findAll(patientId)) {
             DB.routines().remove(r);
+        }
+        // Allergy names and external catalog IDs are patient clinical data.
+        // Unlike medicines and routines, they were omitted from the legacy
+        // profile deletion path and survived as orphaned records.
+        // Match only the persisted owner's numeric key; preserve all other
+        // patients' allergies, even when two people share an allergen.
+        for (PatientAllergen allergen : DB.patientAllergens().findAll(patientId)) {
+            DB.patientAllergens().remove(allergen);
         }
     }
 }
