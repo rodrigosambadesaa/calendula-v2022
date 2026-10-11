@@ -50,13 +50,29 @@ public class PurgeCacheJob extends CalendulaJob {
                 .build();
     }
 
+    /**
+     * Cache cleanup returns -1 if its SQLite transaction failed. A failure
+     * must never be reported as successful maintenance; the next periodic
+     * invocation can then be diagnosed as a retry rather than a completed run.
+     */
+    static Result statusForPurgeResult(Integer purged) {
+        return purged != null && purged >= 0 ? Result.SUCCESS : Result.FAILURE;
+    }
+
     @NonNull
     @Override
     protected Result onRunJob(Params params) {
         LogUtil.d(TAG, "onRunJob: Job started");
         Integer purged = HtmlCacheManager.getInstance().purgeCache();
-        LogUtil.d(TAG, "onRunJob: Purged " + purged + " entries");
-        return Result.SUCCESS;
+        Result status = statusForPurgeResult(purged);
+        if (status == Result.SUCCESS) {
+            LogUtil.d(TAG, "onRunJob: Purged " + purged + " entries");
+        } else {
+            // Log only a generic maintenance failure; cache contents and
+            // potentially sensitive medication document URLs stay private.
+            LogUtil.w(TAG, "HTML cache cleanup failed");
+        }
+        return status;
     }
 
 }
