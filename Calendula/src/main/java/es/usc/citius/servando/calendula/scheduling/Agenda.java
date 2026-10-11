@@ -121,9 +121,11 @@ public class Agenda {
                 @Override
                 public Object call() throws Exception {
                     for (EventInstance e : intakes) {
-                        if (!isReminderEligible(e)) {
-                            // Never create a reminder for an already handled or
-                            // corrupted event. Check before any SQLite lookup.
+                        if (!isReminderEligible(e)
+                                || !receivers.containsKey(e.getType())) {
+                            // Never schedule handled/corrupt events or legacy
+                            // types without an active delivery receiver.
+                            // Preserve their event rows for future migration.
                             continue;
                         }
                         if (!DB.eventReminders().exists(e.getType(), e.getTime(), e.getPatient())) {
@@ -244,7 +246,16 @@ public class Agenda {
         }
         EventReminder r = DB.eventReminders().findById(reminderId);
         if (r != null) {
-            if (r.getNextTime() == null || r.getNextTime().isAfterNow()) {
+            if (r.getDateTime() == null || r.getEventType() == null
+                    || r.getNextTime() == null) {
+                // A partially migrated SQLite row must never invoke dose
+                // delivery or cause the worker to crash. Retire its OS token,
+                // but preserve the row for explicit repair/migration.
+                LogUtil.w(TAG, "Malformed persisted reminder cannot be delivered");
+                cancelAlarm(ctx, r);
+                return;
+            }
+            if (r.getNextTime().isAfterNow()) {
                 // An in-flight old PendingIntent may fire after the user has
                 // postponed a dose. If its intake remains pending, never deliver
                 // before the latest persisted time. Only re-arm the current
@@ -348,8 +359,17 @@ public class Agenda {
         final DateTime now = DateTime.now();
         for (EventReminder reminder : DB.eventReminders().findAll()) {
             if (reminder == null || reminder.getId() == null
+                    || reminder.getId() <= 0L
                     || reminder.getNextTime() == null
+                    || reminder.getDateTime() == null
+                    || reminder.getEventType() == null
                     || !reminder.getNextTime().isAfter(now)) {
+                continue;
+            }
+            // Only handlers registered by an active module can deliver a
+            // reminder. Keep unsupported legacy rows in SQLite for inspection,
+            // but do not repeatedly wake Android for an undeliverable alarm.
+            if (!receivers.containsKey(reminder.getEventType())) {
                 continue;
             }
             if (!DB.eventInstances().existsPending(
