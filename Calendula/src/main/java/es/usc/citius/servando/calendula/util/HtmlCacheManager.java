@@ -20,6 +20,7 @@ package es.usc.citius.servando.calendula.util;
 
 import com.j256.ormlite.dao.CloseableIterator;
 import com.j256.ormlite.dao.Dao;
+import com.j256.ormlite.stmt.UpdateBuilder;
 
 import org.joda.time.DateTime;
 import org.joda.time.Duration;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 import es.usc.citius.servando.calendula.database.DB;
+import es.usc.citius.servando.calendula.database.DatabaseHelper;
 import es.usc.citius.servando.calendula.database.HtmlCacheDAO;
 import es.usc.citius.servando.calendula.persistence.HtmlCacheEntry;
 
@@ -40,6 +42,7 @@ public class HtmlCacheManager {
     private static final String TAG = "HtmlCacheManager";
     private static HtmlCacheManager theInstance = null;
     private Dao<HtmlCacheEntry, Long> dao = null;
+    private DatabaseHelper daoHelper = null;
 
     private HtmlCacheManager() {
     }
@@ -86,11 +89,16 @@ public class HtmlCacheManager {
             if (entry != null) {
                 // The UPDATE is atomic on SQLite; on failure the previously
                 // committed HTML remains intact. Do not delete-then-insert.
-                entry.setUrl(url);
-                entry.setTimestamp(now);
-                entry.setData(data);
-                entry.setTtl(ttl);
-                return getDao().update(entry) == 1;
+                // Update the existing primary key only; do not DELETE on a
+                // failed refresh. ORMLite's builder binds typed Date/Long
+                // values and returns the actual number of affected rows.
+                UpdateBuilder<HtmlCacheEntry, Long> update = getDao().updateBuilder();
+                update.updateColumnValue(HtmlCacheEntry.COLUMN_URL, url);
+                update.updateColumnValue(HtmlCacheEntry.COLUMN_TIMESTAMP, now);
+                update.updateColumnValue(HtmlCacheEntry.COLUMN_DATA, data);
+                update.updateColumnValue(HtmlCacheEntry.COLUMN_TTL, ttl);
+                update.where().eq(HtmlCacheEntry.COLUMN_ID, entry.getId());
+                return update.update() == 1;
             }
             HtmlCacheEntry newEntry = new HtmlCacheEntry(
                     hashCode, url, now, data, ttl);
@@ -225,9 +233,14 @@ public class HtmlCacheManager {
         }
     }
 
-    private Dao<HtmlCacheEntry, Long> getDao() {
-        if (dao == null)
-            dao = new HtmlCacheDAO(DB.helper()).getConcreteDao();
+    private synchronized Dao<HtmlCacheEntry, Long> getDao() {
+        // DB.dispose()/DB.init() replace the SQLite helper (also in tests).
+        // A singleton must not retain a DAO bound to a closed prior database.
+        DatabaseHelper currentHelper = DB.helper();
+        if (dao == null || daoHelper != currentHelper) {
+            dao = new HtmlCacheDAO(currentHelper).getConcreteDao();
+            daoHelper = currentHelper;
+        }
         return dao;
     }
 
