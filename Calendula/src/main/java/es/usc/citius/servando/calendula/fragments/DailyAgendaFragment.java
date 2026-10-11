@@ -156,6 +156,11 @@ public class DailyAgendaFragment extends Fragment {
         final DateTime visibleUntil = todayStart.plusDays(2);
         for (EventInstance evt : DB.eventInstances().findByTypeInWindow(
                 EventType.MEDICATION_INTAKE, visibleFrom, visibleUntil)) {
+            if (evt == null || evt.getTime() == null) {
+                // Do not group a malformed event under a null timestamp.
+                LogUtil.w(TAG, "Skipping unverified home agenda event");
+                continue;
+            }
             if (!grouped.containsKey(evt.getTime())) {
                 grouped.put(evt.getTime(), new ArrayList<EventInstance>());
             }
@@ -177,8 +182,11 @@ public class DailyAgendaFragment extends Fragment {
                     continue;
                 }
                 Schedule s = DB.schedules().findById(scheduleId);
-                if (s == null || s.getPatient() == null
-                        || s.getPatient().getId() == null || s.getMedicine() == null) {
+                Double dose = DailyAgendaEventValidator.verifiedDose(e, s);
+                if (dose == null) {
+                    // No cross-patient details or unverified numeric doses
+                    // may appear in the home agenda. Keep SQLite history.
+                    LogUtil.w(TAG, "Skipping unverified home agenda medication");
                     continue;
                 }
                 Patient p = s.getPatient();
@@ -195,7 +203,7 @@ public class DailyAgendaFragment extends Fragment {
 
                 DailyAgendaItemStubElement el = new DailyAgendaItemStubElement();
                 el.medName = s.getMedicine().getName();
-                el.dose = e.getDoubleParam(EventInstance.PARAM_DOSE);
+                el.dose = dose;
                 el.displayDose = "Display " + el.dose;
                 el.presentation = s.getMedicine().getPresentation();
                 el.minute = time.toString("mm");
