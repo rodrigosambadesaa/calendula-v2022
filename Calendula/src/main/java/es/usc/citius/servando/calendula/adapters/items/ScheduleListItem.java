@@ -79,7 +79,8 @@ public class ScheduleListItem extends AbstractItem<ScheduleListItem, ScheduleLis
         String timeStr = schedule.intakeTimesString(ctx);
         String daysStr = schedule.intakeDaysString(ctx);
 
-        LogUtil.d(TAG, "Schedule " + schedule.getMedicine().getName() + " is scanned: " + schedule.isScanned());
+        // A medication name is private health information; never send it to Logcat.
+        LogUtil.d(TAG, "Binding schedule; scanned=" + schedule.isScanned());
 
         if (schedule.isBoundToActiveMed() && schedule.hasState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL)) {
             int color = schedule.hasState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL) ?
