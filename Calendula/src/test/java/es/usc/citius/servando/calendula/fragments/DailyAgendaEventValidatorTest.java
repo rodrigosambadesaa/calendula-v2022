@@ -4,8 +4,6 @@
  */
 package es.usc.citius.servando.calendula.fragments;
 
-import android.os.Bundle;
-
 import org.joda.time.DateTime;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -107,8 +105,6 @@ public class DailyAgendaEventValidatorTest {
         missing.setRef(s.getId());
         missing.setPatient(a);
         assertNull(DailyAgendaEventValidator.verifiedDose(missing, s));
-        Bundle wrongType = new Bundle();
-        wrongType.putInt(EventInstance.PARAM_DOSE, 42);
         missing.addParam("Unrelated", "sample");
         missing.getParams().putInt(EventInstance.PARAM_DOSE, 42);
         assertNull(DailyAgendaEventValidator.verifiedDose(missing, s));
