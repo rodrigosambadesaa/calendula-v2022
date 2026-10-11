@@ -244,16 +244,37 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
         }
     }
 
+    /**
+     * Blocking an active medication or prescription removes unhandled future
+     * occurrences, not decisions already recorded for those times.
+     * Preserve completion/cancellation history while cleaning pending events.
+     */
     public int removeByRefAndTime(Long ref, DateTime startTime) {
         try {
-            DeleteBuilder<EventInstance, Long> qb = dao.deleteBuilder();
-            Where w = qb.where();
-            w.and(w.eq(EventInstance.COLUMN_REF, ref),
-                  w.gt(EventInstance.COLUMN_DATE_TIME, startTime)  );
-            qb.setWhere(w);
-            return qb.delete();
+            return com.j256.ormlite.misc.TransactionManager.callInTransaction(
+                    dbHelper.getConnectionSource(), () -> {
+                        QueryBuilder<EventInstance, Long> query = dao.queryBuilder();
+                        Where<EventInstance, Long> where = query.where();
+                        where.and(where.eq(EventInstance.COLUMN_REF, ref),
+                                where.gt(EventInstance.COLUMN_DATE_TIME, startTime));
+                        query.setWhere(where);
+                        int removed = 0;
+                        for (EventInstance event : query.query()) {
+                            if (event.getId() == null) {
+                                throw new SQLException("Future event has no persisted identity");
+                            }
+                            if (event.completed() || event.cancelled()) {
+                                continue;
+                            }
+                            if (dao.deleteById(event.getId()) != 1) {
+                                throw new SQLException("Could not remove obsolete pending event");
+                            }
+                            removed++;
+                        }
+                        return removed;
+                    });
         } catch (SQLException e) {
-            throw new RuntimeException("Error finding event instances", e);
+            throw new RuntimeException("Error removing unhandled future events", e);
         }
     }
 
