@@ -202,6 +202,14 @@ public class UnverifiedMedicationValidationTest {
         assertFalse("Changed official source identity requires clinical review",
                 IntakeNotificationMgr.canRenderMedication(event, schedule, owner, official));
         official.setId(9000003503L);
+        official.setPatient(null);
+        assertFalse("Official record without a patient cannot authorize a notification",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, owner, official));
+        official.setPatient(owner);
+        official.setType(null);
+        assertFalse("Official record without a type cannot authorize a notification",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, owner, official));
+        official.setType(ActiveMedType.NATIONAL_CODE);
         official.setDosage(null);
         assertFalse("Incomplete official prescription cannot authorize medication details",
                 IntakeNotificationMgr.canRenderMedication(event, schedule, owner, official));
