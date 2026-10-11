@@ -67,7 +67,6 @@ import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
@@ -79,6 +78,7 @@ import es.usc.citius.servando.calendula.HomePagerActivity;
 import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.activities.schedules.ScheduleBuildActivity;
 import es.usc.citius.servando.calendula.database.DB;
+import es.usc.citius.servando.calendula.fragments.DailyAgendaOfficialTreatmentValidator;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Presentation;
@@ -89,7 +89,6 @@ import es.usc.citius.servando.calendula.scheduling.Agenda;
 import es.usc.citius.servando.calendula.scheduling.ScheduleDisplayUtils;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
-import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageEntryEntity;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.RepeatType;
 import es.usc.citius.servando.calendula.util.AvatarMgr;
 import es.usc.citius.servando.calendula.util.IconUtils;
@@ -153,6 +152,7 @@ public class ConfirmActivity extends CalendulaActivity {
     private String action;
     private String relativeTime = "";
     private DateTime dateTime;
+    private boolean invalidClinicalContext;
 
     /*
      * Returns the intake margin interval
@@ -271,26 +271,28 @@ public class ConfirmActivity extends CalendulaActivity {
     }
 
     void onClickFab() {
-        boolean somethingChecked = false;
-        for (int i = 0; i < items.size(); i++) {
-            EventInstance item = items.get(i);
-            if (ScheduleUtils.isPendingIntake(item)) {
-                ScheduleUtils.instance().setIntakeCompleted(this, item, true);
-                itemAdapter.notifyItemChanged(i);
-                somethingChecked = true;
-            }
+        if (!hasVerifiedBatch()) {
+            blockUnverifiedConfirmation();
+            return;
         }
-
-        if (somethingChecked) {
-            stateChanged = true;
-            fab.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    animateAllChecked();
+        try {
+            // Confirm all pending doses in a single SQLite transaction: a
+            // later stock/dose failure must not leave earlier doses committed.
+            int updated = ScheduleUtils.instance().checkIntakeEvents(this, patient, dateTime);
+            if (updated > 0) {
+                if (!loadItems()) {
+                    blockUnverifiedConfirmation();
+                    return;
                 }
-            }, 100);
-        } else {
-            supportFinishAfterTransition();
+                itemAdapter.notifyDataSetChanged();
+                stateChanged = true;
+                fab.postDelayed(() -> animateAllChecked(), 100);
+            } else {
+                supportFinishAfterTransition();
+            }
+        } catch (RuntimeException invalid) {
+            LogUtil.w(TAG, "Medication batch confirmation was not completed");
+            blockUnverifiedConfirmation();
         }
     }
 
@@ -336,7 +338,7 @@ public class ConfirmActivity extends CalendulaActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        if (!processIntent()) {
+        if (!processIntent() || !loadItems()) {
             // finish() alone does not stop onCreate: no view may dereference
             // an absent patient or a malformed medication reminder timestamp.
             Intent home = new Intent(this, HomePagerActivity.class);
@@ -398,6 +400,10 @@ public class ConfirmActivity extends CalendulaActivity {
             @Override
             public void onClick(View view) {
 
+                if (!hasVerifiedBatch()) {
+                    blockUnverifiedConfirmation();
+                    return;
+                }
                 boolean somethingToCheck = false;
                 for (EventInstance item : items) {
                     if (ScheduleUtils.isPendingIntake(item)) {
@@ -515,7 +521,6 @@ public class ConfirmActivity extends CalendulaActivity {
 
     private void setupListView() {
 
-        loadItems();
         itemAdapter = new ConfirmItemAdapter();
         LinearLayoutManager llm = new LinearLayoutManager(this);
         listView.setLayoutManager(llm);
@@ -565,8 +570,91 @@ public class ConfirmActivity extends CalendulaActivity {
                 && patient.getId() > 0L && time != null;
     }
 
-    private void loadItems() {
-        items.addAll(ScheduleUtils.instance().intakeEvents(patient, dateTime));
+    /**
+     * The SQL event list may contain legacy orphaned rows. Validate the
+     * entire batch before showing a single medication or enabling actions.
+     */
+    private boolean loadItems() {
+        try {
+            List<EventInstance> selected = ScheduleUtils.instance().intakeEvents(patient, dateTime);
+            if (selected == null || selected.isEmpty()) {
+                return false;
+            }
+            for (EventInstance event : selected) {
+                if (!isVerifiedIntake(event)) {
+                    return false;
+                }
+            }
+            items.clear();
+            items.addAll(selected);
+            return true;
+        } catch (RuntimeException invalid) {
+            LogUtil.w(TAG, "Medication confirmation context could not be verified");
+            return false;
+        }
+    }
+
+    private boolean isVerifiedIntake(EventInstance selected) {
+        if (selected == null || selected.getId() == null || selected.getRef() == null) {
+            return false;
+        }
+        try {
+            Patient persistedPatient = patient == null || patient.getId() == null
+                    ? null : DB.patients().findById(patient.getId());
+            EventInstance persisted = DB.eventInstances().findById(selected.getId());
+            if (persistedPatient == null
+                    || !ConfirmIntakeGuard.matchesPersistedEvent(selected, persisted)) {
+                return false;
+            }
+            Schedule schedule = DB.schedules().findById(persisted.getRef());
+            ActiveMedEntity imported = schedule != null && schedule.isBoundToActiveMed()
+                    ? DB.healthcareProviderDB().activeMeds().findById(schedule.getActiveMedId())
+                    : null;
+            return ConfirmIntakeGuard.verified(
+                    persisted, persistedPatient, dateTime, schedule, imported);
+        } catch (RuntimeException invalid) {
+            LogUtil.w(TAG, "Medication confirmation row could not be verified");
+            return false;
+        }
+    }
+
+    private boolean hasVerifiedBatch() {
+        if (invalidClinicalContext || items.isEmpty()) {
+            return false;
+        }
+        try {
+            // Do not allow a stale screen to confirm a newly-added dose that
+            // was not part of the user's visible confirmation selection.
+            List<EventInstance> current = ScheduleUtils.instance()
+                    .intakeEvents(patient, dateTime);
+            if (current == null || current.size() != items.size()) {
+                return false;
+            }
+            for (EventInstance event : current) {
+                boolean selected = false;
+                for (EventInstance visible : items) {
+                    if (ConfirmIntakeGuard.matchesPersistedEvent(visible, event)) {
+                        selected = true;
+                        break;
+                    }
+                }
+                if (!selected || !isVerifiedIntake(event)) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (RuntimeException invalid) {
+            LogUtil.w(TAG, "Medication batch selection could not be verified");
+            return false;
+        }
+    }
+
+    private void blockUnverifiedConfirmation() {
+        invalidClinicalContext = true;
+        if (fab != null) {
+            fab.setEnabled(false);
+        }
+        Snack.show(getString(R.string.agenda_medication_review_warning), this);
     }
 
     private Drawable getCheckedIcon(int color) {
@@ -649,6 +737,25 @@ public class ConfirmActivity extends CalendulaActivity {
         }
     }
 
+    private void confirmSelectedIntake(EventInstance selected, boolean completed, int position) {
+        if (!isVerifiedIntake(selected) || invalidClinicalContext) {
+            blockUnverifiedConfirmation();
+            return;
+        }
+        try {
+            if (ScheduleUtils.instance().setIntakeCompleted(this, selected, completed)) {
+                stateChanged = true;
+                onDailyAgendaItemCheck(null);
+                if (itemAdapter != null && position != RecyclerView.NO_POSITION) {
+                    itemAdapter.notifyItemChanged(position);
+                }
+            }
+        } catch (RuntimeException invalid) {
+            LogUtil.w(TAG, "Selected medication intake could not be committed");
+            blockUnverifiedConfirmation();
+        }
+    }
+
     class ConfirmItemAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
 
@@ -669,6 +776,21 @@ public class ConfirmActivity extends CalendulaActivity {
 
             h = (ConfirmItemViewHolder) holder;
             eventInstance = items.get(position);
+            if (!isVerifiedIntake(eventInstance)) {
+                invalidClinicalContext = true;
+                fab.setEnabled(false);
+                h.event = null;
+                h.med.setText(R.string.agenda_medication_review_warning);
+                h.dose.setText("");
+                h.status.setText("");
+                h.info.setVisibility(View.GONE);
+                h.offset.setVisibility(View.GONE);
+                h.alert.setVisibility(View.GONE);
+                h.check.setEnabled(false);
+                h.icon.setImageDrawable(null);
+                return;
+            }
+            h.check.setEnabled(true);
             s = DB.schedules().findById(eventInstance.getRef());
             m = s.getMedicine();
             p = m.getPresentation();
@@ -680,15 +802,15 @@ public class ConfirmActivity extends CalendulaActivity {
             }
 
             h.info.setVisibility(View.GONE);
-            if (s.hasState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL)) {
-                ActiveMedEntity am = DB.healthcareProviderDB().activeMeds().findById(s.getActiveMedId());
-                Collection<DosageEntryEntity> entries = am.getDosage().getEntries();
-                if (entries.size() >= 1) {
-                    String instr = entries.iterator().next().getPatientInstruction();
-                    if (!StringUtils.isBlank(instr)) {
-                        h.info.setVisibility(View.VISIBLE);
-                        h.info.setText(getInfoMessage(getString(R.string.instructions_prefix) + " " + instr, CommunityMaterial.Icon2.cmd_medical_bag));
-                    }
+            if (s.isBoundToActiveMed()) {
+                ActiveMedEntity am = DB.healthcareProviderDB().activeMeds()
+                        .findById(s.getActiveMedId());
+                String instr = DailyAgendaOfficialTreatmentValidator.firstInstruction(s, am);
+                if (!StringUtils.isBlank(instr)) {
+                    h.info.setVisibility(View.VISIBLE);
+                    h.info.setText(getInfoMessage(
+                            getString(R.string.instructions_prefix) + " " + instr,
+                            CommunityMaterial.Icon2.cmd_medical_bag));
                 }
             }
 
@@ -802,22 +924,20 @@ public class ConfirmActivity extends CalendulaActivity {
                 if (event == null || event.cancelled()) {
                     return;
                 }
+                if (!isVerifiedIntake(event)) {
+                    blockUnverifiedConfirmation();
+                    return;
+                }
                 final boolean taken = event.completed();
                 if (isDistant) {
                     showEnsureConfirmDialog(new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialogInterface, int i) {
-                            ScheduleUtils.instance().setIntakeCompleted(ConfirmActivity.this, event, !taken);
-                            stateChanged = true;
-                            onDailyAgendaItemCheck(check);
-                            notifyItemChanged(getAdapterPosition());
+                            confirmSelectedIntake(event, !taken, getAdapterPosition());
                         }
                     }, taken);
                 } else {
-                    ScheduleUtils.instance().setIntakeCompleted(ConfirmActivity.this, event, !taken);
-                    stateChanged = true;
-                    onDailyAgendaItemCheck(check);
-                    notifyItemChanged(getAdapterPosition());
+                    confirmSelectedIntake(event, !taken, getAdapterPosition());
                 }
             }
         }
