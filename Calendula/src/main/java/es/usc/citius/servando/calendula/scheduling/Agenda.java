@@ -85,8 +85,44 @@ public class Agenda {
         updateListeners.add(listener);
     }
 
+    /**
+     * Agenda generation can be replayed after a process crash, clock change or
+     * failed post-COMMIT platform scheduling. Generated medication occurrences
+     * have a stable (type, schedule ID, original time) identity: never insert a
+     * second row for an occurrence already recorded, particularly when it has
+     * already been marked taken or cancelled.
+     *
+     * Keep the legacy save behavior for explicitly persisted model updates
+     * and event types without medication schedule identity.
+     */
     public void addEvents(Collection<EventInstance> evts) {
-        DB.eventInstances().saveAll(evts);
+        if (evts == null || evts.isEmpty()) {
+            return;
+        }
+        try {
+            TransactionManager.callInTransaction(DB.helper().getConnectionSource(),
+                    (Callable<Void>) () -> {
+                        for (EventInstance event : evts) {
+                            if (event == null) {
+                                throw new SQLException("Cannot add a null agenda event");
+                            }
+                            if (event.getId() == null
+                                    && event.getType() == EventType.MEDICATION_INTAKE
+                                    && event.getRef() != null
+                                    && event.getTime() != null
+                                    && DB.eventInstances().exists(
+                                            event.getType(), event.getTime(), event.getRef())) {
+                                // Keep the existing dose snapshot, decision and
+                                // patient identity; only truly new slots are added.
+                                continue;
+                            }
+                            DB.eventInstances().save(event);
+                        }
+                        return null;
+                    });
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not atomically add agenda occurrences", e);
+        }
     }
 
     public boolean createReminders(final Context context, final Collection<EventInstance> intakes) {
