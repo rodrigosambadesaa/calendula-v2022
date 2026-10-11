@@ -169,6 +169,139 @@ public class AtomicMedicationDecisionSmokeTest {
     }
 
     @Test
+    public void staleReminderCannotCancelAnIntakeAfterPersistedPatientReassignment()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime time = DateTime.now().plusHours(21).withMillisOfSecond(0);
+        Patient originallyAssigned = new Patient();
+        originallyAssigned.setCode("ci-stale-reminder-a-" + System.nanoTime());
+        originallyAssigned.setName("Synthetic reminder patient A");
+        Patient currentOwner = new Patient();
+        currentOwner.setCode("ci-stale-reminder-b-" + System.nanoTime());
+        currentOwner.setName("Synthetic reminder patient B");
+        EventInstance event = new EventInstance(time, EventType.MEDICATION_INTAKE);
+        EventReminder stale = new EventReminder(time, EventType.MEDICATION_INTAKE);
+        stale.setNextTime(time);
+        try {
+            DB.patients().save(originallyAssigned);
+            DB.patients().save(currentOwner);
+            event.setPatient(originallyAssigned);
+            stale.setPatient(originallyAssigned);
+            DB.eventInstances().save(event);
+            DB.eventReminders().save(stale);
+            Agenda.instance().setAlarm(context, stale);
+            assertNotNull(token(context, stale));
+
+            // An independent update changed SQLite ownership, but the old
+            // notification still references the previous in-memory patient.
+            DB.helper().getWritableDatabase().execSQL(
+                    "UPDATE EventReminders SET Patient = ? WHERE _id = ?",
+                    new Object[]{currentOwner.getId(), stale.getId()});
+            org.junit.Assert.assertEquals(currentOwner.getId(),
+                    DB.eventReminders().findById(stale.getId()).getPatient().getId());
+
+            boolean rejected = false;
+            try {
+                Agenda.instance().removeReminder(context, stale);
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("Old patient context cannot cancel a reassigned reminder",
+                    rejected);
+
+            boolean delayRejected = false;
+            try {
+                Agenda.instance().delayReminder(context, stale, 60);
+            } catch (RuntimeException expected) {
+                delayRejected = true;
+            }
+            assertTrue("Old patient context cannot postpone B's alarm",
+                    delayRejected);
+            org.junit.Assert.assertEquals(time,
+                    DB.eventReminders().findById(stale.getId()).getNextTime());
+            EventInstance unchanged = DB.eventInstances().findById(event.getId());
+            assertFalse(unchanged.cancelled());
+            assertFalse(unchanged.completed());
+            assertNotNull("Rejected action must preserve the SQLite row",
+                    DB.eventReminders().findById(stale.getId()));
+            assertNotNull("Rejected action must preserve the platform alarm token",
+                    token(context, stale));
+        } finally {
+            if (stale.getId() != null) {
+                Agenda.instance().cancelAlarm(context, stale);
+                if (DB.eventReminders().findById(stale.getId()) != null) {
+                    DB.eventReminders().remove(stale);
+                }
+            }
+            if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
+                DB.eventInstances().remove(event);
+            }
+            if (originallyAssigned.getId() != null) DB.patients().remove(originallyAssigned);
+            if (currentOwner.getId() != null) DB.patients().remove(currentOwner);
+        }
+    }
+
+    @Test
+    public void staleReminderCannotRemoveAnIndependentlyDelayedAlarm() throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime originalTime = DateTime.now().plusHours(22).withMillisOfSecond(0);
+        DateTime newerTime = originalTime.plusMinutes(10);
+        EventInstance event = new EventInstance(originalTime, EventType.MEDICATION_INTAKE);
+        EventReminder snapshot = new EventReminder(originalTime, EventType.MEDICATION_INTAKE);
+        snapshot.setNextTime(originalTime);
+        // Copy the raw SQLite value from a separate synthetic row, preserving
+        // ORMLite's DateTime encoding rather than relying on a 0-row ORM update.
+        EventReminder donor = new EventReminder(originalTime.plusHours(1),
+                EventType.MEDICATION_INTAKE);
+        donor.setNextTime(newerTime);
+        try {
+            DB.eventInstances().save(event);
+            DB.eventReminders().save(snapshot);
+            Agenda.instance().setAlarm(context, snapshot);
+            assertNotNull(token(context, snapshot));
+
+            DB.eventReminders().save(donor);
+            assertNotNull(donor.getId());
+            DB.helper().getWritableDatabase().execSQL(
+                    "UPDATE EventReminders SET NextTime = "
+                            + "(SELECT NextTime FROM EventReminders WHERE _id = ?) "
+                            + "WHERE _id = ?",
+                    new Object[]{donor.getId(), snapshot.getId()});
+            org.junit.Assert.assertEquals(newerTime,
+                    DB.eventReminders().findById(snapshot.getId()).getNextTime());
+
+            boolean rejected = false;
+            try {
+                Agenda.instance().removeReminder(context, snapshot);
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("Stale cancellation cannot remove a later delay", rejected);
+            assertFalse(DB.eventInstances().findById(event.getId()).cancelled());
+            assertNotNull(DB.eventReminders().findById(snapshot.getId()));
+            org.junit.Assert.assertEquals(newerTime,
+                    DB.eventReminders().findById(snapshot.getId()).getNextTime());
+            assertNotNull("Rejected stale decision must not retire the Android token",
+                    token(context, snapshot));
+        } finally {
+            if (snapshot.getId() != null) {
+                Agenda.instance().cancelAlarm(context, snapshot);
+                if (DB.eventReminders().findById(snapshot.getId()) != null) {
+                    DB.eventReminders().remove(snapshot);
+                }
+            }
+            if (donor.getId() != null && DB.eventReminders().findById(donor.getId()) != null) {
+                DB.eventReminders().remove(donor);
+            }
+            if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
+                DB.eventInstances().remove(event);
+            }
+        }
+    }
+
+    @Test
     public void failedDeleteRollsBackConfirmedIntakeAndPreservesAlarm() throws Exception {
         exerciseFailedDecision(true, false);
     }
