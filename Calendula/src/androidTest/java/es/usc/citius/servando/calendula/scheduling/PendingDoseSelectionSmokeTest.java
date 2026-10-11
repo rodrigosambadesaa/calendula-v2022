@@ -162,6 +162,54 @@ public class PendingDoseSelectionSmokeTest {
     }
 
     @Test
+    public void blockingScheduleKeepsDecidedFutureHistory() {
+        assertTrue(DB.initialized);
+        DateTime base = DateTime.now().plusHours(9).withMillisOfSecond(0);
+        DateTime boundary = DateTime.now();
+        Long scheduleRef = -System.nanoTime();
+        EventInstance taken = new EventInstance(base, EventType.MEDICATION_INTAKE);
+        EventInstance cancelled = new EventInstance(
+                base.plusMinutes(1), EventType.MEDICATION_INTAKE);
+        EventInstance pending = new EventInstance(
+                base.plusMinutes(2), EventType.MEDICATION_INTAKE);
+        EventInstance pastPending = new EventInstance(
+                boundary.minusDays(1), EventType.MEDICATION_INTAKE);
+        EventInstance otherSchedule = new EventInstance(
+                base.plusMinutes(2), EventType.MEDICATION_INTAKE);
+        taken.setCompleted(true);
+        cancelled.setCancelled(true);
+        for (EventInstance event : new EventInstance[]{
+                taken, cancelled, pending, pastPending}) {
+            event.setRef(scheduleRef);
+        }
+        otherSchedule.setRef(scheduleRef - 1L);
+        EventInstance[] fixtures = {
+                taken, cancelled, pending, pastPending, otherSchedule
+        };
+        try {
+            for (EventInstance event : fixtures) {
+                DB.eventInstances().save(event);
+                assertNotNull(event.getId());
+            }
+            assertEquals("Blocking removes only pending future events for this schedule", 1,
+                    DB.eventInstances().removeByRefAndTime(scheduleRef, boundary));
+            assertTrue(DB.eventInstances().findById(pending.getId()) == null);
+            assertTrue(DB.eventInstances().findById(taken.getId()).completed());
+            assertTrue(DB.eventInstances().findById(cancelled.getId()).cancelled());
+            assertNotNull("Past pending events remain outside the requested cleanup window",
+                    DB.eventInstances().findById(pastPending.getId()));
+            assertNotNull("Another schedule must not be affected",
+                    DB.eventInstances().findById(otherSchedule.getId()));
+        } finally {
+            for (EventInstance event : fixtures) {
+                if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
+                    DB.eventInstances().remove(event);
+                }
+            }
+        }
+    }
+
+    @Test
     public void pendingMedicationItemsExcludeCompletedCancelledAndOtherPatients() {
         assertTrue(DB.initialized);
         DateTime time = DateTime.now().plusHours(14).withMillisOfSecond(0);
