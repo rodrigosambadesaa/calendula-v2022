@@ -508,31 +508,55 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
     }
 
 
-    public int removeOlderThan(EventType type, DateTime dateTime) {
+    /**
+     * Regenerating the agenda may prune obsolete unhandled occurrences.
+     * A taken/skipped medication event is a historical decision, even when
+     * its planned time lies outside the current agenda's display window.
+     * Never delete such records as an incidental daily refresh.
+     *
+     * This deliberately does not define an automatic history-retention period:
+     * privacy-controlled history removal is a separate explicit workflow.
+     */
+    private int pruneUnhandledByTime(
+            EventType type, DateTime boundary, boolean olderThan) {
         try {
-            DeleteBuilder<EventInstance, Long> qb = dao.deleteBuilder();
-            Where w = qb.where();
-            w.and( w.lt(EventInstance.COLUMN_DATE_TIME, dateTime),
-                   w.eq(EventInstance.COLUMN_EVENT_TYPE, type)
-            );
-            qb.setWhere(w);
-            return qb.delete();
+            return com.j256.ormlite.misc.TransactionManager.callInTransaction(
+                    dbHelper.getConnectionSource(), () -> {
+                        QueryBuilder<EventInstance, Long> query = dao.queryBuilder();
+                        Where<EventInstance, Long> where = query.where();
+                        if (olderThan) {
+                            where.and(where.eq(EventInstance.COLUMN_EVENT_TYPE, type),
+                                    where.lt(EventInstance.COLUMN_DATE_TIME, boundary));
+                        } else {
+                            where.and(where.eq(EventInstance.COLUMN_EVENT_TYPE, type),
+                                    where.gt(EventInstance.COLUMN_DATE_TIME, boundary));
+                        }
+                        query.setWhere(where);
+                        int removed = 0;
+                        for (EventInstance event : query.query()) {
+                            if (event.getId() == null) {
+                                throw new SQLException("Agenda event has no persisted ID");
+                            }
+                            if (event.completed() || event.cancelled()) {
+                                continue;
+                            }
+                            if (dao.deleteById(event.getId()) != 1) {
+                                throw new SQLException("Could not prune obsolete pending agenda event");
+                            }
+                            removed++;
+                        }
+                        return removed;
+                    });
         } catch (SQLException e) {
-            throw new RuntimeException("Error finding model", e);
+            throw new RuntimeException("Error pruning pending agenda occurrences", e);
         }
     }
 
+    public int removeOlderThan(EventType type, DateTime dateTime) {
+        return pruneUnhandledByTime(type, dateTime, true);
+    }
+
     public int removeBeyond(EventType type, DateTime dateTime) {
-        try {
-            DeleteBuilder<EventInstance, Long> qb = dao.deleteBuilder();
-            Where w = qb.where();
-            w.and( w.gt(EventInstance.COLUMN_DATE_TIME, dateTime),
-                    w.eq(EventInstance.COLUMN_EVENT_TYPE, type)
-            );
-            qb.setWhere(w);
-            return qb.delete();
-        } catch (SQLException e) {
-            throw new RuntimeException("Error finding model", e);
-        }
+        return pruneUnhandledByTime(type, dateTime, false);
     }
 }
