@@ -180,7 +180,7 @@ public class ScheduleListFragment extends Fragment {
             public boolean onClick(View v, IAdapter<ScheduleListItem> adapter, ScheduleListItem item, int position) {
                 Schedule s = item.getSchedule();
                 if (mScheduleSelectedCallback != null && s != null) {
-                    LogUtil.d(TAG, "Click at " + s.getMedicine().getName() + " schedule");
+                    LogUtil.d(TAG, "Schedule selected");
                     mScheduleSelectedCallback.onScheduleSelected(s);
                 } else {
                     LogUtil.d(TAG, "No callback set");
