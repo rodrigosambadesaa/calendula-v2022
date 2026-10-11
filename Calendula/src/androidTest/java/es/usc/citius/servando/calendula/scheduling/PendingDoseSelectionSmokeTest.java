@@ -210,6 +210,81 @@ public class PendingDoseSelectionSmokeTest {
     }
 
     @Test
+    public void dailyWindowPruningPreservesDecidedHistoryOnBothSides() {
+        assertTrue(DB.initialized);
+        // Deliberately remote from current real-world schedules. This test
+        // exercises the same prune DAO called during daily agenda refresh.
+        DateTime old = DateTime.now().minusYears(15).withMillisOfSecond(0);
+        DateTime cutoffOld = DateTime.now().minusYears(14);
+        DateTime farFuture = DateTime.now().plusYears(15).withMillisOfSecond(0);
+        DateTime cutoffFuture = DateTime.now().plusYears(14);
+        Long syntheticRef = -System.nanoTime();
+
+        EventInstance oldPending = new EventInstance(old, EventType.MEDICATION_INTAKE);
+        EventInstance oldTaken = new EventInstance(old, EventType.MEDICATION_INTAKE);
+        EventInstance oldCancelled = new EventInstance(old, EventType.MEDICATION_INTAKE);
+        EventInstance futurePending = new EventInstance(
+                farFuture, EventType.MEDICATION_INTAKE);
+        EventInstance futureTaken = new EventInstance(
+                farFuture, EventType.MEDICATION_INTAKE);
+        EventInstance futureCancelled = new EventInstance(
+                farFuture, EventType.MEDICATION_INTAKE);
+        DateTime recordedAt = DateTime.now().minusMinutes(20).withMillisOfSecond(0);
+
+        oldTaken.setCompleted(true);
+        oldTaken.setCompletedAt(recordedAt);
+        oldCancelled.setCancelled(true);
+        oldCancelled.setCompletedAt(recordedAt.plusMinutes(1));
+        futureTaken.setCompleted(true);
+        futureTaken.setCompletedAt(recordedAt.plusMinutes(2));
+        futureCancelled.setCancelled(true);
+        futureCancelled.setCompletedAt(recordedAt.plusMinutes(3));
+
+        EventInstance[] all = {
+                oldPending, oldTaken, oldCancelled,
+                futurePending, futureTaken, futureCancelled
+        };
+        for (int i = 0; i < all.length; i++) {
+            all[i].setRef(syntheticRef);
+            all[i].addParam(EventInstance.PARAM_DOSE, (double) (i + 1));
+        }
+        try {
+            for (EventInstance event : all) {
+                DB.eventInstances().save(event);
+                assertNotNull(event.getId());
+            }
+
+            assertEquals("Only obsolete unhandled old doses are pruned", 1,
+                    DB.eventInstances().removeOlderThan(
+                            EventType.MEDICATION_INTAKE, cutoffOld));
+            assertEquals("Only obsolete unhandled far-future doses are pruned", 1,
+                    DB.eventInstances().removeBeyond(
+                            EventType.MEDICATION_INTAKE, cutoffFuture));
+            assertTrue(DB.eventInstances().findById(oldPending.getId()) == null);
+            assertTrue(DB.eventInstances().findById(futurePending.getId()) == null);
+
+            for (EventInstance decided : new EventInstance[]{
+                    oldTaken, oldCancelled, futureTaken, futureCancelled}) {
+                EventInstance stored = DB.eventInstances().findById(decided.getId());
+                assertNotNull("A recorded decision survives either prune boundary", stored);
+                assertEquals(decided.completed(), stored.completed());
+                assertEquals(decided.cancelled(), stored.cancelled());
+                assertEquals(decided.completedAt(), stored.completedAt());
+                assertEquals("The original dose snapshot must survive agenda regeneration",
+                        decided.getDoubleParam(EventInstance.PARAM_DOSE),
+                        stored.getDoubleParam(EventInstance.PARAM_DOSE), 0.0001d);
+            }
+        } finally {
+            for (EventInstance event : all) {
+                if (event.getId() != null
+                        && DB.eventInstances().findById(event.getId()) != null) {
+                    DB.eventInstances().remove(event);
+                }
+            }
+        }
+    }
+
+    @Test
     public void pendingMedicationItemsExcludeCompletedCancelledAndOtherPatients() {
         assertTrue(DB.initialized);
         DateTime time = DateTime.now().plusHours(14).withMillisOfSecond(0);
