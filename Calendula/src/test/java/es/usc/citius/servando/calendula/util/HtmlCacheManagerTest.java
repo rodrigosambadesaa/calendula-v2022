@@ -69,7 +69,9 @@ public class HtmlCacheManagerTest {
         assertTrue(cache.put(url, "Original synthetic leaflet", Duration.standardMinutes(5)));
         assertEquals("Original synthetic leaflet", cache.get(url));
 
-        assertTrue(cache.put(url, "Updated synthetic leaflet", Duration.standardMinutes(5)));
+        boolean updated = cache.put(url, "Updated synthetic leaflet", Duration.standardMinutes(5));
+        assertTrue("Cache refresh must succeed; persisted value=" + cache.get(url),
+                updated);
         assertEquals("Updated synthetic leaflet", cache.get(url));
     }
 
