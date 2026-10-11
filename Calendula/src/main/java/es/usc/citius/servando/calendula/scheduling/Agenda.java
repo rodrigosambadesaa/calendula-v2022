@@ -43,6 +43,8 @@ import java.util.concurrent.Callable;
 
 import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.activities.IntakeNotificationMgr;
+import es.usc.citius.servando.calendula.activities.ConfirmIntakeGuard;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Schedule;
@@ -629,6 +631,28 @@ public class Agenda {
                                         || !patient.getId().equals(stored.getPatient().getId())
                                         || !reminder.getDateTime().equals(stored.getTime())) {
                                     throw new SQLException("Intake changed before reminder confirmation");
+                                }
+                                // Notification confirmation must use the same
+                                // verified prescription as the foreground UI.
+                                // With stock tracking disabled, StockUpdater
+                                // intentionally skips inventory; it cannot
+                                // substitute for validating the clinical dose.
+                                Schedule schedule = stored.getRef() == null ? null
+                                        : DB.schedules().findById(stored.getRef());
+                                if (schedule != null && schedule.getMedicine() != null
+                                        && (schedule.getMedicine().getId() == null
+                                        || DB.medicines().refresh(schedule.getMedicine()) != 1)) {
+                                    throw new SQLException("Reminder medicine is missing");
+                                }
+                                ActiveMedEntity official = schedule != null
+                                        && schedule.isBoundToActiveMed()
+                                        ? DB.healthcareProviderDB().activeMeds()
+                                                .findById(schedule.getActiveMedId())
+                                        : null;
+                                if (DB.patients().findById(patient.getId()) == null
+                                        || !ConfirmIntakeGuard.verified(stored, patient,
+                                                reminder.getDateTime(), schedule, official)) {
+                                    throw new SQLException("Reminder prescription is not verified");
                                 }
                                 stored.setCompleted(true);
                                 stored.setCompletedAt(completedAt);
