@@ -187,21 +187,49 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
         }
     }
 
-    public int removeDistinctTime(EventType type, Long ref, Collection<DateTime> timesToPreserve, DateTime from) {
+    /**
+     * A schedule revision may remove obsolete *pending* future occurrences,
+     * but must never erase an already completed/cancelled intake decision.
+     * Empty time filters are valid (a recurrence can have no remaining times).
+     */
+    public int removeDistinctTime(EventType type, Long ref,
+                                  Collection<DateTime> timesToPreserve, DateTime from) {
         try {
-            DeleteBuilder<EventInstance, Long> qb = dao.deleteBuilder();
-            Where w = qb.where();
-            w.and(w.eq(EventInstance.COLUMN_EVENT_TYPE, type),
-                    w.eq(EventInstance.COLUMN_REF, ref),
-                    w.notIn(EventInstance.COLUMN_DATE_TIME, timesToPreserve),
-                    w.gt(EventInstance.COLUMN_DATE_TIME,from)
-            );
-            qb.setWhere(w);
-            return qb.delete();
+            return com.j256.ormlite.misc.TransactionManager.callInTransaction(
+                    dbHelper.getConnectionSource(), () -> {
+                        QueryBuilder<EventInstance, Long> query = dao.queryBuilder();
+                        Where<EventInstance, Long> where = query.where();
+                        if (timesToPreserve == null || timesToPreserve.isEmpty()) {
+                            where.and(where.eq(EventInstance.COLUMN_EVENT_TYPE, type),
+                                    where.eq(EventInstance.COLUMN_REF, ref),
+                                    where.gt(EventInstance.COLUMN_DATE_TIME, from));
+                        } else {
+                            where.and(where.eq(EventInstance.COLUMN_EVENT_TYPE, type),
+                                    where.eq(EventInstance.COLUMN_REF, ref),
+                                    where.notIn(EventInstance.COLUMN_DATE_TIME, timesToPreserve),
+                                    where.gt(EventInstance.COLUMN_DATE_TIME, from));
+                        }
+                        query.setWhere(where);
+                        int removed = 0;
+                        for (EventInstance event : query.query()) {
+                            if (event.getId() == null) {
+                                throw new SQLException("Future schedule event has no persisted ID");
+                            }
+                            if (event.completed() || event.cancelled()) {
+                                // Preserve historical decisions, including
+                                // doses taken early or cancelled for tomorrow.
+                                continue;
+                            }
+                            if (dao.deleteById(event.getId()) != 1) {
+                                throw new SQLException("Expected one obsolete pending event to be removed");
+                            }
+                            removed++;
+                        }
+                        return removed;
+                    });
         } catch (SQLException e) {
-            throw new RuntimeException("Error finding event instances", e);
+            throw new RuntimeException("Error removing obsolete pending event instances", e);
         }
-
     }
 
     public int removeByRef(Long ref) {
