@@ -10,7 +10,7 @@ import android.view.View;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.TextView;
 
-import androidx.test.core.app.ApplicationProvider;
+import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import org.joda.time.DateTime;
@@ -35,7 +35,7 @@ public class DailyAgendaReviewWarningSmokeTest {
 
     @Test
     public void reviewBannerIsGenericAccessibleAndInitiallyHidden() {
-        Context context = ApplicationProvider.getApplicationContext();
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         View root = LayoutInflater.from(context).inflate(R.layout.fragment_daily_agenda, null);
         TextView warning = root.findViewById(R.id.agenda_medication_review_warning);
         assertNotNull(warning);
