@@ -87,6 +87,11 @@ public class MedicineDao extends GenericDao<Medicine, Long> {
     }
 
     public List<Medicine> findAllByGroup(Long patientId, String[] groups) {
+        // Avoid exposing unassigned records or building a malformed SQL IN ()
+        // when a patient has no selected homogeneous medication groups.
+        if (patientId == null || groups == null || groups.length == 0) {
+            return Collections.emptyList();
+        }
         try {
             return dao.queryBuilder()
                     .where().eq(Medicine.COLUMN_PATIENT, patientId).and().in(Medicine.COLUMN_HG, (Object[]) groups)

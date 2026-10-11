@@ -71,6 +71,10 @@ public class PatientScopedReadGuardTest {
         assertTrue(medicines.findAll((Patient) null).isEmpty());
         assertTrue(medicines.findAll(unsaved).isEmpty());
         assertTrue(medicines.findAll((Long) null).isEmpty());
+        assertTrue(medicines.findAllByGroup(null, new String[]{"synthetic-group"}).isEmpty());
+        assertTrue(medicines.findAllByGroup(null, null).isEmpty());
+        assertTrue(medicines.findAllByGroup(98765L, null).isEmpty());
+        assertTrue(medicines.findAllByGroup(98765L, new String[0]).isEmpty());
         assertTrue(routines.findAll((Patient) null).isEmpty());
         assertTrue(routines.findAll(unsaved).isEmpty());
         assertTrue(routines.findAll((Long) null).isEmpty());
