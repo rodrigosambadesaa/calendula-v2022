@@ -7,6 +7,7 @@ package es.usc.citius.servando.calendula.database;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import org.joda.time.DateTime;
 import org.joda.time.LocalTime;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -18,7 +19,12 @@ import es.usc.citius.servando.calendula.persistence.PatientAllergen;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.persistence.Routine;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
+import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
+import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
+import es.usc.citius.servando.calendula.scheduling.model.EventType;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -137,6 +143,142 @@ public class PatientDeletionScopeSmokeTest {
             }
         }
     }
+    @Test
+    public void deletingPatientErasesDecidedHistoryAndRemindersWithoutTouchingOtherOwner()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Patient deleted = new Patient();
+        deleted.setCode("ci-history-delete-A-" + System.nanoTime());
+        deleted.setName("Synthetic deleted patient");
+        Patient retained = new Patient();
+        retained.setCode("ci-history-delete-B-" + System.nanoTime());
+        retained.setName("Synthetic retained patient");
+        DateTime time = DateTime.now().plusHours(6).withMillisOfSecond(0);
+        EventInstance takenA = new EventInstance(time, EventType.MEDICATION_INTAKE);
+        EventInstance cancelledA = new EventInstance(time.plusMinutes(2),
+                EventType.MEDICATION_INTAKE);
+        EventInstance pendingB = new EventInstance(time, EventType.MEDICATION_INTAKE);
+        EventReminder reminderA = new EventReminder(time, EventType.MEDICATION_INTAKE);
+        EventReminder reminderB = new EventReminder(time, EventType.MEDICATION_INTAKE);
+        try {
+            assertEquals(1, DB.patients().create(deleted));
+            assertEquals(1, DB.patients().create(retained));
+            takenA.setPatient(deleted);
+            takenA.setRef(-90000011L);
+            takenA.addParam(EventInstance.PARAM_DOSE, 2.0d);
+            takenA.setCompleted(true);
+            takenA.setCompletedAt(DateTime.now().minusMinutes(5));
+            cancelledA.setPatient(deleted);
+            cancelledA.setRef(-90000012L);
+            cancelledA.addParam(EventInstance.PARAM_DOSE, 3.0d);
+            cancelledA.setCancelled(true);
+            pendingB.setPatient(retained);
+            pendingB.setRef(-90000013L);
+            pendingB.addParam(EventInstance.PARAM_DOSE, 1.0d);
+            for (EventInstance e : new EventInstance[]{takenA, cancelledA, pendingB}) {
+                assertEquals(1, DB.eventInstances().create(e));
+                assertNotNull(e.getId());
+            }
+            reminderA.setPatient(deleted);
+            reminderA.setNextTime(time);
+            reminderB.setPatient(retained);
+            reminderB.setNextTime(time);
+            assertEquals(1, DB.eventReminders().create(reminderA));
+            assertEquals(1, DB.eventReminders().create(reminderB));
+
+            DB.patients().removeCascade(deleted);
+            assertNull("Deleted patient must not remain", DB.patients().findById(deleted.getId()));
+            assertNull("Completed historical event must be erased",
+                    DB.eventInstances().findById(takenA.getId()));
+            assertNull("Cancelled historical event must be erased",
+                    DB.eventInstances().findById(cancelledA.getId()));
+            assertNull("Deleted patient's reminder must be revoked",
+                    DB.eventReminders().findById(reminderA.getId()));
+            assertNotNull("Unrelated patient must be preserved",
+                    DB.patients().findById(retained.getId()));
+            assertFalse("Other patient's pending intake must not be completed",
+                    DB.eventInstances().findById(pendingB.getId()).completed());
+            assertNotNull("Other patient's reminder must remain",
+                    DB.eventReminders().findById(reminderB.getId()));
+        } finally {
+            for (EventReminder reminder : new EventReminder[]{reminderA, reminderB}) {
+                if (reminder.getId() != null
+                        && DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().remove(reminder);
+                }
+            }
+            for (EventInstance event : new EventInstance[]{takenA, cancelledA, pendingB}) {
+                if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
+                    DB.eventInstances().remove(event);
+                }
+            }
+            for (Patient patient : new Patient[]{deleted, retained}) {
+                if (patient.getId() != null && DB.patients().findById(patient.getId()) != null) {
+                    DB.patients().remove(patient);
+                }
+            }
+        }
+    }
+
+    @Test
+    public void patientHistoryDeleteFailureRollsBackWithoutTouchingAnotherPatient()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Patient deleted = new Patient();
+        deleted.setCode("ci-history-rollback-A-" + System.nanoTime());
+        deleted.setName("Synthetic history rollback patient");
+        Patient retained = new Patient();
+        retained.setCode("ci-history-rollback-B-" + System.nanoTime());
+        retained.setName("Synthetic history retained patient");
+        DateTime time = DateTime.now().minusDays(2);
+        EventInstance first = new EventInstance(time, EventType.MEDICATION_INTAKE);
+        EventInstance second = new EventInstance(time.plusMinutes(1), EventType.MEDICATION_INTAKE);
+        EventInstance other = new EventInstance(time, EventType.MEDICATION_INTAKE);
+        android.database.sqlite.SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        final String trigger = "ci_test_patient_history_abort";
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            assertEquals(1, DB.patients().create(deleted));
+            assertEquals(1, DB.patients().create(retained));
+            first.setPatient(deleted);
+            second.setPatient(deleted);
+            other.setPatient(retained);
+            for (EventInstance e : new EventInstance[]{first, second, other}) {
+                assertEquals(1, DB.eventInstances().create(e));
+            }
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE DELETE ON EventInstances WHEN OLD._id = " + second.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic patient history failure'); END;");
+            boolean aborted = false;
+            try {
+                DB.eventInstances().removeAllForPatient(deleted);
+            } catch (RuntimeException expected) {
+                aborted = true;
+            }
+            assertTrue("Failure must reject patient-scoped history deletion", aborted);
+            assertNotNull("First historical event must survive rolled-back batch",
+                    DB.eventInstances().findById(first.getId()));
+            assertNotNull("Second historical event must survive rolled-back batch",
+                    DB.eventInstances().findById(second.getId()));
+            assertNotNull("Other patient's event must never be touched",
+                    DB.eventInstances().findById(other.getId()));
+            assertNotNull("Failed history deletion cannot remove patient record",
+                    DB.patients().findById(deleted.getId()));
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            for (EventInstance e : new EventInstance[]{first, second, other}) {
+                if (e.getId() != null && DB.eventInstances().findById(e.getId()) != null) {
+                    DB.eventInstances().remove(e);
+                }
+            }
+            for (Patient patient : new Patient[]{deleted, retained}) {
+                if (patient.getId() != null && DB.patients().findById(patient.getId()) != null) {
+                    DB.patients().remove(patient);
+                }
+            }
+        }
+    }
+
     /**
      * Opening or editing one patient's schedule must never prune another
      * patient's unnamed automatic routines. Verified on real Android SQLite.
