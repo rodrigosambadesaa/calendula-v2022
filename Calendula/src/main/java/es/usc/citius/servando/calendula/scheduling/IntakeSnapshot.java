@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
+import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 
 /**
@@ -59,9 +60,40 @@ public final class IntakeSnapshot {
             append(canonical, Long.toString(event.getTime().getMillis()));
             append(canonical, dose);
         }
+        return digest(canonical.toString());
+    }
+
+    /**
+     * Notification consent includes the exact reminder revision as well as
+     * the displayed medication. A delayed/replaced reminder invalidates its
+     * previous button even if every dose still has the same amount.
+     */
+    public static String fingerprint(List<EventInstance> visible, EventReminder reminder) {
+        if (reminder == null || reminder.getId() == null || reminder.getId() <= 0L
+                || reminder.getPatient() == null
+                || reminder.getPatient().getId() == null
+                || reminder.getEventType() != EventType.MEDICATION_INTAKE
+                || reminder.getDateTime() == null || reminder.getNextTime() == null) {
+            return null;
+        }
+        String doseFingerprint = fingerprint(visible);
+        if (doseFingerprint == null) {
+            return null;
+        }
+        StringBuilder combined = new StringBuilder("reminder-snapshot-v2:");
+        append(combined, Long.toString(reminder.getId()));
+        append(combined, Long.toString(reminder.getPatient().getId()));
+        append(combined, reminder.getEventType().name());
+        append(combined, Long.toString(reminder.getDateTime().getMillis()));
+        append(combined, Long.toString(reminder.getNextTime().getMillis()));
+        append(combined, doseFingerprint);
+        return digest(combined.toString());
+    }
+
+    private static String digest(String canonical) {
         try {
             byte[] hash = MessageDigest.getInstance("SHA-256").digest(
-                    canonical.toString().getBytes(StandardCharsets.UTF_8));
+                    canonical.getBytes(StandardCharsets.UTF_8));
             final char[] hex = "0123456789abcdef".toCharArray();
             char[] chars = new char[hash.length * 2];
             for (int i = 0; i < hash.length; i++) {
