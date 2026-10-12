@@ -44,6 +44,7 @@ import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMed
 import es.usc.citius.servando.calendula.scheduling.Agenda;
 import es.usc.citius.servando.calendula.scheduling.IntakeSnapshot;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
+import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime;
 import es.usc.citius.servando.calendula.util.stock.StockUpdater;
@@ -114,7 +115,7 @@ public class ScheduleUtils {
      *         number selected before commit.
      */
     public int checkIntakeEvents(Context ctx, Patient patient, DateTime dateTime) {
-        return checkIntakeEventsInternal(ctx, patient, dateTime, null, null);
+        return checkIntakeEventsInternal(ctx, patient, dateTime, null, null, null);
     }
 
     /**
@@ -123,11 +124,13 @@ public class ScheduleUtils {
      * without a complete snapshot are deliberately not actionable.
      */
     public int checkIntakeEventsWithSnapshot(Context ctx, Patient patient,
-                                             DateTime dateTime, String fingerprint) {
-        if (fingerprint == null || !fingerprint.matches("[0-9a-f]{64}")) {
-            throw new IllegalArgumentException("Notification intake snapshot is missing");
+                                             DateTime dateTime, Long reminderId,
+                                             String fingerprint) {
+        if (reminderId == null || reminderId <= 0L
+                || fingerprint == null || !fingerprint.matches("[0-9a-f]{64}")) {
+            throw new IllegalArgumentException("Notification reminder snapshot is missing");
         }
-        return checkIntakeEventsInternal(ctx, patient, dateTime, null, fingerprint);
+        return checkIntakeEventsInternal(ctx, patient, dateTime, null, fingerprint, reminderId);
     }
 
     /**
@@ -141,12 +144,13 @@ public class ScheduleUtils {
      */
     public int checkIntakeEvents(Context ctx, Patient patient, DateTime dateTime,
                                  List<EventInstance> expectedEvents) {
-        return checkIntakeEventsInternal(ctx, patient, dateTime, expectedEvents, null);
+        return checkIntakeEventsInternal(ctx, patient, dateTime, expectedEvents, null, null);
     }
 
     private int checkIntakeEventsInternal(Context ctx, Patient patient, DateTime dateTime,
                                           List<EventInstance> expectedEvents,
-                                          String notificationFingerprint) {
+                                          String notificationFingerprint,
+                                          Long notificationReminderId) {
         if (patient == null || patient.getId() == null
                 || patient.getId() <= 0L || dateTime == null) {
             return 0;
@@ -167,14 +171,24 @@ public class ScheduleUtils {
                                                 EventType.MEDICATION_INTAKE, dateTime, patient));
                             }
                             if (notificationFingerprint != null) {
-                                // Recompute from current pending SQLite rows INSIDE
-                                // the stock/event transaction. New, missing or
-                                // redosed medication invalidates the old action.
+                                // Reload the reminder revision inside the
+                                // same transaction: a delayed, removed or
+                                // reassigned reminder invalidates its old button.
+                                EventReminder reminder = DB.eventReminders()
+                                        .findById(notificationReminderId);
+                                if (reminder == null
+                                        || reminder.getPatient() == null
+                                        || !patient.getId().equals(reminder.getPatient().getId())
+                                        || reminder.getEventType() != EventType.MEDICATION_INTAKE
+                                        || !dateTime.equals(reminder.getDateTime())) {
+                                    throw new SQLException("Notification reminder identity changed");
+                                }
                                 String current = IntakeSnapshot.fingerprint(
                                         DB.eventInstances().findPending(
-                                                EventType.MEDICATION_INTAKE, dateTime, patient));
+                                                EventType.MEDICATION_INTAKE, dateTime, patient),
+                                        reminder);
                                 if (!notificationFingerprint.equals(current)) {
-                                    throw new SQLException("Displayed notification doses changed");
+                                    throw new SQLException("Displayed notification or reminder changed");
                                 }
                             }
                         }
