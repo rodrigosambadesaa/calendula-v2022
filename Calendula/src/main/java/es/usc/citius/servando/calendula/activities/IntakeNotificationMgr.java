@@ -142,6 +142,38 @@ public class IntakeNotificationMgr {
     }
 
     /**
+     * The exact text placed in the notification's expanded medication list.
+     * Rendering is refused for inactive, unassigned or wrong-patient doses.
+     * For imported official schedules, the caller must additionally verify
+     * the live external prescription with canRenderOfficialSource().
+     *
+     * Package-visible so instrumented tests can assert actual displayed lines
+     * without posting notifications or touching a signed-in user's session.
+     */
+    static CharSequence verifiedNotificationLine(Context context, EventInstance event,
+                                                 Schedule schedule, Patient patient) {
+        if (!canRenderMedication(event, schedule, patient)) {
+            return null;
+        }
+        Medicine medicine = schedule.getMedicine();
+        SpannableStringBuilder line = new SpannableStringBuilder();
+        if (schedule.hasState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL)) {
+            line.append(medicine.getName());
+            if (schedule.hasState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL)) {
+                line.append(context.getString(R.string.notification_msg_official_schedule_modified));
+            } else {
+                line.append(context.getString(R.string.notification_msg_official_schedule));
+            }
+        } else {
+            Double dose = doseForNotification(event, schedule);
+            line.append(medicine.getName());
+            line.append(":  " + dose + " "
+                    + medicine.getPresentation().units(context.getResources(), dose) + " ");
+        }
+        return line;
+    }
+
+    /**
      * A provider-bound schedule must reference the correct patient's live
      * treatment before a notification claims the prescription is official.
      * Legacy manually configured schedules remain displayable without one.
@@ -276,20 +308,10 @@ public class IntakeNotificationMgr {
                     return;
                 }
             }
-            Medicine medicine = schedule.getMedicine();
-            SpannableStringBuilder line = new SpannableStringBuilder();
-            if (schedule.hasState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL)) {
-                line.append(medicine.getName());
-                if (schedule.hasState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL)) {
-                    line.append(context.getString(R.string.notification_msg_official_schedule_modified));
-                } else {
-                    line.append(context.getString(R.string.notification_msg_official_schedule));
-                }
-            } else {
-                Double dose = doseForNotification(event, schedule);
-                line.append(medicine.getName());
-                line.append(":  " + dose + " "
-                        + medicine.getPresentation().units(context.getResources(), dose) + " ");
+            CharSequence line = verifiedNotificationLine(context, event, schedule, patient);
+            if (line == null) {
+                alertUnverifiedMedicationData(context, reminder);
+                return;
             }
             style.addLine(line);
         }
