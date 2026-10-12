@@ -105,6 +105,19 @@ public class ScheduleUtils {
             inserted = TransactionManager.callInTransaction(
                     DB.helper().getConnectionSource(),
                     (Callable<Collection<EventInstance>>) () -> {
+                        Patient owner = DB.patients().findById(schedule.getPatient().getId());
+                        Medicine medicine = DB.medicines().findById(schedule.getMedicine().getId());
+                        if (owner == null || medicine == null
+                                || DB.medicines().refresh(medicine) != 1
+                                || (medicine.getPatient() != null
+                                    && (medicine.getPatient().getId() == null
+                                        || !owner.getId().equals(medicine.getPatient().getId())))) {
+                            throw new SQLException("New prescription owner or medicine is no longer valid");
+                        }
+                        // Use authoritative records, never a stale picker
+                        // object, when creating the new prescription row.
+                        schedule.setPatient(owner);
+                        schedule.setMedicine(medicine);
                         if (DB.schedules().create(schedule) != 1 || schedule.getId() == null) {
                             throw new SQLException("Could not persist new prescription");
                         }
