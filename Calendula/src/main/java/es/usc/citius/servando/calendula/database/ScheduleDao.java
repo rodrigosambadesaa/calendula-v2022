@@ -101,16 +101,35 @@ public class ScheduleDao extends GenericDao<Schedule, Long> {
         }
     }
 
-    public List<Schedule> findByMedicineAndState(Medicine m, Schedule.ScheduleState s) {
+    /**
+     * Alerts must never read blocked schedules using a stale medicine owner.
+     * Resolve the current persisted medicine before a patient-scoped query;
+     * a reassigned/deleted medicine must not disclose either patient's plan.
+     */
+    public List<Schedule> findByMedicineAndState(Medicine medicine, Schedule.ScheduleState state) {
+        if (medicine == null || medicine.getId() == null || medicine.getId() <= 0L
+                || medicine.getPatient() == null
+                || medicine.getPatient().getId() == null || state == null) {
+            return Collections.emptyList();
+        }
+        // Snapshot the expected owner BEFORE refresh: ORMLite can return the
+        // very same cached instance, and refresh may mutate its patient field.
+        final Long expectedOwnerId = medicine.getPatient().getId();
+        Medicine stored = DB.medicines().findById(medicine.getId());
+        if (stored == null || DB.medicines().refresh(stored) != 1
+                || stored.getPatient() == null
+                || !expectedOwnerId.equals(stored.getPatient().getId())) {
+            return Collections.emptyList();
+        }
         try {
             PreparedQuery<Schedule> preparedQuery = dao.queryBuilder().where()
-                    .eq(Schedule.COLUMN_MEDICINE, m)
-                    .and().eq(Schedule.COLUMN_PATIENT, m.getPatient())
-                    .and().raw(Schedule.COLUMN_STATE + " LIKE '%" + s.value() + "%'")
+                    .eq(Schedule.COLUMN_MEDICINE, stored)
+                    .and().eq(Schedule.COLUMN_PATIENT, stored.getPatient())
+                    .and().raw(Schedule.COLUMN_STATE + " LIKE '%" + state.value() + "%'")
                     .prepare();
             return dao.query(preparedQuery);
         } catch (SQLException e) {
-            LogUtil.e(TAG, "findByMedicineAndState: ", e);
+            LogUtil.e(TAG, "findByMedicineAndState failed");
             throw new RuntimeException("Error finding schedules", e);
         }
     }
