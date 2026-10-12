@@ -18,6 +18,10 @@ import org.junit.runner.RunWith;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
+import java.lang.reflect.Field;
+
+import es.usc.citius.servando.calendula.scheduling.model.EventReminderReceiver;
 
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
@@ -286,6 +290,115 @@ public class PublicReminderPostCommitSmokeTest {
             assertFalse("Same alarm delivery must not repeat at the same time again",
                     Agenda.instance().rescheduleAutoRepeatIfCurrent(x.context, x.reminder, next));
         } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void automaticRepeatIsPersistedBeforeNotificationReceiverSeesReminder()
+            throws Exception {
+        assertTrue(DB.initialized);
+        RepeatFixture x = new RepeatFixture();
+        Field receiversField = Agenda.class.getDeclaredField("receivers");
+        receiversField.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<EventType, EventReminderReceiver> receivers =
+                (Map<EventType, EventReminderReceiver>) receiversField.get(Agenda.instance());
+        EventReminderReceiver original = receivers.get(EventType.MEDICATION_INTAKE);
+        final DateTime[] atDelivery = {null};
+        try {
+            // Emulate the pending alarm reaching its scheduled firing time,
+            // with a future medication occurrence still within the window.
+            x.reminder.setNextTime(DateTime.now().minusMinutes(1));
+            DB.eventReminders().save(x.reminder);
+            assertEquals(x.reminder.getNextTime(), x.persistedTime());
+            DateTime earlier = x.persistedTime();
+
+            Agenda.instance().registerReminderReceiver(
+                    EventType.MEDICATION_INTAKE, new EventReminderReceiver() {
+                        @Override
+                        public boolean autoRepeat() {
+                            return true;
+                        }
+
+                        @Override
+                        public void onEvent(Context context, EventReminder shown) {
+                            atDelivery[0] = shown.getNextTime();
+                            assertEquals("Notification consent must hash the already-committed"
+                                            + " automatic repeat revision",
+                                    DB.eventReminders().findById(shown.getId()).getNextTime(),
+                                    shown.getNextTime());
+                        }
+                    });
+
+            Agenda.instance().onReceiveAlarm(x.context, x.reminder.getId());
+            assertNotNull("Pending medication must still reach its notification receiver",
+                    atDelivery[0]);
+            assertTrue("Automatic repeat must be persisted before display",
+                    atDelivery[0].isAfter(earlier));
+            assertEquals(atDelivery[0], x.persistedTime());
+        } finally {
+            if (original == null) {
+                receivers.remove(EventType.MEDICATION_INTAKE);
+            } else {
+                receivers.put(EventType.MEDICATION_INTAKE, original);
+            }
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void failedRepeatWriteStillDeliversOriginalPendingNotification()
+            throws Exception {
+        assertTrue(DB.initialized);
+        RepeatFixture x = new RepeatFixture();
+        Field receiversField = Agenda.class.getDeclaredField("receivers");
+        receiversField.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<EventType, EventReminderReceiver> receivers =
+                (Map<EventType, EventReminderReceiver>) receiversField.get(Agenda.instance());
+        EventReminderReceiver original = receivers.get(EventType.MEDICATION_INTAKE);
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        final String trigger = "ci_test_repeat_delivery_sql_abort";
+        final int[] observed = {0};
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            x.reminder.setNextTime(DateTime.now().minusMinutes(1));
+            DB.eventReminders().save(x.reminder);
+            DateTime due = x.persistedTime();
+            assertEquals(x.reminder.getNextTime(), due);
+            Agenda.instance().registerReminderReceiver(
+                    EventType.MEDICATION_INTAKE, new EventReminderReceiver() {
+                        @Override
+                        public boolean autoRepeat() {
+                            return true;
+                        }
+
+                        @Override
+                        public void onEvent(Context context, EventReminder shown) {
+                            observed[0]++;
+                            assertEquals("A failed repetition must preserve the old consent revision",
+                                    due, shown.getNextTime());
+                            assertEquals(due, DB.eventReminders()
+                                    .findById(shown.getId()).getNextTime());
+                        }
+                    });
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE UPDATE ON EventReminders WHEN OLD._id = "
+                    + x.reminder.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic repeat write failure'); END;");
+            Agenda.instance().onReceiveAlarm(x.context, x.reminder.getId());
+            assertEquals("The due medication alert must survive a repeat SQL failure",
+                    1, observed[0]);
+            assertEquals("The unsuccessful future reminder must not be persisted",
+                    due, x.persistedTime());
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            if (original == null) {
+                receivers.remove(EventType.MEDICATION_INTAKE);
+            } else {
+                receivers.put(EventType.MEDICATION_INTAKE, original);
+            }
             x.cleanup();
         }
     }

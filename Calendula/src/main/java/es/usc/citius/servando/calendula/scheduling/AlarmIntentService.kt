@@ -88,7 +88,8 @@ class AlarmIntentService : JobIntentService() {
             IntentParams.ACTION_ALARM_CANCEL -> {
                 // Tell agenda to cancel the reminder
                 val reminderId = intent.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1)
-                if (Agenda.instance().cancelReminder(this, reminderId)) {
+                val snapshot = intent.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT)
+                if (Agenda.instance().cancelReminderWithSnapshot(this, reminderId, snapshot)) {
                     LogUtil.d(TAG, "Medication reminder cancelled after persisted change")
                     showToast(getString(R.string.reminder_cancelled_message))
                 } else {
@@ -98,7 +99,8 @@ class AlarmIntentService : JobIntentService() {
             IntentParams.ACTION_ALARM_DELAY -> {
                 // Tell agenda to delay the reminder
                 val reminderId = intent.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1)
-                if (Agenda.instance().delayReminder(this, reminderId)) {
+                val snapshot = intent.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT)
+                if (Agenda.instance().delayReminderWithSnapshot(this, reminderId, snapshot)) {
                     showToast(getString(R.string.alarm_delayed_notification_message))
                 } else {
                     LogUtil.w(TAG, "Ignoring delay for missing or inactive reminder")
