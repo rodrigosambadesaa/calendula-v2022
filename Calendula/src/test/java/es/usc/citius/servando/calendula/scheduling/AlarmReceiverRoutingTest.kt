@@ -104,20 +104,39 @@ class AlarmReceiverRoutingTest {
     }
 
     @Test
-    fun unrelatedAlarmWorkCannotCarryForwardMedicationConsent() {
+    fun cancellationAndSnoozeRequireTheSameValidatedConsentAsConfirmation() {
         val context = RuntimeEnvironment.getApplication()
         for (action in listOf(IntentParams.ACTION_ALARM_DELAY,
-                IntentParams.ACTION_ALARM_CANCEL, IntentParams.ACTION_ALARM_REMINDER)) {
+                IntentParams.ACTION_ALARM_CANCEL)) {
             val incoming = Intent(context, AlarmReceiver::class.java).apply {
                 putExtra(IntentParams.EXTRA_ACTION, action)
                 putExtra(IntentParams.EXTRA_REMINDER_ID, 123L)
-                putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, "a".repeat(64))
             }
+            assertNull("Old clinical actions cannot affect newly revised medication",
+                AlarmReceiver.validatedServiceIntent(context, incoming))
+            incoming.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, "invalid")
+            assertNull(AlarmReceiver.validatedServiceIntent(context, incoming))
+            incoming.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, "a".repeat(64))
+            incoming.putExtra(IntentParams.EXTRA_PATIENT_ID, 456L)
             val work = AlarmReceiver.validatedServiceIntent(context, incoming)
             assertNotNull(work)
             assertEquals(action, work!!.getStringExtra(IntentParams.EXTRA_ACTION))
-            assertFalse(work.hasExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT))
+            assertEquals("a".repeat(64),
+                work.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT))
+            assertFalse(work.hasExtra(IntentParams.EXTRA_PATIENT_ID))
         }
+    }
+
+    @Test
+    fun ordinaryReminderAndMidnightStillDoNotNeedClinicalConsent() {
+        val context = RuntimeEnvironment.getApplication()
+        val incoming = Intent(context, AlarmReceiver::class.java).apply {
+            putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_REMINDER)
+            putExtra(IntentParams.EXTRA_REMINDER_ID, 123L)
+        }
+        val work = AlarmReceiver.validatedServiceIntent(context, incoming)
+        assertNotNull(work)
+        assertFalse(work!!.hasExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT))
         val daily = Intent(context, AlarmReceiver::class.java).apply {
             putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_DAILY_UPDATE)
         }
