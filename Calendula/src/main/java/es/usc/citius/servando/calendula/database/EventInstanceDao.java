@@ -612,7 +612,17 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
         }
     }
 
+    /**
+     * Global removal of medication intakes is never a valid agenda cleanup:
+     * it would erase taken/cancelled history for every patient, bypassing the
+     * explicit owner-scoped patient erasure path. Other event types retain
+     * their legacy cleanup behavior.
+     */
     public void removeAll(EventType type) {
+        if (type == null || type == EventType.MEDICATION_INTAKE) {
+            throw new IllegalArgumentException(
+                    "Medication intake history cannot be deleted globally");
+        }
         try {
             DeleteBuilder<EventInstance, Long> qb = dao.deleteBuilder();
             qb.setWhere(qb.where().eq(EventInstance.COLUMN_EVENT_TYPE, type));
