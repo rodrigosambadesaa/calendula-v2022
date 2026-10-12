@@ -923,6 +923,7 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
         final Schedule existingSchedule = editingSchedule;
 
         SCHEDULE_SAVE_EXECUTOR.execute(() -> {
+            final boolean saved = runSaveAction(() -> {
             if (editMode) {
                 if (existingSchedule.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE)) {
                     existingSchedule.removeState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE);
@@ -955,15 +956,39 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
                 DB.schedules().save(schedule);
                 ScheduleUtils.instance().createEventInstances(ScheduleBuildActivity.this, schedule);
             }
-
+            });
             runOnUiThread(() -> {
                 if (dialog.isShowing()) {
                     dialog.dismiss();
                 }
-                finish();
-                DB.schedules().fireEvent();
+                if (saved) {
+                    finish();
+                    DB.schedules().fireEvent();
+                } else if (!isFinishing() && !isDestroyed()) {
+                    // Stay on the existing editor; a failed transaction is not
+                    // a successful prescription change. Do not expose medical
+                    // details or exception messages in the UI.
+                    Toast.makeText(this, R.string.schedule_build_save_failed,
+                            Toast.LENGTH_LONG).show();
+                }
             });
         });
+    }
+
+    /**
+     * A failed background write must not strand a progress dialog or close
+     * the editor as if the medication schedule had been saved. Avoid putting
+     * patient or prescription information from SQLite exception strings in
+     * Logcat. The caller reports the failure on the main thread.
+     */
+    static boolean runSaveAction(Runnable save) {
+        try {
+            save.run();
+            return true;
+        } catch (RuntimeException failure) {
+            LogUtil.e(TAG, "Could not complete schedule save");
+            return false;
+        }
     }
 
     @Override
