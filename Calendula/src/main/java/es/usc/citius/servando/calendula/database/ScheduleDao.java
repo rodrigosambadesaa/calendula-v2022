@@ -79,8 +79,36 @@ public class ScheduleDao extends GenericDao<Schedule, Long> {
         }
     }
 
+    /**
+     * This lookup feeds medication deletion and HIGH-priority alert blocking.
+     * Do not enumerate (and potentially remove/block) another patient's
+     * schedule just because a corrupted legacy row shares a medicine ID.
+     * An inconsistent row must abort destructive caller transactions.
+     */
     public List<Schedule> findByMedicine(Medicine m) {
-        return findBy(Schedule.COLUMN_MEDICINE, m.getId());
+        if (m == null || m.getId() == null || m.getId() <= 0L) {
+            return Collections.emptyList();
+        }
+        final Long suppliedOwner = m.getPatient() == null
+                ? null : m.getPatient().getId();
+        Medicine persisted = DB.medicines().findById(m.getId());
+        if (persisted == null || DB.medicines().refresh(persisted) != 1
+                || persisted.getPatient() == null
+                || persisted.getPatient().getId() == null
+                || persisted.getPatient().getId() <= 0L
+                || (suppliedOwner != null
+                    && !suppliedOwner.equals(persisted.getPatient().getId()))) {
+            throw new IllegalStateException("Cannot query schedules for stale medicine owner");
+        }
+        final Long ownerId = persisted.getPatient().getId();
+        final List<Schedule> schedules = findBy(Schedule.COLUMN_MEDICINE, persisted.getId());
+        for (Schedule schedule : schedules) {
+            if (schedule.getPatient() == null
+                    || !ownerId.equals(schedule.getPatient().getId())) {
+                throw new IllegalStateException("Medicine schedule belongs to another patient");
+            }
+        }
+        return schedules;
     }
 
     @Override
