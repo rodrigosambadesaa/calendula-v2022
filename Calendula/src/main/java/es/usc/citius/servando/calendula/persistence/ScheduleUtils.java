@@ -295,8 +295,18 @@ public class ScheduleUtils {
         }
     }
 
-    public void delayIntake(Context ctx, Patient patient, DateTime dateTime, int delay) {
-        Agenda.instance().onDelayReminder(ctx, EventType.MEDICATION_INTAKE, dateTime, patient, delay * 60);
+    /**
+     * Interactive intake delay succeeds only after the matching reminder is
+     * committed. Reject nonpositive or extremely large legacy UI values
+     * before multiplying minutes into seconds.
+     */
+    public boolean delayIntake(Context ctx, Patient patient, DateTime dateTime, int delay) {
+        if (patient == null || patient.getId() == null
+                || dateTime == null || delay <= 0 || delay > 24 * 60) {
+            return false;
+        }
+        return Agenda.instance().onDelayReminder(
+                ctx, EventType.MEDICATION_INTAKE, dateTime, patient, delay * 60);
     }
 
     /** A committed event/stock pair used exclusively after SQL success. */

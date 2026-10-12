@@ -234,8 +234,24 @@ public class ConfirmActivity extends CalendulaActivity {
         builder.setTitle(R.string.notification_delay)
                 .setItems(R.array.delays_array, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int which) {
+                        if (which < 0 || which >= values.length || !hasVerifiedBatch()) {
+                            blockUnverifiedConfirmation();
+                            return;
+                        }
                         int minutes = values[which];
-                        delayIntake(minutes);
+                        try {
+                            if (!delayIntake(minutes)) {
+                                // No matching pending reminder, a stale
+                                // selection or a failed post-commit alarm.
+                                // Never claim to have postponed medication.
+                                blockUnverifiedConfirmation();
+                                return;
+                            }
+                        } catch (RuntimeException persistenceFailure) {
+                            LogUtil.w(TAG, "Medication reminder delay was not completed");
+                            blockUnverifiedConfirmation();
+                            return;
+                        }
                         String msg = ConfirmActivity.this.getString(R.string.alarm_delayed_message, String.valueOf(minutes));
                         Toast.makeText(ConfirmActivity.this, msg, Toast.LENGTH_SHORT).show();
                         supportFinishAfterTransition();
@@ -490,8 +506,9 @@ public class ConfirmActivity extends CalendulaActivity {
         super.onDestroy();
     }
 
-    private void delayIntake(int minutes) {
-        ScheduleUtils.instance().delayIntake(ConfirmActivity.this, patient, dateTime, minutes);
+    private boolean delayIntake(int minutes) {
+        return ScheduleUtils.instance().delayIntake(
+                ConfirmActivity.this, patient, dateTime, minutes);
     }
 
     private void animateAllChecked() {
