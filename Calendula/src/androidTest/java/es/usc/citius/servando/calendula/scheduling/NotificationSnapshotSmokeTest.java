@@ -154,6 +154,55 @@ public class NotificationSnapshotSmokeTest {
     }
 
     @Test
+    public void excessiveUtf8DoseBundleCannotAuthorizeNotification() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture(false);
+        try {
+            List<EventInstance> visible = x.visible(1);
+            String original = IntakeSnapshot.fingerprint(visible, x.reminder);
+            assertNotNull(original);
+            // 129 two-byte UTF-8 letters exceed the 256-byte limit even
+            // though the Java String length is below 256 characters.
+            StringBuilder invalid = new StringBuilder();
+            for (int i = 0; i < 129; i++) {
+                invalid.append('\u00e9');
+            }
+            x.intakes[0].getParams().putString(
+                    EventInstance.PARAM_DOSE, invalid.toString());
+            assertNull("Oversized UTF-8 dose must reject the event fingerprint",
+                    IntakeSnapshot.fingerprint(visible));
+            assertNull("Oversized UTF-8 dose must reject the action fingerprint",
+                    IntakeSnapshot.fingerprint(visible, x.reminder));
+            x.intakes[0].getParams().putString(EventInstance.PARAM_DOSE, "2.0");
+            assertEquals("Restored canonical dose recovers its original digest",
+                    original, IntakeSnapshot.fingerprint(visible, x.reminder));
+            x.assertUnchanged(1);
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void excessiveIntakeCountCannotAuthorizePartialBatch() {
+        DateTime time = DateTime.now().plusHours(1);
+        Patient patient = new Patient();
+        patient.setId(900009900L);
+        List<EventInstance> oversized = new ArrayList<>();
+        for (int i = 0; i < 257; i++) {
+            EventInstance event = new EventInstance(time, EventType.MEDICATION_INTAKE);
+            event.setId(900010000L + i);
+            event.setRef(900020000L + i);
+            event.setPatient(patient);
+            event.addParam(EventInstance.PARAM_DOSE, 1.0d);
+            oversized.add(event);
+        }
+        assertNull("257 different patient intake rows cannot generate an action digest",
+                IntakeSnapshot.fingerprint(oversized));
+        assertNotNull("Within-bound events remain fingerprintable",
+                IntakeSnapshot.fingerprint(new ArrayList<>(oversized.subList(0, 256))));
+    }
+
+    @Test
     public void wrongTypedDoseBundleCannotProduceAnActionableNotificationFingerprint()
             throws Exception {
         assertTrue(DB.initialized);

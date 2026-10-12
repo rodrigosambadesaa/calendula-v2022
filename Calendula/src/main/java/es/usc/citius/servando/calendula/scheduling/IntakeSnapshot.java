@@ -29,11 +29,18 @@ import es.usc.citius.servando.calendula.scheduling.model.EventType;
  * the SQLite write transaction.
  */
 public final class IntakeSnapshot {
+    // Bound potentially corrupted imported/legacy Bundle content before
+    // canonicalization. Exceeding either bound makes the action review-only,
+    // never an incomplete subset of authorized intakes.
+    private static final int MAX_VISIBLE_INTAKES = 256;
+    private static final int MAX_DOSE_BYTES = 256;
+
     private IntakeSnapshot() { }
 
     /** Returns null for incomplete or duplicate persisted event identities. */
     public static String fingerprint(List<EventInstance> visible) {
-        if (visible == null || visible.isEmpty()) {
+        if (visible == null || visible.isEmpty()
+                || visible.size() > MAX_VISIBLE_INTAKES) {
             return null;
         }
         List<EventInstance> sorted = new ArrayList<>(visible);
@@ -63,6 +70,10 @@ public final class IntakeSnapshot {
                     return null;
                 }
                 dose = (String) rawDose;
+                if (dose != null
+                        && dose.getBytes(StandardCharsets.UTF_8).length > MAX_DOSE_BYTES) {
+                    return null;
+                }
             } catch (RuntimeException malformed) {
                 return null;
             }
