@@ -507,13 +507,32 @@ public class ScheduleUtils {
         }
     }
 
+    /**
+     * Never delete pending occurrences while leaving their schedule behind if
+     * SQLite rejects the schedule deletion. Retain completed/cancelled event
+     * history via EventInstanceDao.removeByRef's selective retention policy.
+     * Android alarm cleanup runs only AFTER the SQLite unit of work commits.
+     */
     public void removeSchedule(Context c, Schedule s, boolean fireEvent) {
-        // remove schedule events and reminders
-        removeScheduleEvents(c, s, false);
-        // remove the schedule
-        DB.schedules().remove(s);
-        // remove unlinked auto-created routines
-        removeUnlinkedAutoRoutines(s.getPatient(), false);
+        if (s == null || s.getId() == null || s.getId() <= 0L) {
+            throw new IllegalArgumentException("A persisted schedule is required");
+        }
+        Schedule removed = (Schedule) DB.transaction(() -> {
+            Schedule persisted = DB.schedules().findById(s.getId());
+            if (persisted == null) {
+                throw new SQLException("Schedule is no longer present");
+            }
+            if (!samePatientIdentity(s.getPatient(), persisted.getPatient())) {
+                throw new SQLException("Schedule ownership changed before deletion");
+            }
+            DB.eventInstances().removeByRef(persisted.getId());
+            if (DB.schedules().delete(persisted) != 1) {
+                throw new SQLException("Could not remove selected schedule");
+            }
+            return persisted;
+        });
+        Agenda.instance().cleanReminders(c);
+        removeUnlinkedAutoRoutines(removed.getPatient(), false);
         if (fireEvent) {
             DB.schedules().fireEvent();
         }
