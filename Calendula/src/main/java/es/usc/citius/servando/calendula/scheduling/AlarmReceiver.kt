@@ -63,29 +63,29 @@ class AlarmReceiver : BroadcastReceiver() {
         fun validatedServiceIntent(context: Context, incoming: Intent?): Intent? {
             if (incoming == null) return null
             return try {
-            val action = incoming.getStringExtra(IntentParams.EXTRA_ACTION)
-            val reminderId = incoming.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1L)
-            if (!isValidAlarmDispatch(action, reminderId)) return null
+                val action = incoming.getStringExtra(IntentParams.EXTRA_ACTION)
+                val reminderId = incoming.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1L)
+                if (!isValidAlarmDispatch(action, reminderId)) return null
 
-            val snapshot = if (action == IntentParams.ACTION_ALARM_CONFIRM) {
-                incoming.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT)
-            } else {
-                null
-            }
-            if (action == IntentParams.ACTION_ALARM_CONFIRM &&
-                (snapshot == null || snapshot.length != 64 ||
-                    !snapshot.all { it in '0'..'9' || it in 'a'..'f' })
-            ) {
-                return null
-            }
-
-            return Intent(context, AlarmIntentService::class.java).apply {
-                putExtra(IntentParams.EXTRA_ACTION, action)
-                putExtra(IntentParams.EXTRA_REMINDER_ID, reminderId)
-                if (snapshot != null) {
-                    putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, snapshot)
+                val snapshot = if (action == IntentParams.ACTION_ALARM_CONFIRM) {
+                    incoming.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT)
+                } else {
+                    null
                 }
-            }
+                if (action == IntentParams.ACTION_ALARM_CONFIRM &&
+                    (snapshot == null || snapshot.length != 64 ||
+                        !snapshot.all { it in '0'..'9' || it in 'a'..'f' })
+                ) {
+                    return null
+                }
+
+                Intent(context, AlarmIntentService::class.java).apply {
+                    putExtra(IntentParams.EXTRA_ACTION, action)
+                    putExtra(IntentParams.EXTRA_REMINDER_ID, reminderId)
+                    if (snapshot != null) {
+                        putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, snapshot)
+                    }
+                }
             } catch (malformed: RuntimeException) {
                 // Legacy PendingIntents can contain a wrong-typed Bundle
                 // field. Never crash or enqueue medication work for them.
