@@ -128,12 +128,18 @@ public class ScheduleUtils {
         } catch (SQLException failure) {
             throw new IllegalStateException("Could not atomically regenerate schedule occurrences", failure);
         }
-        // Never publish reminders for rolled-back event rows. The DB can be
-        // retried/reconciled on the next agenda refresh if OS scheduling fails.
-        if (!Agenda.instance().createReminders(ctx, toAdd)) {
+        // The occurrence transaction already committed. Keep the UI aware of
+        // the new SQLite state even if post-commit OS reminder reconciliation
+        // fails: a scheduling exception cannot roll these edits back.
+        boolean remindersOk;
+        try {
+            remindersOk = Agenda.instance().createReminders(ctx, toAdd);
+        } finally {
+            DB.eventInstances().fireEvent();
+        }
+        if (!remindersOk) {
             throw new IllegalStateException("Could not reconcile reminders after schedule update");
         }
-        DB.eventInstances().fireEvent();
     }
 
     /** A cancelled or already completed dose is never a pending intake. */
