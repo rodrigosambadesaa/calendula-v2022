@@ -152,6 +152,8 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
     private EditMode editMode = EditMode.CREATE;
     private ActiveMedVO activeMed;
     private Patient routineCleanupOwner;
+    // A numeric snapshot is immutable even if a stale Patient object is later mutated.
+    private Long patientIdAtEditorOpen;
 
     private boolean differsFromPrescription = false;
 
@@ -400,6 +402,8 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
         // Opening one patient's schedule editor must not prune another
         // patient's unnamed routines.
         routineCleanupOwner = DB.patients().getActive(this);
+        patientIdAtEditorOpen = routineCleanupOwner == null ? null
+                : routineCleanupOwner.getId();
         ScheduleUtils.instance().removeUnlinkedAutoRoutines(
                 routineCleanupOwner, true);
 
@@ -924,13 +928,20 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
         final Schedule existingSchedule = editingSchedule;
         // Immutable editor ownership is captured on the UI thread, not
         // looked up afresh after an arbitrarily long executor queue delay.
-        final Patient openedPatient = routineCleanupOwner;
+        final Long openedPatientId = patientIdAtEditorOpen;
 
         SCHEDULE_SAVE_EXECUTOR.execute(() -> {
             final boolean saved = runSaveAction(() -> {
+                // Build a fresh identity from the ID captured in onCreate.
+                // No mutable model or newly selected account can change it.
+                Patient openedPatient = null;
+                if (openedPatientId != null) {
+                    openedPatient = new Patient();
+                    openedPatient.setId(openedPatientId);
+                }
                 Patient active = DB.patients().getActive(ScheduleBuildActivity.this);
-                Patient owner = openedPatient == null || openedPatient.getId() == null
-                        ? null : DB.patients().findById(openedPatient.getId());
+                Patient owner = openedPatientId == null
+                        ? null : DB.patients().findById(openedPatientId);
                 Medicine selected = scheduleToSave.getMedicine();
                 Medicine medicine = selected == null || selected.getId() == null
                         ? null : DB.medicines().findById(selected.getId());
