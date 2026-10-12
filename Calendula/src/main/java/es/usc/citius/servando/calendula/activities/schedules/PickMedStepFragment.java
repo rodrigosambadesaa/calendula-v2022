@@ -42,6 +42,7 @@ import com.stepstone.stepper.VerificationError;
 
 import java.sql.SQLException;
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 
 import butterknife.BindView;
@@ -130,19 +131,24 @@ public class PickMedStepFragment extends ScheduleBuildStepFragment implements St
     }
 
     private void populateAdapter() {
-        mMedicines = DB.medicines().findAllForActivePatient(getContext());
-        if (fastAdapter.getAdapterItemCount() != mMedicines.size() + 1) {
-            Collections.sort(mMedicines);
+        // Return value may be an immutable empty list when the editor's
+        // patient disappeared or the active profile changed.
+        mMedicines = new ArrayList<>(buildActivity.medicinesForOpenedPatient());
+        // Two profiles can have exactly the same number of medications.
+        // Refresh by owner/content every time; a count-only check would leave
+        // a previous patient's medicine names visible after a switch.
+        Collections.sort(mMedicines);
+        if (buildActivity.isOpenedPatientStillActive()) {
             Medicine dummy = new Medicine();
             dummy.setName(getString(R.string.schedule_build_med_create_new));
             dummy.setId(-1L);
             mMedicines.add(dummy);
-            fastAdapter.clear();
-            for (Medicine m : mMedicines) {
-                fastAdapter.add(new MedicineItem(m));
-            }
-            fastAdapter.notifyAdapterDataSetChanged();
         }
+        fastAdapter.clear();
+        for (Medicine m : mMedicines) {
+            fastAdapter.add(new MedicineItem(m));
+        }
+        fastAdapter.notifyAdapterDataSetChanged();
     }
 
     private void onAddNewMedicine() {
