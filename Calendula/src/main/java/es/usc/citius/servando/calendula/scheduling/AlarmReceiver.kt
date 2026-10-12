@@ -79,6 +79,14 @@ class AlarmReceiver : BroadcastReceiver() {
         val serviceIntent = Intent(context, AlarmIntentService::class.java)
         serviceIntent.putExtra(IntentParams.EXTRA_ACTION, action)
         serviceIntent.putExtra(IntentParams.EXTRA_REMINDER_ID, reminderId)
+        if (action == IntentParams.ACTION_ALARM_CONFIRM) {
+            // Preserve only the opaque consent snapshot; never forward
+            // patient names, medication names or dose details.
+            serviceIntent.putExtra(
+                IntentParams.EXTRA_INTAKE_SNAPSHOT,
+                intent.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT)
+            )
+        }
         AlarmIntentService.enqueueWork(context, serviceIntent)
     }
 
