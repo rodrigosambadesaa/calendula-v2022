@@ -157,16 +157,36 @@ public class ConfirmActivity extends CalendulaActivity {
     /*
      * Returns the intake margin interval
      */
+    /**
+     * An old or corrupted preference must not crash confirmation (including
+     * entry from a lock-screen notification). Do not let an out-of-range
+     * value authorize confirming an intake arbitrarily far from its time.
+     */
+    static int safeCheckMarginHours(String stored) {
+        if (stored == null) {
+            return DEFAULT_CHECK_MARGIN;
+        }
+        try {
+            int hours = Integer.parseInt(stored.trim());
+            return hours >= 0 && hours <= 24 ? hours : DEFAULT_CHECK_MARGIN;
+        } catch (NumberFormatException malformed) {
+            return DEFAULT_CHECK_MARGIN;
+        }
+    }
+
     public Pair<DateTime, DateTime> getCheckMarginInterval(DateTime intakeTime) {
-
-        String checkMarginStr = PreferenceUtils.getString(PreferenceKeys.CONFIRM_CHECK_WINDOW_MARGIN, String.valueOf(DEFAULT_CHECK_MARGIN));
-
-        int checkMargin = Integer.parseInt(checkMarginStr);
-
-        DateTime start = intakeTime.minusMinutes(30);
-        DateTime end = intakeTime.plusHours(checkMargin);
-        return new Pair<>(start, end);
-
+        final String stored;
+        try {
+            stored = PreferenceUtils.getString(PreferenceKeys.CONFIRM_CHECK_WINDOW_MARGIN,
+                    String.valueOf(DEFAULT_CHECK_MARGIN));
+        } catch (ClassCastException wrongType) {
+            // SharedPreferences can contain a non-String from older builds.
+            return new Pair<>(intakeTime.minusMinutes(30),
+                    intakeTime.plusHours(DEFAULT_CHECK_MARGIN));
+        }
+        int marginHours = safeCheckMarginHours(stored);
+        return new Pair<>(intakeTime.minusMinutes(30),
+                intakeTime.plusHours(marginHours));
     }
 
     @Override
