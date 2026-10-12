@@ -24,6 +24,13 @@ public final class ScheduleSaveOwnerGuard {
                 && expected.getId().equals(candidate.getId());
     }
 
+    public static boolean canShowEditorMedicationList(Long openedId,
+                                                       Patient active, Patient persisted) {
+        return openedId != null && openedId > 0L
+                && active != null && openedId.equals(active.getId())
+                && persisted != null && openedId.equals(persisted.getId());
+    }
+
     public static boolean canSaveForOpenedPatient(Patient opened, Patient active,
                                                   Patient persisted, Medicine medicine) {
         if (!samePersistedPatient(opened, active)
