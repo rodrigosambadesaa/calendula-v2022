@@ -184,9 +184,29 @@ public class NotificationSnapshotSmokeTest {
         try {
             String shown = IntakeSnapshot.fingerprint(x.visible(2), x.reminder);
             assertNotNull(shown);
-            x.reminder.setNextTime(x.when.plusMinutes(12));
-            assertEquals(1, DB.eventReminders().update(x.reminder));
-            assertEquals(x.when.plusMinutes(12),
+            // Persist an independently updated reminder revision in real
+            // SQLite. Legacy ORMLite whole-object update can return 0 for
+            // this fixture; copy the provider's serialized DateTime value
+            // from a donor row rather than guessing the column's format.
+            EventReminder donor = new EventReminder(x.when, EventType.MEDICATION_INTAKE);
+            donor.setPatient(x.patient);
+            donor.setNextTime(x.when.plusMinutes(12));
+            try {
+                DB.eventReminders().save(donor);
+                assertNotNull(donor.getId());
+                DB.helper().getWritableDatabase().execSQL(
+                        "UPDATE EventReminders SET NextTime = "
+                                + "(SELECT NextTime FROM EventReminders WHERE _id = ?) "
+                                + "WHERE _id = ?",
+                        new Object[]{donor.getId(), x.reminder.getId()});
+            } finally {
+                if (donor.getId() != null
+                        && DB.eventReminders().findById(donor.getId()) != null) {
+                    DB.eventReminders().remove(donor);
+                }
+            }
+            assertEquals("The independent delay must really reach SQLite",
+                    x.when.plusMinutes(12),
                     DB.eventReminders().findById(x.reminder.getId()).getNextTime());
 
             try {
