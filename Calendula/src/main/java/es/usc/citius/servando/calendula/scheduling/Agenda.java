@@ -921,8 +921,17 @@ public class Agenda {
     }
 
     private boolean needsToBeUpdated(LocalDate today) {
-        return shouldRefreshAgenda(today,
-                PreferenceUtils.getString(PreferenceKeys.AGENDA_LAST_UPDATED, null));
+        try {
+            return shouldRefreshAgenda(today,
+                    PreferenceUtils.getString(PreferenceKeys.AGENDA_LAST_UPDATED, null));
+        } catch (ClassCastException wrongType) {
+            // Restored/legacy SharedPreferences can contain a Boolean/number
+            // under what is now a date String key. A corrupt completion
+            // marker must not crash startup or suppress daily dose recovery.
+            // Do not log the saved value or any medication data.
+            LogUtil.w(TAG, "Daily agenda completion marker has an invalid type");
+            return true;
+        }
     }
 
     /**
