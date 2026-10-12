@@ -50,6 +50,7 @@ import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.scheduling.AlarmIntentService;
 import es.usc.citius.servando.calendula.scheduling.AlarmReceiver;
+import es.usc.citius.servando.calendula.scheduling.IntakeSnapshot;
 import es.usc.citius.servando.calendula.scheduling.ReminderTiming;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
@@ -263,9 +264,18 @@ public class IntakeNotificationMgr {
             intents = new Pair<>(delay, cancel);
         }
 
+        // Bind the one-tap action to exactly the persisted dose set visible
+        // above. Only a SHA-256 digest travels through PendingIntent; the
+        // transaction later checks current SQLite before changing stock.
+        final String visibleSnapshot = IntakeSnapshot.fingerprint(events);
+        if (visibleSnapshot == null) {
+            alertUnverifiedMedicationData(context, reminder);
+            return;
+        }
         final Intent confirmAll = new Intent(context, AlarmReceiver.class);
         confirmAll.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_CONFIRM);
         confirmAll.putExtra(IntentParams.EXTRA_REMINDER_ID, reminder.getId());
+        confirmAll.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, visibleSnapshot);
 
         NotificationOptions options = new NotificationOptions();
         options.style = style;
