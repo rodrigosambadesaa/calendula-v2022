@@ -970,11 +970,19 @@ public class Agenda {
      * old in-memory EventReminder, nor overwrite an independently delayed dose.
      */
     boolean isCurrentPendingReminder(EventReminder reminder) {
-        if (reminder == null || reminder.getId() == null || reminder.getNextTime() == null) {
+        if (reminder == null || reminder.getId() == null || reminder.getId() <= 0L
+                || reminder.getNextTime() == null || reminder.getDateTime() == null
+                || reminder.getEventType() == null) {
             return false;
         }
         EventReminder persisted = DB.eventReminders().findById(reminder.getId());
         return persisted != null
+                // An old object must not be treated as current after the SQL
+                // row is reassigned to another patient, event or intake time,
+                // even when the ID and next alarm time happen to be identical.
+                && reminder.getEventType() == persisted.getEventType()
+                && reminder.getDateTime().equals(persisted.getDateTime())
+                && samePersistedReminderPatient(reminder.getPatient(), persisted.getPatient())
                 && reminder.getNextTime().equals(persisted.getNextTime())
                 && DB.eventInstances().existsPending(
                         persisted.getEventType(), persisted.getDateTime(),
