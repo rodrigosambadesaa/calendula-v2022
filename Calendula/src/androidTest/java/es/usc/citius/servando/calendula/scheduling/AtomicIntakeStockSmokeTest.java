@@ -102,6 +102,51 @@ public class AtomicIntakeStockSmokeTest {
     }
 
     @Test
+    public void scheduleDeletionRejectsCrossPatientLegacyEventReference() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture fixture = new Fixture();
+        Patient other = new Patient();
+        other.setCode("ci-foreign-schedule-event-" + System.nanoTime());
+        other.setName("Synthetic foreign schedule event patient");
+        EventInstance crossOwned = new EventInstance(
+                fixture.when.plusMinutes(3), EventType.MEDICATION_INTAKE);
+        try {
+            assertEquals(1, DB.patients().create(other));
+            crossOwned.setPatient(other);
+            // A damaged import can point at a different patient's schedule.
+            crossOwned.setRef(fixture.schedule.getId());
+            crossOwned.addParam(EventInstance.PARAM_DOSE, 1.0d);
+            assertEquals(1, DB.eventInstances().create(crossOwned));
+            boolean rejected = false;
+            try {
+                ScheduleUtils.instance().removeSchedule(
+                        fixture.context, fixture.schedule, false);
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("Foreign-owned event must abort entire schedule deletion", rejected);
+            assertNotNull("Original patient's schedule remains",
+                    DB.schedules().findById(fixture.schedule.getId()));
+            assertNotNull("Original pending dose must survive SQLite rollback",
+                    DB.eventInstances().findById(fixture.event.getId()));
+            assertNotNull("Foreign patient's dose may never be deleted",
+                    DB.eventInstances().findById(crossOwned.getId()));
+            assertEquals(other.getId(),
+                    DB.eventInstances().findById(crossOwned.getId())
+                            .getPatient().getId());
+        } finally {
+            if (crossOwned.getId() != null
+                    && DB.eventInstances().findById(crossOwned.getId()) != null) {
+                DB.eventInstances().remove(crossOwned);
+            }
+            fixture.cleanup();
+            if (other.getId() != null && DB.patients().findById(other.getId()) != null) {
+                DB.patients().remove(other);
+            }
+        }
+    }
+
+    @Test
     public void failedScheduleDeletionRollsBackPendingOccurrenceCleanup() throws Exception {
         assertTrue(DB.initialized);
         Fixture x = new Fixture();
