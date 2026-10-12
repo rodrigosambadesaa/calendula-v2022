@@ -57,6 +57,30 @@ public class NotificationReceiverDispatchSmokeTest {
     }
 
     @Test
+    public void cancellationAndDelayOnlyQueueRecordedDoseSnapshot() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        String shown = digest('a');
+        for (String action : Arrays.asList(
+                IntentParams.ACTION_ALARM_CANCEL, IntentParams.ACTION_ALARM_DELAY)) {
+            Intent clicked = new Intent(context, AlarmReceiver.class);
+            clicked.putExtra(IntentParams.EXTRA_ACTION, action);
+            clicked.putExtra(IntentParams.EXTRA_REMINDER_ID, 731002L);
+            assertNull("Legacy clinical actions are not actionable",
+                    AlarmReceiver.validatedServiceIntent(context, clicked));
+            clicked.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, "invalid");
+            assertNull(AlarmReceiver.validatedServiceIntent(context, clicked));
+            clicked.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, shown);
+            clicked.putExtra(IntentParams.EXTRA_PATIENT_ID, 731003L);
+            Intent work = AlarmReceiver.validatedServiceIntent(context, clicked);
+            assertNotNull(work);
+            assertEquals(action, work.getStringExtra(IntentParams.EXTRA_ACTION));
+            assertEquals(shown,
+                    work.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT));
+            assertFalse(work.hasExtra(IntentParams.EXTRA_PATIENT_ID));
+        }
+    }
+
+    @Test
     public void oldOrMalformedNotificationCannotQueueAConfirmation() {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         Intent clicked = new Intent(context, AlarmReceiver.class);
