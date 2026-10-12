@@ -53,8 +53,16 @@ public final class IntakeSnapshot {
         for (EventInstance event : sorted) {
             final String dose;
             try {
-                dose = event.getParams() == null ? null
-                        : event.getParams().getString(EventInstance.PARAM_DOSE);
+                Object rawDose = event.getParams() == null ? null
+                        : event.getParams().get(EventInstance.PARAM_DOSE);
+                // Bundle.getString() can silently return null when an old
+                // parcel contains a numeric or otherwise wrong-typed dose.
+                // Null has meaning for some official prescriptions; do not
+                // confuse that valid absence with corrupted stored metadata.
+                if (rawDose != null && !(rawDose instanceof String)) {
+                    return null;
+                }
+                dose = (String) rawDose;
             } catch (RuntimeException malformed) {
                 return null;
             }
