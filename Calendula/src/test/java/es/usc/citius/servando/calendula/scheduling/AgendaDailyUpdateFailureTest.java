@@ -37,6 +37,7 @@ import static org.junit.Assert.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -64,6 +65,39 @@ public class AgendaDailyUpdateFailureTest {
 
             assertFalse("A failed inner transaction must not be treated as success",
                     Agenda.instance().createReminders(context, Collections.emptyList()));
+        }
+    }
+
+    @Test
+    public void wrongTypedSavedDayStillAttemptsRecoveryAndCannotClaimSuccess()
+            throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        DatabaseHelper helper = mock(DatabaseHelper.class);
+        ConnectionSource source = mock(ConnectionSource.class);
+        when(helper.getConnectionSource()).thenReturn(source);
+
+        try (MockedStatic<DB> db = mockStatic(DB.class);
+             MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class);
+             MockedStatic<TransactionManager> transactions =
+                     mockStatic(TransactionManager.class)) {
+            db.when(DB::helper).thenReturn(helper);
+            prefs.when(() -> PreferenceUtils.getString(
+                    PreferenceKeys.AGENDA_LAST_UPDATED, null))
+                    .thenThrow(new ClassCastException("synthetic boolean preference"));
+            transactions.when(() -> TransactionManager.callInTransaction(
+                    org.mockito.ArgumentMatchers.eq(source),
+                    org.mockito.ArgumentMatchers.<Callable<Object>>any()))
+                    .thenThrow(new SQLException("synthetic database unavailable"));
+
+            // A corrupt saved type is not proof that today's agenda completed.
+            // The app must attempt the rebuild and leave its marker unchanged
+            // if rebuilding fails.
+            Agenda.instance().onDailyUpdate(context);
+
+            transactions.verify(() -> TransactionManager.callInTransaction(
+                    org.mockito.ArgumentMatchers.eq(source),
+                    org.mockito.ArgumentMatchers.<Callable<Object>>any()), times(1));
+            prefs.verify(PreferenceUtils::edit, never());
         }
     }
 
