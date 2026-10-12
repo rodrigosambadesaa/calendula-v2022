@@ -553,6 +553,29 @@ public class Agenda {
         logReminders();
     }
 
+    /**
+     * Explicit patient erasure must revoke that patient's persisted reminders
+     * and OS tokens even if their schedules have already been deleted. Unlike
+     * general agenda cleanup, this must never touch a different patient's
+     * reminder at the same time.
+     */
+    public void removeRemindersForPatient(Context context, Patient patient) {
+        if (patient == null || patient.getId() == null || patient.getId() <= 0L) {
+            throw new IllegalArgumentException("A persisted patient is required to erase reminders");
+        }
+        for (EventReminder reminder : DB.eventReminders().findAll()) {
+            if (reminder == null || reminder.getPatient() == null
+                    || !patient.getId().equals(reminder.getPatient().getId())) {
+                continue;
+            }
+            // Delete and verify persisted SQLite state before revoking the
+            // platform token. A later retry is safe if a previous run stopped.
+            deletePersistedReminderForAlarmCleanup(reminder);
+            cancelAlarm(context, reminder);
+            IntakeNotificationMgr.cancel(context, reminder);
+        }
+    }
+
     public void deleteAllReminders(Context context) {
         List<EventReminder> eventReminders = DB.eventReminders().findAll();
         for (EventReminder r : eventReminders) {
