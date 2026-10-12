@@ -309,7 +309,7 @@ public class NotificationSnapshotSmokeTest {
             // Leave the displayed event ID, dose, schedule ID and patient
             // untouched. Only its schedule's medicine pointer changes.
             DB.helper().getWritableDatabase().execSQL(
-                    "UPDATE Schedules SET Medicine = ? WHERE _id = ?",
+                    "UPDATE NewSchedules SET Medicine = ? WHERE _id = ?",
                     new Object[]{replacement.getId(), x.schedules[1].getId()});
             assertEquals(replacement.getId(), DB.schedules()
                     .findById(x.schedules[1].getId()).getMedicine().getId());
