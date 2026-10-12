@@ -293,6 +293,50 @@ public class NotificationSnapshotSmokeTest {
     }
 
     @Test
+    public void replacedMedicineOnUnchangedScheduleCannotBeConfirmedFromStaleAction()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture(true);
+        Medicine replacement = new Medicine("Synthetic replacement medicine", Presentation.PILLS);
+        try {
+            String shown = IntakeSnapshot.fingerprint(x.visible(2), x.reminder);
+            assertNotNull(shown);
+
+            replacement.setPatient(x.patient);
+            replacement.setStock(INITIAL_STOCK);
+            assertEquals(1, DB.medicines().create(replacement));
+            assertNotNull(replacement.getId());
+            // Leave the displayed event ID, dose, schedule ID and patient
+            // untouched. Only its schedule's medicine pointer changes.
+            DB.helper().getWritableDatabase().execSQL(
+                    "UPDATE NewSchedules SET Medicine = ? WHERE _id = ?",
+                    new Object[]{replacement.getId(), x.schedules[1].getId()});
+            assertEquals(replacement.getId(), DB.schedules()
+                    .findById(x.schedules[1].getId()).getMedicine().getId());
+            assertFalse("Medicine substitution must invalidate the notification",
+                    shown.equals(IntakeSnapshot.fingerprint(x.visible(2), x.reminder)));
+
+            try {
+                ScheduleUtils.instance().checkIntakeEventsWithSnapshot(
+                        x.context, x.patient, x.when, x.reminder.getId(), shown);
+                fail("An old button may not acknowledge a substituted medicine");
+            } catch (RuntimeException expected) {
+                // Entire SQLite batch must roll back on stale consent.
+            }
+            x.assertUnchanged(2);
+            assertEquals(INITIAL_STOCK, DB.medicines()
+                    .findById(replacement.getId()).getStock(), 0.001f);
+            assertNotNull(DB.eventReminders().findById(x.reminder.getId()));
+        } finally {
+            x.cleanup();
+            if (replacement.getId() != null
+                    && DB.medicines().findById(replacement.getId()) != null) {
+                DB.medicines().remove(replacement);
+            }
+        }
+    }
+
+    @Test
     public void revisedDoseAfterPostingCannotBeConfirmedFromStaleAction()
             throws Exception {
         assertTrue(DB.initialized);
