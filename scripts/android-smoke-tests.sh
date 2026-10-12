@@ -10,6 +10,7 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.database.PatientD
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.RoutineEditorOwnershipSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.fragments.DailyAgendaReviewWarningSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.fragments.OfficialTreatmentPatientIsolationSmokeTest"
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.OfficialNotificationSourceSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.ConfirmIntakePatientIsolationSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.scheduling.NotificationSnapshotSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.scheduling.NotificationReceiverDispatchSmokeTest"
