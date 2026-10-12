@@ -920,10 +920,9 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
      */
     boolean isOpenedPatientStillActive() {
         Long openedId = patientIdAtEditorOpen;
-        return openedId != null && openedId > 0L
-                && ScheduleSaveOwnerGuard.samePersistedPatient(
-                        DB.patients().findById(openedId),
-                        DB.patients().getActive(this));
+        return openedId != null && ScheduleSaveOwnerGuard.canShowEditorMedicationList(
+                openedId, DB.patients().getActive(this),
+                DB.patients().findById(openedId));
     }
 
     List<Medicine> medicinesForOpenedPatient() {
