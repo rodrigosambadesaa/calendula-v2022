@@ -337,6 +337,73 @@ public class NotificationSnapshotSmokeTest {
     }
 
     @Test
+    public void staleCancelButtonCannotCancelNewlyAddedMedication()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture(false);
+        try {
+            String shown = IntakeSnapshot.fingerprint(x.visible(1), x.reminder);
+            assertNotNull(shown);
+            x.createDose(1);
+
+            assertFalse("A notification must not cancel a dose never displayed",
+                    Agenda.instance().cancelReminderWithSnapshot(
+                            x.context, x.reminder.getId(), shown));
+            x.assertUnchanged(2);
+            assertFalse(DB.eventInstances().findById(x.intakes[0].getId()).cancelled());
+            assertFalse(DB.eventInstances().findById(x.intakes[1].getId()).cancelled());
+            assertNotNull(DB.eventReminders().findById(x.reminder.getId()));
+
+            String refreshed = IntakeSnapshot.fingerprint(
+                    DB.eventInstances().findPending(
+                            EventType.MEDICATION_INTAKE, x.when, x.patient),
+                    x.reminder);
+            assertTrue("A fresh user decision may cancel the current group",
+                    Agenda.instance().cancelReminderWithSnapshot(
+                            x.context, x.reminder.getId(), refreshed));
+            for (int i = 0; i < 2; i++) {
+                assertTrue(DB.eventInstances().findById(x.intakes[i].getId()).cancelled());
+                assertEquals(INITIAL_STOCK,
+                        DB.medicines().findById(x.medicines[i].getId()).getStock(), 0.001f);
+            }
+            assertNull(DB.eventReminders().findById(x.reminder.getId()));
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void staleDelayButtonCannotPostponeRevisedMedication()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture(true);
+        try {
+            String shown = IntakeSnapshot.fingerprint(x.visible(2), x.reminder);
+            assertNotNull(shown);
+            x.intakes[1].addParam(EventInstance.PARAM_DOSE, "3.0");
+            assertEquals(1, DB.eventInstances().updateParams(
+                    EventType.MEDICATION_INTAKE, x.when, x.schedules[1].getId(),
+                    x.intakes[1].getParams()));
+
+            assertFalse("Stale snooze must not reschedule a changed dose",
+                    Agenda.instance().delayReminderWithSnapshot(
+                            x.context, x.reminder.getId(), shown, 180));
+            assertEquals("Rejected snooze must leave the persisted alarm time unchanged",
+                    x.when, DB.eventReminders().findById(x.reminder.getId()).getNextTime());
+            x.assertUnchanged(2);
+            assertNotNull(DB.eventReminders().findById(x.reminder.getId()));
+
+            assertFalse("A legacy action without user-visible consent is not actionable",
+                    Agenda.instance().delayReminderWithSnapshot(
+                            x.context, x.reminder.getId(), null, 180));
+            assertEquals(x.when,
+                    DB.eventReminders().findById(x.reminder.getId()).getNextTime());
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
     public void revisedDoseAfterPostingCannotBeConfirmedFromStaleAction()
             throws Exception {
         assertTrue(DB.initialized);
