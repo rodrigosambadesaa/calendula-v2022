@@ -137,9 +137,14 @@ public class PatientDao extends GenericDao<Patient, Long> {
 
 
     public void removeCascade(Patient p) {
-        // remove all data
+        // Removing a schedule retains decided intake history by design.
+        // Explicit deletion of a patient must not: scrub their remaining
+        // completed/cancelled event snapshots and alarm tokens before removing
+        // their identity. The patient is retained if either cleanup fails.
         removeAllStuff(p);
-        // remove patient
+        DB.eventInstances().removeAllForPatient(p);
+        es.usc.citius.servando.calendula.scheduling.Agenda.instance()
+                .removeRemindersForPatient(CalendulaApp.getContext(), p);
         DB.patients().remove(p);
 
     }
