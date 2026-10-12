@@ -162,6 +162,106 @@ public class PendingDoseSelectionSmokeTest {
     }
 
     @Test
+    public void deletingScheduleOccurrencesPreservesRecordedDecisions() {
+        assertTrue(DB.initialized);
+        Long ref = -System.nanoTime();
+        DateTime date = DateTime.now().minusDays(3).withMillisOfSecond(0);
+        DateTime decisionTime = date.plusHours(1);
+        EventInstance taken = new EventInstance(date, EventType.MEDICATION_INTAKE);
+        taken.setRef(ref);
+        taken.addParam(EventInstance.PARAM_DOSE, 1.5d);
+        taken.setCompleted(true);
+        taken.setCompletedAt(decisionTime);
+        EventInstance cancelled = new EventInstance(date.plusMinutes(10),
+                EventType.MEDICATION_INTAKE);
+        cancelled.setRef(ref);
+        cancelled.addParam(EventInstance.PARAM_DOSE, 2.5d);
+        cancelled.setCancelled(true);
+        cancelled.setCompletedAt(decisionTime.plusMinutes(1));
+        EventInstance pending = new EventInstance(date.plusMinutes(20),
+                EventType.MEDICATION_INTAKE);
+        pending.setRef(ref);
+        EventInstance otherSchedule = new EventInstance(date.plusMinutes(30),
+                EventType.MEDICATION_INTAKE);
+        otherSchedule.setRef(ref - 1L);
+        EventInstance[] records = {taken, cancelled, pending, otherSchedule};
+        try {
+            for (EventInstance record : records) {
+                DB.eventInstances().save(record);
+                assertNotNull(record.getId());
+            }
+            assertEquals("Only unhandled occurrences of the removed schedule are deleted",
+                    1, DB.eventInstances().removeByRef(ref));
+            assertTrue(DB.eventInstances().findById(pending.getId()) == null);
+            assertNotNull("Unrelated schedule remains untouched",
+                    DB.eventInstances().findById(otherSchedule.getId()));
+            EventInstance keptTaken = DB.eventInstances().findById(taken.getId());
+            EventInstance keptCancelled = DB.eventInstances().findById(cancelled.getId());
+            assertNotNull("Previously taken dose must survive deletion", keptTaken);
+            assertNotNull("Previously cancelled dose must survive deletion", keptCancelled);
+            assertTrue(keptTaken.completed());
+            assertTrue(keptCancelled.cancelled());
+            assertEquals(decisionTime, keptTaken.completedAt());
+            assertEquals(decisionTime.plusMinutes(1), keptCancelled.completedAt());
+            assertEquals(1.5d, keptTaken.getDoubleParam(EventInstance.PARAM_DOSE), 0.0001d);
+            assertEquals(2.5d, keptCancelled.getDoubleParam(EventInstance.PARAM_DOSE), 0.0001d);
+            assertEquals("Repeating the cleanup is idempotent", 0,
+                    DB.eventInstances().removeByRef(ref));
+        } finally {
+            for (EventInstance record : records) {
+                if (record.getId() != null
+                        && DB.eventInstances().findById(record.getId()) != null) {
+                    DB.eventInstances().remove(record);
+                }
+            }
+        }
+    }
+
+    @Test
+    public void scheduleDeletionSqlFailureRollsBackAllPendingRemovals() {
+        assertTrue(DB.initialized);
+        Long ref = -System.nanoTime();
+        DateTime date = DateTime.now().minusDays(4).withMillisOfSecond(0);
+        EventInstance first = new EventInstance(date, EventType.MEDICATION_INTAKE);
+        EventInstance second = new EventInstance(date.plusMinutes(1),
+                EventType.MEDICATION_INTAKE);
+        first.setRef(ref);
+        second.setRef(ref);
+        android.database.sqlite.SQLiteDatabase sqlite =
+                DB.helper().getWritableDatabase();
+        final String trigger = "ci_preserve_history_delete_abort";
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            DB.eventInstances().save(first);
+            DB.eventInstances().save(second);
+            assertNotNull(first.getId());
+            assertNotNull(second.getId());
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE DELETE ON EventInstances WHEN OLD._id = " + second.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic delete failure'); END;");
+            boolean rejected = false;
+            try {
+                DB.eventInstances().removeByRef(ref);
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("SQLite failure must abort the entire schedule cleanup", rejected);
+            assertNotNull("Earlier pending occurrence must survive a failed cleanup",
+                    DB.eventInstances().findById(first.getId()));
+            assertNotNull("Rejected occurrence must remain in SQLite",
+                    DB.eventInstances().findById(second.getId()));
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            for (EventInstance event : new EventInstance[]{first, second}) {
+                if (event.getId() != null
+                        && DB.eventInstances().findById(event.getId()) != null) {
+                    DB.eventInstances().remove(event);
+                }
+            }
+        }
+    }
+
+    @Test
     public void blockingScheduleKeepsDecidedFutureHistory() {
         assertTrue(DB.initialized);
         DateTime base = DateTime.now().plusHours(9).withMillisOfSecond(0);
