@@ -87,6 +87,58 @@ public class PendingDoseSelectionSmokeTest {
     }
 
     @Test
+    public void missingScheduleScopeCannotMutateLegacyUnassignedOccurrences() {
+        assertTrue(DB.initialized);
+        DateTime when = DateTime.now().plusHours(4).withMillisOfSecond(0);
+        EventInstance orphan = new EventInstance(when, EventType.MEDICATION_INTAKE);
+        orphan.addParam(EventInstance.PARAM_DOSE, 1.0d);
+        EventInstance assigned = new EventInstance(when, EventType.MEDICATION_INTAKE);
+        assigned.setRef(-System.nanoTime());
+        assigned.addParam(EventInstance.PARAM_DOSE, 2.0d);
+        try {
+            DB.eventInstances().save(orphan);
+            DB.eventInstances().save(assigned);
+            Bundle changed = new Bundle();
+            changed.putString(EventInstance.PARAM_DOSE, "9.0");
+            int rejected = 0;
+            try {
+                DB.eventInstances().updateParams(
+                        EventType.MEDICATION_INTAKE, when, null, changed);
+            } catch (IllegalArgumentException expected) {
+                rejected++;
+            }
+            try {
+                DB.eventInstances().removeDistinctTime(
+                        EventType.MEDICATION_INTAKE, null,
+                        java.util.Collections.emptyList(), when.minusMinutes(1));
+            } catch (IllegalArgumentException expected) {
+                rejected++;
+            }
+            try {
+                DB.eventInstances().removeByRefAndTime(null, when.minusMinutes(1));
+            } catch (IllegalArgumentException expected) {
+                rejected++;
+            }
+            assertEquals("All three unscoped mutation paths must reject null ref",
+                    3, rejected);
+            assertEquals("Unassigned dose must be unchanged",
+                    1.0d, DB.eventInstances().findById(orphan.getId())
+                            .getDoubleParam(EventInstance.PARAM_DOSE), 0.0001d);
+            assertEquals("Named-schedule dose must be unchanged",
+                    2.0d, DB.eventInstances().findById(assigned.getId())
+                            .getDoubleParam(EventInstance.PARAM_DOSE), 0.0001d);
+            assertFalse(DB.eventInstances().findById(orphan.getId()).completed());
+            assertNotNull(DB.eventInstances().findById(assigned.getId()));
+        } finally {
+            for (EventInstance event : new EventInstance[]{orphan, assigned}) {
+                if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
+                    DB.eventInstances().remove(event);
+                }
+            }
+        }
+    }
+
+    @Test
     public void editingScheduleDoseCannotRewriteDecidedMedicationHistory() {
         assertTrue(DB.initialized);
         DateTime future = DateTime.now().plusHours(7).withMillisOfSecond(0);
