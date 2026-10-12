@@ -168,11 +168,15 @@ public class NotificationSnapshotSmokeTest {
             for (int i = 0; i < 513; i++) {
                 malformed.append('\u00e9');
             }
+            // The fingerprint resolves the schedule's medicine from SQLite,
+            // not the test's transient fixture instance. Persist both edits.
             x.medicines[0].setName(malformed.toString());
-            assertNull("Oversized medicine names invalidate notification consent",
+            assertEquals(1, DB.medicines().update(x.medicines[0]));
+            assertNull("Oversized persisted medicine names invalidate notification consent",
                     IntakeSnapshot.fingerprint(shown, x.reminder));
             x.medicines[0].setName("Synthetic snapshot medicine 1");
-            assertEquals("Restoring the source restores the original digest",
+            assertEquals(1, DB.medicines().update(x.medicines[0]));
+            assertEquals("Restoring the persisted source restores the original digest",
                     original, IntakeSnapshot.fingerprint(shown, x.reminder));
             x.assertUnchanged(1);
         } finally {
