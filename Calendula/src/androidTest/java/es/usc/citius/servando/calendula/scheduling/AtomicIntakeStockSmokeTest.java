@@ -556,6 +556,38 @@ public class AtomicIntakeStockSmokeTest {
     }
 
     @Test
+    public void patientOwnedIntakeCannotDebitTrackedMedicineWithNoOwner() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        try {
+            // Keep the event and schedule owned by A; orphan only the medicine.
+            // Old stock code interpreted a null medicine patient as any owner.
+            SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+            sqlite.execSQL("UPDATE Medicines SET Patient = NULL WHERE _id = ?",
+                    new Object[]{x.medicine.getId()});
+            Medicine persisted = DB.medicines().findById(x.medicine.getId());
+            assertNotNull(persisted);
+            assertNull("Fixture must orphan the stock-managed medicine", persisted.getPatient());
+            assertTrue("Fixture must retain enabled inventory management",
+                    persisted.stockManagementEnabled());
+
+            try {
+                ScheduleUtils.instance().setIntakeCompleted(x.context, x.event, true);
+                fail("Tracked inventory with no medicine owner must reject confirmation");
+            } catch (RuntimeException expected) {
+                // No dose history or inventory change is authorized.
+            }
+            assertFalse("Patient A dose cannot be recorded against orphan stock",
+                    x.persistedIntake().completed());
+            assertFalse("Caller must not report a committed intake", x.event.completed());
+            assertEquals("Orphan inventory must remain unchanged",
+                    INITIAL_STOCK, x.persistedStock(), 0.001f);
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
     public void fullyOrphanedTrackedIntakeCannotDebitStock() throws Exception {
         assertTrue(DB.initialized);
         Fixture x = new Fixture();
