@@ -924,38 +924,38 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
 
         SCHEDULE_SAVE_EXECUTOR.execute(() -> {
             final boolean saved = runSaveAction(() -> {
-            if (editMode) {
-                if (existingSchedule.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE)) {
-                    existingSchedule.removeState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE);
-                }
-                if (existingSchedule.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE)) {
-                    existingSchedule.removeState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE);
-                }
+                if (editMode) {
+                    if (existingSchedule.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE)) {
+                        existingSchedule.removeState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE);
+                    }
+                    if (existingSchedule.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE)) {
+                        existingSchedule.removeState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE);
+                    }
 
-                if (differs) {
-                    existingSchedule.addState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
-                } else if (existingSchedule.hasState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL)) {
-                    existingSchedule.removeState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
+                    if (differs) {
+                        existingSchedule.addState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
+                    } else if (existingSchedule.hasState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL)) {
+                        existingSchedule.removeState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
+                    }
+
+                    existingSchedule.setMedicine(scheduleToSave.getMedicine());
+                    existingSchedule.setDosages(scheduleToSave.getDosages());
+                    existingSchedule.setRecur(scheduleToSave.getRecur());
+                    DB.schedules().save(existingSchedule);
+                    ScheduleUtils.instance().updateEventInstances(ScheduleBuildActivity.this, existingSchedule);
+                } else {
+                    Schedule schedule = new Schedule(scheduleToSave.getRecur());
+                    schedule.setPatient(DB.patients().getActive(ScheduleBuildActivity.this));
+                    schedule.setMedicine(scheduleToSave.getMedicine());
+                    schedule.setDosages(scheduleToSave.getDosages());
+
+                    if (differs) {
+                        schedule.addState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
+                    }
+
+                    DB.schedules().save(schedule);
+                    ScheduleUtils.instance().createEventInstances(ScheduleBuildActivity.this, schedule);
                 }
-
-                existingSchedule.setMedicine(scheduleToSave.getMedicine());
-                existingSchedule.setDosages(scheduleToSave.getDosages());
-                existingSchedule.setRecur(scheduleToSave.getRecur());
-                DB.schedules().save(existingSchedule);
-                ScheduleUtils.instance().updateEventInstances(ScheduleBuildActivity.this, existingSchedule);
-            } else {
-                Schedule schedule = new Schedule(scheduleToSave.getRecur());
-                schedule.setPatient(DB.patients().getActive(ScheduleBuildActivity.this));
-                schedule.setMedicine(scheduleToSave.getMedicine());
-                schedule.setDosages(scheduleToSave.getDosages());
-
-                if (differs) {
-                    schedule.addState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
-                }
-
-                DB.schedules().save(schedule);
-                ScheduleUtils.instance().createEventInstances(ScheduleBuildActivity.this, schedule);
-            }
             });
             runOnUiThread(() -> {
                 if (dialog.isShowing()) {
