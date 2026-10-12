@@ -267,7 +267,7 @@ public class IntakeNotificationMgr {
         // Bind the one-tap action to exactly the persisted dose set visible
         // above. Only a SHA-256 digest travels through PendingIntent; the
         // transaction later checks current SQLite before changing stock.
-        final String visibleSnapshot = IntakeSnapshot.fingerprint(events);
+        final String visibleSnapshot = IntakeSnapshot.fingerprint(events, reminder);
         if (visibleSnapshot == null) {
             alertUnverifiedMedicationData(context, reminder);
             return;
