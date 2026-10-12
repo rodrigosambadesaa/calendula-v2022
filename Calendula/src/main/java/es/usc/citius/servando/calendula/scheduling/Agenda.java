@@ -997,8 +997,16 @@ public class Agenda {
             if (r.autoRepeat()) {
                 LogUtil.d(TAG, "Auto repeat enabled, try to reschedule repeat");
                 DateTime nextTime = DateTime.now().plusSeconds(repeatFreqSeconds());
-                if (!rescheduleAutoRepeatIfCurrent(ctx, r, nextTime)) {
-                    LogUtil.d(TAG, "Reminder no longer pending or outside repeat window");
+                try {
+                    if (!rescheduleAutoRepeatIfCurrent(ctx, r, nextTime)) {
+                        LogUtil.d(TAG, "Reminder no longer pending or outside repeat window");
+                    }
+                } catch (RuntimeException failedRepeat) {
+                    // If rescheduling failed, retain the original committed
+                    // reminder and still display its due dose. A SQLite error
+                    // must not silently suppress the current medication alert.
+                    // Do not expose medication or patient data in logs.
+                    LogUtil.e(TAG, "Automatic reminder repetition could not be persisted");
                 }
             }
             // A concurrent user action might have retired/reassigned this
