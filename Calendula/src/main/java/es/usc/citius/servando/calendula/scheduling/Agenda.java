@@ -990,9 +990,10 @@ public class Agenda {
                 LogUtil.w(TAG, "Ignoring reminder with no registered event receiver");
                 return;
             }
-            LogUtil.d(TAG, "Sending event to " + r.getEventType() + " receiver");
-            receiver.onEvent(ctx, r);
-            // auto repeat
+            // Save the next automatic repeat BEFORE constructing a
+            // notification. Notification consent includes NextTime; posting
+            // first made every newly shown "Taken/Cancel/Snooze" button stale
+            // as soon as automatic repetition advanced the SQLite row.
             if (r.autoRepeat()) {
                 LogUtil.d(TAG, "Auto repeat enabled, try to reschedule repeat");
                 DateTime nextTime = DateTime.now().plusSeconds(repeatFreqSeconds());
@@ -1000,6 +1001,14 @@ public class Agenda {
                     LogUtil.d(TAG, "Reminder no longer pending or outside repeat window");
                 }
             }
+            // A concurrent user action might have retired/reassigned this
+            // reminder during repeat persistence. Never post an old selection.
+            if (!isCurrentPendingReminder(r)) {
+                LogUtil.d(TAG, "Skipping notification superseded before display");
+                return;
+            }
+            LogUtil.d(TAG, "Sending event to " + r.getEventType() + " receiver");
+            receiver.onEvent(ctx, r);
         } else {
             // remove the reminder
             LogUtil.d(TAG, "Cancelling a reminder");
