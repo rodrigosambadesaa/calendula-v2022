@@ -923,47 +923,72 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
         final Schedule existingSchedule = editingSchedule;
 
         SCHEDULE_SAVE_EXECUTOR.execute(() -> {
-            if (editMode) {
-                if (existingSchedule.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE)) {
-                    existingSchedule.removeState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE);
+            final boolean saved = runSaveAction(() -> {
+                if (editMode) {
+                    if (existingSchedule.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE)) {
+                        existingSchedule.removeState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE);
+                    }
+                    if (existingSchedule.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE)) {
+                        existingSchedule.removeState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE);
+                    }
+
+                    if (differs) {
+                        existingSchedule.addState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
+                    } else if (existingSchedule.hasState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL)) {
+                        existingSchedule.removeState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
+                    }
+
+                    existingSchedule.setMedicine(scheduleToSave.getMedicine());
+                    existingSchedule.setDosages(scheduleToSave.getDosages());
+                    existingSchedule.setRecur(scheduleToSave.getRecur());
+                    DB.schedules().save(existingSchedule);
+                    ScheduleUtils.instance().updateEventInstances(ScheduleBuildActivity.this, existingSchedule);
+                } else {
+                    Schedule schedule = new Schedule(scheduleToSave.getRecur());
+                    schedule.setPatient(DB.patients().getActive(ScheduleBuildActivity.this));
+                    schedule.setMedicine(scheduleToSave.getMedicine());
+                    schedule.setDosages(scheduleToSave.getDosages());
+
+                    if (differs) {
+                        schedule.addState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
+                    }
+
+                    DB.schedules().save(schedule);
+                    ScheduleUtils.instance().createEventInstances(ScheduleBuildActivity.this, schedule);
                 }
-                if (existingSchedule.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE)) {
-                    existingSchedule.removeState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE);
-                }
-
-                if (differs) {
-                    existingSchedule.addState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
-                } else if (existingSchedule.hasState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL)) {
-                    existingSchedule.removeState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
-                }
-
-                existingSchedule.setMedicine(scheduleToSave.getMedicine());
-                existingSchedule.setDosages(scheduleToSave.getDosages());
-                existingSchedule.setRecur(scheduleToSave.getRecur());
-                DB.schedules().save(existingSchedule);
-                ScheduleUtils.instance().updateEventInstances(ScheduleBuildActivity.this, existingSchedule);
-            } else {
-                Schedule schedule = new Schedule(scheduleToSave.getRecur());
-                schedule.setPatient(DB.patients().getActive(ScheduleBuildActivity.this));
-                schedule.setMedicine(scheduleToSave.getMedicine());
-                schedule.setDosages(scheduleToSave.getDosages());
-
-                if (differs) {
-                    schedule.addState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
-                }
-
-                DB.schedules().save(schedule);
-                ScheduleUtils.instance().createEventInstances(ScheduleBuildActivity.this, schedule);
-            }
-
+            });
             runOnUiThread(() -> {
                 if (dialog.isShowing()) {
                     dialog.dismiss();
                 }
-                finish();
-                DB.schedules().fireEvent();
+                if (saved) {
+                    finish();
+                    DB.schedules().fireEvent();
+                } else if (!isFinishing() && !isDestroyed()) {
+                    // Stay on the existing editor; a failed transaction is not
+                    // a successful prescription change. Do not expose medical
+                    // details or exception messages in the UI.
+                    Toast.makeText(this, R.string.schedule_build_save_failed,
+                            Toast.LENGTH_LONG).show();
+                }
             });
         });
+    }
+
+    /**
+     * A failed background write must not strand a progress dialog or close
+     * the editor as if the medication schedule had been saved. Avoid putting
+     * patient or prescription information from SQLite exception strings in
+     * Logcat. The caller reports the failure on the main thread.
+     */
+    static boolean runSaveAction(Runnable save) {
+        try {
+            save.run();
+            return true;
+        } catch (RuntimeException failure) {
+            LogUtil.e(TAG, "Could not complete schedule save");
+            return false;
+        }
     }
 
     @Override
