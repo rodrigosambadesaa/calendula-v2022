@@ -123,7 +123,8 @@ class AlarmIntentService : JobIntentService() {
                     try {
                         val confirmed = ScheduleUtils.instance()
                             .checkIntakeEventsWithSnapshot(
-                                this, reminder.patient, reminder.dateTime, fingerprint
+                                this, reminder.patient, reminder.dateTime,
+                                reminder.id, fingerprint
                             )
                         if (confirmed > 0) {
                             showToast(getString(R.string.all_meds_taken))
