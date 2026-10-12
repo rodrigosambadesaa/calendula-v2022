@@ -220,6 +220,9 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
      */
     public int removeDistinctTime(EventType type, Long ref,
                                   Collection<DateTime> timesToPreserve, DateTime from) {
+        if (ref == null || type == null || from == null) {
+            throw new IllegalArgumentException("A schedule and time window are required");
+        }
         try {
             return com.j256.ormlite.misc.TransactionManager.callInTransaction(
                     dbHelper.getConnectionSource(), () -> {
@@ -340,6 +343,9 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
      * Preserve completion/cancellation history while cleaning pending events.
      */
     public int removeByRefAndTime(Long ref, DateTime startTime) {
+        if (ref == null || startTime == null) {
+            throw new IllegalArgumentException("A schedule and cutoff are required");
+        }
         try {
             return com.j256.ormlite.misc.TransactionManager.callInTransaction(
                     dbHelper.getConnectionSource(), () -> {
@@ -539,6 +545,9 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
      * from a stale EventInstance and works across legacy SQLite versions.
      */
     public int updateParams(EventType type, DateTime dateTime, Long ref, Bundle params) {
+        if (ref == null || type == null || dateTime == null || params == null) {
+            throw new IllegalArgumentException("A complete schedule event is required");
+        }
         try {
             return com.j256.ormlite.misc.TransactionManager.callInTransaction(
                     dbHelper.getConnectionSource(), () -> {
