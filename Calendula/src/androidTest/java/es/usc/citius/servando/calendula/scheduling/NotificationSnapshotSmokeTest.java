@@ -159,7 +159,12 @@ public class NotificationSnapshotSmokeTest {
         Fixture x = new Fixture(false);
         try {
             List<EventInstance> shown = x.visible(1);
-            String original = IntakeSnapshot.fingerprint(shown, x.reminder);
+            // The notification rendering path passes precisely the schedule
+            // it displayed, keyed by event ID. That is the model whose name
+            // the consent digest must cover, not an unrelated DAO update.
+            java.util.Map<Long, Schedule> rendered = java.util.Collections.singletonMap(
+                    x.intakes[0].getId(), x.schedules[0]);
+            String original = IntakeSnapshot.fingerprint(shown, x.reminder, rendered);
             assertNotNull(original);
             // 513 two-byte UTF-8 code points exceed 1024 bytes without
             // exceeding 1024 Java chars. A malformed catalog field must not
@@ -168,16 +173,12 @@ public class NotificationSnapshotSmokeTest {
             for (int i = 0; i < 513; i++) {
                 malformed.append('\u00e9');
             }
-            // The fingerprint resolves the schedule's medicine from SQLite,
-            // not the test's transient fixture instance. Persist both edits.
             x.medicines[0].setName(malformed.toString());
-            assertEquals(1, DB.medicines().update(x.medicines[0]));
-            assertNull("Oversized persisted medicine names invalidate notification consent",
-                    IntakeSnapshot.fingerprint(shown, x.reminder));
+            assertNull("Oversized displayed medicine names invalidate consent",
+                    IntakeSnapshot.fingerprint(shown, x.reminder, rendered));
             x.medicines[0].setName("Synthetic snapshot medicine 1");
-            assertEquals(1, DB.medicines().update(x.medicines[0]));
-            assertEquals("Restoring the persisted source restores the original digest",
-                    original, IntakeSnapshot.fingerprint(shown, x.reminder));
+            assertEquals("Restoring the displayed source restores the original digest",
+                    original, IntakeSnapshot.fingerprint(shown, x.reminder, rendered));
             x.assertUnchanged(1);
         } finally {
             x.cleanup();
