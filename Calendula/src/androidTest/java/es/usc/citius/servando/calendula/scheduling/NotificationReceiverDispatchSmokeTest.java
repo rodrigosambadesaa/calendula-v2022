@@ -10,6 +10,8 @@ import android.content.Intent;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import java.util.Arrays;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -26,11 +28,16 @@ import static org.junit.Assert.assertNull;
  */
 @RunWith(AndroidJUnit4.class)
 public class NotificationReceiverDispatchSmokeTest {
+    private static String digest(char value) {
+        char[] chars = new char[64];
+        Arrays.fill(chars, value);
+        return new String(chars);
+    }
 
     @Test
     public void oneTapActionForwardsOnlyConsentDigestAndReminderIdentity() {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
-        String digest = "f9".repeat(32);
+        String digest = digest('f');
         Intent clicked = new Intent(context, AlarmReceiver.class);
         clicked.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_CONFIRM);
         clicked.putExtra(IntentParams.EXTRA_REMINDER_ID, 731002L);
@@ -57,10 +64,10 @@ public class NotificationReceiverDispatchSmokeTest {
         clicked.putExtra(IntentParams.EXTRA_REMINDER_ID, 731002L);
         assertNull(AlarmReceiver.validatedServiceIntent(context, clicked));
 
-        clicked.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, "g".repeat(64));
+        clicked.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, digest('g'));
         assertNull(AlarmReceiver.validatedServiceIntent(context, clicked));
 
-        clicked.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, "d".repeat(64));
+        clicked.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, digest('d'));
         clicked.putExtra(IntentParams.EXTRA_REMINDER_ID, 0L);
         assertNull(AlarmReceiver.validatedServiceIntent(context, clicked));
     }
