@@ -75,8 +75,24 @@ public class ScheduleUtils {
      */
     public void createEventInstances(Context ctx, Schedule s) {
         Collection<EventInstance> events = getEventsFromTime(s, DateTime.now());
+        persistAndScheduleNewOccurrences(ctx, events);
+    }
+
+    /**
+     * Do not report a successful new prescription if reminder persistence
+     * rolled back. Agenda.createReminders() returns false for SQL failures;
+     * ignoring that result previously allowed the editor to close as saved.
+     *
+     * Package-private for Android SQLite failure-injection tests.
+     */
+    void persistAndScheduleNewOccurrences(Context ctx, Collection<EventInstance> events) {
+        if (ctx == null || events == null) {
+            throw new IllegalArgumentException("New schedule occurrences require context and events");
+        }
         Agenda.instance().addEvents(events);
-        Agenda.instance().createReminders(ctx, events);
+        if (!Agenda.instance().createReminders(ctx, events)) {
+            throw new IllegalStateException("New medication reminders were not persisted");
+        }
     }
 
     public void updateEventInstances(Context ctx, Schedule s) {

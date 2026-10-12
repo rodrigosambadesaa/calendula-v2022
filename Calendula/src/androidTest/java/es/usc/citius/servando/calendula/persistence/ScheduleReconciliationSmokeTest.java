@@ -14,6 +14,9 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.Arrays;
+import java.util.Collections;
+
+import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
@@ -29,6 +32,49 @@ import static org.junit.Assert.fail;
 /** Real SQLite failure injection; synthetic references and past timestamps only. */
 @RunWith(AndroidJUnit4.class)
 public class ScheduleReconciliationSmokeTest {
+    @Test
+    public void newlyCreatedScheduleCannotClaimSuccessWhenReminderWriteFails() {
+        assertTrue(DB.initialized);
+        DateTime when = DateTime.now().plusMinutes(2).withMillisOfSecond(0);
+        Long ref = -System.nanoTime();
+        EventInstance pending = event(ref, when, 1.0d);
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        final String trigger = "ci_test_new_schedule_reminder_abort";
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE INSERT ON EventReminders"
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic reminder insertion failure'); END;");
+            boolean rejected = false;
+            try {
+                ScheduleUtils.instance().persistAndScheduleNewOccurrences(
+                        InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                        Collections.singletonList(pending));
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("Failure must be reported, never disguised as saved", rejected);
+            assertNotNull("Committed occurrence remains available for recovery",
+                    pending.getId());
+            assertNotNull(DB.eventInstances().findById(pending.getId()));
+            assertNull("SQL failure must not leave half-created reminder",
+                    DB.eventReminders().findBy(EventType.MEDICATION_INTAKE,
+                            when, null));
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            EventReminder reminder = DB.eventReminders().findBy(
+                    EventType.MEDICATION_INTAKE, when, null);
+            // The injected BEFORE INSERT abort means no alarm could have
+            // been registered. Defensive SQLite cleanup uses public DAO APIs.
+            if (reminder != null) {
+                DB.eventReminders().remove(reminder);
+            }
+            if (pending.getId() != null && DB.eventInstances().findById(pending.getId()) != null) {
+                DB.eventInstances().remove(pending);
+            }
+        }
+    }
+
     @Test
     public void failedObsoleteDeleteRollsBackEarlierDoseUpdateAndNewOccurrences() {
         assertTrue(DB.initialized);
