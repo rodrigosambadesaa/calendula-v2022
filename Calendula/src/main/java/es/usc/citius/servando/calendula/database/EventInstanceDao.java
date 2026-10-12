@@ -317,10 +317,23 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
                     dbHelper.getConnectionSource(), () -> {
                         QueryBuilder<EventInstance, Long> query = dao.queryBuilder();
                         query.where().eq(EventInstance.COLUMN_REF, ref);
+                        // A damaged legacy row can reference another
+                        // patient's schedule ID. A matching schedule ref alone
+                        // is not authorization to erase their pending intake.
+                        // Keep synthetic orphan-reference cleanup supported
+                        // for regression/migration callers with no schedule.
+                        Schedule linked = DB.schedules().findById(ref);
+                        Long ownerId = linked == null || linked.getPatient() == null
+                                ? null : linked.getPatient().getId();
                         int removed = 0;
                         for (EventInstance event : query.query()) {
                             if (event.getId() == null) {
                                 throw new SQLException("Schedule event has no persisted identity");
+                            }
+                            if (linked != null && (ownerId == null
+                                    || event.getPatient() == null
+                                    || !ownerId.equals(event.getPatient().getId()))) {
+                                throw new SQLException("Schedule event belongs to another patient");
                             }
                             if (event.completed() || event.cancelled()) {
                                 continue;
