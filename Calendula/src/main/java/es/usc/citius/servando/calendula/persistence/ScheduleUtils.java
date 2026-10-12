@@ -42,6 +42,7 @@ import es.usc.citius.servando.calendula.events.PersistenceEvents;
 import es.usc.citius.servando.calendula.activities.ConfirmIntakeGuard;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
 import es.usc.citius.servando.calendula.scheduling.Agenda;
+import es.usc.citius.servando.calendula.scheduling.IntakeSnapshot;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime;
@@ -113,7 +114,20 @@ public class ScheduleUtils {
      *         number selected before commit.
      */
     public int checkIntakeEvents(Context ctx, Patient patient, DateTime dateTime) {
-        return checkIntakeEvents(ctx, patient, dateTime, null);
+        return checkIntakeEventsInternal(ctx, patient, dateTime, null, null);
+    }
+
+    /**
+     * A one-tap notification action must only confirm the doses that were
+     * actually visible when its PendingIntent was created. Legacy actions
+     * without a complete snapshot are deliberately not actionable.
+     */
+    public int checkIntakeEventsWithSnapshot(Context ctx, Patient patient,
+                                             DateTime dateTime, String fingerprint) {
+        if (fingerprint == null || !fingerprint.matches("[0-9a-f]{64}")) {
+            throw new IllegalArgumentException("Notification intake snapshot is missing");
+        }
+        return checkIntakeEventsInternal(ctx, patient, dateTime, null, fingerprint);
     }
 
     /**
@@ -127,6 +141,12 @@ public class ScheduleUtils {
      */
     public int checkIntakeEvents(Context ctx, Patient patient, DateTime dateTime,
                                  List<EventInstance> expectedEvents) {
+        return checkIntakeEventsInternal(ctx, patient, dateTime, expectedEvents, null);
+    }
+
+    private int checkIntakeEventsInternal(Context ctx, Patient patient, DateTime dateTime,
+                                          List<EventInstance> expectedEvents,
+                                          String notificationFingerprint) {
         if (patient == null || patient.getId() == null
                 || patient.getId() <= 0L || dateTime == null) {
             return 0;
@@ -137,13 +157,26 @@ public class ScheduleUtils {
             committed = TransactionManager.callInTransaction(
                     DB.helper().getConnectionSource(), (Callable<List<CommittedIntake>>) () -> {
                         List<CommittedIntake> changes = new ArrayList<>();
-                        if (expectedEvents != null) {
+                        if (expectedEvents != null || notificationFingerprint != null) {
                             if (DB.patients().findById(patient.getId()) == null) {
                                 throw new SQLException("Confirmation patient is no longer present");
                             }
-                            requireExactVisibleIntakeSet(expectedEvents,
-                                    DB.eventInstances().find(
-                                            EventType.MEDICATION_INTAKE, dateTime, patient));
+                            if (expectedEvents != null) {
+                                requireExactVisibleIntakeSet(expectedEvents,
+                                        DB.eventInstances().find(
+                                                EventType.MEDICATION_INTAKE, dateTime, patient));
+                            }
+                            if (notificationFingerprint != null) {
+                                // Recompute from current pending SQLite rows INSIDE
+                                // the stock/event transaction. New, missing or
+                                // redosed medication invalidates the old action.
+                                String current = IntakeSnapshot.fingerprint(
+                                        DB.eventInstances().findPending(
+                                                EventType.MEDICATION_INTAKE, dateTime, patient));
+                                if (!notificationFingerprint.equals(current)) {
+                                    throw new SQLException("Displayed notification doses changed");
+                                }
+                            }
                         }
                         // Requery INSIDE the transaction; a previously selected
                         // event must not bypass the current pending/ownership check.
