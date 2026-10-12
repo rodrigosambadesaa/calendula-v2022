@@ -37,6 +37,8 @@ import org.joda.time.DateTime;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Random;
 
@@ -227,10 +229,10 @@ public class IntakeNotificationMgr {
         NotificationCompat.InboxStyle style = new NotificationCompat.InboxStyle();
         style.setBigContentTitle(title);
 
-        // Read each schedule once, validate its ownership and then format the
-        // same verified object. A second DAO lookup between validation and
-        // rendering could return a deleted or different patient's schedule.
+        // Validate and render from the same schedule snapshot; hash exactly
+        // these same verified objects when constructing the consent action.
         // No notification is posted until ALL pending doses pass validation.
+        final Map<Long, Schedule> displayedSchedules = new HashMap<>();
         for (EventInstance event : events) {
             Schedule schedule = event == null || event.getRef() == null
                     ? null : DB.schedules().findById(event.getRef());
@@ -248,7 +250,9 @@ public class IntakeNotificationMgr {
                 alertUnverifiedMedicationData(context, reminder);
                 return;
             }
-            if (!canRenderMedication(event, schedule, patient)) {
+            if (!canRenderMedication(event, schedule, patient)
+                    || event.getId() == null
+                    || displayedSchedules.put(event.getId(), schedule) != null) {
                 alertUnverifiedMedicationData(context, reminder);
                 return;
             }
@@ -318,7 +322,7 @@ public class IntakeNotificationMgr {
         // Bind the one-tap action to exactly the persisted dose set visible
         // above. Only a SHA-256 digest travels through PendingIntent; the
         // transaction later checks current SQLite before changing stock.
-        final String visibleSnapshot = IntakeSnapshot.fingerprint(events, reminder);
+        final String visibleSnapshot = IntakeSnapshot.fingerprint(events, reminder, displayedSchedules);
         if (visibleSnapshot == null) {
             alertUnverifiedMedicationData(context, reminder);
             return;
