@@ -62,6 +62,7 @@ class AlarmReceiver : BroadcastReceiver() {
         @JvmStatic
         fun validatedServiceIntent(context: Context, incoming: Intent?): Intent? {
             if (incoming == null) return null
+            return try {
             val action = incoming.getStringExtra(IntentParams.EXTRA_ACTION)
             val reminderId = incoming.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1L)
             if (!isValidAlarmDispatch(action, reminderId)) return null
@@ -84,6 +85,11 @@ class AlarmReceiver : BroadcastReceiver() {
                 if (snapshot != null) {
                     putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, snapshot)
                 }
+            }
+            } catch (malformed: RuntimeException) {
+                // Legacy PendingIntents can contain a wrong-typed Bundle
+                // field. Never crash or enqueue medication work for them.
+                null
             }
         }
     }
