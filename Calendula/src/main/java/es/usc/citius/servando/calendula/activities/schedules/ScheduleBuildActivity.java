@@ -934,6 +934,12 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
                 Medicine selected = scheduleToSave.getMedicine();
                 Medicine medicine = selected == null || selected.getId() == null
                         ? null : DB.medicines().findById(selected.getId());
+                // An independent SQLite reassignment can leave ORMLite's
+                // cached foreign object stale. Verify the authoritative row
+                // immediately before binding it to any prescription.
+                if (medicine != null && DB.medicines().refresh(medicine) != 1) {
+                    throw new IllegalStateException("Selected medicine disappeared");
+                }
                 if (!ScheduleSaveOwnerGuard.canSaveForOpenedPatient(
                         openedPatient, active, owner, medicine)) {
                     // A profile switch or reassignment must not cause a
@@ -944,6 +950,9 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
                     Schedule current = existingSchedule == null
                             || existingSchedule.getId() == null ? null
                             : DB.schedules().findById(existingSchedule.getId());
+                    if (current != null && DB.schedules().refresh(current) != 1) {
+                        throw new IllegalStateException("Edited schedule disappeared");
+                    }
                     if (!ScheduleSaveOwnerGuard.canEditSchedule(
                             owner, existingSchedule, current)) {
                         throw new IllegalStateException("Edited schedule ownership changed");
