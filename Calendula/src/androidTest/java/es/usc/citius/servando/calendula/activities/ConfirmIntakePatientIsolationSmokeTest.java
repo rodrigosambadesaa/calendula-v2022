@@ -4,9 +4,12 @@
  */
 package es.usc.citius.servando.calendula.activities;
 
+import android.content.Intent;
+
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import org.joda.time.DateTime;
+import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -19,13 +22,36 @@ import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
+import es.usc.citius.servando.calendula.util.IntentParams;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /** On-device validation of two synthetic patient profiles; no clinical writes. */
 @RunWith(AndroidJUnit4.class)
 public class ConfirmIntakePatientIsolationSmokeTest {
+
+    @Test
+    public void legacyWrongTypedAlarmExtrasCannotLaunchClinicalScreen() {
+        DateTime time = DateTime.now().withMillisOfSecond(0);
+        String timestamp = time.toString(ISODateTimeFormat.dateTimeNoMillis());
+        Intent launched = new Intent()
+                .putExtra(IntentParams.EXTRA_PATIENT_ID, 700001L)
+                .putExtra(IntentParams.EXTRA_DATETIME, timestamp);
+        assertNotNull(ConfirmActivity.parseIntakeLaunch(launched));
+
+        launched.putExtra(IntentParams.EXTRA_PATIENT_ID, "700001");
+        assertNull(ConfirmActivity.parseIntakeLaunch(launched));
+        launched.putExtra(IntentParams.EXTRA_PATIENT_ID, 700001L);
+        launched.putExtra(IntentParams.EXTRA_POSITION, "wrong type");
+        assertNull(ConfirmActivity.parseIntakeLaunch(launched));
+        launched.putExtra(IntentParams.EXTRA_POSITION, 1);
+        assertNotNull(ConfirmActivity.parseIntakeLaunch(launched));
+        launched.putExtra(IntentParams.EXTRA_DATETIME, 2L);
+        assertNull(ConfirmActivity.parseIntakeLaunch(launched));
+    }
 
     @Test
     public void confirmationRejectsCrossPatientAndMalformedDosesOnAndroid() {
