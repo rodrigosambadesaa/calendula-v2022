@@ -894,7 +894,14 @@ public class AtomicIntakeStockSmokeTest {
                     x.currentAlarm());
 
             x.events[1].addParam(EventInstance.PARAM_DOSE, "NaN");
-            assertEquals(1, DB.eventInstances().update(x.events[1]));
+            // The DAO's legacy full-row update can report zero on a
+            // parameters-only change. Use its dedicated persisted-ID
+            // parameter update, then verify the actual SQLite snapshot.
+            assertEquals(1, DB.eventInstances().updateParams(
+                    EventType.MEDICATION_INTAKE, x.time, x.schedules[1].getId(),
+                    x.events[1].getParams()));
+            assertEquals("NaN", DB.eventInstances()
+                    .findById(x.events[1].getId()).getStringParam(EventInstance.PARAM_DOSE));
             boolean rejected = false;
             try {
                 Agenda.instance().confirmReminder(x.context, x.reminder.getId());
@@ -917,7 +924,12 @@ public class AtomicIntakeStockSmokeTest {
             // A user must be able to retry after repairing the dose, rather
             // than losing their original reminder or duplicating inventory.
             x.events[1].addParam(EventInstance.PARAM_DOSE, (double) DOSE);
-            assertEquals(1, DB.eventInstances().update(x.events[1]));
+            assertEquals(1, DB.eventInstances().updateParams(
+                    EventType.MEDICATION_INTAKE, x.time, x.schedules[1].getId(),
+                    x.events[1].getParams()));
+            assertEquals(DOSE, DB.eventInstances()
+                    .findById(x.events[1].getId()).getDoubleParam(EventInstance.PARAM_DOSE),
+                    0.001d);
             Agenda.instance().confirmReminder(x.context, x.reminder.getId());
             for (int i = 0; i < 2; i++) {
                 assertTrue("Retry must persist both confirmed doses", x.completed(i));
