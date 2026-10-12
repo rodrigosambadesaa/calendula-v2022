@@ -374,6 +374,7 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
                             if (event.getId() == null) {
                                 throw new SQLException("Future event has no persisted identity");
                             }
+                            requireCurrentScheduleEventOwner(event.getType(), ref, event);
                             if (event.completed() || event.cancelled()) {
                                 continue;
                             }
