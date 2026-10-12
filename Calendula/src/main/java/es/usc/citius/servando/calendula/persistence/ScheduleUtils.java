@@ -231,9 +231,14 @@ public class ScheduleUtils {
         try {
             TransactionManager.callInTransaction(
                     DB.helper().getConnectionSource(), (Callable<Void>) () -> {
-                        Schedule stored = DB.schedules().findById(schedule.getId());
+                        // Refresh into a distinct model to check the current
+                        // persisted owner. Refreshing the edited Java instance
+                        // itself would overwrite its new recurrence/dosages.
+                        Schedule stored = new Schedule();
+                        stored.setId(schedule.getId());
                         Medicine medicine = DB.medicines().findById(schedule.getMedicine().getId());
-                        if (stored == null || stored.getPatient() == null
+                        if (DB.schedules().refresh(stored) != 1
+                                || stored.getPatient() == null
                                 || !schedule.getPatient().getId().equals(stored.getPatient().getId())
                                 || medicine == null || DB.medicines().refresh(medicine) != 1
                                 || (medicine.getPatient() != null
