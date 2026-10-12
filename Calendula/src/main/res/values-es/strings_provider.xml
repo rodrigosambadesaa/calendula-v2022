@@ -121,6 +121,7 @@
 <string name="schedule_build_control_previous">"Anterior"</string>
 <string name="schedule_build_official_prescription">"Pauta oficial"</string>
 <string name="schedule_build_updating_reminder_for">"Actualizando recordatorio para"</string>
+<string name="schedule_build_save_failed">"No se pudo completar el guardado de la pauta. Revísala y vuelve a intentarlo."</string>
 <string name="schedule_build_creating_reminder_for">"Creando recordatorio para"</string>
 <string name="schedule_build_tab_title_medicine">"Medicamento"</string>
 <string name="schedule_build_tab_title_intakes">"Tomas diarias"</string>
