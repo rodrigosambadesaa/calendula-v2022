@@ -8,6 +8,7 @@ package es.usc.citius.servando.calendula.scheduling;
 
 import android.app.PendingIntent;
 import android.content.Context;
+import android.content.ContextWrapper;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -25,6 +26,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
 
 /**
  * Real Android PendingIntent identity checks using synthetic unscheduled tokens.
@@ -107,6 +109,45 @@ public class ReminderPendingIntentSmokeTest {
         } finally {
             legacyToken.cancel();
             Agenda.instance().cancelAlarm(context, reminder);
+        }
+    }
+
+    @Test
+    public void missingAlarmServiceFailsWithoutCreatingAnUnscheduledPendingIntent() {
+        Context real = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        Context unavailable = new ContextWrapper(real) {
+            @Override
+            public Object getSystemService(String name) {
+                if (Context.ALARM_SERVICE.equals(name)) {
+                    return null;
+                }
+                return super.getSystemService(name);
+            }
+        };
+        EventReminder reminder = new EventReminder();
+        reminder.setId(9000000006L);
+        reminder.setEventType(EventType.MEDICATION_INTAKE);
+        DateTime future = DateTime.now().plusHours(3);
+        reminder.setDateTime(future);
+        reminder.setNextTime(future);
+        // Ensure a previous synthetic run cannot cause a false positive.
+        PendingIntent stale = PendingIntent.getBroadcast(real, 0,
+                Agenda.reminderBroadcastIntent(real, reminder),
+                PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE));
+        if (stale != null) stale.cancel();
+        try {
+            Agenda.instance().setAlarm(unavailable, reminder);
+            fail("Unavailable AlarmManager must be surfaced as failed scheduling");
+        } catch (IllegalStateException expected) {
+            // The caller can leave its day incomplete and retry on startup.
+        } finally {
+            PendingIntent token = PendingIntent.getBroadcast(real, 0,
+                    Agenda.reminderBroadcastIntent(real, reminder),
+                    PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE));
+            if (token != null) {
+                token.cancel();
+                fail("Failed scheduling must not allocate an orphan PendingIntent");
+            }
         }
     }
 

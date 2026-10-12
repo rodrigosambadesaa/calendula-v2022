@@ -252,19 +252,20 @@ public class Agenda {
         Bundle alarmParams = new Bundle();
         alarmParams.putString("action", "reminder");
         alarmParams.putLong("reminder_id", reminder.getId());
-        // millis to set the alarm
+        // A missing platform alarm service is not successful scheduling.
+        // Fail before allocating a PendingIntent: callers rebuilding the daily
+        // agenda must keep their completion marker retryable in this state.
+        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (alarmManager == null) {
+            throw new IllegalStateException("AlarmManager is unavailable");
+        }
         DateTime dateTime = reminder.getNextTime();
         LogUtil.d(TAG, "Creating scheduled reminder");
-        // intent we should receive on millis
         PendingIntent pendingIntent = getReminderIntent(context, reminder);
-        // set the alarm
-        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-        if (alarmManager != null) {
-            // An older release used a mutable hash for PendingIntent identity.
-            // Retire the matching old request before scheduling the stable ID.
-            cancelLegacyAlarm(context, reminder, alarmManager);
-            scheduleAlarm(alarmManager, dateTime.getMillis(), pendingIntent);
-        }
+        // An older release used a mutable hash for PendingIntent identity.
+        // Retire the matching old request before scheduling the stable ID.
+        cancelLegacyAlarm(context, reminder, alarmManager);
+        scheduleAlarm(alarmManager, dateTime.getMillis(), pendingIntent);
     }
 
     /**
