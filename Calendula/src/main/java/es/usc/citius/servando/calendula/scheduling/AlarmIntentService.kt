@@ -111,14 +111,29 @@ class AlarmIntentService : JobIntentService() {
                     LogUtil.w(TAG, "Ignoring confirmation without valid reminder ID")
                     return
                 }
+                val fingerprint = intent.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT)
+                if (fingerprint == null) {
+                    // Old one-tap notifications have no recorded selection.
+                    // Do not silently approve a dose the user never saw.
+                    LogUtil.w(TAG, "Ignoring confirmation without a displayed-dose snapshot")
+                    return
+                }
                 val reminder = DB.eventReminders().findById(reminderId)
                 if (reminder != null && isActionableMedicationReminder(reminder)) {
-                    val confirmed = ScheduleUtils.instance()
-                        .checkIntakeEvents(this, reminder.patient, reminder.dateTime)
-                    if (confirmed > 0) {
-                        showToast(getString(R.string.all_meds_taken))
-                    } else {
-                        LogUtil.w(TAG, "No pending medication intakes to confirm")
+                    try {
+                        val confirmed = ScheduleUtils.instance()
+                            .checkIntakeEventsWithSnapshot(
+                                this, reminder.patient, reminder.dateTime, fingerprint
+                            )
+                        if (confirmed > 0) {
+                            showToast(getString(R.string.all_meds_taken))
+                        } else {
+                            LogUtil.w(TAG, "No pending medication intakes to confirm")
+                        }
+                    } catch (invalid: RuntimeException) {
+                        // A stale notification must not produce a success toast.
+                        // Never include clinical details in error output.
+                        LogUtil.w(TAG, "Notification intake selection is stale or invalid")
                     }
                 } else {
                     // This may be a stale notification whose SQLite row was
