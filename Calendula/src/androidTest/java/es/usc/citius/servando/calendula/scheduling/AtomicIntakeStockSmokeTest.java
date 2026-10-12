@@ -102,6 +102,60 @@ public class AtomicIntakeStockSmokeTest {
     }
 
     @Test
+    public void failedScheduleDeletionRollsBackPendingOccurrenceCleanup() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        EventInstance recorded = new EventInstance(x.when.plusMinutes(1),
+                EventType.MEDICATION_INTAKE);
+        recorded.setPatient(x.patient);
+        recorded.setRef(x.schedule.getId());
+        recorded.addParam(EventInstance.PARAM_DOSE, 1.0d);
+        recorded.setCompleted(true);
+        recorded.setCompletedAt(DateTime.now().minusMinutes(2));
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        final String trigger = "ci_test_schedule_delete_abort";
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            assertEquals(1, DB.eventInstances().create(recorded));
+            assertNotNull(recorded.getId());
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE DELETE ON NewSchedules WHEN OLD._id = " + x.schedule.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic schedule deletion failure'); END;");
+            try {
+                ScheduleUtils.instance().removeSchedule(x.context, x.schedule, false);
+                fail("Schedule DELETE failure must roll back the pending occurrence removal");
+            } catch (RuntimeException expected) {
+                // The outer transaction must roll back both SQLite operations.
+            }
+            assertNotNull("Failed removal cannot delete schedule",
+                    DB.schedules().findById(x.schedule.getId()));
+            assertNotNull("Pending event must survive schedule deletion failure",
+                    DB.eventInstances().findById(x.event.getId()));
+            assertTrue("Recorded intake history must survive a failed deletion",
+                    DB.eventInstances().findById(recorded.getId()).completed());
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            ScheduleUtils.instance().removeSchedule(x.context, x.schedule, false);
+            assertNull("Successful removal must delete the selected schedule",
+                    DB.schedules().findById(x.schedule.getId()));
+            assertNull("Only the unhandled occurrence is removed",
+                    DB.eventInstances().findById(x.event.getId()));
+            EventInstance retained = DB.eventInstances().findById(recorded.getId());
+            assertNotNull("Taken history must survive schedule removal", retained);
+            assertTrue(retained.completed());
+            assertEquals(recorded.completedAt(), retained.completedAt());
+            assertEquals(1.0d, retained.getDoubleParam(EventInstance.PARAM_DOSE), 0.0001d);
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            if (recorded.getId() != null
+                    && DB.eventInstances().findById(recorded.getId()) != null) {
+                DB.eventInstances().remove(recorded);
+            }
+            x.cleanup();
+        }
+    }
+
+    @Test
     public void confirmingAndUndoingIntakeAdjustsInventoryExactlyOnce() throws Exception {
         assertTrue(DB.initialized);
         Fixture x = new Fixture();
