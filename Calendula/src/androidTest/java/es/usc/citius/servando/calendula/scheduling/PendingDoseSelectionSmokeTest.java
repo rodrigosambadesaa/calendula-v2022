@@ -34,6 +34,59 @@ import static org.junit.Assert.assertTrue;
 public class PendingDoseSelectionSmokeTest {
 
     @Test
+    public void globalMedicationDeleteCannotEraseAnotherPatientsRecordedHistory() {
+        assertTrue(DB.initialized);
+        DateTime time = DateTime.now().minusDays(9).withMillisOfSecond(0);
+        Patient first = new Patient();
+        first.setCode("ci-global-delete-guard-a-" + System.nanoTime());
+        first.setName("Synthetic global delete A");
+        Patient other = new Patient();
+        other.setCode("ci-global-delete-guard-b-" + System.nanoTime());
+        other.setName("Synthetic global delete B");
+        EventInstance completed = new EventInstance(time, EventType.MEDICATION_INTAKE);
+        EventInstance cancelled = new EventInstance(
+                time.plusMinutes(1), EventType.MEDICATION_INTAKE);
+        completed.setCompleted(true);
+        cancelled.setCancelled(true);
+        try {
+            DB.patients().save(first);
+            DB.patients().save(other);
+            completed.setPatient(first);
+            cancelled.setPatient(other);
+            completed.setRef(-System.nanoTime());
+            cancelled.setRef(completed.getRef() - 1L);
+            completed.addParam(EventInstance.PARAM_DOSE, 1.0d);
+            cancelled.addParam(EventInstance.PARAM_DOSE, 2.0d);
+            DB.eventInstances().save(completed);
+            DB.eventInstances().save(cancelled);
+            assertNotNull(completed.getId());
+            assertNotNull(cancelled.getId());
+            boolean rejected = false;
+            try {
+                DB.eventInstances().removeAll(EventType.MEDICATION_INTAKE);
+            } catch (IllegalArgumentException expected) {
+                rejected = true;
+            }
+            assertTrue("A global medication-history purge must be rejected", rejected);
+            assertTrue("First patient's taken dose must survive",
+                    DB.eventInstances().findById(completed.getId()).completed());
+            assertTrue("Other patient's cancelled dose must survive",
+                    DB.eventInstances().findById(cancelled.getId()).cancelled());
+        } finally {
+            for (EventInstance row : new EventInstance[]{completed, cancelled}) {
+                if (row.getId() != null && DB.eventInstances().findById(row.getId()) != null) {
+                    DB.eventInstances().remove(row);
+                }
+            }
+            for (Patient patient : new Patient[]{first, other}) {
+                if (patient.getId() != null && DB.patients().findById(patient.getId()) != null) {
+                    DB.patients().remove(patient);
+                }
+            }
+        }
+    }
+
+    @Test
     public void editingScheduleDoseCannotRewriteDecidedMedicationHistory() {
         assertTrue(DB.initialized);
         DateTime future = DateTime.now().plusHours(7).withMillisOfSecond(0);
