@@ -116,6 +116,7 @@ Add your reminders here and let us just notify you!"</string>
 <string name="schedule_build_control_previous">"Previous"</string>
 <string name="schedule_build_official_prescription">"Official schedule"</string>
 <string name="schedule_build_updating_reminder_for">"Updating reminder for"</string>
+<string name="schedule_build_save_failed">"Could not complete saving the medication schedule. Review it and try again."</string>
 <string name="schedule_build_creating_reminder_for">"Creating reminder for"</string>
 <string name="schedule_build_tab_title_medicine">"Medicine"</string>
 <string name="schedule_build_tab_title_intakes">"Daily intakes"</string>
