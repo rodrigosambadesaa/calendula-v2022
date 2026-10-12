@@ -190,42 +190,118 @@ public class ScheduleUtils {
      */
     void reconcileScheduleOccurrences(Context ctx, Schedule schedule, DateTime from,
                                       Collection<EventInstance> desired) {
-        if (schedule == null || schedule.getId() == null || from == null
-                || desired == null) {
-            throw new IllegalArgumentException("A persisted schedule and occurrence window are required");
-        }
+        requirePendingReconciliationInputs(schedule, from, desired);
         final Collection<EventInstance> toAdd = new ArrayList<>();
         try {
             TransactionManager.callInTransaction(
                     DB.helper().getConnectionSource(), (Callable<Void>) () -> {
-                        Collection<DateTime> timesToPreserve = new ArrayList<>();
-                        for (EventInstance event : desired) {
-                            if (event == null
-                                    || event.getType() != EventType.MEDICATION_INTAKE
-                                    || event.getTime() == null
-                                    || !schedule.getId().equals(event.getRef())) {
-                                throw new SQLException("Generated occurrence has invalid schedule identity");
-                            }
-                            if (!DB.eventInstances().exists(
-                                    event.getType(), event.getTime(), event.getRef())) {
-                                toAdd.add(event);
-                            } else {
-                                DB.eventInstances().updateParams(event.getType(),
-                                        event.getTime(), event.getRef(), event.getParams());
-                                timesToPreserve.add(event.getTime());
-                            }
-                        }
-                        DB.eventInstances().removeDistinctTime(
-                                EventType.MEDICATION_INTAKE, schedule.getId(), timesToPreserve, from);
-                        Agenda.instance().addEvents(toAdd);
+                        writePendingOccurrenceRows(schedule, from, desired, toAdd);
                         return null;
                     });
         } catch (SQLException failure) {
             throw new IllegalStateException("Could not atomically regenerate schedule occurrences", failure);
         }
-        // The occurrence transaction already committed. Keep the UI aware of
-        // the new SQLite state even if post-commit OS reminder reconciliation
-        // fails: a scheduling exception cannot roll these edits back.
+        notifyCommittedScheduleOccurrences(ctx, toAdd);
+    }
+
+    /**
+     * Edit the prescription model and its future pending occurrences as ONE
+     * SQLite unit. Previously ScheduleBuildActivity saved the new model first,
+     * and a subsequent failure pruning old occurrences left it mismatched.
+     */
+    public void updateScheduleWithOccurrences(Context ctx, Schedule schedule) {
+        DateTime now = DateTime.now();
+        persistEditedScheduleRows(ctx, schedule, now, getEventsFromTime(schedule, now));
+    }
+
+    /** Package-private: permits synthetic SQLite rollback tests without recurrence fixtures. */
+    void persistEditedScheduleRows(Context ctx, Schedule schedule, DateTime from,
+                                   Collection<EventInstance> desired) {
+        requirePendingReconciliationInputs(schedule, from, desired);
+        if (ctx == null || schedule.getId() <= 0L
+                || schedule.getPatient() == null
+                || schedule.getPatient().getId() == null
+                || schedule.getPatient().getId() <= 0L
+                || schedule.getMedicine() == null
+                || schedule.getMedicine().getId() == null
+                || schedule.getMedicine().getId() <= 0L) {
+            throw new IllegalArgumentException("Edited schedule requires persisted patient and medicine");
+        }
+        final Collection<EventInstance> toAdd = new ArrayList<>();
+        try {
+            TransactionManager.callInTransaction(
+                    DB.helper().getConnectionSource(), (Callable<Void>) () -> {
+                        Schedule stored = DB.schedules().findById(schedule.getId());
+                        Medicine medicine = DB.medicines().findById(schedule.getMedicine().getId());
+                        if (stored == null || stored.getPatient() == null
+                                || !schedule.getPatient().getId().equals(stored.getPatient().getId())
+                                || medicine == null || DB.medicines().refresh(medicine) != 1
+                                || (medicine.getPatient() != null
+                                    && (medicine.getPatient().getId() == null
+                                        || !schedule.getPatient().getId().equals(
+                                                medicine.getPatient().getId())))) {
+                            throw new SQLException("Edited prescription ownership changed");
+                        }
+                        schedule.setMedicine(medicine);
+                        if (DB.schedules().update(schedule) != 1) {
+                            throw new SQLException("Expected one updated schedule row");
+                        }
+                        writePendingOccurrenceRows(schedule, from, desired, toAdd);
+                        return null;
+                    });
+        } catch (SQLException failure) {
+            throw new IllegalStateException("Could not atomically edit schedule and occurrences", failure);
+        }
+        // Platform alarms and stock notifications are not SQLite resources.
+        // Dispatch only AFTER a complete commit, so rollback cannot emit
+        // reminders or stock alerts based on a phantom new prescription.
+        StockAlertHandler.checkStockAlerts(schedule.getMedicine());
+        notifyCommittedScheduleOccurrences(ctx, toAdd);
+    }
+
+    private static void requirePendingReconciliationInputs(
+            Schedule schedule, DateTime from, Collection<EventInstance> desired) {
+        if (schedule == null || schedule.getId() == null || from == null
+                || desired == null) {
+            throw new IllegalArgumentException(
+                    "A persisted schedule and occurrence window are required");
+        }
+    }
+
+    /** All SQL writes in this helper participate in the caller's transaction. */
+    private void writePendingOccurrenceRows(Schedule schedule, DateTime from,
+                                            Collection<EventInstance> desired,
+                                            Collection<EventInstance> toAdd) throws SQLException {
+        Collection<DateTime> timesToPreserve = new ArrayList<>();
+        for (EventInstance event : desired) {
+            if (event == null
+                    || event.getType() != EventType.MEDICATION_INTAKE
+                    || event.getTime() == null
+                    || !schedule.getId().equals(event.getRef())
+                    || event.getPatient() == null
+                    || event.getPatient().getId() == null
+                    || schedule.getPatient() == null
+                    || !schedule.getPatient().getId().equals(event.getPatient().getId())) {
+                throw new SQLException("Generated occurrence has invalid schedule or patient identity");
+            }
+            if (!DB.eventInstances().exists(
+                    event.getType(), event.getTime(), event.getRef())) {
+                toAdd.add(event);
+            } else {
+                DB.eventInstances().updateParams(event.getType(),
+                        event.getTime(), event.getRef(), event.getParams());
+                timesToPreserve.add(event.getTime());
+            }
+        }
+        DB.eventInstances().removeDistinctTime(
+                EventType.MEDICATION_INTAKE, schedule.getId(), timesToPreserve, from);
+        Agenda.instance().addEvents(toAdd);
+    }
+
+    private void notifyCommittedScheduleOccurrences(
+            Context ctx, Collection<EventInstance> toAdd) {
+        // The occurrence transaction already committed. Keep UI aware of
+        // the new SQLite state even if later OS reminder reconciliation fails.
         boolean remindersOk;
         try {
             remindersOk = Agenda.instance().createReminders(ctx, toAdd);
