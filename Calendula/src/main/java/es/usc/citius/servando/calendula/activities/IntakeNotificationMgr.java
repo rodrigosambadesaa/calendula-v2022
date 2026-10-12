@@ -327,6 +327,12 @@ public class IntakeNotificationMgr {
             alertUnverifiedMedicationData(context, reminder);
             return;
         }
+        if (intents != null) {
+            // Delay and cancel are clinical decisions too: an old button
+            // must not affect medication that appeared after this notice.
+            intents.first.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, visibleSnapshot);
+            intents.second.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, visibleSnapshot);
+        }
         final Intent confirmAll = new Intent(context, AlarmReceiver.class);
         confirmAll.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_CONFIRM);
         confirmAll.putExtra(IntentParams.EXTRA_REMINDER_ID, reminder.getId());
