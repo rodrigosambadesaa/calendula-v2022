@@ -579,6 +579,16 @@ public class ConfirmActivity extends CalendulaActivity {
             return null;
         }
         try {
+            Bundle extras = intent.getExtras();
+            if (extras == null
+                    || !(extras.get(IntentParams.EXTRA_PATIENT_ID) instanceof Long)
+                    || !(extras.get(IntentParams.EXTRA_DATETIME) instanceof String)
+                    || (extras.containsKey(IntentParams.EXTRA_ACTION)
+                        && !(extras.get(IntentParams.EXTRA_ACTION) instanceof String))
+                    || (extras.containsKey(IntentParams.EXTRA_POSITION)
+                        && !(extras.get(IntentParams.EXTRA_POSITION) instanceof Integer))) {
+                return null;
+            }
             long id = intent.getLongExtra(IntentParams.EXTRA_PATIENT_ID, -1L);
             DateTime time = parseIntakeDate(
                     intent.getStringExtra(IntentParams.EXTRA_DATETIME));
