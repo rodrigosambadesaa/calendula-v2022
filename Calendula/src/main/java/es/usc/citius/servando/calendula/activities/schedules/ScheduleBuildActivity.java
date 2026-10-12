@@ -918,17 +918,19 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
      * still open. A former patient may also have been deleted since onCreate.
      * Returning an empty list is safer than displaying another user's drugs.
      */
-    List<Medicine> medicinesForOpenedPatient() {
+    boolean isOpenedPatientStillActive() {
         Long openedId = patientIdAtEditorOpen;
-        if (openedId == null || openedId <= 0L) {
+        return openedId != null && openedId > 0L
+                && ScheduleSaveOwnerGuard.samePersistedPatient(
+                        DB.patients().findById(openedId),
+                        DB.patients().getActive(this));
+    }
+
+    List<Medicine> medicinesForOpenedPatient() {
+        if (!isOpenedPatientStillActive()) {
             return Collections.emptyList();
         }
-        Patient active = DB.patients().getActive(this);
-        if (active == null || !openedId.equals(active.getId())
-                || DB.patients().findById(openedId) == null) {
-            return Collections.emptyList();
-        }
-        return DB.medicines().findAll(openedId);
+        return DB.medicines().findAll(patientIdAtEditorOpen);
     }
 
     private void completeScheduleAsync() {
