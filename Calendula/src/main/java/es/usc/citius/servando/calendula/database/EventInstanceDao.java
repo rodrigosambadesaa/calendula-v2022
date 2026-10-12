@@ -282,6 +282,10 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
                     dbHelper.getConnectionSource(), () -> {
                         QueryBuilder<EventInstance, Long> query = dao.queryBuilder();
                         query.where().eq(EventInstance.COLUMN_PATIENT, patient);
+                        // Deterministic delete order makes rollback fault
+                        // injection exercise a partial-write failure, not
+                        // merely an abort before the first deletion.
+                        query.orderBy(EventInstance.COLUMN_ID, true);
                         int removed = 0;
                         for (EventInstance event : query.query()) {
                             if (event == null || event.getId() == null
