@@ -16,7 +16,6 @@ import org.junit.runner.RunWith;
 import java.util.Arrays;
 import java.util.Collections;
 
-import es.usc.citius.servando.calendula.scheduling.Agenda;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 
 import es.usc.citius.servando.calendula.database.DB;
@@ -65,10 +64,9 @@ public class ScheduleReconciliationSmokeTest {
             sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
             EventReminder reminder = DB.eventReminders().findBy(
                     EventType.MEDICATION_INTAKE, when, null);
+            // The injected BEFORE INSERT abort means no alarm could have
+            // been registered. Defensive SQLite cleanup uses public DAO APIs.
             if (reminder != null) {
-                Agenda.instance().cancelAlarm(
-                        InstrumentationRegistry.getInstrumentation().getTargetContext(),
-                        reminder);
                 DB.eventReminders().remove(reminder);
             }
             if (pending.getId() != null && DB.eventInstances().findById(pending.getId()) != null) {
