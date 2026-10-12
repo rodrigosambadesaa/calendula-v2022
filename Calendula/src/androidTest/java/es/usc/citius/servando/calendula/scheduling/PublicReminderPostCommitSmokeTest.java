@@ -348,6 +348,62 @@ public class PublicReminderPostCommitSmokeTest {
     }
 
     @Test
+    public void failedRepeatWriteStillDeliversOriginalPendingNotification()
+            throws Exception {
+        assertTrue(DB.initialized);
+        RepeatFixture x = new RepeatFixture();
+        Field receiversField = Agenda.class.getDeclaredField("receivers");
+        receiversField.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<EventType, EventReminderReceiver> receivers =
+                (Map<EventType, EventReminderReceiver>) receiversField.get(Agenda.instance());
+        EventReminderReceiver original = receivers.get(EventType.MEDICATION_INTAKE);
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        final String trigger = "ci_test_repeat_delivery_sql_abort";
+        final int[] observed = {0};
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            x.reminder.setNextTime(DateTime.now().minusMinutes(1));
+            DB.eventReminders().save(x.reminder);
+            DateTime due = x.persistedTime();
+            assertEquals(x.reminder.getNextTime(), due);
+            Agenda.instance().registerReminderReceiver(
+                    EventType.MEDICATION_INTAKE, new EventReminderReceiver() {
+                        @Override
+                        public boolean autoRepeat() {
+                            return true;
+                        }
+
+                        @Override
+                        public void onEvent(Context context, EventReminder shown) {
+                            observed[0]++;
+                            assertEquals("A failed repetition must preserve the old consent revision",
+                                    due, shown.getNextTime());
+                            assertEquals(due, DB.eventReminders()
+                                    .findById(shown.getId()).getNextTime());
+                        }
+                    });
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE UPDATE ON EventReminders WHEN OLD._id = "
+                    + x.reminder.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic repeat write failure'); END;");
+            Agenda.instance().onReceiveAlarm(x.context, x.reminder.getId());
+            assertEquals("The due medication alert must survive a repeat SQL failure",
+                    1, observed[0]);
+            assertEquals("The unsuccessful future reminder must not be persisted",
+                    due, x.persistedTime());
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            if (original == null) {
+                receivers.remove(EventType.MEDICATION_INTAKE);
+            } else {
+                receivers.put(EventType.MEDICATION_INTAKE, original);
+            }
+            x.cleanup();
+        }
+    }
+
+    @Test
     public void staleRepeatCannotOverwriteAnIndependentlyDelayedReminder() throws Exception {
         assertTrue(DB.initialized);
         RepeatFixture x = new RepeatFixture();
