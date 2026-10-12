@@ -267,6 +267,40 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
      * Archived decisions may retain an obsolete schedule reference. Their
      * clinical rendering must still be validated independently.
      */
+    /**
+     * Explicit patient erasure is different from removing one prescription:
+     * the former must delete even completed/cancelled intake history.
+     * Only a positive, persisted patient key can authorize this operation.
+     * A failed SQLite deletion rolls back the entire patient-scoped batch.
+     */
+    public int removeAllForPatient(Patient patient) {
+        if (patient == null || patient.getId() == null || patient.getId() <= 0L) {
+            throw new IllegalArgumentException("A persisted patient is required for history erasure");
+        }
+        try {
+            return com.j256.ormlite.misc.TransactionManager.callInTransaction(
+                    dbHelper.getConnectionSource(), () -> {
+                        QueryBuilder<EventInstance, Long> query = dao.queryBuilder();
+                        query.where().eq(EventInstance.COLUMN_PATIENT, patient);
+                        int removed = 0;
+                        for (EventInstance event : query.query()) {
+                            if (event == null || event.getId() == null
+                                    || event.getPatient() == null
+                                    || !patient.getId().equals(event.getPatient().getId())) {
+                                throw new SQLException("Patient history scope changed during erasure");
+                            }
+                            if (dao.deleteById(event.getId()) != 1) {
+                                throw new SQLException("Could not erase patient history occurrence");
+                            }
+                            removed++;
+                        }
+                        return removed;
+                    });
+        } catch (SQLException error) {
+            throw new IllegalStateException("Could not erase patient medication history", error);
+        }
+    }
+
     public int removeByRef(Long ref) {
         if (ref == null) {
             return 0;
