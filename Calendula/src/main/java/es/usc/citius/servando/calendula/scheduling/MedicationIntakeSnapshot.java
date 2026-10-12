@@ -68,8 +68,16 @@ public final class MedicationIntakeSnapshot {
                 out.writeBoolean(event.cancelled());
                 String dose;
                 try {
-                    dose = event.getParams() == null ? null
-                            : event.getStringParam(EventInstance.PARAM_DOSE);
+                    Object rawDose = event.getParams() == null ? null
+                            : event.getParams().get(EventInstance.PARAM_DOSE);
+                    // A malformed restored Bundle may contain a numeric or
+                    // parcelled value. Never silently omit or coerce a dose:
+                    // doing so would authorize a notification with a different
+                    // clinical snapshot from the one originally displayed.
+                    if (rawDose != null && !(rawDose instanceof String)) {
+                        return null;
+                    }
+                    dose = (String) rawDose;
                 } catch (RuntimeException invalidLegacyBundle) {
                     return null;
                 }
