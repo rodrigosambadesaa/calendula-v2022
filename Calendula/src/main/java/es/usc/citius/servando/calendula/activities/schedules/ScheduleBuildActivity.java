@@ -1004,8 +1004,11 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
                     current.setMedicine(medicine);
                     current.setDosages(scheduleToSave.getDosages());
                     current.setRecur(scheduleToSave.getRecur());
-                    DB.schedules().save(current);
-                    ScheduleUtils.instance().updateEventInstances(ScheduleBuildActivity.this, current);
+                    // Commit the new recurrence and its pending agenda rows
+                    // together; a later failed DELETE cannot leave mismatched
+                    // prescription and event-instance data in SQLite.
+                    ScheduleUtils.instance().updateScheduleWithOccurrences(
+                            ScheduleBuildActivity.this, current);
                 } else {
                     Schedule schedule = new Schedule(scheduleToSave.getRecur());
                     schedule.setPatient(owner);
