@@ -138,6 +138,73 @@ public class ScheduleReconciliationSmokeTest {
     }
 
     @Test
+    public void failedEditedOccurrenceDeleteRollsBackStoredPrescriptionState()
+            throws Exception {
+        assertTrue(DB.initialized);
+        String key = Long.toString(System.nanoTime());
+        Patient patient = new Patient();
+        patient.setName("Synthetic edited schedule owner");
+        patient.setCode("ci-edit-schedule-rollback-" + key);
+        Medicine medicine = new Medicine("Synthetic edited schedule medicine",
+                Presentation.PILLS);
+        Schedule schedule = new Schedule(medicine);
+        DateTime from = DateTime.now().minusDays(4);
+        DateTime obsoleteTime = from.plusDays(1).withMillisOfSecond(0);
+        EventInstance obsolete = event(null, obsoleteTime, 1.0d);
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        final String trigger = "ci_edit_schedule_occurrence_abort";
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            assertEquals(1, DB.patients().create(patient));
+            medicine.setPatient(patient);
+            assertEquals(1, DB.medicines().create(medicine));
+            schedule.setPatient(patient);
+            assertEquals(1, DB.schedules().create(schedule));
+            obsolete.setPatient(patient);
+            obsolete.setRef(schedule.getId());
+            assertEquals(1, DB.eventInstances().create(obsolete));
+            assertFalse(DB.schedules().findById(schedule.getId())
+                    .hasState(Schedule.ScheduleState.BLOCKED));
+
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE DELETE ON EventInstances WHEN OLD._id = " + obsolete.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic recurrence delete failure'); END;");
+            schedule.addState(Schedule.ScheduleState.BLOCKED);
+            try {
+                ScheduleUtils.instance().persistEditedScheduleRows(
+                        InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                        schedule, from, java.util.Collections.emptyList());
+                fail("Rejected occurrence deletion must reject prescription edit");
+            } catch (RuntimeException expected) {
+                // Both the model UPDATE and event DELETE must be rolled back.
+            }
+            Schedule fromSqlite = DB.schedules().findById(schedule.getId());
+            assertNotNull(fromSqlite);
+            assertEquals(1, DB.schedules().refresh(fromSqlite));
+            assertFalse("Uncommitted blocked state must not survive rollback",
+                    fromSqlite.hasState(Schedule.ScheduleState.BLOCKED));
+            assertNotNull("Previous pending intake must survive the failed edit",
+                    DB.eventInstances().findById(obsolete.getId()));
+            assertEquals(1.0d, DB.eventInstances().findById(obsolete.getId())
+                    .getDoubleParam(EventInstance.PARAM_DOSE), 0.0001d);
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            if (obsolete.getId() != null && DB.eventInstances().findById(obsolete.getId()) != null) {
+                DB.eventInstances().remove(obsolete);
+            }
+            if (schedule.getId() != null && DB.schedules().findById(schedule.getId()) != null) {
+                DB.schedules().remove(schedule);
+            }
+            if (medicine.getId() != null && DB.medicines().findById(medicine.getId()) != null) {
+                DB.medicines().remove(medicine);
+            }
+            if (patient.getId() != null && DB.patients().findById(patient.getId()) != null) {
+                DB.patients().remove(patient);
+            }
+        }
+    }
+
+    @Test
     public void failedObsoleteDeleteRollsBackEarlierDoseUpdateAndNewOccurrences() {
         assertTrue(DB.initialized);
         Schedule schedule = new Schedule();
