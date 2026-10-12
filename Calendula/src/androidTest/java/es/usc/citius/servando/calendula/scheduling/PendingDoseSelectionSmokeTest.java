@@ -196,6 +196,14 @@ public class PendingDoseSelectionSmokeTest {
                 pruneRejected = true;
             }
             assertTrue("Cross-owner row must abort pruning", pruneRejected);
+            boolean blockRejected = false;
+            try {
+                DB.eventInstances().removeByRefAndTime(
+                        schedule.getId(), at.minusMinutes(1));
+            } catch (RuntimeException expected) {
+                blockRejected = true;
+            }
+            assertTrue("Cross-owner row must also abort future blocking", blockRejected);
             assertNotNull(DB.eventInstances().findById(mine.getId()));
             assertNotNull(DB.eventInstances().findById(theirs.getId()));
         } finally {
