@@ -52,20 +52,51 @@ class AlarmReceiver : BroadcastReceiver() {
                 else -> false
             }
         }
+
+        /**
+         * Build exactly the work that the service is allowed to receive.
+         * Reject legacy one-tap confirmation broadcasts at the boundary,
+         * before they enter a persistent JobIntentService queue. No clinical
+         * names, patient IDs or dose amounts are forwarded as extras.
+         */
+        @JvmStatic
+        fun validatedServiceIntent(context: Context, incoming: Intent?): Intent? {
+            if (incoming == null) return null
+            val action = incoming.getStringExtra(IntentParams.EXTRA_ACTION)
+            val reminderId = incoming.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1L)
+            if (!isValidAlarmDispatch(action, reminderId)) return null
+
+            val snapshot = if (action == IntentParams.ACTION_ALARM_CONFIRM) {
+                incoming.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT)
+            } else {
+                null
+            }
+            if (action == IntentParams.ACTION_ALARM_CONFIRM &&
+                (snapshot == null || snapshot.length != 64 ||
+                    !snapshot.all { it in '0'..'9' || it in 'a'..'f' })
+            ) {
+                return null
+            }
+
+            return Intent(context, AlarmIntentService::class.java).apply {
+                putExtra(IntentParams.EXTRA_ACTION, action)
+                putExtra(IntentParams.EXTRA_REMINDER_ID, reminderId)
+                if (snapshot != null) {
+                    putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, snapshot)
+                }
+            }
+        }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
+        if (CalendulaApp.disableReceivers) return
 
-        if (CalendulaApp.disableReceivers) {
+        val serviceIntent = validatedServiceIntent(context, intent)
+        if (serviceIntent == null) {
+            LogUtil.w(TAG, "Ignoring unsupported, stale or malformed alarm broadcast")
             return
         }
-
-        val action = intent.getStringExtra(IntentParams.EXTRA_ACTION)
-        val reminderId = intent.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1L)
-        if (!isValidAlarmDispatch(action, reminderId)) {
-            LogUtil.w(TAG, "Ignoring unsupported or malformed alarm broadcast")
-            return
-        }
+        val action = serviceIntent.getStringExtra(IntentParams.EXTRA_ACTION)
         LogUtil.d(TAG, "Alarm received with action $action")
 
         if (action == IntentParams.ACTION_DAILY_UPDATE) {
@@ -75,18 +106,6 @@ class AlarmReceiver : BroadcastReceiver() {
             Agenda.instance().setDailyUpdateAlarm(context)
         }
 
-        // call service
-        val serviceIntent = Intent(context, AlarmIntentService::class.java)
-        serviceIntent.putExtra(IntentParams.EXTRA_ACTION, action)
-        serviceIntent.putExtra(IntentParams.EXTRA_REMINDER_ID, reminderId)
-        if (action == IntentParams.ACTION_ALARM_CONFIRM) {
-            // Preserve only the opaque consent snapshot; never forward
-            // patient names, medication names or dose details.
-            serviceIntent.putExtra(
-                IntentParams.EXTRA_INTAKE_SNAPSHOT,
-                intent.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT)
-            )
-        }
         AlarmIntentService.enqueueWork(context, serviceIntent)
     }
 
