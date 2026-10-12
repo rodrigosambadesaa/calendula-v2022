@@ -67,6 +67,9 @@ public class ScheduleEditorOwnershipSmokeTest {
                     "UPDATE Medicines SET Patient = ? WHERE _id = ?",
                     new Object[]{foreign.getId(), medicine.getId()});
             reloadedMedicine = DB.medicines().findById(medicine.getId());
+            assertNotNull(reloadedMedicine);
+            assertTrue("Reload the authoritative medicine owner from SQLite",
+                    DB.medicines().refresh(reloadedMedicine) == 1);
             assertFalse("Stale editor cannot save reassigned medicine",
                     ScheduleSaveOwnerGuard.canSaveForOpenedPatient(
                             owner, reloaded, reloaded, reloadedMedicine));
