@@ -24,6 +24,7 @@ import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
+import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 
 import static org.junit.Assert.assertEquals;
@@ -50,6 +51,7 @@ public class NotificationSnapshotSmokeTest {
         final EventInstance[] intakes = {
                 new EventInstance(when, EventType.MEDICATION_INTAKE),
                 new EventInstance(when, EventType.MEDICATION_INTAKE)};
+        final EventReminder reminder = new EventReminder(when, EventType.MEDICATION_INTAKE);
 
         Fixture(boolean secondInitiallyVisible) throws Exception {
             patient.setCode("ci-snapshot-patient-" + System.nanoTime());
@@ -59,6 +61,10 @@ public class NotificationSnapshotSmokeTest {
             if (secondInitiallyVisible) {
                 createDose(1);
             }
+            reminder.setPatient(patient);
+            reminder.setNextTime(when);
+            assertEquals(1, DB.eventReminders().create(reminder));
+            assertNotNull(reminder.getId());
         }
 
         void createDose(int index) throws Exception {
@@ -87,6 +93,10 @@ public class NotificationSnapshotSmokeTest {
         }
 
         void cleanup() {
+            if (reminder.getId() != null
+                    && DB.eventReminders().findById(reminder.getId()) != null) {
+                DB.eventReminders().remove(reminder);
+            }
             for (EventInstance e : intakes) {
                 if (e.getId() != null && DB.eventInstances().findById(e.getId()) != null) {
                     DB.eventInstances().remove(e);
@@ -114,13 +124,13 @@ public class NotificationSnapshotSmokeTest {
         assertTrue(DB.initialized);
         Fixture x = new Fixture(true);
         try {
-            String shown = IntakeSnapshot.fingerprint(x.visible(2));
+            String shown = IntakeSnapshot.fingerprint(x.visible(2), x.reminder);
             assertNotNull(shown);
             assertEquals(64, shown.length());
             assertEquals("Digest must not depend on DAO row ordering",
-                    shown, IntakeSnapshot.fingerprint(Arrays.asList(x.intakes[1], x.intakes[0])));
+                    shown, IntakeSnapshot.fingerprint(Arrays.asList(x.intakes[1], x.intakes[0]), x.reminder));
             assertEquals(2, ScheduleUtils.instance().checkIntakeEventsWithSnapshot(
-                    x.context, x.patient, x.when, shown));
+                    x.context, x.patient, x.when, x.reminder.getId(), shown));
             for (int i = 0; i < 2; i++) {
                 assertTrue(DB.eventInstances().findById(x.intakes[i].getId()).completed());
                 assertEquals(INITIAL_STOCK - DOSE,
@@ -128,7 +138,7 @@ public class NotificationSnapshotSmokeTest {
             }
             try {
                 ScheduleUtils.instance().checkIntakeEventsWithSnapshot(
-                        x.context, x.patient, x.when, shown);
+                        x.context, x.patient, x.when, x.reminder.getId(), shown);
                 fail("The same notification must not be able to confirm twice");
             } catch (RuntimeException expected) {
                 // Consumed selection no longer matches the pending SQLite set.
@@ -148,19 +158,53 @@ public class NotificationSnapshotSmokeTest {
         assertTrue(DB.initialized);
         Fixture x = new Fixture(false);
         try {
-            String shown = IntakeSnapshot.fingerprint(x.visible(1));
+            String shown = IntakeSnapshot.fingerprint(x.visible(1), x.reminder);
             x.createDose(1);
             try {
                 ScheduleUtils.instance().checkIntakeEventsWithSnapshot(
-                        x.context, x.patient, x.when, shown);
+                        x.context, x.patient, x.when, x.reminder.getId(), shown);
                 fail("Newly added medication was never displayed or consented");
             } catch (RuntimeException expected) {
                 // No stock or intake modification is permitted.
             }
             x.assertUnchanged(2);
             assertEquals(2, ScheduleUtils.instance().checkIntakeEventsWithSnapshot(
-                    x.context, x.patient, x.when,
-                    IntakeSnapshot.fingerprint(x.visible(2))));
+                    x.context, x.patient, x.when, x.reminder.getId(),
+                    IntakeSnapshot.fingerprint(x.visible(2), x.reminder)));
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void delayedReminderInvalidatesItsPreviousNotificationEvenIfDosesUnchanged()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture(true);
+        try {
+            String shown = IntakeSnapshot.fingerprint(x.visible(2), x.reminder);
+            assertNotNull(shown);
+            x.reminder.setNextTime(x.when.plusMinutes(12));
+            assertEquals(1, DB.eventReminders().update(x.reminder));
+            assertEquals(x.when.plusMinutes(12),
+                    DB.eventReminders().findById(x.reminder.getId()).getNextTime());
+
+            try {
+                ScheduleUtils.instance().checkIntakeEventsWithSnapshot(
+                        x.context, x.patient, x.when, x.reminder.getId(), shown);
+                fail("A previous notification button cannot confirm a delayed reminder");
+            } catch (RuntimeException expected) {
+                // No dose changes, but the reminder revision changed.
+            }
+            x.assertUnchanged(2);
+            assertNotNull(DB.eventReminders().findById(x.reminder.getId()));
+
+            String refreshed = IntakeSnapshot.fingerprint(
+                    x.visible(2), DB.eventReminders().findById(x.reminder.getId()));
+            assertFalse("The delayed reminder must have a different action digest",
+                    shown.equals(refreshed));
+            assertEquals(2, ScheduleUtils.instance().checkIntakeEventsWithSnapshot(
+                    x.context, x.patient, x.when, x.reminder.getId(), refreshed));
         } finally {
             x.cleanup();
         }
@@ -172,23 +216,23 @@ public class NotificationSnapshotSmokeTest {
         assertTrue(DB.initialized);
         Fixture x = new Fixture(true);
         try {
-            String shown = IntakeSnapshot.fingerprint(x.visible(2));
+            String shown = IntakeSnapshot.fingerprint(x.visible(2), x.reminder);
             x.intakes[1].addParam(EventInstance.PARAM_DOSE, "3.0");
             assertEquals(1, DB.eventInstances().updateParams(
                     EventType.MEDICATION_INTAKE, x.when, x.schedules[1].getId(),
                     x.intakes[1].getParams()));
             try {
                 ScheduleUtils.instance().checkIntakeEventsWithSnapshot(
-                        x.context, x.patient, x.when, shown);
+                        x.context, x.patient, x.when, x.reminder.getId(), shown);
                 fail("A changed dose cannot be approved from an old notification");
             } catch (RuntimeException expected) {
                 // Both doses and stock balances remain unchanged.
             }
             x.assertUnchanged(2);
             assertEquals(2, ScheduleUtils.instance().checkIntakeEventsWithSnapshot(
-                    x.context, x.patient, x.when,
+                    x.context, x.patient, x.when, x.reminder.getId(),
                     IntakeSnapshot.fingerprint(DB.eventInstances().findPending(
-                            EventType.MEDICATION_INTAKE, x.when, x.patient))));
+                            EventType.MEDICATION_INTAKE, x.when, x.patient), x.reminder)));
             assertEquals(8.0f,
                     DB.medicines().findById(x.medicines[0].getId()).getStock(), 0.001f);
             assertEquals(7.0f,
