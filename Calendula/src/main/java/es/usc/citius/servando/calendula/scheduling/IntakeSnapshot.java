@@ -11,6 +11,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+
+import es.usc.citius.servando.calendula.database.DB;
+import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.Schedule;
 
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
@@ -69,6 +74,17 @@ public final class IntakeSnapshot {
      * previous button even if every dose still has the same amount.
      */
     public static String fingerprint(List<EventInstance> visible, EventReminder reminder) {
+        return fingerprint(visible, reminder, null);
+    }
+
+    /**
+     * Bind consent to the displayed clinical source as well as the event.
+     * When rendering a notification, pass the verified schedules that were
+     * used to produce its text. During the SQLite commit, passing null forces
+     * a new authoritative lookup instead of trusting a stale UI object.
+     */
+    public static String fingerprint(List<EventInstance> visible, EventReminder reminder,
+                                     Map<Long, Schedule> displayedSchedules) {
         if (reminder == null || reminder.getId() == null || reminder.getId() <= 0L
                 || reminder.getPatient() == null
                 || reminder.getPatient().getId() == null
@@ -87,6 +103,44 @@ public final class IntakeSnapshot {
         append(combined, Long.toString(reminder.getDateTime().getMillis()));
         append(combined, Long.toString(reminder.getNextTime().getMillis()));
         append(combined, doseFingerprint);
+        // Previously the digest only covered event.ref and dose. An in-place
+        // schedule update could silently substitute a different medicine.
+        // Include the actual source identity and visible presentation in the
+        // consent hash, using canonical persisted event-ID ordering.
+        List<EventInstance> sorted = new ArrayList<>(visible);
+        Collections.sort(sorted, (a, b) -> Long.compare(a.getId(), b.getId()));
+        for (EventInstance event : sorted) {
+            Schedule schedule = displayedSchedules == null
+                    ? DB.schedules().findById(event.getRef())
+                    : displayedSchedules.get(event.getId());
+            if (schedule == null || schedule.getId() == null
+                    || !event.getRef().equals(schedule.getId())
+                    || schedule.getPatient() == null
+                    || schedule.getPatient().getId() == null
+                    || !event.getPatient().getId().equals(schedule.getPatient().getId())) {
+                return null;
+            }
+            Medicine medicine = schedule.getMedicine();
+            if (medicine == null || medicine.getId() == null
+                    || medicine.getName() == null
+                    || medicine.getName().trim().isEmpty()) {
+                return null;
+            }
+            append(combined, Long.toString(event.getId()));
+            append(combined, Long.toString(schedule.getId()));
+            append(combined, Long.toString(schedule.getPatient().getId()));
+            append(combined, Long.toString(medicine.getId()));
+            append(combined, medicine.getName());
+            append(combined, medicine.getPresentation() == null
+                    ? null : medicine.getPresentation().toString());
+            append(combined, medicine.getPatient() == null
+                    || medicine.getPatient().getId() == null
+                    ? null : Long.toString(medicine.getPatient().getId()));
+            append(combined, schedule.getState() == null
+                    ? null : schedule.getState().toString());
+            append(combined, schedule.getActiveMedId() == null
+                    ? null : Long.toString(schedule.getActiveMedId()));
+        }
         return digest(combined.toString());
     }
 
