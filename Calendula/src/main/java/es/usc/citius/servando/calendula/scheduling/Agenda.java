@@ -563,9 +563,15 @@ public class Agenda {
         logReminders();
     }
 
-    public void onDelayReminder(Context context, EventType type, DateTime time, Patient p, int delay) {
+    /**
+     * Return true only when the reminder was actually persisted and re-armed.
+     * The interactive confirmation screen must not report a successful delay
+     * for a missing, completed or stale reminder.
+     */
+    public boolean onDelayReminder(Context context, EventType type, DateTime time,
+                                   Patient p, int delay) {
         EventReminder reminder = DB.eventReminders().findBy(type, time, p);
-        delayReminder(context, reminder, delay);
+        return delayReminder(context, reminder, delay);
     }
 
 
