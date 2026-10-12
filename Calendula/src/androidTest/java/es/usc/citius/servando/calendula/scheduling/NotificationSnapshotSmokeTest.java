@@ -154,6 +154,32 @@ public class NotificationSnapshotSmokeTest {
     }
 
     @Test
+    public void wrongTypedDoseBundleCannotProduceAnActionableNotificationFingerprint()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture(false);
+        try {
+            List<EventInstance> displayed = x.visible(1);
+            String original = IntakeSnapshot.fingerprint(displayed, x.reminder);
+            assertNotNull(original);
+            // Some Android Bundle.getString implementations return null,
+            // not an exception, for an unexpected Long. That must never
+            // masquerade as an intentionally absent official dose.
+            x.intakes[0].getParams().putLong(EventInstance.PARAM_DOSE, 7L);
+            assertNull("Wrong-typed dose cannot produce an event fingerprint",
+                    IntakeSnapshot.fingerprint(displayed));
+            assertNull("Wrong-typed dose cannot authorize a notification action",
+                    IntakeSnapshot.fingerprint(displayed, x.reminder));
+            x.intakes[0].getParams().putString(EventInstance.PARAM_DOSE, "2.0");
+            assertEquals("Restoring the original dose restores stable consent",
+                    original, IntakeSnapshot.fingerprint(displayed, x.reminder));
+            x.assertUnchanged(1);
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
     public void newlyAddedDoseAfterPostingInvalidatesOriginalNotification()
             throws Exception {
         assertTrue(DB.initialized);
