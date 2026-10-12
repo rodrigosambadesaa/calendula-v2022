@@ -60,6 +60,13 @@ object StockUpdater {
             throw IllegalStateException("Medication intake has inconsistent patient ownership")
         }
         if (!medicine.stockManagementEnabled()) return false
+        // Managed inventory requires a positive, persisted medicine owner.
+        // Null ownership must not be treated as a wildcard that authorizes
+        // an otherwise valid patient's dose to consume orphaned stock.
+        if (medicinePatientId == null || medicinePatientId <= 0L ||
+                medicinePatientId != eventPatientId) {
+            throw IllegalStateException("Tracked medicine has no matching patient owner")
+        }
         // A historical unassigned intake with disabled stock tracking may
         // still be acknowledged without touching inventory. As soon as
         // inventory is managed, null/null ownership is not sufficient proof
