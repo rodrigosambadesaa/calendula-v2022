@@ -278,10 +278,11 @@ public class ScheduleUtils {
                     || event.getType() != EventType.MEDICATION_INTAKE
                     || event.getTime() == null
                     || !schedule.getId().equals(event.getRef())
-                    || event.getPatient() == null
-                    || event.getPatient().getId() == null
-                    || schedule.getPatient() == null
-                    || !schedule.getPatient().getId().equals(event.getPatient().getId())) {
+                    || (schedule.getPatient() != null
+                        && (event.getPatient() == null
+                            || event.getPatient().getId() == null
+                            || !schedule.getPatient().getId().equals(
+                                    event.getPatient().getId())))) {
                 throw new SQLException("Generated occurrence has invalid schedule or patient identity");
             }
             if (!DB.eventInstances().exists(
