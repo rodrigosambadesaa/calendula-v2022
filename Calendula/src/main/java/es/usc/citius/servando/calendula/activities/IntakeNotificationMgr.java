@@ -42,6 +42,8 @@ import java.util.Random;
 
 import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.database.DB;
+import es.usc.citius.servando.calendula.fragments.DailyAgendaOfficialTreatmentValidator;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
 import es.usc.citius.servando.calendula.login.LoginStateManager;
 import es.usc.citius.servando.calendula.notifications.LockScreenAlarmActivity;
 import es.usc.citius.servando.calendula.notifications.NotificationHelper;
@@ -137,6 +139,21 @@ public class IntakeNotificationMgr {
         return true;
     }
 
+    /**
+     * A provider-bound schedule must reference the correct patient's live
+     * treatment before a notification claims the prescription is official.
+     * Legacy manually configured schedules remain displayable without one.
+     */
+    static boolean canRenderOfficialSource(Schedule schedule, ActiveMedEntity source) {
+        if (schedule == null) {
+            return false;
+        }
+        if (!schedule.isBoundToActiveMed()) {
+            return !schedule.hasState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL);
+        }
+        return DailyAgendaOfficialTreatmentValidator.verifiedLink(schedule, source);
+    }
+
     /** No medicine names, doses, or 'taken/cancel' actions without valid data. */
     static Notification buildUnverifiedMedicationNotification(
             Context context, EventReminder reminder) {
@@ -217,9 +234,43 @@ public class IntakeNotificationMgr {
         for (EventInstance event : events) {
             Schedule schedule = event == null || event.getRef() == null
                     ? null : DB.schedules().findById(event.getRef());
+            // Reload the authoritative medicine row before checking its
+            // ownership. ORMLite can hold an earlier medicine owner after an
+            // independent SQLite reassignment.
+            try {
+                Medicine linked = schedule == null ? null : schedule.getMedicine();
+                if (linked != null && (linked.getId() == null
+                        || DB.medicines().refresh(linked) != 1)) {
+                    alertUnverifiedMedicationData(context, reminder);
+                    return;
+                }
+            } catch (RuntimeException missing) {
+                alertUnverifiedMedicationData(context, reminder);
+                return;
+            }
             if (!canRenderMedication(event, schedule, patient)) {
                 alertUnverifiedMedicationData(context, reminder);
                 return;
+            }
+            // The official-source association can change independently of
+            // schedule and medicine. Never label a dose as officially
+            // prescribed using another patient's imported treatment.
+            if (schedule.isBoundToActiveMed()
+                    || schedule.hasState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL)) {
+                final ActiveMedEntity source;
+                try {
+                    source = schedule.isBoundToActiveMed()
+                            ? DB.healthcareProviderDB().activeMeds()
+                                    .findById(schedule.getActiveMedId())
+                            : null;
+                } catch (RuntimeException unavailable) {
+                    alertUnverifiedMedicationData(context, reminder);
+                    return;
+                }
+                if (!canRenderOfficialSource(schedule, source)) {
+                    alertUnverifiedMedicationData(context, reminder);
+                    return;
+                }
             }
             Medicine medicine = schedule.getMedicine();
             SpannableStringBuilder line = new SpannableStringBuilder();
