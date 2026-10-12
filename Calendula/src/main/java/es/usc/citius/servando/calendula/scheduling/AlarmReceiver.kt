@@ -67,15 +67,21 @@ class AlarmReceiver : BroadcastReceiver() {
                 val reminderId = incoming.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1L)
                 if (!isValidAlarmDispatch(action, reminderId)) return null
 
-                val snapshot = if (action == IntentParams.ACTION_ALARM_CONFIRM) {
+                val clinicalDecision =
+                    action == IntentParams.ACTION_ALARM_CONFIRM ||
+                    action == IntentParams.ACTION_ALARM_CANCEL ||
+                    action == IntentParams.ACTION_ALARM_DELAY
+                val snapshot = if (clinicalDecision) {
                     incoming.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT)
                 } else {
                     null
                 }
-                if (action == IntentParams.ACTION_ALARM_CONFIRM &&
+                if (clinicalDecision &&
                     (snapshot == null || snapshot.length != 64 ||
                         !snapshot.all { it in '0'..'9' || it in 'a'..'f' })
                 ) {
+                    // Even cancelling or delaying an old notification can
+                    // change the clinical plan the user actually saw.
                     return null
                 }
 
