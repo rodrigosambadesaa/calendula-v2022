@@ -583,8 +583,31 @@ public class Agenda {
                 && a.getId().equals(b.getId());
     }
 
+    /**
+     * Re-evaluate the exact notification the user acted on inside the SQLite
+     * transaction, before a delay or cancellation changes any dose/reminder.
+     * The snapshot covers current dose identities and actual medicines.
+     */
+    private static boolean matchesNotificationSnapshot(EventReminder reminder, String snapshot) {
+        if (reminder == null || reminder.getEventType() != EventType.MEDICATION_INTAKE
+                || reminder.getPatient() == null || reminder.getPatient().getId() == null
+                || reminder.getDateTime() == null || reminder.getId() == null
+                || DB.patients().findById(reminder.getPatient().getId()) == null) {
+            return false;
+        }
+        String current = IntakeSnapshot.fingerprint(
+                DB.eventInstances().findPending(reminder.getEventType(),
+                        reminder.getDateTime(), reminder.getPatient()), reminder);
+        return snapshot != null && snapshot.equals(current);
+    }
+
     private void finalizeReminderInSqlite(Context context, EventReminder reminder,
                                           boolean confirmIntake) {
+        finalizeReminderInSqlite(context, reminder, confirmIntake, null);
+    }
+
+    private void finalizeReminderInSqlite(Context context, EventReminder reminder,
+                                          boolean confirmIntake, String snapshot) {
         if (reminder == null || reminder.getId() == null) {
             throw new IllegalArgumentException("A persisted reminder ID is required");
         }
@@ -608,6 +631,9 @@ public class Agenda {
                             // reminder must never be finalized from a stale
                             // Android notification or alarm snapshot.
                             throw new SQLException("Reminder changed before decision");
+                        }
+                        if (snapshot != null && !matchesNotificationSnapshot(current, snapshot)) {
+                            throw new SQLException("Displayed reminder changed before decision");
                         }
                         if (confirmIntake) {
                             Patient patient = reminder.getPatient();
@@ -743,6 +769,29 @@ public class Agenda {
         return true;
     }
 
+    /**
+     * A notification "Cancel" button may only affect the exact dose group
+     * shown when posted. Old actions without snapshots fail closed, while
+     * existing internal callers keep their original cancellation API.
+     */
+    public boolean cancelReminderWithSnapshot(Context context, Long reminderId, String snapshot) {
+        if (reminderId == null || reminderId <= 0L || snapshot == null
+                || !snapshot.matches("[0-9a-f]{64}")) {
+            return false;
+        }
+        EventReminder reminder = DB.eventReminders().findById(reminderId);
+        if (!isCurrentPendingReminder(reminder)) {
+            return false;
+        }
+        try {
+            finalizeReminderInSqlite(context, reminder, false, snapshot);
+            IntakeNotificationMgr.cancel(context, reminder);
+            return true;
+        } catch (IllegalStateException staleOrInvalid) {
+            return false;
+        }
+    }
+
     public void removeReminder(Context context, EventReminder reminder) {
         // Also called for expired notifications; retain their notification
         // behavior by cancelling OS alarms here, not UI notifications.
@@ -764,6 +813,31 @@ public class Agenda {
      * a deleted reminder or overwrite a newer delay.
      */
     public boolean delayReminder(Context context, EventReminder reminder, Integer delay) {
+        return delayReminder(context, reminder, delay, null);
+    }
+
+    /** A one-tap snooze must not move an independently revised prescription. */
+    public boolean delayReminderWithSnapshot(Context context, Long reminderId, String snapshot) {
+        return delayReminderWithSnapshot(context, reminderId, snapshot, null);
+    }
+
+    /** Explicit delay is also used by synthetic smoke tests, not real notifications. */
+    public boolean delayReminderWithSnapshot(Context context, Long reminderId,
+                                             String snapshot, Integer delaySeconds) {
+        if (reminderId == null || reminderId <= 0L || snapshot == null
+                || !snapshot.matches("[0-9a-f]{64}")) {
+            return false;
+        }
+        try {
+            return delayReminder(context, DB.eventReminders().findById(reminderId),
+                    delaySeconds, snapshot);
+        } catch (IllegalStateException staleOrInvalid) {
+            return false;
+        }
+    }
+
+    private boolean delayReminder(Context context, EventReminder reminder,
+                                  Integer delay, String snapshot) {
         if (reminder == null) {
             return false;
         }
@@ -794,6 +868,9 @@ public class Agenda {
                             // reassigned to another patient or event, even if
                             // its next scheduled time happens to be unchanged.
                             throw new SQLException("Reminder revision changed before delay");
+                        }
+                        if (snapshot != null && !matchesNotificationSnapshot(current, snapshot)) {
+                            throw new SQLException("Displayed doses changed before delay");
                         }
                         if (!DB.eventInstances().existsPending(
                                 current.getEventType(), current.getDateTime(),
