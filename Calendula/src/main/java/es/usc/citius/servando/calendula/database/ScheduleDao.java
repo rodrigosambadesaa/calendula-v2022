@@ -112,10 +112,13 @@ public class ScheduleDao extends GenericDao<Schedule, Long> {
                 || medicine.getPatient().getId() == null || state == null) {
             return Collections.emptyList();
         }
+        // Snapshot the expected owner BEFORE refresh: ORMLite can return the
+        // very same cached instance, and refresh may mutate its patient field.
+        final Long expectedOwnerId = medicine.getPatient().getId();
         Medicine stored = DB.medicines().findById(medicine.getId());
         if (stored == null || DB.medicines().refresh(stored) != 1
                 || stored.getPatient() == null
-                || !medicine.getPatient().getId().equals(stored.getPatient().getId())) {
+                || !expectedOwnerId.equals(stored.getPatient().getId())) {
             return Collections.emptyList();
         }
         try {
