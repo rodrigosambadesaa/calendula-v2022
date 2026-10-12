@@ -58,6 +58,7 @@ import org.joda.time.DateTime;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -910,6 +911,24 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
             COLLAPSED,
             IDLE
         }
+    }
+
+    /**
+     * The picker must never follow a profile switch while an old editor is
+     * still open. A former patient may also have been deleted since onCreate.
+     * Returning an empty list is safer than displaying another user's drugs.
+     */
+    List<Medicine> medicinesForOpenedPatient() {
+        Long openedId = patientIdAtEditorOpen;
+        if (openedId == null || openedId <= 0L) {
+            return Collections.emptyList();
+        }
+        Patient active = DB.patients().getActive(this);
+        if (active == null || !openedId.equals(active.getId())
+                || DB.patients().findById(openedId) == null) {
+            return Collections.emptyList();
+        }
+        return DB.medicines().findAll(openedId);
     }
 
     private void completeScheduleAsync() {
