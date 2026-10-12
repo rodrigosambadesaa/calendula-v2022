@@ -258,15 +258,41 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
         }
     }
 
+    /**
+     * Removing a schedule must not erase previously recorded medication
+     * decisions. Keep completed/cancelled event snapshots (including original
+     * dose and completion time); remove only unhandled occurrences for the
+     * selected schedule. A failed delete rolls back the entire cleanup.
+     *
+     * Archived decisions may retain an obsolete schedule reference. Their
+     * clinical rendering must still be validated independently.
+     */
     public int removeByRef(Long ref) {
+        if (ref == null) {
+            return 0;
+        }
         try {
-            DeleteBuilder<EventInstance, Long> qb = dao.deleteBuilder();
-            Where w = qb.where();
-            w.eq(EventInstance.COLUMN_REF, ref);
-            qb.setWhere(w);
-            return qb.delete();
+            return com.j256.ormlite.misc.TransactionManager.callInTransaction(
+                    dbHelper.getConnectionSource(), () -> {
+                        QueryBuilder<EventInstance, Long> query = dao.queryBuilder();
+                        query.where().eq(EventInstance.COLUMN_REF, ref);
+                        int removed = 0;
+                        for (EventInstance event : query.query()) {
+                            if (event.getId() == null) {
+                                throw new SQLException("Schedule event has no persisted identity");
+                            }
+                            if (event.completed() || event.cancelled()) {
+                                continue;
+                            }
+                            if (dao.deleteById(event.getId()) != 1) {
+                                throw new SQLException("Could not remove pending schedule event");
+                            }
+                            removed++;
+                        }
+                        return removed;
+                    });
         } catch (SQLException e) {
-            throw new RuntimeException("Error finding event instances", e);
+            throw new IllegalStateException("Could not safely remove pending schedule events", e);
         }
     }
 
