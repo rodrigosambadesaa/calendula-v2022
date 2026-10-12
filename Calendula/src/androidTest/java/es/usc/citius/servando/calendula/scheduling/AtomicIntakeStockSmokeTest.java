@@ -883,6 +883,69 @@ public class AtomicIntakeStockSmokeTest {
     }
 
     @Test
+    public void notificationInvalidSecondDoseRollsBackEntireBatchAndKeepsAlarm()
+            throws Exception {
+        assertTrue(DB.initialized);
+        BatchFixture x = new BatchFixture();
+        try {
+            assertTrue("First row must be processed before the invalid second row",
+                    x.events[0].getId() < x.events[1].getId());
+            assertNotNull("A real Android reminder must exist before confirmation",
+                    x.currentAlarm());
+
+            x.events[1].addParam(EventInstance.PARAM_DOSE, "NaN");
+            // The DAO's legacy full-row update can report zero on a
+            // parameters-only change. Use its dedicated persisted-ID
+            // parameter update, then verify the actual SQLite snapshot.
+            assertEquals(1, DB.eventInstances().updateParams(
+                    EventType.MEDICATION_INTAKE, x.time, x.schedules[1].getId(),
+                    x.events[1].getParams()));
+            assertEquals("NaN", DB.eventInstances()
+                    .findById(x.events[1].getId()).getStringParam(EventInstance.PARAM_DOSE));
+            boolean rejected = false;
+            try {
+                Agenda.instance().confirmReminder(x.context, x.reminder.getId());
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("An invalid second dose must reject the entire notification",
+                    rejected);
+            for (int i = 0; i < 2; i++) {
+                assertFalse("Notification rollback must restore both intake flags",
+                        x.completed(i));
+                assertEquals("Notification rollback must restore both stock balances",
+                        INITIAL_STOCK, x.stock(i), 0.001f);
+            }
+            assertNotNull("Rollback must preserve its SQLite reminder",
+                    DB.eventReminders().findById(x.reminder.getId()));
+            assertNotNull("Rollback must retain its registered Android alarm",
+                    x.currentAlarm());
+
+            // A user must be able to retry after repairing the dose, rather
+            // than losing their original reminder or duplicating inventory.
+            x.events[1].addParam(EventInstance.PARAM_DOSE, (double) DOSE);
+            assertEquals(1, DB.eventInstances().updateParams(
+                    EventType.MEDICATION_INTAKE, x.time, x.schedules[1].getId(),
+                    x.events[1].getParams()));
+            assertEquals(DOSE, DB.eventInstances()
+                    .findById(x.events[1].getId()).getDoubleParam(EventInstance.PARAM_DOSE),
+                    0.001d);
+            Agenda.instance().confirmReminder(x.context, x.reminder.getId());
+            for (int i = 0; i < 2; i++) {
+                assertTrue("Retry must persist both confirmed doses", x.completed(i));
+                assertEquals("Retry must debit stock exactly once",
+                        INITIAL_STOCK - DOSE, x.stock(i), 0.001f);
+            }
+            assertNull("Successful confirmation must retire its SQLite reminder",
+                    DB.eventReminders().findById(x.reminder.getId()));
+            assertNull("Successful confirmation must retire its Android alarm",
+                    x.currentAlarm());
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
     public void sharedStockShortageRollsBackAllConfirmedDoses() throws Exception {
         assertTrue(DB.initialized);
         BatchFixture x = new BatchFixture(true);

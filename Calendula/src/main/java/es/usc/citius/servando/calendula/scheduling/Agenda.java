@@ -36,6 +36,7 @@ import org.joda.time.format.ISODateTimeFormat;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -619,11 +620,18 @@ public class Agenda {
                             if (pending.isEmpty()) {
                                 throw new SQLException("No pending medication doses remain");
                             }
-                            final DateTime completedAt = DateTime.now();
+                            // Validate all identities before ordering: SQL
+                            // rollback must be reproducible when a later dose
+                            // is invalid, regardless of the DAO query order.
                             for (EventInstance selected : pending) {
                                 if (selected == null || selected.getId() == null) {
                                     throw new SQLException("Pending intake identity is missing");
                                 }
+                            }
+                            Collections.sort(pending, (left, right) ->
+                                    Long.compare(left.getId(), right.getId()));
+                            final DateTime completedAt = DateTime.now();
+                            for (EventInstance selected : pending) {
                                 EventInstance stored = DB.eventInstances().findById(selected.getId());
                                 if (stored == null || stored.getType() != EventType.MEDICATION_INTAKE
                                         || stored.completed() || stored.cancelled()
