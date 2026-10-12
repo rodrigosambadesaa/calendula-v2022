@@ -8,6 +8,7 @@ package es.usc.citius.servando.calendula.scheduling;
 
 import android.app.PendingIntent;
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.content.Intent;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -23,6 +24,7 @@ import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
 
 /**
  * Android API 23/33/36: real PendingIntent re-registration, plus calendar
@@ -44,6 +46,26 @@ public class DailyMidnightAlarmSmokeTest {
                 PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE));
         assertNotNull("Daily calendar refresh must remain registered", existing);
         // Leave the daily maintenance token registered for subsequent app work.
+    }
+
+    @Test
+    public void missingAlarmServiceCannotSilentlySkipDailyMaintenanceRegistration() {
+        Context real = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        Context noAlarms = new ContextWrapper(real) {
+            @Override
+            public Object getSystemService(String name) {
+                if (Context.ALARM_SERVICE.equals(name)) {
+                    return null;
+                }
+                return super.getSystemService(name);
+            }
+        };
+        try {
+            Agenda.instance().setDailyUpdateAlarm(noAlarms);
+            fail("Absent AlarmManager cannot be reported as successful maintenance scheduling");
+        } catch (IllegalStateException expected) {
+            // The caller can retry instead of assuming tomorrow was scheduled.
+        }
     }
 
     @Test
