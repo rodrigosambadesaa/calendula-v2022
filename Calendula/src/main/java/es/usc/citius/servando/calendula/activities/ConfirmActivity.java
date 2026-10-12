@@ -571,22 +571,75 @@ public class ConfirmActivity extends CalendulaActivity {
      * alarm after restoring a database. Never create a confirm screen without
      * both a persisted patient and a valid intake timestamp.
      */
+    /** Immutable, parsed fields from a potentially old external PendingIntent. */
+    static final class IntakeLaunch {
+        final long patientId;
+        final DateTime time;
+        final String action;
+        final int position;
+
+        IntakeLaunch(long patientId, DateTime time, String action, int position) {
+            this.patientId = patientId;
+            this.time = time;
+            this.action = action;
+            this.position = position;
+        }
+    }
+
+    /**
+     * Legacy notification PendingIntents can contain missing or wrong-typed
+     * parcelled extras. Parse all launch fields together before reading
+     * patient data or enabling any clinical action.
+     */
+    static IntakeLaunch parseIntakeLaunch(Intent intent) {
+        if (intent == null) {
+            return null;
+        }
+        try {
+            Bundle extras = intent.getExtras();
+            if (extras == null
+                    || !(extras.get(IntentParams.EXTRA_PATIENT_ID) instanceof Long)
+                    || !(extras.get(IntentParams.EXTRA_DATETIME) instanceof String)
+                    || (extras.containsKey(IntentParams.EXTRA_ACTION)
+                        && !(extras.get(IntentParams.EXTRA_ACTION) instanceof String))
+                    || (extras.containsKey(IntentParams.EXTRA_POSITION)
+                        && !(extras.get(IntentParams.EXTRA_POSITION) instanceof Integer))) {
+                return null;
+            }
+            long id = intent.getLongExtra(IntentParams.EXTRA_PATIENT_ID, -1L);
+            DateTime time = parseIntakeDate(
+                    intent.getStringExtra(IntentParams.EXTRA_DATETIME));
+            String action = intent.getStringExtra(IntentParams.EXTRA_ACTION);
+            int position = intent.getIntExtra(IntentParams.EXTRA_POSITION, -1);
+            if (id <= 0L || time == null || position < -1) {
+                return null;
+            }
+            return new IntakeLaunch(id, time, action, position);
+        } catch (RuntimeException invalidExtras) {
+            // Android may throw ClassCastException/BadParcelableException
+            // depending on version and the historical extras' value types.
+            // Never log the raw intent: it can contain patient identifiers.
+            return null;
+        }
+    }
+
     private boolean processIntent() {
-        Intent i = getIntent();
-        if (i == null) {
+        IntakeLaunch launch = parseIntakeLaunch(getIntent());
+        if (launch == null) {
             return false;
         }
-        long patientId = i.getLongExtra(IntentParams.EXTRA_PATIENT_ID, -1);
-        dateTime = parseIntakeDate(i.getStringExtra(IntentParams.EXTRA_DATETIME));
-        if (patientId <= 0L || dateTime == null) {
+        try {
+            patient = DB.patients().findById(launch.patientId);
+        } catch (RuntimeException unavailable) {
+            LogUtil.w(TAG, "Medication confirmation patient could not be loaded");
             return false;
         }
-        patient = DB.patients().findById(patientId);
-        if (!hasValidIntakeContext(patient, dateTime)) {
+        if (!hasValidIntakeContext(patient, launch.time)) {
             return false;
         }
-        action = i.getStringExtra(IntentParams.EXTRA_ACTION);
-        position = i.getIntExtra(IntentParams.EXTRA_POSITION, -1);
+        dateTime = launch.time;
+        action = launch.action;
+        position = launch.position;
         fromNotification = position == -1;
         return true;
     }
