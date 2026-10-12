@@ -19,6 +19,7 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.scheduling.Intake
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.scheduling.ConfirmScreenDelayResultSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.scheduling.CurrentReminderIdentitySmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.fragments.DailyAgendaPatientIsolationSmokeTest"
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.persistence.ScheduleReconciliationSmokeTest"
 exec ./gradlew connectedCiDebugAndroidTest \
   "-Pandroid.testInstrumentationRunnerArguments.class=${TEST_CLASSES}" \
   --stacktrace --no-daemon

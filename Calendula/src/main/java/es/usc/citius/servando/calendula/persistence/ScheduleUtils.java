@@ -81,23 +81,65 @@ public class ScheduleUtils {
 
     public void updateEventInstances(Context ctx, Schedule s) {
         DateTime now = DateTime.now();
-        Collection<EventInstance> events = getEventsFromTime(s, now);
-        // Instances that must be created
-        Collection<EventInstance> toAdd = new ArrayList<>();
-        // Instances that already exist and must be preserved
-        Collection<DateTime> timesToPreserve = new ArrayList<>();
-        for (EventInstance e : events) {
-            if (!DB.eventInstances().exists(e.getType(), e.getTime(), e.getRef())) {
-                toAdd.add(e);
-            } else {
-                DB.eventInstances().updateParams(e.getType(), e.getTime(), e.getRef(), e.getParams());
-                timesToPreserve.add(e.getTime());
-            }
+        reconcileScheduleOccurrences(ctx, s, now, getEventsFromTime(s, now));
+    }
+
+    /**
+     * Editing a recurrence must atomically update pending dose parameters,
+     * prune obsolete pending occurrences and create new occurrences. Previously
+     * these steps committed independently, leaving a partially updated agenda
+     * if a later SQLite statement failed. Keep Android alarms and event-bus
+     * notifications outside the write transaction.
+     *
+     * Package-private to exercise real SQLite rollback with synthetic events.
+     */
+    void reconcileScheduleOccurrences(Context ctx, Schedule schedule, DateTime from,
+                                      Collection<EventInstance> desired) {
+        if (schedule == null || schedule.getId() == null || from == null
+                || desired == null) {
+            throw new IllegalArgumentException("A persisted schedule and occurrence window are required");
         }
-        DB.eventInstances().removeDistinctTime(EventType.MEDICATION_INTAKE, s.getId(), timesToPreserve, now);
-        Agenda.instance().addEvents(toAdd);
-        Agenda.instance().createReminders(ctx, toAdd);
-        DB.eventInstances().fireEvent();
+        final Collection<EventInstance> toAdd = new ArrayList<>();
+        try {
+            TransactionManager.callInTransaction(
+                    DB.helper().getConnectionSource(), (Callable<Void>) () -> {
+                        Collection<DateTime> timesToPreserve = new ArrayList<>();
+                        for (EventInstance event : desired) {
+                            if (event == null
+                                    || event.getType() != EventType.MEDICATION_INTAKE
+                                    || event.getTime() == null
+                                    || !schedule.getId().equals(event.getRef())) {
+                                throw new SQLException("Generated occurrence has invalid schedule identity");
+                            }
+                            if (!DB.eventInstances().exists(
+                                    event.getType(), event.getTime(), event.getRef())) {
+                                toAdd.add(event);
+                            } else {
+                                DB.eventInstances().updateParams(event.getType(),
+                                        event.getTime(), event.getRef(), event.getParams());
+                                timesToPreserve.add(event.getTime());
+                            }
+                        }
+                        DB.eventInstances().removeDistinctTime(
+                                EventType.MEDICATION_INTAKE, schedule.getId(), timesToPreserve, from);
+                        Agenda.instance().addEvents(toAdd);
+                        return null;
+                    });
+        } catch (SQLException failure) {
+            throw new IllegalStateException("Could not atomically regenerate schedule occurrences", failure);
+        }
+        // The occurrence transaction already committed. Keep the UI aware of
+        // the new SQLite state even if post-commit OS reminder reconciliation
+        // fails: a scheduling exception cannot roll these edits back.
+        boolean remindersOk;
+        try {
+            remindersOk = Agenda.instance().createReminders(ctx, toAdd);
+        } finally {
+            DB.eventInstances().fireEvent();
+        }
+        if (!remindersOk) {
+            throw new IllegalStateException("Could not reconcile reminders after schedule update");
+        }
     }
 
     /** A cancelled or already completed dose is never a pending intake. */
