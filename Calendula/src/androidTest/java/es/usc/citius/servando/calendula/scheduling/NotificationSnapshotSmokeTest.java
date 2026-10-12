@@ -154,6 +154,38 @@ public class NotificationSnapshotSmokeTest {
     }
 
     @Test
+    public void oversizedImportedMedicineNameCannotProduceAConsentToken() throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture(false);
+        try {
+            List<EventInstance> shown = x.visible(1);
+            // The notification rendering path passes precisely the schedule
+            // it displayed, keyed by event ID. That is the model whose name
+            // the consent digest must cover, not an unrelated DAO update.
+            java.util.Map<Long, Schedule> rendered = java.util.Collections.singletonMap(
+                    x.intakes[0].getId(), x.schedules[0]);
+            String original = IntakeSnapshot.fingerprint(shown, x.reminder, rendered);
+            assertNotNull(original);
+            // 513 two-byte UTF-8 code points exceed 1024 bytes without
+            // exceeding 1024 Java chars. A malformed catalog field must not
+            // allocate unbounded canonical data or authorize an action.
+            StringBuilder malformed = new StringBuilder();
+            for (int i = 0; i < 513; i++) {
+                malformed.append('\u00e9');
+            }
+            x.medicines[0].setName(malformed.toString());
+            assertNull("Oversized displayed medicine names invalidate consent",
+                    IntakeSnapshot.fingerprint(shown, x.reminder, rendered));
+            x.medicines[0].setName("Synthetic snapshot medicine 1");
+            assertEquals("Restoring the displayed source restores the original digest",
+                    original, IntakeSnapshot.fingerprint(shown, x.reminder, rendered));
+            x.assertUnchanged(1);
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
     public void excessiveUtf8DoseBundleCannotAuthorizeNotification() throws Exception {
         assertTrue(DB.initialized);
         Fixture x = new Fixture(false);

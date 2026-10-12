@@ -34,6 +34,7 @@ public final class IntakeSnapshot {
     // never an incomplete subset of authorized intakes.
     private static final int MAX_VISIBLE_INTAKES = 256;
     private static final int MAX_DOSE_BYTES = 256;
+    private static final int MAX_MEDICINE_NAME_BYTES = 1024;
 
     private IntakeSnapshot() { }
 
@@ -71,7 +72,8 @@ public final class IntakeSnapshot {
                 }
                 dose = (String) rawDose;
                 if (dose != null
-                        && dose.getBytes(StandardCharsets.UTF_8).length > MAX_DOSE_BYTES) {
+                        && (dose.length() > MAX_DOSE_BYTES
+                        || dose.getBytes(StandardCharsets.UTF_8).length > MAX_DOSE_BYTES)) {
                     return null;
                 }
             } catch (RuntimeException malformed) {
@@ -141,15 +143,25 @@ public final class IntakeSnapshot {
             }
             Medicine medicine = schedule.getMedicine();
             if (medicine == null || medicine.getId() == null
-                    || medicine.getName() == null
-                    || medicine.getName().trim().isEmpty()) {
+                    || medicine.getName() == null) {
+                return null;
+            }
+            String medicineName = medicine.getName();
+            // Imported or damaged catalog entries must not cause unbounded
+            // StringBuilder/UTF-8 allocations while creating consent tokens.
+            // Do not truncate a name: consent must cover the exact displayed
+            // clinical source or become non-actionable.
+            if (medicineName.length() > MAX_MEDICINE_NAME_BYTES
+                    || medicineName.getBytes(StandardCharsets.UTF_8).length
+                    > MAX_MEDICINE_NAME_BYTES
+                    || medicineName.trim().isEmpty()) {
                 return null;
             }
             append(combined, Long.toString(event.getId()));
             append(combined, Long.toString(schedule.getId()));
             append(combined, Long.toString(schedule.getPatient().getId()));
             append(combined, Long.toString(medicine.getId()));
-            append(combined, medicine.getName());
+            append(combined, medicineName);
             append(combined, medicine.getPresentation() == null
                     ? null : medicine.getPresentation().toString());
             append(combined, medicine.getPatient() == null
