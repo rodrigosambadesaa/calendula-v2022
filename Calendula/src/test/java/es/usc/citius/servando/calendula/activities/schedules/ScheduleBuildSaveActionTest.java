@@ -9,6 +9,7 @@ import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -25,12 +26,13 @@ public class ScheduleBuildSaveActionTest {
 
     @Test
     public void failedBackgroundWriteNeverReportsSuccess() {
-        final boolean[] reachedAfterFailure = {false};
+        final int[] attempts = {0};
         assertFalse("A SQL-like runtime failure must leave the editor in error state",
                 ScheduleBuildActivity.runSaveAction(() -> {
+                    attempts[0]++;
                     throw new IllegalStateException("synthetic SQLite write failure");
                 }));
-        assertFalse("The failed save callback cannot proceed after throwing",
-                reachedAfterFailure[0]);
+        assertEquals("A failing save callback is not retried behind the user's back",
+                1, attempts[0]);
     }
 }
