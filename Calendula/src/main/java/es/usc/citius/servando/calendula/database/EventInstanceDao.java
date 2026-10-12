@@ -245,6 +245,7 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
                             if (event.getId() == null) {
                                 throw new SQLException("Future schedule event has no persisted ID");
                             }
+                            requireCurrentScheduleEventOwner(type, ref, event);
                             if (event.completed() || event.cancelled()) {
                                 // Preserve historical decisions, including
                                 // doses taken early or cancelled for tomorrow.
@@ -558,6 +559,27 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
      * within the same transaction. This avoids overwriting status fields
      * from a stale EventInstance and works across legacy SQLite versions.
      */
+    /**
+     * Damaged legacy rows can point to another patient's existing schedule.
+     * Do not rewrite their doses or prune their pending intakes merely because
+     * the numeric schedule reference matches. The caller's transaction rolls
+     * back even previously processed rows when any mismatch is encountered.
+     */
+    private void requireCurrentScheduleEventOwner(EventType type, Long ref,
+                                                 EventInstance event) throws SQLException {
+        if (type != EventType.MEDICATION_INTAKE || ref == null || ref <= 0L) {
+            return; // Non-medication events and synthetic negative fixture refs.
+        }
+        Schedule schedule = DB.schedules().findById(ref);
+        if (schedule == null || DB.schedules().refresh(schedule) != 1
+                || schedule.getPatient() == null
+                || schedule.getPatient().getId() == null
+                || event == null || event.getPatient() == null
+                || !schedule.getPatient().getId().equals(event.getPatient().getId())) {
+            throw new SQLException("Occurrence has invalid persisted schedule patient");
+        }
+    }
+
     public int updateParams(EventType type, DateTime dateTime, Long ref, Bundle params) {
         if (ref == null || type == null || dateTime == null || params == null) {
             throw new IllegalArgumentException("A complete schedule event is required");
@@ -576,6 +598,7 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
                             if (event.getId() == null) {
                                 throw new SQLException("Schedule event has no persisted ID");
                             }
+                            requireCurrentScheduleEventOwner(type, ref, event);
                             if (event.completed() || event.cancelled()) {
                                 continue;
                             }
