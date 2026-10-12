@@ -405,6 +405,92 @@ public class NotificationSnapshotSmokeTest {
     }
 
     @Test
+    public void renamedMedicineAfterDisplayCannotBeConfirmedFromOldNotification()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture(true);
+        try {
+            String shown = IntakeSnapshot.fingerprint(x.visible(2), x.reminder);
+            assertNotNull(shown);
+            // The original notification displayed this old medicine name.
+            // Neither event identity, dose nor its schedule ID is changed.
+            DB.helper().getWritableDatabase().execSQL(
+                    "UPDATE Medicines SET Name = ? WHERE _id = ?",
+                    new Object[]{"Synthetic renamed medicine", x.medicines[1].getId()});
+            assertEquals("Synthetic renamed medicine",
+                    DB.medicines().findById(x.medicines[1].getId()).getName());
+
+            String current = IntakeSnapshot.fingerprint(x.visible(2), x.reminder);
+            assertNotNull(current);
+            assertFalse("Changed rendered medicine identity invalidates old consent",
+                    shown.equals(current));
+            try {
+                ScheduleUtils.instance().checkIntakeEventsWithSnapshot(
+                        x.context, x.patient, x.when, x.reminder.getId(), shown);
+                fail("Stale notification cannot approve a renamed medication");
+            } catch (RuntimeException expected) {
+                // Atomic rejection, no partial completion or stock debit.
+            }
+            x.assertUnchanged(2);
+            assertNotNull(DB.eventReminders().findById(x.reminder.getId()));
+            assertEquals(2, ScheduleUtils.instance().checkIntakeEventsWithSnapshot(
+                    x.context, x.patient, x.when, x.reminder.getId(), current));
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void medicineReassignedToAnotherPatientInvalidatesExistingNotification()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture(true);
+        Patient other = new Patient();
+        other.setCode("ci-snapshot-other-medicine-owner-" + System.nanoTime());
+        other.setName("Synthetic other medicine owner");
+        try {
+            assertEquals(1, DB.patients().create(other));
+            String shown = IntakeSnapshot.fingerprint(x.visible(2), x.reminder);
+            assertNotNull(shown);
+            DB.helper().getWritableDatabase().execSQL(
+                    "UPDATE Medicines SET Patient = ? WHERE _id = ?",
+                    new Object[]{other.getId(), x.medicines[1].getId()});
+            assertEquals(other.getId(), DB.medicines()
+                    .findById(x.medicines[1].getId()).getPatient().getId());
+
+            String current = IntakeSnapshot.fingerprint(x.visible(2), x.reminder);
+            assertNotNull(current);
+            assertFalse("Medicine owner is part of the immutable displayed selection",
+                    shown.equals(current));
+            try {
+                ScheduleUtils.instance().checkIntakeEventsWithSnapshot(
+                        x.context, x.patient, x.when, x.reminder.getId(), shown);
+                fail("The original patient's notification must reject a reassigned medicine");
+            } catch (RuntimeException expected) {
+                // The previously displayed patient/medicine link is stale.
+            }
+            x.assertUnchanged(2);
+            assertNotNull(DB.eventReminders().findById(x.reminder.getId()));
+
+            // Even a freshly computed fingerprint must never authorize a
+            // current patient whose medicine belongs to somebody else.
+            try {
+                ScheduleUtils.instance().checkIntakeEventsWithSnapshot(
+                        x.context, x.patient, x.when, x.reminder.getId(), current);
+                fail("Fresh snapshot cannot bypass medicine ownership validation");
+            } catch (RuntimeException expected) {
+                // Commit-time clinical ownership still guards the medication.
+            }
+            x.assertUnchanged(2);
+        } finally {
+            x.cleanup();
+            if (other.getId() != null && DB.patients().findById(other.getId()) != null) {
+                DB.patients().remove(other);
+            }
+        }
+    }
+
+    @Test
     public void revisedDoseAfterPostingCannotBeConfirmedFromStaleAction()
             throws Exception {
         assertTrue(DB.initialized);
