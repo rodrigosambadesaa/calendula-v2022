@@ -34,6 +34,23 @@ public class ScheduleSaveOwnerGuardTest {
     }
 
     @Test
+    public void medicinePickerNeverFallsThroughToNewActiveProfile() {
+        Patient owner = patient(900008500L);
+        Patient sameReloaded = patient(900008500L);
+        Patient other = patient(900008501L);
+        assertTrue(ScheduleSaveOwnerGuard.canShowEditorMedicationList(
+                owner.getId(), sameReloaded, owner));
+        assertFalse("Opening A and activating B hides the entire medicine list",
+                ScheduleSaveOwnerGuard.canShowEditorMedicationList(
+                        owner.getId(), other, owner));
+        assertFalse("A deleted owner cannot reveal B's or A's old medicines",
+                ScheduleSaveOwnerGuard.canShowEditorMedicationList(
+                        owner.getId(), sameReloaded, null));
+        assertFalse(ScheduleSaveOwnerGuard.canShowEditorMedicationList(
+                null, owner, owner));
+    }
+
+    @Test
     public void createIsBoundToPatientThatOpenedEditorEvenAfterActiveProfileSwitch() {
         Patient opened = patient(900008001L);
         Patient reloaded = patient(900008001L);
