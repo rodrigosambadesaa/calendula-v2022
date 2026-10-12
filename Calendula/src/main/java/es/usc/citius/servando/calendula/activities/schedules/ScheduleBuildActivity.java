@@ -85,6 +85,7 @@ import es.usc.citius.servando.calendula.healthcareprovider.util.ScheduleCreator;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.IntentParams;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.ScheduleSaveOwnerGuard;
 import es.usc.citius.servando.calendula.util.ScreenUtils;
 import es.usc.citius.servando.calendula.util.HealthcareProviderTypeface;
 
@@ -921,38 +922,58 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
         final boolean differs = differsFromPrescription;
         final Schedule scheduleToSave = tmpSchedule;
         final Schedule existingSchedule = editingSchedule;
+        // Immutable editor ownership is captured on the UI thread, not
+        // looked up afresh after an arbitrarily long executor queue delay.
+        final Patient openedPatient = routineCleanupOwner;
 
         SCHEDULE_SAVE_EXECUTOR.execute(() -> {
             final boolean saved = runSaveAction(() -> {
+                Patient active = DB.patients().getActive(ScheduleBuildActivity.this);
+                Patient owner = openedPatient == null || openedPatient.getId() == null
+                        ? null : DB.patients().findById(openedPatient.getId());
+                Medicine selected = scheduleToSave.getMedicine();
+                Medicine medicine = selected == null || selected.getId() == null
+                        ? null : DB.medicines().findById(selected.getId());
+                if (!ScheduleSaveOwnerGuard.canSaveForOpenedPatient(
+                        openedPatient, active, owner, medicine)) {
+                    // A profile switch or reassignment must not cause a
+                    // background write into a different patient's account.
+                    throw new IllegalStateException("Schedule editor ownership changed");
+                }
                 if (editMode) {
-                    if (existingSchedule.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE)) {
-                        existingSchedule.removeState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE);
+                    Schedule current = existingSchedule == null
+                            || existingSchedule.getId() == null ? null
+                            : DB.schedules().findById(existingSchedule.getId());
+                    if (!ScheduleSaveOwnerGuard.canEditSchedule(
+                            owner, existingSchedule, current)) {
+                        throw new IllegalStateException("Edited schedule ownership changed");
                     }
-                    if (existingSchedule.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE)) {
-                        existingSchedule.removeState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE);
+                    // Apply the new recurrence to the authoritative persisted
+                    // schedule, not a potentially stale Intent/editor object.
+                    if (current.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE)) {
+                        current.removeState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE);
                     }
-
+                    if (current.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE)) {
+                        current.removeState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE);
+                    }
                     if (differs) {
-                        existingSchedule.addState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
-                    } else if (existingSchedule.hasState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL)) {
-                        existingSchedule.removeState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
+                        current.addState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
+                    } else if (current.hasState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL)) {
+                        current.removeState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
                     }
-
-                    existingSchedule.setMedicine(scheduleToSave.getMedicine());
-                    existingSchedule.setDosages(scheduleToSave.getDosages());
-                    existingSchedule.setRecur(scheduleToSave.getRecur());
-                    DB.schedules().save(existingSchedule);
-                    ScheduleUtils.instance().updateEventInstances(ScheduleBuildActivity.this, existingSchedule);
+                    current.setMedicine(medicine);
+                    current.setDosages(scheduleToSave.getDosages());
+                    current.setRecur(scheduleToSave.getRecur());
+                    DB.schedules().save(current);
+                    ScheduleUtils.instance().updateEventInstances(ScheduleBuildActivity.this, current);
                 } else {
                     Schedule schedule = new Schedule(scheduleToSave.getRecur());
-                    schedule.setPatient(DB.patients().getActive(ScheduleBuildActivity.this));
-                    schedule.setMedicine(scheduleToSave.getMedicine());
+                    schedule.setPatient(owner);
+                    schedule.setMedicine(medicine);
                     schedule.setDosages(scheduleToSave.getDosages());
-
                     if (differs) {
                         schedule.addState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
                     }
-
                     DB.schedules().save(schedule);
                     ScheduleUtils.instance().createEventInstances(ScheduleBuildActivity.this, schedule);
                 }
