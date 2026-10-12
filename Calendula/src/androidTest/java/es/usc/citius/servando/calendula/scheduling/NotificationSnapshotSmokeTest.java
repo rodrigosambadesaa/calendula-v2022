@@ -231,6 +231,68 @@ public class NotificationSnapshotSmokeTest {
     }
 
     @Test
+    public void cancelledDoseAfterPostingInvalidatesEntireNotification()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture(true);
+        try {
+            String shown = IntakeSnapshot.fingerprint(x.visible(2), x.reminder);
+            assertNotNull(shown);
+            DB.helper().getWritableDatabase().execSQL(
+                    "UPDATE EventInstances SET Cancelled = 1 WHERE _id = ?",
+                    new Object[]{x.intakes[1].getId()});
+            assertTrue(DB.eventInstances().findById(x.intakes[1].getId()).cancelled());
+
+            try {
+                ScheduleUtils.instance().checkIntakeEventsWithSnapshot(
+                        x.context, x.patient, x.when, x.reminder.getId(), shown);
+                fail("A cancelled dose must invalidate the original two-dose action");
+            } catch (RuntimeException expected) {
+                // Never confirm the remaining dose by an out-of-date button.
+            }
+            x.assertUnchanged(2);
+            assertNotNull(DB.eventReminders().findById(x.reminder.getId()));
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
+    public void reassignedDoseAfterPostingCannotConfirmOriginalPatientsMedication()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture(true);
+        Patient other = new Patient();
+        other.setCode("ci-snapshot-other-" + System.nanoTime());
+        other.setName("Synthetic unrelated notification patient");
+        try {
+            assertEquals(1, DB.patients().create(other));
+            String shown = IntakeSnapshot.fingerprint(x.visible(2), x.reminder);
+            assertNotNull(shown);
+            DB.helper().getWritableDatabase().execSQL(
+                    "UPDATE EventInstances SET Patient = ? WHERE _id = ?",
+                    new Object[]{other.getId(), x.intakes[1].getId()});
+            assertEquals(other.getId(), DB.eventInstances()
+                    .findById(x.intakes[1].getId()).getPatient().getId());
+
+            try {
+                ScheduleUtils.instance().checkIntakeEventsWithSnapshot(
+                        x.context, x.patient, x.when, x.reminder.getId(), shown);
+                fail("An old notification may never approve an event moved to another patient");
+            } catch (RuntimeException expected) {
+                // Both stocks and event completion flags must be untouched.
+            }
+            x.assertUnchanged(2);
+            assertNotNull(DB.eventReminders().findById(x.reminder.getId()));
+        } finally {
+            x.cleanup();
+            if (other.getId() != null && DB.patients().findById(other.getId()) != null) {
+                DB.patients().remove(other);
+            }
+        }
+    }
+
+    @Test
     public void revisedDoseAfterPostingCannotBeConfirmedFromStaleAction()
             throws Exception {
         assertTrue(DB.initialized);
