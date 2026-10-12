@@ -130,19 +130,20 @@ public class PickMedStepFragment extends ScheduleBuildStepFragment implements St
     }
 
     private void populateAdapter() {
-        mMedicines = DB.medicines().findAllForActivePatient(getContext());
-        if (fastAdapter.getAdapterItemCount() != mMedicines.size() + 1) {
-            Collections.sort(mMedicines);
-            Medicine dummy = new Medicine();
-            dummy.setName(getString(R.string.schedule_build_med_create_new));
-            dummy.setId(-1L);
-            mMedicines.add(dummy);
-            fastAdapter.clear();
-            for (Medicine m : mMedicines) {
-                fastAdapter.add(new MedicineItem(m));
-            }
-            fastAdapter.notifyAdapterDataSetChanged();
+        mMedicines = buildActivity.medicinesForOpenedPatient();
+        // Two profiles can have exactly the same number of medications.
+        // Refresh by owner/content every time; a count-only check would leave
+        // a previous patient's medicine names visible after a switch.
+        Collections.sort(mMedicines);
+        Medicine dummy = new Medicine();
+        dummy.setName(getString(R.string.schedule_build_med_create_new));
+        dummy.setId(-1L);
+        mMedicines.add(dummy);
+        fastAdapter.clear();
+        for (Medicine m : mMedicines) {
+            fastAdapter.add(new MedicineItem(m));
         }
+        fastAdapter.notifyAdapterDataSetChanged();
     }
 
     private void onAddNewMedicine() {
