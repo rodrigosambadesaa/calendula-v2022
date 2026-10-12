@@ -63,8 +63,7 @@ object StockUpdater {
         // Managed inventory requires a positive, persisted medicine owner.
         // Null ownership must not be treated as a wildcard that authorizes
         // an otherwise valid patient's dose to consume orphaned stock.
-        if (medicinePatientId == null || medicinePatientId <= 0L ||
-                medicinePatientId != eventPatientId) {
+        if (medicinePatientId == null || medicinePatientId <= 0L) {
             throw IllegalStateException("Tracked medicine has no matching patient owner")
         }
         // A historical unassigned intake with disabled stock tracking may
