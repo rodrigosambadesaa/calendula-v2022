@@ -73,6 +73,85 @@ public class ScheduleUtils {
      *
      * @param s
      */
+    /**
+     * Creating a new prescription and its initial dose occurrences must be a
+     * single SQLite commit. A failure inserting a future event may not leave
+     * behind a prescription with no corresponding agenda entries.
+     *
+     * Android alarms and stock alerts cannot be rolled back with SQLite and
+     * are deliberately dispatched only after the transaction has committed.
+     */
+    public void createScheduleWithOccurrences(Context ctx, Schedule schedule) {
+        persistNewScheduleRows(ctx, schedule, null);
+    }
+
+    /**
+     * Also accepts synthetic precomputed events for SQLite failure-injection
+     * regressions. Null events means generate them from the persisted
+     * recurrence; an empty collection is valid for a blocked/no-future plan.
+     */
+    void persistNewScheduleRows(Context ctx, Schedule schedule,
+                               Collection<EventInstance> precomputed) {
+        if (ctx == null || schedule == null || schedule.getId() != null
+                || schedule.getPatient() == null
+                || schedule.getPatient().getId() == null
+                || schedule.getPatient().getId() <= 0L
+                || schedule.getMedicine() == null
+                || schedule.getMedicine().getId() == null) {
+            throw new IllegalArgumentException("New schedule must have a persisted owner and medicine");
+        }
+        final Collection<EventInstance> inserted;
+        try {
+            inserted = TransactionManager.callInTransaction(
+                    DB.helper().getConnectionSource(),
+                    (Callable<Collection<EventInstance>>) () -> {
+                        Patient owner = DB.patients().findById(schedule.getPatient().getId());
+                        Medicine medicine = DB.medicines().findById(schedule.getMedicine().getId());
+                        if (owner == null || medicine == null
+                                || DB.medicines().refresh(medicine) != 1
+                                || (medicine.getPatient() != null
+                                    && (medicine.getPatient().getId() == null
+                                        || !owner.getId().equals(medicine.getPatient().getId())))) {
+                            throw new SQLException("New prescription owner or medicine is no longer valid");
+                        }
+                        // Use authoritative records, never a stale picker
+                        // object, when creating the new prescription row.
+                        schedule.setPatient(owner);
+                        schedule.setMedicine(medicine);
+                        if (DB.schedules().create(schedule) != 1 || schedule.getId() == null) {
+                            throw new SQLException("Could not persist new prescription");
+                        }
+                        Collection<EventInstance> events = precomputed == null
+                                ? getEventsFromTime(schedule, DateTime.now())
+                                : precomputed;
+                        for (EventInstance e : events) {
+                            if (e == null || e.getId() != null
+                                    || e.getType() != EventType.MEDICATION_INTAKE
+                                    || e.getTime() == null
+                                    || (e.getPatient() != null
+                                        && (e.getPatient().getId() == null
+                                            || !schedule.getPatient().getId().equals(
+                                                    e.getPatient().getId())))) {
+                                throw new SQLException("Invalid new-schedule dose occurrence");
+                            }
+                            e.setPatient(schedule.getPatient());
+                            e.setRef(schedule.getId());
+                        }
+                        Agenda.instance().addEvents(events);
+                        return events;
+                    });
+        } catch (SQLException error) {
+            throw new IllegalStateException("Could not atomically create schedule and occurrences", error);
+        }
+        // The DB now has a complete prescription+occurrence set. Alert checks
+        // used to run inside ScheduleDao.save(), before event creation; move
+        // them after SQL COMMIT to avoid phantom side effects on rollback.
+        StockAlertHandler.checkStockAlerts(schedule.getMedicine());
+        if (!Agenda.instance().createReminders(ctx, inserted)) {
+            throw new IllegalStateException("New schedule reminders could not be persisted");
+        }
+    }
+
     public void createEventInstances(Context ctx, Schedule s) {
         Collection<EventInstance> events = getEventsFromTime(s, DateTime.now());
         persistAndScheduleNewOccurrences(ctx, events);

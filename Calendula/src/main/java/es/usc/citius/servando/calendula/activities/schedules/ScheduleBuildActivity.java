@@ -1014,8 +1014,10 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
                     if (differs) {
                         schedule.addState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL);
                     }
-                    DB.schedules().save(schedule);
-                    ScheduleUtils.instance().createEventInstances(ScheduleBuildActivity.this, schedule);
+                    // A failed future-dose INSERT must not leave behind a
+                    // newly created prescription without its initial agenda.
+                    ScheduleUtils.instance().createScheduleWithOccurrences(
+                            ScheduleBuildActivity.this, schedule);
                 }
             });
             runOnUiThread(() -> {

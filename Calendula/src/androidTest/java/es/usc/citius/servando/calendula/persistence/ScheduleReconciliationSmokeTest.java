@@ -19,6 +19,9 @@ import java.util.Collections;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 
 import es.usc.citius.servando.calendula.database.DB;
+import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.Patient;
+import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 
@@ -71,6 +74,65 @@ public class ScheduleReconciliationSmokeTest {
             }
             if (pending.getId() != null && DB.eventInstances().findById(pending.getId()) != null) {
                 DB.eventInstances().remove(pending);
+            }
+        }
+    }
+
+    @Test
+    public void failedInitialDoseInsertRollsBackNewScheduleRow() throws Exception {
+        assertTrue(DB.initialized);
+        String key = Long.toString(System.nanoTime());
+        Patient owner = new Patient();
+        owner.setCode("ci-atomic-schedule-owner-" + key);
+        owner.setName("Synthetic new schedule owner");
+        Medicine medicine = new Medicine("Synthetic initial schedule medicine", Presentation.PILLS);
+        Schedule schedule = new Schedule(medicine);
+        DateTime when = DateTime.now().plusDays(3).withMillisOfSecond(0);
+        EventInstance pending = new EventInstance(when, EventType.MEDICATION_INTAKE);
+        pending.addParam(EventInstance.PARAM_DOSE, 1.0d);
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        final String trigger = "ci_new_schedule_event_abort";
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            medicine.setPatient(owner);
+            assertEquals(1, DB.medicines().create(medicine));
+            schedule.setPatient(owner);
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE INSERT ON EventInstances"
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic event insert failure'); END;");
+            boolean rejected = false;
+            try {
+                ScheduleUtils.instance().persistNewScheduleRows(
+                        InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                        schedule, java.util.Collections.singletonList(pending));
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("A failed dose insert must fail prescription creation", rejected);
+            assertNotNull("The attempted insert obtained an identifier", schedule.getId());
+            assertNull("New prescription must be rolled back completely",
+                    DB.schedules().findById(schedule.getId()));
+            assertFalse("The failed intake must not be persisted",
+                    DB.eventInstances().exists(EventType.MEDICATION_INTAKE,
+                            when, schedule.getId()));
+            assertNotNull("The patient must not be deleted by rollback",
+                    DB.patients().findById(owner.getId()));
+            assertNotNull("The medicine must not be deleted by rollback",
+                    DB.medicines().findById(medicine.getId()));
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            if (pending.getId() != null && DB.eventInstances().findById(pending.getId()) != null) {
+                DB.eventInstances().remove(pending);
+            }
+            if (schedule.getId() != null && DB.schedules().findById(schedule.getId()) != null) {
+                DB.schedules().remove(schedule);
+            }
+            if (medicine.getId() != null && DB.medicines().findById(medicine.getId()) != null) {
+                DB.medicines().remove(medicine);
+            }
+            if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().remove(owner);
             }
         }
     }
