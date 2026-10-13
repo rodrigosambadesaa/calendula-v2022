@@ -33,58 +33,75 @@ import org.joda.time.LocalDate
 object StockAlertHandler {
 
     /**
-     * Stock-warning preferences are backed by a ListPreference with exactly
-     * these four values. Reject corrupt legacy text and out-of-range integers
-     * instead of throwing NumberFormatException or silently using a huge
-     * threshold. A damaged value uses the UI's default seven-day warning.
+     * The notification preference exposes only these four values. A missing
+     * or corrupt legacy preference must not crash a medication save, nor
+     * silently disable useful low-stock warnings.
+     *
+     * -1 explicitly means "do not warn"; 7 matches the preference XML default.
      */
-    internal fun parseStockAlertDays(raw: String?): Int {
-        val days = raw?.trim()?.toIntOrNull()
-        return when (days) {
-            -1, 7, 14, 21 -> days
-            else -> 7
-        }
+    @JvmStatic
+    fun stockWarningDays(raw: String?): Int = when (raw?.trim()) {
+        "-1" -> -1
+        "7" -> 7
+        "14" -> 14
+        "21" -> 21
+        else -> 7
     }
+
+    /** Preserve the already-tested parser used by existing Kotlin callers. */
+    internal fun parseStockAlertDays(raw: String?): Int = stockWarningDays(raw)
+
+    /**
+     * Do not calculate or clear clinical stock alerts from malformed values.
+     * A negative quantity (other than the distinct -1 disabled sentinel),
+     * NaN or infinity cannot produce a meaningful stock depletion date.
+     */
+    @JvmStatic
+    fun isUsableStockValue(stock: Float?): Boolean =
+        stock != null && stock >= 0f && !stock.isNaN() && !stock.isInfinite()
 
     @JvmStatic
     fun checkStockAlerts(m: Medicine) {
-        if (m.stockManagementEnabled()) {
-            val stockAlertPref = parseStockAlertDays(
-                PreferenceUtils.getString(
-                    PreferenceKeys.SETTINGS_STOCK_ALERT_DAYS,
-                    "-1"
-                )
-            )
-            val alerts =
-                DB.alerts().findByMedicineAndType(m, StockRunningOutAlert::class.java.canonicalName)
-
-            // "-1" is "Do not warn", not a negative-day threshold.
-            // Also retire previously persisted stock warnings if disabled.
-            if (stockAlertPref == -1) {
-                for (alert in alerts) {
-                    AlertManager.removeAlert(alert)
-                }
-                return
-            }
-
-            val stockEnd = StockCalculator.calculateStockEnd(
-                LocalDate.now(),
-                MedicineScheduleStockProvider(m),
-                m.stock!!
-            )
-
-            if (stockEnd is StockCalculator.StockEnd.OnDate && stockEnd.days < stockAlertPref && alerts.isEmpty()) {
-                // if there are no alerts but the stock is under the preference, create them
-                AlertManager.createAlert(StockRunningOutAlert(m, LocalDate.now()))
-                CalendulaApp.eventBus().post(StockRunningOutEvent(m, stockEnd.days))
-            } else if (alerts.isNotEmpty() && ((stockEnd is StockCalculator.StockEnd.OnDate && stockEnd.days >= stockAlertPref) || stockEnd == StockCalculator.StockEnd.OverMax)) {
-                // if there are alerts but the stock is over the pref (or over the max) remove them
-                for (a in alerts) {
-                    AlertManager.removeAlert(a)
-                }
-            }
+        if (!m.stockManagementEnabled()) {
+            return
+        }
+        val currentStock = m.stock ?: return
+        if (!isUsableStockValue(currentStock)) {
+            // Leave existing alerts intact; deleting one based on an invalid
+            // stock estimate could wrongly signal that supply is adequate.
+            return
         }
 
+        val stockAlertPref = stockWarningDays(
+            PreferenceUtils.getString(PreferenceKeys.SETTINGS_STOCK_ALERT_DAYS, "7")
+        )
+        val alerts =
+            DB.alerts().findByMedicineAndType(m, StockRunningOutAlert::class.java.canonicalName)
+
+        if (stockAlertPref == -1) {
+            // An explicit disable request revokes obsolete low-stock alerts,
+            // but must never alter independent HIGH medication safety alerts.
+            for (alert in alerts) {
+                AlertManager.removeAlert(alert)
+            }
+            return
+        }
+
+        val stockEnd = StockCalculator.calculateStockEnd(
+            LocalDate.now(),
+            MedicineScheduleStockProvider(m),
+            currentStock
+        )
+
+        if (stockEnd is StockCalculator.StockEnd.OnDate && stockEnd.days < stockAlertPref && alerts.isEmpty()) {
+            AlertManager.createAlert(StockRunningOutAlert(m, LocalDate.now()))
+            CalendulaApp.eventBus().post(StockRunningOutEvent(m, stockEnd.days))
+        } else if (alerts.isNotEmpty() &&
+            ((stockEnd is StockCalculator.StockEnd.OnDate && stockEnd.days >= stockAlertPref)
+                || stockEnd == StockCalculator.StockEnd.OverMax)) {
+            for (alert in alerts) {
+                AlertManager.removeAlert(alert)
+            }
+        }
     }
 }
-
