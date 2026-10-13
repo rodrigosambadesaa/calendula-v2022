@@ -93,6 +93,41 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
     @BindView(R.id.add_button)
     FloatingActionButton fab;
     int color;
+    private Long openedPatientId;
+
+    /**
+     * Delayed allergy prompts may complete after changing patient profiles.
+     * Recheck authorization at the actual database write, not only when the
+     * editor first invokes a callback.
+     */
+    private boolean canPersistMedicine(Medicine candidate, boolean create) {
+        if (candidate == null || candidate.getPatient() == null) {
+            return false;
+        }
+        es.usc.citius.servando.calendula.persistence.Patient active =
+                DB.patients().getActive(this);
+        Long activeId = active == null ? null : active.getId();
+        Long ownerId = candidate.getPatient().getId();
+        if (create) {
+            return MedicineSaveOwnerGuard.canCreate(
+                    openedPatientId, activeId, ownerId, candidate.getId());
+        }
+        if (candidate.getId() == null) {
+            return false;
+        }
+        Medicine persisted = DB.medicines().findById(candidate.getId());
+        if (persisted == null || DB.medicines().refresh(persisted) != 1) {
+            return false;
+        }
+        return MedicineSaveOwnerGuard.canModify(
+                openedPatientId, activeId, ownerId, candidate.getId(),
+                persisted.getPatient() == null ? null : persisted.getPatient().getId(),
+                persisted.getId());
+    }
+
+    private void rejectStaleMedicineSave() {
+        Snack.show(R.string.medicine_save_error_message, this);
+    }
 
     private static final String STATE_STARTED_SEARCH = "STATE_STARTED_SEARCH";
 
@@ -126,6 +161,10 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
 
     @Override
     public void onMedicineEdited(final Medicine m) {
+        if (!canPersistMedicine(m, false)) {
+            rejectStaleMedicineSave();
+            return;
+        }
         // check for allergies
         if (m.isBoundToPrescription()) {
             final List<AllergenVO> vos = AllergenFacade.checkAllergies(this, DB.drugDB().prescriptions().findByCn(m.getCn()));
@@ -146,7 +185,10 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
 
     @Override
     public void onMedicineCreated(final Medicine m) {
-
+        if (!canPersistMedicine(m, true)) {
+            rejectStaleMedicineSave();
+            return;
+        }
         // check for allergies
         if (m.isBoundToPrescription()) {
             final List<AllergenVO> vos = AllergenFacade.checkAllergies(this, DB.drugDB().prescriptions().findByCn(m.getCn()));
@@ -167,9 +209,19 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
 
     @Override
     public void onMedicineDeleted(Medicine m) {
-        Toast.makeText(this, getString(R.string.medicine_deleted_message), Toast.LENGTH_SHORT).show();
-        DB.medicines().deleteCascade(m, true);
-        finish();
+        if (!canPersistMedicine(m, false)) {
+            rejectStaleMedicineSave();
+            return;
+        }
+        try {
+            DB.medicines().deleteCascade(m, true);
+            Toast.makeText(this, getString(R.string.medicine_deleted_message),
+                    Toast.LENGTH_SHORT).show();
+            finish();
+        } catch (RuntimeException failure) {
+            rejectStaleMedicineSave();
+            LogUtil.e(TAG, "Unable to delete selected medicine", failure);
+        }
     }
 
     public void showSearchView(@Nullable final String searchText) {
@@ -191,7 +243,14 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
         setContentView(R.layout.activity_medicines);
         ButterKnife.bind(this);
 
-        color = DB.patients().getActive(this).getColor();
+        es.usc.citius.servando.calendula.persistence.Patient opened =
+                DB.patients().getActive(this);
+        if (opened == null || opened.getId() == null) {
+            finish();
+            return;
+        }
+        openedPatientId = opened.getId();
+        color = opened.getColor();
         setupToolbar(null, color);
         setupStatusBar(color);
 
@@ -286,6 +345,10 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
     }
 
     private void updateMedicine(final Medicine m, final List<AllergenVO> allergies) {
+        if (!canPersistMedicine(m, false)) {
+            rejectStaleMedicineSave();
+            return;
+        }
         try {
             if (allergies != null) {
                 createAllergyAlerts(m, allergies);
@@ -314,6 +377,10 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
     }
 
     private void createMedicine(final Medicine m, final List<AllergenVO> allergies) {
+        if (!canPersistMedicine(m, true)) {
+            rejectStaleMedicineSave();
+            return;
+        }
         try {
             DB.transaction(new Callable<Object>() {
                 @Override
