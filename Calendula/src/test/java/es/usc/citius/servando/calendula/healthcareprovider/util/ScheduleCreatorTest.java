@@ -120,5 +120,28 @@ public class ScheduleCreatorTest {
 
         entry.setQuantityValue(0.5d);
         assertTrue(ScheduleCreator.hasUsableQuantity(entry));
+
+        entry.setQuantityValue(Double.POSITIVE_INFINITY);
+        assertFalse("Infinite doses must never be scheduled",
+                ScheduleCreator.hasUsableQuantity(entry));
+        entry.setQuantityValue(Double.NEGATIVE_INFINITY);
+        assertFalse(ScheduleCreator.hasUsableQuantity(entry));
+        entry.setQuantityValue(Double.NaN);
+        assertFalse(ScheduleCreator.hasUsableQuantity(entry));
+    }
+
+    @Test
+    public void importedRepeatIntervalMustBeFiniteAndExactWholeNumber() {
+        assertTrue(ScheduleCreator.hasUsableRepeatValue(1d));
+        assertTrue(ScheduleCreator.hasUsableRepeatValue(8d));
+        assertFalse(ScheduleCreator.hasUsableRepeatValue(null));
+        assertFalse(ScheduleCreator.hasUsableRepeatValue(0d));
+        assertFalse(ScheduleCreator.hasUsableRepeatValue(-1d));
+        assertFalse(ScheduleCreator.hasUsableRepeatValue(0.5d));
+        assertFalse("Fractional repeat must not be truncated to whole hours",
+                ScheduleCreator.hasUsableRepeatValue(2.5d));
+        assertFalse(ScheduleCreator.hasUsableRepeatValue(Double.NaN));
+        assertFalse(ScheduleCreator.hasUsableRepeatValue(Double.POSITIVE_INFINITY));
+        assertFalse(ScheduleCreator.hasUsableRepeatValue((double) Integer.MAX_VALUE + 1d));
     }
 }
