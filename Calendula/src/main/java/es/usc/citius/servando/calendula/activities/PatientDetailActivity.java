@@ -52,6 +52,7 @@ import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
@@ -65,10 +66,10 @@ import java.util.List;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 import es.usc.citius.servando.calendula.CalendulaActivity;
-import es.usc.citius.servando.calendula.DefaultDataGenerator;
 import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Patient;
+import es.usc.citius.servando.calendula.persistence.PatientProfilePersistence;
 import es.usc.citius.servando.calendula.util.AvatarMgr;
 import es.usc.citius.servando.calendula.util.KeyboardUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
@@ -187,12 +188,18 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
                 }
 
                 if (!TextUtils.isEmpty(patient.getName())) {
-                    DB.patients().saveAndFireEvent(patient);
-                    if (addRoutinesCheckBox.isChecked() && addRoutinesCheckBox.getVisibility() == View.VISIBLE) {
-                        // if the checkbox is not visible, we're editing, not adding a patient
-                        DefaultDataGenerator.generateDefaultRoutines(patient, this);
+                    try {
+                        boolean addDefaultMeals = addRoutinesCheckBox.isChecked()
+                                && addRoutinesCheckBox.getVisibility() == View.VISIBLE;
+                        PatientProfilePersistence.save(patient, this, addDefaultMeals);
+                        supportFinishAfterTransition();
+                    } catch (RuntimeException error) {
+                        // Remain in the editor. The database transaction is
+                        // rolled back; never imply that the profile was saved.
+                        LogUtil.e(TAG, "Patient profile save failed");
+                        Toast.makeText(this, R.string.patient_profile_save_failed,
+                                Toast.LENGTH_LONG).show();
                     }
-                    supportFinishAfterTransition();
                 } else {
                     Snack.showIfUnobstructed(R.string.message_patients_name_required, this);
                 }
