@@ -32,17 +32,24 @@ import org.joda.time.LocalDate
 
 object StockAlertHandler {
 
+    /**
+     * Stock-warning preferences are backed by a ListPreference with exactly
+     * these four values. Reject corrupt legacy text and out-of-range integers
+     * instead of throwing NumberFormatException or silently using a huge
+     * threshold. A damaged value uses the UI's default seven-day warning.
+     */
+    internal fun parseStockAlertDays(raw: String?): Int {
+        val days = raw?.trim()?.toIntOrNull()
+        return when (days) {
+            -1, 7, 14, 21 -> days
+            else -> 7
+        }
+    }
+
     @JvmStatic
     fun checkStockAlerts(m: Medicine) {
         if (m.stockManagementEnabled()) {
-
-            val stockEnd = StockCalculator.calculateStockEnd(
-                LocalDate.now(),
-                MedicineScheduleStockProvider(m),
-                m.stock!!
-            )
-
-            val stockAlertPref = Integer.parseInt(
+            val stockAlertPref = parseStockAlertDays(
                 PreferenceUtils.getString(
                     PreferenceKeys.SETTINGS_STOCK_ALERT_DAYS,
                     "-1"
@@ -50,6 +57,21 @@ object StockAlertHandler {
             )
             val alerts =
                 DB.alerts().findByMedicineAndType(m, StockRunningOutAlert::class.java.canonicalName)
+
+            // "-1" is "Do not warn", not a negative-day threshold.
+            // Also retire previously persisted stock warnings if disabled.
+            if (stockAlertPref == -1) {
+                for (alert in alerts) {
+                    AlertManager.removeAlert(alert)
+                }
+                return
+            }
+
+            val stockEnd = StockCalculator.calculateStockEnd(
+                LocalDate.now(),
+                MedicineScheduleStockProvider(m),
+                m.stock!!
+            )
 
             if (stockEnd is StockCalculator.StockEnd.OnDate && stockEnd.days < stockAlertPref && alerts.isEmpty()) {
                 // if there are no alerts but the stock is under the preference, create them
