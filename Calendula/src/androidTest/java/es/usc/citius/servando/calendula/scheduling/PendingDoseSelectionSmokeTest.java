@@ -702,6 +702,64 @@ public class PendingDoseSelectionSmokeTest {
     }
 
     @Test
+    public void agendaDuplicateRefAndTimeRejectsAnotherPatientsIntake() throws Exception {
+        assertTrue(DB.initialized);
+        String seed = Long.toString(System.nanoTime());
+        Patient mine = new Patient();
+        mine.setCode("ci-agenda-collision-a-" + seed);
+        mine.setName("Synthetic agenda collision A");
+        Patient theirs = new Patient();
+        theirs.setCode("ci-agenda-collision-b-" + seed);
+        theirs.setName("Synthetic agenda collision B");
+        DateTime when = DateTime.now().plusHours(17).withMillisOfSecond(0);
+        Long ref = -System.nanoTime();
+        EventInstance foreign = new EventInstance(when, EventType.MEDICATION_INTAKE);
+        foreign.setRef(ref);
+        foreign.addParam(EventInstance.PARAM_DOSE, 2.0d);
+        EventInstance expected = new EventInstance(when, EventType.MEDICATION_INTAKE);
+        expected.setRef(ref);
+        expected.addParam(EventInstance.PARAM_DOSE, 1.0d);
+        try {
+            assertEquals(1, DB.patients().create(mine));
+            assertEquals(1, DB.patients().create(theirs));
+            foreign.setPatient(theirs);
+            expected.setPatient(mine);
+            assertEquals(1, DB.eventInstances().create(foreign));
+            boolean rejected = false;
+            try {
+                Agenda.instance().addEvents(java.util.Collections.singletonList(expected));
+            } catch (RuntimeException error) {
+                rejected = true;
+            }
+            assertTrue("Cross-patient duplicate slot must fail, not silently skip A", rejected);
+            assertNotNull(DB.eventInstances().findById(foreign.getId()));
+            assertEquals(theirs.getId(),
+                    DB.eventInstances().findById(foreign.getId()).getPatient().getId());
+            assertTrue("A's new row must not have been committed after a failed batch",
+                    expected.getId() == null);
+            assertEquals(2.0d, DB.eventInstances().findById(foreign.getId())
+                    .getDoubleParam(EventInstance.PARAM_DOSE), 0.0001d);
+            // A legitimate retry from the original owner remains idempotent.
+            expected.setPatient(theirs);
+            Agenda.instance().addEvents(java.util.Collections.singletonList(expected));
+            assertTrue("Valid existing row was preserved, not duplicated",
+                    expected.getId() == null);
+        } finally {
+            if (expected.getId() != null && DB.eventInstances().findById(expected.getId()) != null) {
+                DB.eventInstances().remove(expected);
+            }
+            if (foreign.getId() != null && DB.eventInstances().findById(foreign.getId()) != null) {
+                DB.eventInstances().remove(foreign);
+            }
+            for (Patient p : new Patient[]{mine, theirs}) {
+                if (p.getId() != null && DB.patients().findById(p.getId()) != null) {
+                    DB.patients().remove(p);
+                }
+            }
+        }
+    }
+
+    @Test
     public void agendaEventBatchFailureRollsBackPreviouslyInsertedRows() {
         assertTrue(DB.initialized);
         DateTime slot = DateTime.now().plusHours(19).withMillisOfSecond(0);
