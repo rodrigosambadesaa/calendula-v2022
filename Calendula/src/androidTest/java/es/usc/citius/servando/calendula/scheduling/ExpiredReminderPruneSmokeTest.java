@@ -81,6 +81,29 @@ public class ExpiredReminderPruneSmokeTest {
     }
 
     @Test
+    public void lateSnoozedDeliveryRetainsItsActualAlarmManagerToken() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime cutoff = DateTime.now().withTimeAtStartOfDay().minusDays(1);
+        EventReminder snoozed = new EventReminder(
+                cutoff.minusDays(2), EventType.MEDICATION_INTAKE);
+        snoozed.setId(9000001388L);
+        snoozed.setNextTime(DateTime.now().plusMinutes(45));
+        PendingIntent token = PendingIntent.getBroadcast(context, 0,
+                Agenda.reminderBroadcastIntent(context, snoozed),
+                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+        try {
+            assertEquals(0, Agenda.expiredRemindersBefore(
+                    java.util.Collections.singletonList(snoozed), cutoff).size());
+            assertNotNull("Do not cancel a live reminder postponed from an older date",
+                    PendingIntent.getBroadcast(context, 0,
+                            Agenda.reminderBroadcastIntent(context, snoozed),
+                            PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+        } finally {
+            token.cancel();
+        }
+    }
+
+    @Test
     public void onlyExpiredReminderAlarmIsRevokedAfterSyntheticCommit() {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         DateTime cutoff = DateTime.now().withTimeAtStartOfDay().minusDays(1);
