@@ -812,9 +812,17 @@ public class ScheduleUtils {
         final Long expectedOwner = candidate.getPatient() == null
                 ? null : candidate.getPatient().getId();
         final Patient active = DB.patients().getActive(ctx);
+        Routine current = DB.routines().findById(routineId);
         if (expectedOwner == null || expectedOwner <= 0L || active == null
-                || !expectedOwner.equals(active.getId())) {
+                || !expectedOwner.equals(active.getId())
+                || current == null || current.getPatient() == null
+                || !expectedOwner.equals(current.getPatient().getId())) {
             throw new IllegalArgumentException("Routine is not owned by the active patient");
+        }
+        // Preserve the public method's existing rejection contract for meal
+        // routines. A second check INSIDE the transaction still detects races.
+        if (current.dailyEventType() != RepeatType.TIME_OF_DAY) {
+            throw new IllegalArgumentException("Only time-of-day routines may be removed");
         }
 
         // All linked schedule rows, their *pending* dose occurrences and the
