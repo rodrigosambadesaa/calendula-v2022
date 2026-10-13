@@ -38,14 +38,14 @@ public class StockAlertCardSmokeTest {
         medicine.setStock(0.5f);
         StockRunningOutAlert.StockAlertViewProvider provider =
                 new StockRunningOutAlert.StockAlertViewProvider();
-        StockRunningOutAlert.StockAlertViewHolder holder = null;
+        StockRunningOutAlert.StockAlertViewProvider.StockAlertViewHolder holder = null;
 
         try {
             assertEquals(1, DB.patients().create(owner));
             medicine.setPatient(owner);
             assertEquals(1, DB.medicines().create(medicine));
             StockRunningOutAlert alert = new StockRunningOutAlert(medicine, LocalDate.now());
-            holder = (StockRunningOutAlert.StockAlertViewHolder)
+            holder = (StockRunningOutAlert.StockAlertViewProvider.StockAlertViewHolder)
                     provider.onCreateViewHolder(new FrameLayout(context));
 
             provider.onBindViewHolder(holder, alert);
