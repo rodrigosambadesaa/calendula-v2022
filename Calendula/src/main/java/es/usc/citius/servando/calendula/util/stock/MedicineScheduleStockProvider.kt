@@ -33,20 +33,27 @@ class MedicineScheduleStockProvider(val m: Medicine) : StockForDayProvider {
         val dayStart = date.toDateTimeAtStartOfDay()
         val dayEnd = dayStart.plusDays(1)
 
-        for (schedule in schedules.orEmpty()) {
-            for (intake in schedule.getEventsBetween(dayStart, dayEnd)) {
-                // A negative/NaN legacy event must not cancel out a positive
-                // dose and make the patient's supply appear sufficient.
-                neededStock = checkedDoseSum(
-                    neededStock,
-                    intake.getDoubleParam(EventInstance.PARAM_DOSE)
-                )
-                if (neededStock.isNaN()) {
-                    // StockCalculator maps non-finite consumption to an
-                    // explicitly unavailable estimate (not "over 3 months").
-                    return Float.NaN
+        try {
+            for (schedule in schedules.orEmpty()) {
+                for (intake in schedule.getEventsBetween(dayStart, dayEnd)) {
+                    // A negative/NaN legacy event must not cancel out a positive
+                    // dose and make the patient's supply appear sufficient.
+                    neededStock = checkedDoseSum(
+                        neededStock,
+                        intake.getDoubleParam(EventInstance.PARAM_DOSE)
+                    )
+                    if (neededStock.isNaN()) {
+                        // StockCalculator maps non-finite consumption to an
+                        // explicitly unavailable estimate (not "over 3 months").
+                        return Float.NaN
+                    }
                 }
             }
+        } catch (malformedSchedule: RuntimeException) {
+            // Legacy occurrences may have missing/unparseable dose parameters
+            // or recurrences. Never present adequate supply when the day's
+            // consumption cannot even be read reliably.
+            return Float.NaN
         }
         return neededStock
     }
