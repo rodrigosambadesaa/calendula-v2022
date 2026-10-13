@@ -49,9 +49,29 @@ public class AlertManager {
         final boolean high = alert.getLevel() == Level.HIGH;
         // Alert creation and schedule/occurrence blocking commit together.
         DB.transaction(() -> {
+            Medicine verifiedMedicine = null;
+            if (high) {
+                // Never let a stale or mislinked HIGH alert mutate another
+                // patient's schedules. The authoritative medicine owner must
+                // match the persisted alert patient before ANY SQL write.
+                if (alert.getPatient() == null || alert.getPatient().getId() == null
+                        || alert.getPatient().getId() <= 0L
+                        || alert.getMedicine() == null || alert.getMedicine().getId() == null
+                        || alert.getMedicine().getId() <= 0L
+                        || DB.patients().findById(alert.getPatient().getId()) == null) {
+                    throw new SQLException("HIGH alert is missing a persisted owner or medicine");
+                }
+                verifiedMedicine = DB.medicines().findById(alert.getMedicine().getId());
+                if (verifiedMedicine == null || verifiedMedicine.getPatient() == null
+                        || verifiedMedicine.getPatient().getId() == null
+                        || !alert.getPatient().getId().equals(
+                                verifiedMedicine.getPatient().getId())) {
+                    throw new SQLException("HIGH alert patient differs from medicine owner");
+                }
+            }
             DB.alerts().save(alert);
             if (high) {
-                blockSchedulesForMedicineInSql(alert.getMedicine());
+                blockSchedulesForMedicineInSql(verifiedMedicine);
             }
             return null;
         });
