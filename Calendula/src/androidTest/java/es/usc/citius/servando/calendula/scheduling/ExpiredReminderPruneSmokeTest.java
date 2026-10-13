@@ -19,17 +19,66 @@ import org.junit.runner.RunWith;
 import java.util.Arrays;
 import java.util.List;
 
+import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 /** Real Android PendingIntent retirement with synthetic expired IDs; no database. */
 @RunWith(AndroidJUnit4.class)
 public class ExpiredReminderPruneSmokeTest {
+
+    @Test
+    public void sqlitePruningPreservesSnoozedOldMedicationReminder() throws Exception {
+        assertTrue(DB.initialized);
+        DateTime cutoff = DateTime.now().withTimeAtStartOfDay().minusDays(1);
+        EventReminder snoozed = new EventReminder(
+                cutoff.minusHours(4), EventType.MEDICATION_INTAKE);
+        snoozed.setNextTime(cutoff.plusDays(2));
+        EventReminder expired = new EventReminder(
+                cutoff.minusHours(3), EventType.MEDICATION_INTAKE);
+        expired.setNextTime(cutoff.minusHours(1));
+        EventReminder noNextTime = new EventReminder(
+                cutoff.minusHours(2), EventType.MEDICATION_INTAKE);
+        noNextTime.setNextTime(null);
+        EventReminder atBoundary = new EventReminder(
+                cutoff.minusHours(1), EventType.MEDICATION_INTAKE);
+        atBoundary.setNextTime(cutoff);
+        EventReminder[] fixture = {snoozed, expired, noNextTime, atBoundary};
+        try {
+            for (EventReminder reminder : fixture) {
+                assertEquals(1, DB.eventReminders().create(reminder));
+                assertNotNull(reminder.getId());
+            }
+            assertEquals("Only deliveries fully older than the cutoff are removed",
+                    2, DB.eventReminders().removeOlderThan(cutoff));
+            assertNotNull("Future snooze must remain persisted",
+                    DB.eventReminders().findById(snoozed.getId()));
+            assertNotNull("Boundary delivery must remain persisted",
+                    DB.eventReminders().findById(atBoundary.getId()));
+            assertNull(DB.eventReminders().findById(expired.getId()));
+            assertNull(DB.eventReminders().findById(noNextTime.getId()));
+            // The Android cancellation snapshot must select precisely those
+            // deleted row identities, never a retained snooze/valid token.
+            List<EventReminder> retired = Agenda.expiredRemindersBefore(
+                    Arrays.asList(fixture), cutoff);
+            assertEquals(2, retired.size());
+            assertTrue(retired.contains(expired));
+            assertTrue(retired.contains(noNextTime));
+        } finally {
+            for (EventReminder reminder : fixture) {
+                if (reminder.getId() != null
+                        && DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().remove(reminder);
+                }
+            }
+        }
+    }
 
     @Test
     public void onlyExpiredReminderAlarmIsRevokedAfterSyntheticCommit() {
