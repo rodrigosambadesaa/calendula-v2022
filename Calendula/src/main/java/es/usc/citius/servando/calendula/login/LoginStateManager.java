@@ -110,7 +110,7 @@ public class LoginStateManager {
             // check auth level
             final boolean validScope = checkScope(authState.getScope());
             if (!validScope) {
-                LogUtil.w(TAG, "login: scope is not valid. Scope: " + authState.getScope());
+                LogUtil.w(TAG, "Invalid authorization scope");
                 return LoginResult.FAILURE_AUTH_LEVEL;
             }
 
@@ -141,7 +141,7 @@ public class LoginStateManager {
                     DB.patients().create(p);
                     DefaultDataGenerator.generateDefaultRoutines(p, ctx);
                 } catch (SQLException e) {
-                    LogUtil.e(TAG, "login: couldn't create patient", e);
+                    AuthLogPolicy.logFailure(TAG, AuthLogPolicy.Failure.PATIENT_PERSISTENCE, e);
                 }
             }
 
@@ -163,7 +163,7 @@ public class LoginStateManager {
             LogUtil.d(TAG, "login: user logged in successfully");
             return LoginResult.SUCCESS;
         } catch (ParseException e) {
-            LogUtil.e(TAG, "login: ", e);
+            AuthLogPolicy.logFailure(TAG, AuthLogPolicy.Failure.ID_TOKEN, e);
             return LoginResult.FAILURE_EXCEPTION;
         }
     }
@@ -249,7 +249,7 @@ public class LoginStateManager {
         try {
             return AuthState.jsonDeserialize(stateString);
         } catch (JSONException e) {
-            LogUtil.e(TAG, "getCurrentAuthState: ", e);
+            AuthLogPolicy.logFailure(TAG, AuthLogPolicy.Failure.STATE_PARSING, e);
             return null;
         }
     }
@@ -302,7 +302,7 @@ public class LoginStateManager {
             }
             return null;
         } catch (Exception e) {
-            LogUtil.e(TAG, "getAndVerifyIdToken: ", e);
+            AuthLogPolicy.logFailure(TAG, AuthLogPolicy.Failure.ID_TOKEN, e);
             return null;
         }
     }
