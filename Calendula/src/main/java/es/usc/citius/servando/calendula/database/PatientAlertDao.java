@@ -133,7 +133,6 @@ public class PatientAlertDao extends GenericDao<PatientAlert, Long> {
         try {
             final PreparedQuery<PatientAlert> query = dao.queryBuilder().where()
                     .eq(PatientAlert.COLUMN_TYPE, className).and()
-                    .eq(PatientAlert.COLUMN_PATIENT, stored.getPatient()).and()
                     .eq(PatientAlert.COLUMN_MEDICINE, stored).prepare();
             // An SQLite failure must never masquerade as 'no clinical alert'.
             return requireSameOwner(stored, dao.query(query));
