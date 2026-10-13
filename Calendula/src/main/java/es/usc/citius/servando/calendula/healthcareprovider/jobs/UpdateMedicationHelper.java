@@ -129,7 +129,7 @@ public class UpdateMedicationHelper {
 
     public static Medicine addMedicineToMedKit(ActiveMedEntity entity, es.usc.citius.servando.calendula.persistence.Patient p) {
         Medicine m = null;
-        LogUtil.d(TAG, "addMedicineToMedKit: " + entity.getCode() + ", " + entity.getType());
+        LogUtil.d(TAG, "Adding provider medication to local medicine kit");
         if (entity.getType().equals(ActiveMedType.DCPF)) {
             m = DB.medicines().findByGroupAndPatient(entity.getCode(), p);
             if (m == null) {
