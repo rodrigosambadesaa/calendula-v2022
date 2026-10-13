@@ -36,6 +36,56 @@ import static org.junit.Assert.assertTrue;
 @RunWith(AndroidJUnit4.class)
 public class PatientDeletionScopeSmokeTest {
     @Test
+    public void missingOrUnsavedPatientCannotBeginCascadeErasure() throws Exception {
+        assertTrue(DB.initialized);
+        Patient survivor = new Patient();
+        survivor.setCode("ci-invalid-delete-survivor-" + System.nanoTime());
+        survivor.setName("Synthetic deletion guard survivor");
+        Medicine protectedMedicine = new Medicine("Synthetic protected medication", Presentation.PILLS);
+        try {
+            assertEquals(1, DB.patients().create(survivor));
+            protectedMedicine.setPatient(survivor);
+            assertEquals(1, DB.medicines().create(protectedMedicine));
+            Patient unsaved = new Patient();
+            Patient negative = new Patient();
+            negative.setId(-7L);
+            Patient missing = new Patient();
+            missing.setId(Long.MAX_VALUE - 900L);
+            for (Patient invalid : new Patient[]{null, unsaved, negative, missing}) {
+                boolean cascadeRejected = false;
+                try {
+                    DB.patients().removeCascade(invalid);
+                } catch (IllegalArgumentException expected) {
+                    cascadeRejected = true;
+                }
+                assertTrue("Cascade erasure needs a positive live patient ID",
+                        cascadeRejected);
+                boolean partialRejected = false;
+                try {
+                    DB.patients().removeAllStuff(invalid);
+                } catch (IllegalArgumentException expected) {
+                    partialRejected = true;
+                }
+                assertTrue("Partial erasure needs the same verified owner",
+                        partialRejected);
+            }
+            assertNotNull("Unrelated patient must survive invalid erasures",
+                    DB.patients().findById(survivor.getId()));
+            assertNotNull("Their medication must remain untouched",
+                    DB.medicines().findById(protectedMedicine.getId()));
+        } finally {
+            if (protectedMedicine.getId() != null
+                    && DB.medicines().findById(protectedMedicine.getId()) != null) {
+                DB.medicines().remove(protectedMedicine);
+            }
+            if (survivor.getId() != null
+                    && DB.patients().findById(survivor.getId()) != null) {
+                DB.patients().remove(survivor);
+            }
+        }
+    }
+
+    @Test
     public void deletingPatientRemovesOnlyTheirMedicationsAndRoutines() throws Exception {
         assertTrue(DB.initialized);
         final long seed = 2000000000L + (System.nanoTime() & 0x3fffffffL);
