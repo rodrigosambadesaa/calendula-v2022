@@ -9,6 +9,7 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.scheduling.Remind
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.database.PatientDeletionScopeSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.persistence.PatientProfilePersistenceSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.alerts.AtomicHighAlertSmokeTest"
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.alerts.AlertDeletionIdentitySmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.database.DefaultRoutineProvisioningSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.scheduling.RoutineDeleteDependencySmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.schedules.ScheduleEditorRoutineScopeSmokeTest"
