@@ -195,12 +195,6 @@ public class ScheduleCreator {
 
             LogUtil.d(TAG, "Generating schedule from provider data");
 
-            if (s.getRecur().hasDailyFixedTimes()) {
-                for (DailyFixedTime t : s.getRecur().getDailyFixedTimes()) {
-                    // Do not emit individual intake times or quantities to Logcat.
-                }
-            }
-
             return s;
         } catch (Exception e) {
             LogUtil.e(TAG, "Error creating schedule", e);
