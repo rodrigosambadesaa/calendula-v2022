@@ -70,7 +70,7 @@ public class ScheduleDoseGuardTest {
     @Test
     public void pausedOrReviewRequiredScheduleRetainsUntrustedHistoricalDoseMap() throws Exception {
         Schedule paused = hourly();
-        paused.setDosages(null);
+        paused.setDosages((Map<Long, Double>) null);
         paused.addState(Schedule.ScheduleState.BLOCKED);
         ScheduleDoseGuard.requireSafeAutomatedDoseMap(paused);
 
