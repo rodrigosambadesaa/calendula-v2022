@@ -136,26 +136,39 @@ public class PatientDao extends GenericDao<Patient, Long> {
     }
 
 
+    private Patient requirePersistedPatientForErasure(Patient candidate) {
+        Long id = candidate == null ? null : candidate.getId();
+        if (id == null || id <= 0L) {
+            throw new IllegalArgumentException("Patient erasure requires a positive persisted owner");
+        }
+        Patient live = findById(id);
+        if (live == null) {
+            throw new IllegalArgumentException("Cannot erase an already deleted patient");
+        }
+        return live;
+    }
+
     public void removeCascade(Patient p) {
+        // Verify the owner before touching ANY medication, reminders or
+        // historical decisions. Missing/deleted/stale ID is not permission to
+        // run a destructive partial cleanup.
+        Patient persisted = requirePersistedPatientForErasure(p);
         // Removing a schedule retains decided intake history by design.
         // Explicit deletion of a patient must not: scrub their remaining
         // completed/cancelled event snapshots and alarm tokens before removing
         // their identity. The patient is retained if either cleanup fails.
-        removeAllStuff(p);
-        DB.eventInstances().removeAllForPatient(p);
+        removeAllStuff(persisted);
+        DB.eventInstances().removeAllForPatient(persisted);
         es.usc.citius.servando.calendula.scheduling.Agenda.instance()
-                .removeRemindersForPatient(CalendulaApp.getContext(), p);
-        DB.patients().remove(p);
+                .removeRemindersForPatient(CalendulaApp.getContext(), persisted);
+        DB.patients().remove(persisted);
 
     }
 
     public void removeAllStuff(Patient p) {
         // Never run a patient-data deletion using an absent or unsaved owner:
         // filtering by NULL would also match unrelated, unassigned records.
-        final Long patientId = p == null ? null : p.getId();
-        if (patientId == null) {
-            throw new IllegalArgumentException("A persisted patient is required for deletion");
-        }
+        final Long patientId = requirePersistedPatientForErasure(p).getId();
 
         // Query the owner's rows in SQLite. Comparing boxed Long IDs with ==
         // previously checked object identity, potentially leaving another
