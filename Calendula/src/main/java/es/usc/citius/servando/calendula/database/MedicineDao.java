@@ -42,7 +42,7 @@ import es.usc.citius.servando.calendula.persistence.alerts.DrivingCautionAlert;
 import es.usc.citius.servando.calendula.persistence.alerts.StockRunningOutAlert;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
-import es.usc.citius.servando.calendula.util.alerts.AlertManager;
+import es.usc.citius.servando.calendula.scheduling.Agenda;
 import es.usc.citius.servando.calendula.util.alerts.DrivingAlertHandler;
 import es.usc.citius.servando.calendula.util.alerts.StockAlertHandler;
 
@@ -132,34 +132,104 @@ public class MedicineDao extends GenericDao<Medicine, Long> {
 
     }
 
-    public void deleteCascade(final Medicine m, boolean fireEvent) {
+    /**
+     * Remove a medicine and every live dependency as ONE SQLite unit. The
+     * original cascade called removeSchedule() and removeAlert() from inside
+     * its outer transaction; those functions cancel Android alarms, regenerate
+     * schedules and prune unrelated routines before the outer SQL COMMIT.
+     * A later failure could restore the rows but not those platform effects.
+     */
+    public void deleteCascade(final Medicine candidate, boolean fireEvent) {
+        if (candidate == null || candidate.getId() == null
+                || candidate.getId() <= 0L || candidate.getPatient() == null
+                || candidate.getPatient().getId() == null
+                || candidate.getPatient().getId() <= 0L) {
+            throw new IllegalArgumentException("A persisted medicine and owner are required");
+        }
+        final Long medicineId = candidate.getId();
+        final Long ownerId = candidate.getPatient().getId();
 
-        DB.transaction(new Callable<Object>() {
-            @Override
-            public Object call() throws Exception {
-                List<Schedule> schedules = DB.schedules().findByMedicine(m);
-                for (Schedule s : schedules) {
-                    ScheduleUtils.instance().removeSchedule(CalendulaApp.getContext(), s, false);
-                }
-                List<PickupInfo> pickups = DB.pickups().findByMedicine(m);
-                for (PickupInfo p : pickups) {
-                    DB.pickups().remove(p);
-                }
-
-                //Remove alerts
-                final List<PatientAlert> alerts = DB.alerts().findBy(PatientAlert.COLUMN_MEDICINE, m);
-                for (PatientAlert alert : alerts) {
-                    AlertManager.removeAlert(alert);
-                }
-                DB.medicines().remove(m);
-                return null;
+        Medicine deleted = (Medicine) DB.transaction(() -> {
+            Medicine stored = DB.medicines().findById(medicineId);
+            if (stored == null || DB.medicines().refresh(stored) != 1
+                    || stored.getPatient() == null
+                    || !ownerId.equals(stored.getPatient().getId())) {
+                throw new SQLException("Medicine owner changed before deletion");
             }
+
+            List<Schedule> schedules = DB.schedules().findByMedicine(stored);
+            List<PickupInfo> pickups = DB.pickups().findByMedicine(stored);
+            List<PatientAlert> alerts = DB.alerts().findBy(
+                    PatientAlert.COLUMN_MEDICINE, medicineId);
+
+            // Validate every dependency BEFORE deleting anything. A damaged
+            // legacy row linked to another patient is never authorization to
+            // destroy their medical data merely because IDs were reused.
+            for (Schedule schedule : schedules) {
+                if (schedule == null || schedule.getId() == null
+                        || schedule.getPatient() == null
+                        || !ownerId.equals(schedule.getPatient().getId())) {
+                    throw new SQLException("Medicine schedule owner mismatch");
+                }
+            }
+            for (PickupInfo pickup : pickups) {
+                if (pickup == null || pickup.getId() == null
+                        || pickup.getMedicine() == null
+                        || !medicineId.equals(pickup.getMedicine().getId())) {
+                    throw new SQLException("Medicine pickup identity mismatch");
+                }
+            }
+            for (PatientAlert alert : alerts) {
+                if (alert == null || alert.id() == null
+                        || alert.getMedicine() == null
+                        || !medicineId.equals(alert.getMedicine().getId())
+                        || alert.getPatient() == null
+                        || !ownerId.equals(alert.getPatient().getId())) {
+                    throw new SQLException("Medicine alert patient mismatch");
+                }
+            }
+
+            // Preserve decided doses, as removeSchedule() historically did;
+            // delete pending occurrences and schedules without touching
+            // AlarmManager, preferences or UI inside this transaction.
+            for (Schedule selected : schedules) {
+                Schedule current = DB.schedules().findById(selected.getId());
+                if (current == null || DB.schedules().refresh(current) != 1
+                        || current.getPatient() == null
+                        || !ownerId.equals(current.getPatient().getId())) {
+                    throw new SQLException("Schedule owner changed during medicine deletion");
+                }
+                DB.eventInstances().removeByRef(current.getId());
+                if (DB.schedules().delete(current) != 1) {
+                    throw new SQLException("Could not remove medicine schedule");
+                }
+            }
+            for (PickupInfo pickup : pickups) {
+                if (DB.pickups().deleteById(pickup.getId()) != 1) {
+                    throw new SQLException("Could not remove medicine pickup");
+                }
+            }
+            // Do NOT use AlertManager.removeAlert() for a medicine we are
+            // erasing: it may unblock deleted schedules and rebuild doses.
+            for (PatientAlert alert : alerts) {
+                if (DB.alerts().deleteById(alert.id()) != 1) {
+                    throw new SQLException("Could not remove medicine alert");
+                }
+            }
+            if (DB.medicines().delete(stored) != 1) {
+                throw new SQLException("Could not delete persisted medicine");
+            }
+            return stored;
         });
 
+        // Only run nontransactional Android alarm cleanup and auto-routine
+        // maintenance AFTER SQLite has committed the entire cascade.
+        Agenda.instance().cleanReminders(CalendulaApp.getContext());
+        ScheduleUtils.instance().removeUnlinkedAutoRoutines(
+                deleted.getPatient(), false);
         if (fireEvent) {
             fireEvent();
         }
-
     }
 
     public Medicine findByGroupAndPatient(String group, Patient p) {
