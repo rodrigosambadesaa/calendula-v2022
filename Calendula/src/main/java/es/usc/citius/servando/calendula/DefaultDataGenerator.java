@@ -30,19 +30,43 @@ import es.usc.citius.servando.calendula.healthcareprovider.persistence.RepeatTyp
 
 public class DefaultDataGenerator {
 
+    /**
+     * Provision breakfast/lunch/dinner at most once per patient. This is
+     * called both from profile creation and authenticated bootstrap; a retry
+     * must not duplicate existing default routines or reset user-edited times.
+     * The three insertions commit together, including when only some were
+     * missing in an older database.
+     */
     public static void generateDefaultRoutines(Patient p, Context ctx) {
-        Resources r = ctx.getResources();
-        Routine breakfast = new Routine(p, new LocalTime(9, 0), r.getString(R.string.routine_breakfast));
-        Routine lunch = new Routine(p, new LocalTime(13, 0), r.getString(R.string.routine_lunch));
-        Routine dinner = new Routine(p, new LocalTime(21, 0), r.getString(R.string.routine_dinner));
+        if (p == null || p.getId() == null || p.getId() <= 0L
+                || ctx == null || DB.patients().findById(p.getId()) == null) {
+            throw new IllegalArgumentException("Default routines require a persisted patient");
+        }
+        final Patient owner = DB.patients().findById(p.getId());
+        final Resources resources = ctx.getResources();
+        DB.transaction(() -> {
+            ensureDefaultRoutine(owner, RepeatType.CM, new LocalTime(9, 0),
+                    resources.getString(R.string.routine_breakfast));
+            ensureDefaultRoutine(owner, RepeatType.CD, new LocalTime(13, 0),
+                    resources.getString(R.string.routine_lunch));
+            ensureDefaultRoutine(owner, RepeatType.CV, new LocalTime(21, 0),
+                    resources.getString(R.string.routine_dinner));
+            return null;
+        });
+    }
 
-        breakfast.setDailyEventType(RepeatType.CM);
-        lunch.setDailyEventType(RepeatType.CD);
-        dinner.setDailyEventType(RepeatType.CV);
-
-        DB.routines().save(breakfast);
-        DB.routines().save(lunch);
-        DB.routines().save(dinner);
+    private static void ensureDefaultRoutine(Patient patient, RepeatType event,
+                                             LocalTime fallbackTime, String displayName)
+            throws java.sql.SQLException {
+        if (DB.routines().findByPatientAndDailyEvent(patient, event) != null) {
+            // Never overwrite the owner's existing meal name or clock time.
+            return;
+        }
+        Routine created = new Routine(patient, fallbackTime, displayName);
+        created.setDailyEventType(event);
+        if (DB.routines().create(created) != 1 || created.getId() == null) {
+            throw new java.sql.SQLException("Could not initialize patient meal routine");
+        }
     }
 
 }
