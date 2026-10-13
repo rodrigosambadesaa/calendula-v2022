@@ -100,6 +100,9 @@ public class ScheduleCreator {
             ActiveMedEntity am = DB.healthcareProviderDB().activeMeds().findById(activeMedId);
             ActiveMedVO vo = ActiveMedVO.forEntity(am);
             Patient patient = vo.getPatient();
+            // Reject contradictory prescription bounds before writing new
+            // medicines, time-of-day routines or recurrence entries.
+            requireValidProviderInterval(am.getValidityStart(), am.getValidityEnd());
             // Reject unsupported, absent or as-needed dose types BEFORE
             // adding the medicine to the local kit or creating any schedule.
             // A missing provider plan is not equivalent to 1 pill / 8 hours.
@@ -308,6 +311,16 @@ public class ScheduleCreator {
             throw new IllegalArgumentException("General provider dosage entry is missing");
         }
         return only;
+    }
+
+    static void requireValidProviderInterval(DateTime startInclusive, DateTime endExclusive) {
+        // An open boundary is supported for ongoing therapies. When both
+        // bounds are present, an empty or negative interval is never a
+        // schedulable treatment instruction.
+        if (startInclusive != null && endExclusive != null
+                && !endExclusive.isAfter(startInclusive)) {
+            throw new IllegalArgumentException("Provider prescription ends before or at its start");
+        }
     }
 
     static boolean hasUsableQuantity(DosageEntryEntity entry) {
