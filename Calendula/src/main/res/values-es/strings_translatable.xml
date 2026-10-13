@@ -459,9 +459,9 @@ Quieres instalar la nueva base de datos ahora?"</string>
 </plurals>
 <string name="stock_enough_for_weeks_days">"Suficiente para %1$s y %2$s con las pautas actuales."</string>
 <plurals name="stock_running_out_dialog_message">
-    <item quantity="one">Quedan %1$d %2$s de %3$s, y se agotarán en %4$d día con las pautas actuales.</item>
-    <item quantity="many">Quedan %1$d %2$s de %3$s, y se agotarán en %4$d días con las pautas actuales.</item>
-    <item quantity="other">Quedan %1$d %2$s de %3$s, y se agotarán en %4$d días con las pautas actuales.</item>
+    <item quantity="one">Quedan %1$s %2$s de %3$s, y se agotarán en %4$d día con las pautas actuales.</item>
+    <item quantity="many">Quedan %1$s %2$s de %3$s, y se agotarán en %4$d días con las pautas actuales.</item>
+    <item quantity="other">Quedan %1$s %2$s de %3$s, y se agotarán en %4$d días con las pautas actuales.</item>
 </plurals>
 <string name="stock_running_out_dialog_title">"Se está acabando el stock de %1$s"</string>
 <string name="manage_stock">"Administrar stock"</string>
