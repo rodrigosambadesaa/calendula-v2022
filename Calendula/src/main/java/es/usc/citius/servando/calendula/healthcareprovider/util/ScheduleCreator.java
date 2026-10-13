@@ -193,11 +193,11 @@ public class ScheduleCreator {
             s.setMedicine(m);
             s.setPatient(m.getPatient());
 
-            LogUtil.d(TAG, "Generating schedule with dosages " + dosages);
+            LogUtil.d(TAG, "Generating schedule from provider data");
 
             if (s.getRecur().hasDailyFixedTimes()) {
                 for (DailyFixedTime t : s.getRecur().getDailyFixedTimes()) {
-                    LogUtil.d(TAG, "create: " + t.getTime().toString("HH:mm") + ": " + s.getDosage(t.getTime()));
+                    // Do not emit individual intake times or quantities to Logcat.
                 }
             }
 
