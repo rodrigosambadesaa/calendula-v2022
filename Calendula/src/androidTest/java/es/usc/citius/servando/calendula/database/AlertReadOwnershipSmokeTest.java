@@ -39,13 +39,15 @@ public class AlertReadOwnershipSmokeTest {
             assertEquals(1, DB.medicines().create(medicine));
             warning = new StockRunningOutAlert(medicine, LocalDate.now());
             assertEquals(1, DB.alerts().create(warning));
+            final int warningLevel = warning.getLevel();
+            final String warningType = warning.getType();
             assertEquals(1, DB.alerts().findByMedicineSortByLevel(medicine).size());
             assertEquals(1, DB.alerts().findByMedicineAndLevel(
-                    medicine, warning.getLevel()).size());
+                    medicine, warningLevel).size());
             assertEquals(1, DB.alerts().findByMedicineAndType(
-                    medicine, warning.getType()).size());
+                    medicine, warningType).size());
             assertEquals(1, DB.alerts().findByPatientMedicineAndType(
-                    owner, medicine, warning.getType()).size());
+                    owner, medicine, warningType).size());
 
             // A damaged import can associate the same medicine with another
             // patient's alert. No reader must return that cross-owner row.
@@ -53,11 +55,11 @@ public class AlertReadOwnershipSmokeTest {
             assertEquals(1, DB.alerts().update(warning));
             assertRejected(() -> DB.alerts().findByMedicineSortByLevel(medicine));
             assertRejected(() -> DB.alerts().findByMedicineAndLevel(
-                    medicine, warning.getLevel()));
+                    medicine, warningLevel));
             assertRejected(() -> DB.alerts().findByMedicineAndType(
-                    medicine, warning.getType()));
+                    medicine, warningType));
             assertRejected(() -> DB.alerts().findByPatientMedicineAndType(
-                    owner, medicine, warning.getType()));
+                    owner, medicine, warningType));
 
             Medicine forged = new Medicine("Stale owner", Presentation.PILLS);
             forged.setId(medicine.getId());
