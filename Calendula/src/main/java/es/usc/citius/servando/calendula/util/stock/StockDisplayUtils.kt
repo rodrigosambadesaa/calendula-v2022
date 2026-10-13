@@ -23,6 +23,7 @@ import android.content.Intent
 import com.github.javiersantos.materialstyleddialogs.MaterialStyledDialog
 import com.github.javiersantos.materialstyleddialogs.enums.Style
 import es.usc.citius.servando.calendula.CalendulaApp
+import es.usc.citius.servando.calendula.database.DB
 import es.usc.citius.servando.calendula.R
 import es.usc.citius.servando.calendula.activities.MedicinesActivity
 import es.usc.citius.servando.calendula.persistence.Medicine
@@ -62,37 +63,71 @@ object StockDisplayUtils {
         }
 
 
+    /**
+     * Stock alerts are displayed a moment after publication. Recheck the
+     * current patient and medicine owner before opening a delayed warning,
+     * so switching profiles cannot display another patient's inventory.
+     */
+    internal fun ownerMatchesActivePatient(
+        emittedOwnerId: Long?, storedOwnerId: Long?, activePatientId: Long?
+    ): Boolean = emittedOwnerId != null && emittedOwnerId > 0L
+        && emittedOwnerId == storedOwnerId && emittedOwnerId == activePatientId
+
+    /** Unsafe/disabled amounts are not suitable for an inventory warning. */
+    internal fun displayableQuantity(stock: Float?): String? {
+        if (stock == null || !stock.isFinite() || stock < 0f) return null
+        return if (stock <= Int.MAX_VALUE && stock == stock.toInt().toFloat())
+            stock.toInt().toString() else stock.toString()
+    }
+
     @JvmStatic
     fun showStockRunningOutDialog(context: Context, m: Medicine, days: Long?) {
+        val medicineId = m.id ?: return
+        if (medicineId <= 0L) return
+        // Capture the message's original stock and owner before ORMLite may
+        // rehydrate a cached Medicine object during the DB read.
+        val emittedStock = m.stock
+        val emittedOwnerId = m.patient?.id
+        val activePatientId = DB.patients().getActive(context)?.id
+        val stored = DB.medicines().findById(medicineId) ?: return
+        if (DB.medicines().refresh(stored) != 1
+            || !ownerMatchesActivePatient(
+                emittedOwnerId, stored.patient?.id, activePatientId
+            ) || emittedStock != stored.stock) {
+            return
+        }
+        val remainingDays = days?.takeIf { it >= 0L && it <= Int.MAX_VALUE }?.toInt()
+            ?: return
+        val quantity = displayableQuantity(stored.stock) ?: return
+        val presentation = stored.presentation ?: return
+        val name = stored.name ?: return
 
-
-        val remainingDays = requireNotNull(days) { "Stock running-out alert requires a day count" }.toInt()
         val msg = context.resources.getQuantityString(
             R.plurals.stock_running_out_dialog_message,
             remainingDays,
-            m.stock!!.toInt(),
-            m.presentation.units(context.resources, m.stock!!.toDouble()),
-            m.name,
+            quantity,
+            presentation.units(context.resources, stored.stock!!.toDouble()),
+            name,
             remainingDays
         )
 
         MaterialStyledDialog.Builder(context)
-            .setTitle(context.getString(R.string.stock_running_out_dialog_title, m.name))
+            .setTitle(context.getString(R.string.stock_running_out_dialog_title, name))
             .setStyle(Style.HEADER_WITH_ICON)
-            .setIcon(IconUtils.icon(context, m.presentation.icon(), R.color.white, 48))
+            .setIcon(IconUtils.icon(context, presentation.icon(), R.color.white, 48))
             .setHeaderColor(R.color.android_orange_dark)
             .withDialogAnimation(true)
             .setDescription(msg)
             .setPositiveText(R.string.manage_stock)
             .onPositive { _, _ ->
                 val i = Intent(context, MedicinesActivity::class.java)
-                i.putExtra(CalendulaApp.INTENT_EXTRA_MEDICINE_ID, m.id)
+                i.putExtra(CalendulaApp.INTENT_EXTRA_MEDICINE_ID, medicineId)
                 context.startActivity(i)
             }
             .setNeutralText(R.string.tutorial_understood)
-            .onNeutral { dialog, _ -> dialog.dismiss() }
+            .onNeutral { dialog, _ -> dialog.dismiss()
+            }
             .show()
-
     }
 
 
