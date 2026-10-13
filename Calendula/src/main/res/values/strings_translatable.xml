@@ -256,7 +256,7 @@ Calendula is being developed by the Centro de Investigación en Tecnoloxías Int
 <string name="create_default_routines">"Create default routines"</string>
 <string name="stock_running_out">"Running out of stock"</string>
 <string name="add_more_stock">"Add more"</string>
-<string name="stock_remaining_msg">"%1$d %2$s remaining"</string>
+<string name="stock_remaining_msg">"%1$s %2$s remaining"</string>
 <string name="active_schedules_none">"No active schedules"</string>
 <plurals name="active_schedules_number">
 <item quantity="one">"%1$d active schedule"</item>

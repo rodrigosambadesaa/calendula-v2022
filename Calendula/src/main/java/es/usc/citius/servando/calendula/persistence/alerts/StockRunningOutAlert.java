@@ -120,34 +120,70 @@ public class StockRunningOutAlert extends PatientAlert<StockRunningOutAlert, Sto
 
         @Override
         public void onBindViewHolder(RecyclerView.ViewHolder holder, PatientAlert alert) {
-
             StockAlertViewHolder viewHolder = (StockAlertViewHolder) holder;
             viewHolder.alert = alert;
-            final Medicine m = alert.getMedicine();
-            final Context c = viewHolder.context;
-            DB.medicines().refresh(m);
-            int stock = m.getStock().intValue();
-            // setup ui
-            viewHolder.alertIcon.setImageDrawable(IconUtils.alertLevelIcon(alert.getLevel(), c));
-            final Context ctx = viewHolder.itemView.getContext();
-            if (stock > 0) {
-                viewHolder.title.setText(R.string.stock_running_out);
-                final StockCalculator.StockEnd stockEnd = StockCalculator.calculateStockEnd(LocalDate.now(), new MedicineScheduleStockProvider(m), m.getStock());
-                viewHolder.duration.setText(StockDisplayUtils.getReadableStockDuration(stockEnd, ctx));
-                viewHolder.description.setText(ctx.getString(R.string.stock_remaining_msg, stock, m.getPresentation().units(c.getResources(), stock)));
+            final Context context = viewHolder.context;
+            viewHolder.alertIcon.setImageDrawable(
+                    IconUtils.alertLevelIcon(alert.getLevel(), context));
+
+            // RecyclerView reuses holders: reset fields hidden by a previous
+            // depleted/legacy alert before binding the next medicine.
+            viewHolder.description.setVisibility(View.VISIBLE);
+            viewHolder.manageStockBtn.setVisibility(View.VISIBLE);
+            viewHolder.title.setText(R.string.stock_running_out);
+
+            Medicine associated = alert.getMedicine();
+            Medicine persisted = associated == null || associated.getId() == null
+                    || associated.getId() <= 0L
+                    ? null : DB.medicines().findById(associated.getId());
+            Long alertOwnerId = alert.getPatient() == null
+                    ? null : alert.getPatient().getId();
+            if (persisted == null || persisted.getPatient() == null
+                    || alertOwnerId == null
+                    || !alertOwnerId.equals(persisted.getPatient().getId())) {
+                // An orphaned/mislinked legacy alert must not show another
+                // patient's inventory or launch an invalid stock editor.
+                viewHolder.description.setVisibility(View.GONE);
+                viewHolder.duration.setText(R.string.stock_estimate_unavailable);
+                viewHolder.manageStockBtn.setVisibility(View.GONE);
+                viewHolder.manageStockBtn.setOnClickListener(null);
+                return;
+            }
+
+            final Medicine medicine = persisted;
+            Float remaining = medicine.getStock();
+            if (remaining == null || Float.isNaN(remaining)
+                    || Float.isInfinite(remaining) || remaining < 0f
+                    || medicine.getPresentation() == null) {
+                // Never show "stock depleted" for an unknown or corrupt
+                // quantity. Preserve the manage-stock action to correct it.
+                viewHolder.description.setVisibility(View.GONE);
+                viewHolder.duration.setText(R.string.stock_estimate_unavailable);
+            } else if (remaining > 0f) {
+                final float quantity = remaining;
+                final StockCalculator.StockEnd stockEnd =
+                        StockCalculator.calculateStockEnd(LocalDate.now(),
+                                new MedicineScheduleStockProvider(medicine), quantity);
+                viewHolder.duration.setText(
+                        StockDisplayUtils.getReadableStockDuration(stockEnd, context));
+                // Preserve fractional doses: 0.5 pills is not zero pills.
+                final String formattedQuantity = quantity == (int) quantity
+                        ? Integer.toString((int) quantity)
+                        : Float.toString(quantity);
+                viewHolder.description.setText(context.getString(
+                        R.string.stock_remaining_msg, formattedQuantity,
+                        medicine.getPresentation().units(context.getResources(), quantity)));
             } else {
                 viewHolder.title.setText(R.string.stock_depleted);
                 viewHolder.description.setVisibility(View.GONE);
                 viewHolder.duration.setText(R.string.stock_depleted_msg);
             }
-            viewHolder.manageStockBtn.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-                    Intent intent = new Intent(c, MedicinesActivity.class);
-                    intent.putExtra(CalendulaApp.INTENT_EXTRA_MEDICINE_ID, m.getId());
-                    intent.putExtra(CalendulaApp.INTENT_EXTRA_ACTION, "add_stock");
-                    c.startActivity(intent);
-                }
+
+            viewHolder.manageStockBtn.setOnClickListener(view -> {
+                Intent intent = new Intent(context, MedicinesActivity.class);
+                intent.putExtra(CalendulaApp.INTENT_EXTRA_MEDICINE_ID, medicine.getId());
+                intent.putExtra(CalendulaApp.INTENT_EXTRA_ACTION, "add_stock");
+                context.startActivity(intent);
             });
         }
 

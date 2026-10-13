@@ -272,7 +272,7 @@ Para este desarrollo se hace uso de algunas librerías y utilidades de código a
 <string name="create_default_routines">"Crear rutinas por defecto"</string>
 <string name="stock_running_out">"Se está agotando el stock"</string>
 <string name="add_more_stock">"Recargar"</string>
-<string name="stock_remaining_msg">"Quedan %1$d %2$s"</string>
+<string name="stock_remaining_msg">"Quedan %1$s %2$s"</string>
 <string name="active_schedules_none">"Sin pautas activas"</string>
 <plurals name="active_schedules_number">
 <item quantity="one">"%1$d pauta activa"</item>

@@ -276,7 +276,7 @@ Calendula está sendo desenvolvida polo Centro de Investigación en Tecnoloxías
 <string name="create_default_routines">"Crear rutinas por defecto"</string>
 <string name="stock_running_out">"Estase a agotar o stock"</string>
 <string name="add_more_stock">"Recargar"</string>
-<string name="stock_remaining_msg">"Quedan %1$d %2$s"</string>
+<string name="stock_remaining_msg">"Quedan %1$s %2$s"</string>
 <string name="active_schedules_none">"Sen pautas activas"</string>
 <plurals name="active_schedules_number">
 <item quantity="one">"%1$d pauta activa"</item>

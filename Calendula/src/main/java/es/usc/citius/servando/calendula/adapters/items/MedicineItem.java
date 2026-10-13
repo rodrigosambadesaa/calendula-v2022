@@ -87,8 +87,16 @@ public class MedicineItem extends AbstractItem<MedicineItem, MedicineItem.Medici
         if (ModuleManager.isEnabled(StockModule.ID)) {
             holder.stockInfo.setVisibility(View.VISIBLE);
 
-            if (medicine.getStock() != null && medicine.getStock() >= 0) {
-                holder.stockInfo.setText(ctx.getString(R.string.stock_remaining_msg, medicine.getStock().intValue(), medicine.getPresentation().units(ctx.getResources(), medicine.getStock())));
+            final Float remaining = medicine.getStock();
+            if (remaining != null && !Float.isNaN(remaining)
+                    && !Float.isInfinite(remaining) && remaining >= 0f) {
+                // Preserve fractional quantities and agree with the alert
+                // card's %s formatting in all supported locales.
+                final String amount = remaining == remaining.intValue()
+                        ? Integer.toString(remaining.intValue())
+                        : Float.toString(remaining);
+                holder.stockInfo.setText(ctx.getString(R.string.stock_remaining_msg,
+                        amount, medicine.getPresentation().units(ctx.getResources(), remaining)));
             } else {
                 holder.stockInfo.setText(R.string.no_stock_info_msg);
             }
