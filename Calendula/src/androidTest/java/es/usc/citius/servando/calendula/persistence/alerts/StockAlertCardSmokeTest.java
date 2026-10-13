@@ -41,9 +41,9 @@ public class StockAlertCardSmokeTest {
         StockRunningOutAlert.StockAlertViewProvider.StockAlertViewHolder holder = null;
 
         try {
-            assertEquals(1, DB.patients().create(owner));
+            assertEquals("Create synthetic stock patient", 1, DB.patients().create(owner));
             medicine.setPatient(owner);
-            assertEquals(1, DB.medicines().create(medicine));
+            assertEquals("Create synthetic stock medicine", 1, DB.medicines().create(medicine));
             StockRunningOutAlert alert = new StockRunningOutAlert(medicine, LocalDate.now());
             holder = (StockRunningOutAlert.StockAlertViewProvider.StockAlertViewHolder)
                     provider.onCreateViewHolder(new FrameLayout(context));
@@ -54,21 +54,21 @@ public class StockAlertCardSmokeTest {
                     holder.description.getText().toString().contains("0.5"));
 
             medicine.setStock(0f);
-            assertEquals(1, DB.medicines().update(medicine));
+            assertEquals("Write depleted stock fixture", 1, DB.medicines().update(medicine));
             provider.onBindViewHolder(holder, alert);
             assertEquals(context.getString(R.string.stock_depleted),
                     holder.title.getText().toString());
             assertEquals(View.GONE, holder.description.getVisibility());
 
             medicine.setStock(2f);
-            assertEquals(1, DB.medicines().update(medicine));
+            assertEquals("Write replenished stock fixture", 1, DB.medicines().update(medicine));
             provider.onBindViewHolder(holder, alert);
             assertEquals("A recycled zero-stock holder must restore its description",
                     View.VISIBLE, holder.description.getVisibility());
             assertTrue(holder.description.getText().toString().contains("2"));
 
             medicine.setStock(null);
-            assertEquals(1, DB.medicines().update(medicine));
+            assertEquals("Write null-stock legacy fixture", 1, DB.medicines().update(medicine));
             provider.onBindViewHolder(holder, alert);
             assertEquals("Missing legacy quantity is unknown, not depleted",
                     context.getString(R.string.stock_estimate_unavailable),
