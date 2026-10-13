@@ -71,8 +71,32 @@ public class ScheduleCreator {
         }
     }
 
+    /**
+     * Provider mapping can insert a medicine and unnamed time-of-day routines
+     * before the complete recurrence has been parsed. If any later provider
+     * field is invalid, none of those local writes must survive.
+     */
     public static Pair<ScheduleMappingResult, Schedule> fromActiveMed(Long activeMedId) {
         try {
+            return inLocalMedicationTransaction(() -> mapActiveMed(activeMedId));
+        } catch (RuntimeException error) {
+            // This catch is OUTSIDE DB.transaction. Returning NONE from inside
+            // the transaction would commit an incomplete provider import.
+            LogUtil.e(TAG, "Could not map provider medication schedule");
+            return new Pair<>(ScheduleMappingResult.NONE, null);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    static <T> T inLocalMedicationTransaction(java.util.concurrent.Callable<T> work) {
+        if (work == null) {
+            throw new IllegalArgumentException("A medication mapping operation is required");
+        }
+        return (T) DB.transaction(work);
+    }
+
+    private static Pair<ScheduleMappingResult, Schedule> mapActiveMed(Long activeMedId)
+            throws Exception {
             ActiveMedEntity am = DB.healthcareProviderDB().activeMeds().findById(activeMedId);
             ActiveMedVO vo = ActiveMedVO.forEntity(am);
             Patient patient = vo.getPatient();
@@ -194,11 +218,6 @@ public class ScheduleCreator {
                 s.addState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL);
             }
             return new Pair<>(result, s);
-        } catch (Exception e) {
-            LogUtil.e(TAG, "Could not map provider medication schedule");
-            return new Pair<>(ScheduleMappingResult.NONE, null);
-        }
-
     }
 
     public static Schedule create(RecurringEvent.Builder builder, Map<Long, Double> dosages, Medicine m) {
