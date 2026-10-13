@@ -102,6 +102,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
     private static final ExecutorService STOCK_ESTIMATE_EXECUTOR = Executors.newSingleThreadExecutor();
     OnMedicineEditListener mMedicineEditCallback;
     Medicine mMedicine;
+    private Long editorPatientId;
     Prescription mPrescription;
 
     Boolean showConfirmButton = true;
@@ -181,7 +182,10 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
             stockLayout.setVisibility(View.VISIBLE);
         }
 
-        pColor = DB.patients().getActive(getActivity()).getColor();
+        es.usc.citius.servando.calendula.persistence.Patient openedPatient =
+                DB.patients().getActive(getActivity());
+        editorPatientId = openedPatient == null ? null : openedPatient.getId();
+        pColor = openedPatient == null ? android.graphics.Color.DKGRAY : openedPatient.getColor();
         setupIcons(rootView);
 
         mNameTextView.setOnClickListener(new View.OnClickListener() {
@@ -372,6 +376,35 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
     }
 
     public void onEdit() {
+        // The user can change profiles while an editor is open. Saving to
+        // whichever patient is active NOW would silently reassign a new
+        // treatment, while editing a stale medicine could overwrite another
+        // patient's prescription.
+        es.usc.citius.servando.calendula.persistence.Patient activePatient =
+                getContext() == null ? null : DB.patients().getActive(getContext());
+        Long activePatientId = activePatient == null ? null : activePatient.getId();
+        if (!MedicineEditorOwnershipGuard.sameEditorPatient(editorPatientId, activePatientId)) {
+            if (getActivity() != null) {
+                Snack.show(R.string.medicine_editor_profile_changed, getActivity());
+            }
+            return;
+        }
+        if (mMedicine != null) {
+            Medicine persisted = mMedicine.getId() == null ? null
+                    : DB.medicines().findById(mMedicine.getId());
+            if (persisted == null || DB.medicines().refresh(persisted) != 1
+                    || !MedicineEditorOwnershipGuard.canEdit(
+                        editorPatientId, activePatientId,
+                        mMedicine.getId(),
+                        mMedicine.getPatient() == null ? null : mMedicine.getPatient().getId(),
+                        persisted.getId(),
+                        persisted.getPatient() == null ? null : persisted.getPatient().getId())) {
+                if (getActivity() != null) {
+                    Snack.show(R.string.medicine_editor_profile_changed, getActivity());
+                }
+                return;
+            }
+        }
 
         String name = mNameTextView.getText().toString();
 
@@ -409,7 +442,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
                 }
                 m.setStock(stockSwitch.isChecked() ? stock : -1);
                 m.setPresentation(selectedPresentation != null ? selectedPresentation : Presentation.UNKNOWN);
-                m.setPatient(DB.patients().getActive(getContext()));
+                m.setPatient(activePatient);
 
                 if (mMedicineEditCallback != null && !checkIfDuplicate(m)) {
                     mMedicineEditCallback.onMedicineCreated(m);
