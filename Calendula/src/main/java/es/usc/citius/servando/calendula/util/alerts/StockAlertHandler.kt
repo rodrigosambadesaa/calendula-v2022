@@ -62,7 +62,7 @@ object StockAlertHandler {
         if (!m.stockManagementEnabled()) {
             return
         }
-        val currentStock = m.stock
+        val currentStock = m.stock ?: return
         if (!isUsableStockValue(currentStock)) {
             // Leave existing alerts intact; deleting one based on an invalid
             // stock estimate could wrongly signal that supply is adequate.
@@ -71,11 +71,6 @@ object StockAlertHandler {
 
         val stockAlertPref = stockWarningDays(
             PreferenceUtils.getString(PreferenceKeys.SETTINGS_STOCK_ALERT_DAYS, "7")
-        )
-        val stockEnd = StockCalculator.calculateStockEnd(
-            LocalDate.now(),
-            MedicineScheduleStockProvider(m),
-            currentStock!!
         )
         val alerts =
             DB.alerts().findByMedicineAndType(m, StockRunningOutAlert::class.java.canonicalName)
@@ -88,6 +83,12 @@ object StockAlertHandler {
             }
             return
         }
+
+        val stockEnd = StockCalculator.calculateStockEnd(
+            LocalDate.now(),
+            MedicineScheduleStockProvider(m),
+            currentStock
+        )
 
         if (stockEnd is StockCalculator.StockEnd.OnDate && stockEnd.days < stockAlertPref && alerts.isEmpty()) {
             AlertManager.createAlert(StockRunningOutAlert(m, LocalDate.now()))
