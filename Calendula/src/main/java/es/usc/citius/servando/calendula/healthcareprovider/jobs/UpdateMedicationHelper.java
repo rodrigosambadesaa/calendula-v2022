@@ -105,11 +105,11 @@ public class UpdateMedicationHelper {
                         status = Status.ERROR_GENERIC;
                 }
             } catch (IOException e) {
-                LogUtil.e(TAG, "checkForUpdates: ", e);
+                LogUtil.e(TAG, "Provider medication update request failed");
                 return Status.ERROR_NO_CONNECTION;
             } catch (Exception e) {
                 // for unexpected stuff
-                LogUtil.e(TAG, "checkForUpdates: ", e);
+                LogUtil.e(TAG, "Provider medication update request failed");
                 return Status.ERROR_GENERIC;
             }
 
