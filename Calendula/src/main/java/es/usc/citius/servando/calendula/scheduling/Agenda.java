@@ -169,6 +169,10 @@ public class Agenda {
         // Snapshot new SQL rows so we can schedule only these after commit.
         // Re-arming every existing reminder could fire an old past-due alarm.
         final List<EventReminder> newlyPersisted = new ArrayList<>();
+        // A previous attempt may have committed the SQL reminder row and
+        // crashed before registering its platform alarm. Repeated creation
+        // must repair that future reminder rather than skipping it forever.
+        final List<EventReminder> existingToRearm = new ArrayList<>();
         try {
             TransactionManager.callInTransaction(DB.helper().getConnectionSource(), new Callable<Object>() {
                 @Override
@@ -199,6 +203,14 @@ public class Agenda {
                             }
                         } else {
                             LogUtil.d(TAG, "Reminder already exists for an event");
+                            if (allowPlatformEffects) {
+                                EventReminder existing = DB.eventReminders().findBy(
+                                        e.getType(), e.getTime(), e.getPatient());
+                                if (existing != null && existing.getNextTime() != null
+                                        && existing.getNextTime().isAfterNow()) {
+                                    existingToRearm.add(existing);
+                                }
+                            }
                         }
                     }
                     // No platform alarms, notifications, or preference changes
@@ -215,9 +227,11 @@ public class Agenda {
                     if (inserted.getId() == null) {
                         throw new IllegalStateException("Reminder persistence returned no ID");
                     }
-                    EventReminder persisted = DB.eventReminders().findById(inserted.getId());
-                    if (persisted != null) {
-                        setAlarm(context, persisted);
+                    rearmCommittedFutureReminder(context, inserted.getId());
+                }
+                for (EventReminder existing : existingToRearm) {
+                    if (existing.getId() != null) {
+                        rearmCommittedFutureReminder(context, existing.getId());
                     }
                 }
             }
@@ -227,6 +241,21 @@ public class Agenda {
             // An outer agenda transaction must not publish a completed-day
             // marker when this nested reminder transaction has rolled back.
             return false;
+        }
+    }
+
+    /** Register only a live, pending, future row after the SQLite commit. */
+    private void rearmCommittedFutureReminder(Context context, Long reminderId) {
+        if (reminderId == null || reminderId <= 0L) {
+            return;
+        }
+        EventReminder latest = DB.eventReminders().findById(reminderId);
+        if (latest != null && latest.getNextTime() != null
+                && latest.getNextTime().isAfterNow()
+                && receivers.containsKey(latest.getEventType())
+                && isCurrentPendingReminder(latest)) {
+            // Stable PendingIntent identity makes retries idempotent.
+            setAlarm(context, latest);
         }
     }
 
