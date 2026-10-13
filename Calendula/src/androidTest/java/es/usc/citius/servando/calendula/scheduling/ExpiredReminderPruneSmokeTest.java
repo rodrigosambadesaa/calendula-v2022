@@ -56,8 +56,14 @@ public class ExpiredReminderPruneSmokeTest {
                 assertEquals(1, DB.eventReminders().create(reminder));
                 assertNotNull(reminder.getId());
             }
-            assertEquals("Only deliveries fully older than the cutoff are removed",
-                    2, DB.eventReminders().removeOlderThan(cutoff));
+            int removedReminders = DB.eventReminders().removeOlderThan(cutoff);
+            EventReminder expiredPersisted = DB.eventReminders().findById(expired.getId());
+            assertEquals("Only deliveries fully older than the cutoff are removed; cutoff="
+                            + cutoff + ", persistedExpiredOriginal="
+                            + (expiredPersisted == null ? "deleted" : expiredPersisted.getDateTime())
+                            + ", persistedExpiredNext="
+                            + (expiredPersisted == null ? "deleted" : expiredPersisted.getNextTime()),
+                    2, removedReminders);
             assertNotNull("Future snooze must remain persisted",
                     DB.eventReminders().findById(snoozed.getId()));
             assertNotNull("Boundary delivery must remain persisted",
@@ -129,9 +135,13 @@ public class ExpiredReminderPruneSmokeTest {
             assertEquals(1, DB.eventInstances().create(expiredDose));
             assertEquals(1, DB.eventReminders().create(delayed));
             assertEquals(1, DB.eventReminders().create(expired));
-            assertEquals("Do not erase a pending dose whose alarm was postponed",
-                    1, DB.eventInstances().removeOlderThan(
-                            EventType.MEDICATION_INTAKE, cutoff));
+            int removedDoses = DB.eventInstances().removeOlderThan(
+                    EventType.MEDICATION_INTAKE, cutoff);
+            EventInstance expiredPersisted = DB.eventInstances().findById(expiredDose.getId());
+            assertEquals("Do not erase a pending dose whose alarm was postponed; cutoff="
+                            + cutoff + ", persistedExpiredTime="
+                            + (expiredPersisted == null ? "deleted" : expiredPersisted.getTime()),
+                    1, removedDoses);
             assertNotNull(DB.eventInstances().findById(snoozedDose.getId()));
             assertNull(DB.eventInstances().findById(expiredDose.getId()));
             assertEquals(1, DB.eventReminders().removeOlderThan(cutoff));
