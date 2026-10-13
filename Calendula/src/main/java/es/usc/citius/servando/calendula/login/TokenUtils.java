@@ -75,7 +75,7 @@ public class TokenUtils {
                     OpenIdProviderConfiguration.instance().getClientId(),
                     new Date());
         } catch (Exception e) {
-            LogUtil.e(TAG, "validateIdTokenClaims: malformed claims", e);
+            AuthLogPolicy.logFailure(TAG, AuthLogPolicy.Failure.ID_TOKEN, e);
             return false;
         }
     }
@@ -145,7 +145,7 @@ public class TokenUtils {
             }
             return false;
         } catch (Exception e) {
-            LogUtil.e(TAG, "verifyWithKeyList: ", e);
+            AuthLogPolicy.logFailure(TAG, AuthLogPolicy.Failure.TOKEN_VERIFICATION, e);
             return false;
         }
     }
@@ -158,7 +158,7 @@ public class TokenUtils {
             final JWTPublicKeys jwtPublicKeys = new Gson().fromJson(new InputStreamReader(keyStream), JWTPublicKeys.class);
             return jwtPublicKeys.getKeys();
         } catch (IOException e) {
-            LogUtil.e(TAG, "getPublicKeys: ", e);
+            AuthLogPolicy.logFailure(TAG, AuthLogPolicy.Failure.TOKEN_VERIFICATION, e);
             throw new RuntimeException(e);
         } finally {
             CloseableUtil.closeQuietly(keyStream);
