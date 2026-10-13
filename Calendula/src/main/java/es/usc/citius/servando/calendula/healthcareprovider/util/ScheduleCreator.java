@@ -130,7 +130,7 @@ public class ScheduleCreator {
                             throw new IllegalArgumentException("Unsupported repeat units " + units + " for general schedules");
                     }
 
-                    if (e.getRepeatValue() == null || e.getRepeatValue() <= 0) {
+                    if (!hasUsableRepeatValue(e.getRepeatValue())) {
                         throw new IllegalArgumentException("General dosage has invalid repeat value");
                     }
                     if (!hasUsableQuantity(e)) {
@@ -286,7 +286,19 @@ public class ScheduleCreator {
     }
 
     static boolean hasUsableQuantity(DosageEntryEntity entry) {
-        return entry != null && entry.getQuantityValue() != null && entry.getQuantityValue() > 0;
+        if (entry == null || entry.getQuantityValue() == null) {
+            return false;
+        }
+        double quantity = entry.getQuantityValue();
+        return quantity > 0.0d && !Double.isNaN(quantity) && !Double.isInfinite(quantity);
+    }
+
+    static boolean hasUsableRepeatValue(Double value) {
+        // The recurrence builder takes an int: reject truncation, overflow,
+        // Infinity and NaN instead of changing the provider's instructions.
+        return value != null && value > 0.0d
+                && !Double.isNaN(value) && !Double.isInfinite(value)
+                && value <= Integer.MAX_VALUE && value == Math.rint(value);
     }
 
     static ScheduleMappingResult detailedMappingResult(int mappedEntries, int totalEntries) {
