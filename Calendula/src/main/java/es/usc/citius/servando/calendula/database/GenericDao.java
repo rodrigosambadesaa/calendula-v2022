@@ -495,11 +495,15 @@ public abstract class GenericDao<T, I> implements Dao<T, I> {
 
     @Override
     public String getTableName() {
-        return null;
+        // Preserve the Dao interface contract for migrations and diagnostics.
+        // Returning null made every GenericDao subclass appear table-less.
+        return dao.getTableName();
     }
 
     @Override
     public void notifyChanges() {
-
+        // Registered ORMLite observers belong to the concrete DAO.
+        // A no-op here silently dropped explicit change notifications.
+        dao.notifyChanges();
     }
 }
