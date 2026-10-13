@@ -158,11 +158,15 @@ public class RoutinesListFragment extends Fragment {
                 .onPositive(new MaterialDialog.SingleButtonCallback() {
                     @Override
                     public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
+                        final Context currentContext = getContext();
+                        if (currentContext == null) {
+                            return; // Fragment detached while dialog was open.
+                        }
                         boolean deleted = RoutineDeleteAction.run(() ->
                                 ScheduleUtils.instance().deleteRoutineWithLinkedSchedules(
-                                        getContext(), r));
+                                        currentContext, r));
                         if (!deleted) {
-                            Toast.makeText(getContext(), R.string.routine_delete_failed,
+                            Toast.makeText(currentContext, R.string.routine_delete_failed,
                                     Toast.LENGTH_LONG).show();
                             return; // An unsuccessful delete is not a UI success.
                         }
