@@ -29,19 +29,42 @@ class MedicineScheduleStockProvider(val m: Medicine) : StockForDayProvider {
     val schedules: List<Schedule>? by lazy { DB.schedules().findByMedicine(m) }
 
     override fun stockNeededForDay(date: LocalDate): Float {
-        var neededStock = 0F
+        var neededStock = 0f
+        val dayStart = date.toDateTimeAtStartOfDay()
+        val dayEnd = dayStart.plusDays(1)
 
-        schedules
-            ?.forEach { schedule: Schedule ->
-                schedule.getEventsBetween(
-                    date.toDateTimeAtStartOfDay(),
-                    date.toDateTimeAtStartOfDay().plusDays(1)
-                ).forEach { intake: EventInstance ->
-                    neededStock += intake.getDoubleParam(EventInstance.PARAM_DOSE).toFloat()
+        for (schedule in schedules.orEmpty()) {
+            for (intake in schedule.getEventsBetween(dayStart, dayEnd)) {
+                // A negative/NaN legacy event must not cancel out a positive
+                // dose and make the patient's supply appear sufficient.
+                neededStock = checkedDoseSum(
+                    neededStock,
+                    intake.getDoubleParam(EventInstance.PARAM_DOSE)
+                )
+                if (neededStock.isNaN()) {
+                    // StockCalculator maps non-finite consumption to an
+                    // explicitly unavailable estimate (not "over 3 months").
+                    return Float.NaN
                 }
             }
-
+        }
         return neededStock
+    }
+
+    companion object {
+        /**
+         * Sum dosage contributions without hiding invalid imported values
+         * through sign cancellation or Float overflow.
+         */
+        internal fun checkedDoseSum(total: Float, dosage: Double): Float {
+            if (!total.isFinite() || total < 0f
+                || !dosage.isFinite() || dosage < 0.0) {
+                return Float.NaN
+            }
+            val next = total.toDouble() + dosage
+            return if (next.isFinite() && next <= Float.MAX_VALUE.toDouble())
+                next.toFloat() else Float.NaN
+        }
     }
 
 }
