@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import es.usc.citius.servando.calendula.database.DB;
+import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.util.PendingIntentFlags;
@@ -100,6 +101,56 @@ public class ExpiredReminderPruneSmokeTest {
                             PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
         } finally {
             token.cancel();
+        }
+    }
+
+    @Test
+    public void oldPendingDoseSurvivesPruneWhileItsSnoozeIsScheduled() throws Exception {
+        assertTrue(DB.initialized);
+        DateTime cutoff = DateTime.now().withTimeAtStartOfDay().minusDays(2);
+        DateTime intake = cutoff.minusDays(3).plusMinutes(7);
+        DateTime expiredIntake = intake.plusMinutes(1);
+        EventInstance snoozedDose = new EventInstance(
+                intake, EventType.MEDICATION_INTAKE);
+        snoozedDose.setRef(-Math.abs(System.nanoTime()));
+        snoozedDose.addParam(EventInstance.PARAM_DOSE, 1d);
+        EventInstance expiredDose = new EventInstance(
+                expiredIntake, EventType.MEDICATION_INTAKE);
+        expiredDose.setRef(snoozedDose.getRef() - 1L);
+        expiredDose.addParam(EventInstance.PARAM_DOSE, 1d);
+        EventReminder delayed = new EventReminder(
+                intake, EventType.MEDICATION_INTAKE);
+        delayed.setNextTime(DateTime.now().plusHours(5));
+        EventReminder expired = new EventReminder(
+                expiredIntake, EventType.MEDICATION_INTAKE);
+        expired.setNextTime(cutoff.minusHours(1));
+        try {
+            assertEquals(1, DB.eventInstances().create(snoozedDose));
+            assertEquals(1, DB.eventInstances().create(expiredDose));
+            assertEquals(1, DB.eventReminders().create(delayed));
+            assertEquals(1, DB.eventReminders().create(expired));
+            assertEquals("Do not erase a pending dose whose alarm was postponed",
+                    1, DB.eventInstances().removeOlderThan(
+                            EventType.MEDICATION_INTAKE, cutoff));
+            assertNotNull(DB.eventInstances().findById(snoozedDose.getId()));
+            assertNull(DB.eventInstances().findById(expiredDose.getId()));
+            assertEquals(1, DB.eventReminders().removeOlderThan(cutoff));
+            assertNotNull("Future snoozed reminder must still target a real intake",
+                    DB.eventReminders().findById(delayed.getId()));
+            assertNull(DB.eventReminders().findById(expired.getId()));
+        } finally {
+            for (EventInstance event : new EventInstance[]{snoozedDose, expiredDose}) {
+                if (event.getId() != null
+                        && DB.eventInstances().findById(event.getId()) != null) {
+                    DB.eventInstances().remove(event);
+                }
+            }
+            for (EventReminder reminder : new EventReminder[]{delayed, expired}) {
+                if (reminder.getId() != null
+                        && DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().remove(reminder);
+                }
+            }
         }
     }
 
