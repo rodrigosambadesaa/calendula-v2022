@@ -17,6 +17,9 @@ import java.util.List;
 
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Patient;
+import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.Presentation;
+import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 
@@ -133,6 +136,91 @@ public class PendingDoseSelectionSmokeTest {
             for (EventInstance event : new EventInstance[]{orphan, assigned}) {
                 if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
                     DB.eventInstances().remove(event);
+                }
+            }
+        }
+    }
+
+    @Test
+    public void recurrenceMaintenanceRejectsForeignOwnedRowsWithMatchingScheduleId()
+            throws Exception {
+        assertTrue(DB.initialized);
+        String key = Long.toString(System.nanoTime());
+        Patient owner = new Patient();
+        owner.setCode("ci-recurrence-owner-" + key);
+        owner.setName("Synthetic recurrence owner");
+        Patient foreign = new Patient();
+        foreign.setCode("ci-recurrence-foreign-" + key);
+        foreign.setName("Synthetic foreign recurrence owner");
+        Medicine medicine = new Medicine("Synthetic recurrence scope medicine", Presentation.PILLS);
+        Schedule schedule = new Schedule(medicine);
+        DateTime at = DateTime.now().plusHours(9).withMillisOfSecond(0);
+        EventInstance mine = new EventInstance(at, EventType.MEDICATION_INTAKE);
+        EventInstance theirs = new EventInstance(at, EventType.MEDICATION_INTAKE);
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            assertEquals(1, DB.patients().create(foreign));
+            medicine.setPatient(owner);
+            assertEquals(1, DB.medicines().create(medicine));
+            schedule.setPatient(owner);
+            assertEquals(1, DB.schedules().create(schedule));
+            mine.setPatient(owner);
+            theirs.setPatient(foreign);
+            mine.setRef(schedule.getId());
+            theirs.setRef(schedule.getId());
+            mine.addParam(EventInstance.PARAM_DOSE, 1.0d);
+            theirs.addParam(EventInstance.PARAM_DOSE, 2.0d);
+            assertEquals(1, DB.eventInstances().create(mine));
+            assertEquals(1, DB.eventInstances().create(theirs));
+            Bundle changed = new Bundle();
+            changed.putString(EventInstance.PARAM_DOSE, "4.0");
+            boolean editRejected = false;
+            try {
+                DB.eventInstances().updateParams(
+                        EventType.MEDICATION_INTAKE, at, schedule.getId(), changed);
+            } catch (RuntimeException expected) {
+                editRejected = true;
+            }
+            assertTrue("Cross-owner row must abort dose rewrite", editRejected);
+            assertEquals(1.0d, DB.eventInstances().findById(mine.getId())
+                    .getDoubleParam(EventInstance.PARAM_DOSE), 0.0001d);
+            assertEquals(2.0d, DB.eventInstances().findById(theirs.getId())
+                    .getDoubleParam(EventInstance.PARAM_DOSE), 0.0001d);
+
+            boolean pruneRejected = false;
+            try {
+                DB.eventInstances().removeDistinctTime(
+                        EventType.MEDICATION_INTAKE, schedule.getId(),
+                        java.util.Collections.emptyList(), at.minusMinutes(1));
+            } catch (RuntimeException expected) {
+                pruneRejected = true;
+            }
+            assertTrue("Cross-owner row must abort pruning", pruneRejected);
+            boolean blockRejected = false;
+            try {
+                DB.eventInstances().removeByRefAndTime(
+                        schedule.getId(), at.minusMinutes(1));
+            } catch (RuntimeException expected) {
+                blockRejected = true;
+            }
+            assertTrue("Cross-owner row must also abort future blocking", blockRejected);
+            assertNotNull(DB.eventInstances().findById(mine.getId()));
+            assertNotNull(DB.eventInstances().findById(theirs.getId()));
+        } finally {
+            for (EventInstance e : new EventInstance[]{mine, theirs}) {
+                if (e.getId() != null && DB.eventInstances().findById(e.getId()) != null) {
+                    DB.eventInstances().remove(e);
+                }
+            }
+            if (schedule.getId() != null && DB.schedules().findById(schedule.getId()) != null) {
+                DB.schedules().remove(schedule);
+            }
+            if (medicine.getId() != null && DB.medicines().findById(medicine.getId()) != null) {
+                DB.medicines().remove(medicine);
+            }
+            for (Patient p : new Patient[]{owner, foreign}) {
+                if (p.getId() != null && DB.patients().findById(p.getId()) != null) {
+                    DB.patients().remove(p);
                 }
             }
         }
