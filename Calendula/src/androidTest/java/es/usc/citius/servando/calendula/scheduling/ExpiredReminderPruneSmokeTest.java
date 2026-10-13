@@ -19,17 +19,185 @@ import org.junit.runner.RunWith;
 import java.util.Arrays;
 import java.util.List;
 
+import es.usc.citius.servando.calendula.database.DB;
+import es.usc.citius.servando.calendula.persistence.Patient;
+import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 /** Real Android PendingIntent retirement with synthetic expired IDs; no database. */
 @RunWith(AndroidJUnit4.class)
 public class ExpiredReminderPruneSmokeTest {
+
+    @Test
+    public void sqlitePruningPreservesSnoozedOldMedicationReminder() throws Exception {
+        assertTrue(DB.initialized);
+        // Use a future synthetic cutoff. Historical fixture timestamps can be
+        // removed by the app's independent daily housekeeping before this
+        // explicit DAO assertion, making the test fail with zero deleted.
+        // The production SQL still receives a caller-supplied retention cutoff.
+        DateTime cutoff = DateTime.now().withTimeAtStartOfDay().plusDays(1);
+        EventReminder snoozed = new EventReminder(
+                cutoff.minusHours(4), EventType.MEDICATION_INTAKE);
+        snoozed.setNextTime(cutoff.plusDays(2));
+        EventReminder expired = new EventReminder(
+                cutoff.minusHours(3), EventType.MEDICATION_INTAKE);
+        expired.setNextTime(cutoff.minusHours(1));
+        EventReminder noNextTime = new EventReminder(
+                cutoff.minusHours(2), EventType.MEDICATION_INTAKE);
+        noNextTime.setNextTime(null);
+        EventReminder atBoundary = new EventReminder(
+                cutoff.minusHours(1), EventType.MEDICATION_INTAKE);
+        atBoundary.setNextTime(cutoff);
+        EventReminder[] fixture = {snoozed, expired, noNextTime, atBoundary};
+        Patient owner = new Patient();
+        owner.setCode("ci-snoozed-prune-" + System.nanoTime());
+        owner.setName("Synthetic snoozed reminder owner");
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            for (EventReminder reminder : fixture) {
+                reminder.setPatient(owner);
+                assertEquals(1, DB.eventReminders().create(reminder));
+                assertNotNull(reminder.getId());
+                assertNotNull("Fixture must survive its INSERT before pruning",
+                        DB.eventReminders().findById(reminder.getId()));
+            }
+            int removedReminders = DB.eventReminders().removeOlderThan(cutoff);
+            EventReminder expiredPersisted = DB.eventReminders().findById(expired.getId());
+            assertEquals("Only deliveries fully older than the cutoff are removed; cutoff="
+                            + cutoff + ", persistedExpiredOriginal="
+                            + (expiredPersisted == null ? "deleted" : expiredPersisted.getDateTime())
+                            + ", persistedExpiredNext="
+                            + (expiredPersisted == null ? "deleted" : expiredPersisted.getNextTime()),
+                    2, removedReminders);
+            assertNotNull("Future snooze must remain persisted",
+                    DB.eventReminders().findById(snoozed.getId()));
+            assertNotNull("Boundary delivery must remain persisted",
+                    DB.eventReminders().findById(atBoundary.getId()));
+            assertNull(DB.eventReminders().findById(expired.getId()));
+            assertNull(DB.eventReminders().findById(noNextTime.getId()));
+            // The Android cancellation snapshot must select precisely those
+            // deleted row identities, never a retained snooze/valid token.
+            List<EventReminder> retired = Agenda.expiredRemindersBefore(
+                    Arrays.asList(fixture), cutoff);
+            assertEquals(2, retired.size());
+            assertTrue(retired.contains(expired));
+            assertTrue(retired.contains(noNextTime));
+        } finally {
+            for (EventReminder reminder : fixture) {
+                if (reminder.getId() != null
+                        && DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().remove(reminder);
+                }
+            }
+            if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().remove(owner);
+            }
+        }
+    }
+
+    @Test
+    public void lateSnoozedDeliveryRetainsItsActualAlarmManagerToken() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime cutoff = DateTime.now().withTimeAtStartOfDay().minusDays(1);
+        EventReminder snoozed = new EventReminder(
+                cutoff.minusDays(2), EventType.MEDICATION_INTAKE);
+        snoozed.setId(9000001388L);
+        snoozed.setNextTime(DateTime.now().plusMinutes(45));
+        PendingIntent token = PendingIntent.getBroadcast(context, 0,
+                Agenda.reminderBroadcastIntent(context, snoozed),
+                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+        try {
+            assertEquals(0, Agenda.expiredRemindersBefore(
+                    java.util.Collections.singletonList(snoozed), cutoff).size());
+            assertNotNull("Do not cancel a live reminder postponed from an older date",
+                    PendingIntent.getBroadcast(context, 0,
+                            Agenda.reminderBroadcastIntent(context, snoozed),
+                            PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+        } finally {
+            token.cancel();
+        }
+    }
+
+    @Test
+    public void oldPendingDoseSurvivesPruneWhileItsSnoozeIsScheduled() throws Exception {
+        assertTrue(DB.initialized);
+        // Keep synthetic events within today's normal app window, so the
+        // background day-boundary job cannot independently prune them.
+        DateTime cutoff = DateTime.now().withTimeAtStartOfDay().plusDays(1);
+        DateTime intake = cutoff.minusHours(4).plusMinutes(7);
+        DateTime expiredIntake = intake.plusMinutes(1);
+        EventInstance snoozedDose = new EventInstance(
+                intake, EventType.MEDICATION_INTAKE);
+        snoozedDose.setRef(-Math.abs(System.nanoTime()));
+        snoozedDose.addParam(EventInstance.PARAM_DOSE, 1d);
+        EventInstance expiredDose = new EventInstance(
+                expiredIntake, EventType.MEDICATION_INTAKE);
+        expiredDose.setRef(snoozedDose.getRef() - 1L);
+        expiredDose.addParam(EventInstance.PARAM_DOSE, 1d);
+        EventReminder delayed = new EventReminder(
+                intake, EventType.MEDICATION_INTAKE);
+        // Delivery must be AFTER the same explicit cutoff used by pruning.
+        // DateTime.now().plusHours(5) could be before tomorrow's midnight.
+        delayed.setNextTime(cutoff.plusHours(5));
+        EventReminder expired = new EventReminder(
+                expiredIntake, EventType.MEDICATION_INTAKE);
+        expired.setNextTime(cutoff.minusHours(1));
+        Patient owner = new Patient();
+        owner.setCode("ci-snoozed-event-" + System.nanoTime());
+        owner.setName("Synthetic postponed dose owner");
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            for (EventInstance event : new EventInstance[]{snoozedDose, expiredDose}) {
+                event.setPatient(owner);
+            }
+            delayed.setPatient(owner);
+            expired.setPatient(owner);
+            assertEquals(1, DB.eventInstances().create(snoozedDose));
+            assertEquals(1, DB.eventInstances().create(expiredDose));
+            assertEquals(1, DB.eventReminders().create(delayed));
+            assertEquals(1, DB.eventReminders().create(expired));
+            assertNotNull("Pending event fixture must exist before prune",
+                    DB.eventInstances().findById(snoozedDose.getId()));
+            assertNotNull("Snooze must be queryable for exactly this patient",
+                    DB.eventReminders().findBy(EventType.MEDICATION_INTAKE, intake, owner));
+            int removedDoses = DB.eventInstances().removeOlderThan(
+                    EventType.MEDICATION_INTAKE, cutoff);
+            EventInstance expiredPersisted = DB.eventInstances().findById(expiredDose.getId());
+            assertEquals("Do not erase a pending dose whose alarm was postponed; cutoff="
+                            + cutoff + ", persistedExpiredTime="
+                            + (expiredPersisted == null ? "deleted" : expiredPersisted.getTime()),
+                    1, removedDoses);
+            assertNotNull(DB.eventInstances().findById(snoozedDose.getId()));
+            assertNull(DB.eventInstances().findById(expiredDose.getId()));
+            assertEquals(1, DB.eventReminders().removeOlderThan(cutoff));
+            assertNotNull("Future snoozed reminder must still target a real intake",
+                    DB.eventReminders().findById(delayed.getId()));
+            assertNull(DB.eventReminders().findById(expired.getId()));
+        } finally {
+            for (EventInstance event : new EventInstance[]{snoozedDose, expiredDose}) {
+                if (event.getId() != null
+                        && DB.eventInstances().findById(event.getId()) != null) {
+                    DB.eventInstances().remove(event);
+                }
+            }
+            for (EventReminder reminder : new EventReminder[]{delayed, expired}) {
+                if (reminder.getId() != null
+                        && DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().remove(reminder);
+                }
+            }
+            if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().remove(owner);
+            }
+        }
+    }
 
     @Test
     public void onlyExpiredReminderAlarmIsRevokedAfterSyntheticCommit() {

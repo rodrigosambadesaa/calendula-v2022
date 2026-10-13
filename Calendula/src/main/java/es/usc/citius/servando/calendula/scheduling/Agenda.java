@@ -1061,7 +1061,12 @@ public class Agenda {
             if (reminder == null || reminder.getDateTime() == null) {
                 throw new IllegalArgumentException("Malformed persisted reminder");
             }
-            if (reminder.getDateTime().isBefore(cutoff)) {
+            // Mirror EventReminderDao.removeOlderThan exactly. A reminder
+            // delayed from a past day must NOT be cancelled by the
+            // post-commit Android cleanup while SQLite retained its row.
+            if (reminder.getDateTime().isBefore(cutoff)
+                    && (reminder.getNextTime() == null
+                        || reminder.getNextTime().isBefore(cutoff))) {
                 expired.add(reminder);
             }
         }

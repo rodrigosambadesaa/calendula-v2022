@@ -37,6 +37,7 @@ import es.usc.citius.servando.calendula.events.PersistenceEvents;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
+import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 
 public class EventInstanceDao extends GenericDao<EventInstance, Long> {
@@ -711,6 +712,19 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
                             }
                             if (event.completed() || event.cancelled()) {
                                 continue;
+                            }
+                            if (olderThan && type == EventType.MEDICATION_INTAKE) {
+                                // A delayed reminder retains the original
+                                // dose's time and patient. Deleting this
+                                // pending event would make a still-live snooze
+                                // unactionable even when its alarm/SQL row
+                                // survive daily reminder pruning.
+                                EventReminder reminder = DB.eventReminders().findBy(
+                                        event.getType(), event.getTime(), event.getPatient());
+                                if (reminder != null && reminder.getNextTime() != null
+                                        && !reminder.getNextTime().isBefore(boundary)) {
+                                    continue;
+                                }
                             }
                             if (dao.deleteById(event.getId()) != 1) {
                                 throw new SQLException("Could not prune obsolete pending agenda event");
