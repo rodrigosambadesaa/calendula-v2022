@@ -163,6 +163,8 @@ public class MedicinesListFragment extends Fragment {
     public void onStart() {
         super.onStart();
         CalendulaApp.eventBus().register(this);
+        // Catch profile changes while this Fragment was stopped.
+        notifyDataChange();
     }
 
     @Override
@@ -175,7 +177,11 @@ public class MedicinesListFragment extends Fragment {
     @SuppressWarnings("unused")
     @Subscribe
     public void handleActiveUserChange(final PersistenceEvents.ActiveUserChangeEvent event) {
-        notifyDataChange();
+        // An event may be delivered from a worker; invalidate/reload only
+        // through the UI thread because this manipulates RecyclerView cards.
+        if (handler != null) {
+            handler.post(this::notifyDataChange);
+        }
     }
 
     @SuppressWarnings("unused")
