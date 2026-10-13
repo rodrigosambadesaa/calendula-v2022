@@ -9,6 +9,7 @@ package es.usc.citius.servando.calendula.healthcareprovider.util;
 import org.junit.Test;
 
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageEntryEntity;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageType;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.RepeatType;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 
@@ -17,6 +18,23 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class ScheduleCreatorTest {
+
+    @Test
+    public void importedAsNeededOrAbsentDosageMustNotInventEightHourlyMedication() {
+        ScheduleCreator.requireAutomaticallySchedulableDosage(DosageType.GENERAL);
+        ScheduleCreator.requireAutomaticallySchedulableDosage(DosageType.DETAILED);
+        for (DosageType type : new DosageType[]{
+                DosageType.AS_NEEDED, DosageType.NONE, null}) {
+            boolean rejected = false;
+            try {
+                ScheduleCreator.requireAutomaticallySchedulableDosage(type);
+            } catch (IllegalArgumentException expected) {
+                rejected = true;
+            }
+            assertTrue("A missing/as-needed prescription cannot imply an automatic pill every 8 hours",
+                    rejected);
+        }
+    }
 
     @Test
     public void beforeMealCodesUseBeforeOffset() {
