@@ -48,6 +48,9 @@ object StockAlertHandler {
         else -> 7
     }
 
+    /** Preserve the already-tested parser used by existing Kotlin callers. */
+    internal fun parseStockAlertDays(raw: String?): Int = stockWarningDays(raw)
+
     /**
      * Do not calculate or clear clinical stock alerts from malformed values.
      * A negative quantity (other than the distinct -1 disabled sentinel),
