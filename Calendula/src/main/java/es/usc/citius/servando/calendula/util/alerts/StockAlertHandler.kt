@@ -60,44 +60,86 @@ object StockAlertHandler {
     fun isUsableStockValue(stock: Float?): Boolean =
         stock != null && stock >= 0f && !stock.isNaN() && !stock.isInfinite()
 
+    /** Only the same live medicine and patient may drive stock alert changes. */
+    @JvmStatic
+    fun samePersistedMedicineOwner(
+        requestedMedicineId: Long?, requestedPatientId: Long?,
+        storedMedicineId: Long?, storedPatientId: Long?
+    ): Boolean = requestedMedicineId != null && requestedMedicineId > 0L
+        && requestedPatientId != null && requestedPatientId > 0L
+        && requestedMedicineId == storedMedicineId
+        && requestedPatientId == storedPatientId
+
     @JvmStatic
     fun checkStockAlerts(m: Medicine) {
-        if (!m.stockManagementEnabled()) {
+        // Snapshot the expected identity and stock BEFORE the ORM refresh:
+        // legacy DAO caches can return/mutate the original Java object.
+        val requestedMedicineId = m.id
+        val requestedPatientId = m.patient?.id
+        val requestedStock = m.stock
+        if (!samePersistedMedicineOwner(
+                requestedMedicineId, requestedPatientId,
+                requestedMedicineId, requestedPatientId
+            )) {
             return
         }
-        val currentStock = m.stock ?: return
-        if (!isUsableStockValue(currentStock)) {
-            // Leave existing alerts intact; deleting one based on an invalid
-            // stock estimate could wrongly signal that supply is adequate.
+
+        val stored = DB.medicines().findById(requestedMedicineId!!) ?: return
+        if (DB.medicines().refresh(stored) != 1
+            || !samePersistedMedicineOwner(
+                requestedMedicineId, requestedPatientId, stored.id, stored.patient?.id
+            ) || requestedStock != stored.stock) {
             return
         }
 
         val stockAlertPref = stockWarningDays(
             PreferenceUtils.getString(PreferenceKeys.SETTINGS_STOCK_ALERT_DAYS, "7")
         )
-        val alerts =
-            DB.alerts().findByMedicineAndType(m, StockRunningOutAlert::class.java.canonicalName)
+        // Query by persisted owner, not by a caller-supplied medicine with a
+        // potentially forged patient. Never delete a cross-patient legacy row.
+        val alerts = DB.alerts().findByMedicineAndType(
+            stored, StockRunningOutAlert::class.java.canonicalName
+        )
+        if (alerts.any { it.patient?.id != requestedPatientId
+                || it.medicine?.id != requestedMedicineId }) {
+            return
+        }
 
-        if (stockAlertPref == -1) {
-            // An explicit disable request revokes obsolete low-stock alerts,
-            // but must never alter independent HIGH medication safety alerts.
+        if (stockAlertPref == -1 || !stored.stockManagementEnabled()) {
+            // User explicitly disabled warnings or stock management.
             for (alert in alerts) {
                 AlertManager.removeAlert(alert)
             }
             return
         }
 
+        val currentStock = stored.stock ?: return
+        if (!isUsableStockValue(currentStock)) {
+            // Preserve the warning when the quantity cannot be trusted.
+            return
+        }
+
         val stockEnd = StockCalculator.calculateStockEnd(
             LocalDate.now(),
-            MedicineScheduleStockProvider(m),
+            MedicineScheduleStockProvider(stored),
             currentStock
         )
+        // Revalidate after potentially expensive recurrence calculations:
+        // never publish or remove an alert using an already changed snapshot.
+        if (DB.medicines().refresh(stored) != 1
+            || !samePersistedMedicineOwner(
+                requestedMedicineId, requestedPatientId, stored.id, stored.patient?.id
+            ) || currentStock != stored.stock) {
+            return
+        }
 
-        if (stockEnd is StockCalculator.StockEnd.OnDate && stockEnd.days < stockAlertPref && alerts.isEmpty()) {
-            AlertManager.createAlert(StockRunningOutAlert(m, LocalDate.now()))
-            CalendulaApp.eventBus().post(StockRunningOutEvent(m, stockEnd.days))
-        } else if (alerts.isNotEmpty() &&
-            ((stockEnd is StockCalculator.StockEnd.OnDate && stockEnd.days >= stockAlertPref)
+        if (stockEnd is StockCalculator.StockEnd.OnDate
+            && stockEnd.days < stockAlertPref && alerts.isEmpty()) {
+            AlertManager.createAlert(StockRunningOutAlert(stored, LocalDate.now()))
+            CalendulaApp.eventBus().post(StockRunningOutEvent(stored, stockEnd.days))
+        } else if (alerts.isNotEmpty()
+            && ((stockEnd is StockCalculator.StockEnd.OnDate
+                && stockEnd.days >= stockAlertPref)
                 || stockEnd == StockCalculator.StockEnd.OverMax)) {
             for (alert in alerts) {
                 AlertManager.removeAlert(alert)
