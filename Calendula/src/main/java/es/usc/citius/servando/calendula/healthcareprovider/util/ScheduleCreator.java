@@ -180,7 +180,7 @@ public class ScheduleCreator {
             }
             return new Pair<>(result, s);
         } catch (Exception e) {
-            LogUtil.e(TAG, "An error occurred while mapping active med to schedule", e);
+            LogUtil.e(TAG, "Could not map provider medication schedule");
             return new Pair<>(ScheduleMappingResult.NONE, null);
         }
 
@@ -197,7 +197,7 @@ public class ScheduleCreator {
 
             return s;
         } catch (Exception e) {
-            LogUtil.e(TAG, "Error creating schedule", e);
+            LogUtil.e(TAG, "Could not create local medication schedule");
             throw new IllegalArgumentException("Error creating schedule", e);
         }
     }
