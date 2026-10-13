@@ -168,8 +168,17 @@ public class EventReminderDao extends GenericDao<EventReminder, Long> {
 
         try {
             DeleteBuilder<EventReminder, Long> qb = dao.deleteBuilder();
-            Where w = qb.where();
-            qb.setWhere(w.lt(EventInstance.COLUMN_DATE_TIME, dateTime));
+            Where<EventReminder, Long> where = qb.where();
+            // A delayed intake may have an old ORIGINAL event time but a
+            // future NextTime. Pruning by original time alone silently erased
+            // the live snooze while its AlarmManager token still existed.
+            // Keep any reminder whose next delivery is at/after the cutoff.
+            where.and(
+                    where.lt(EventReminder.COLUMN_DATE_TIME, dateTime),
+                    where.or(
+                            where.isNull(EventReminder.COLUMN_NEXT_TIME),
+                            where.lt(EventReminder.COLUMN_NEXT_TIME, dateTime)));
+            qb.setWhere(where);
             return qb.delete();
         } catch (SQLException e) {
             throw new RuntimeException("Error finding model", e);
