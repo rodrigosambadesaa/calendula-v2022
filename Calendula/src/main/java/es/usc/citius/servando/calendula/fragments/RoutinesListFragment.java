@@ -156,8 +156,7 @@ public class RoutinesListFragment extends Fragment {
                 .onPositive(new MaterialDialog.SingleButtonCallback() {
                     @Override
                     public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
-                        DB.routines().remove(r);
-                        ScheduleUtils.instance().onDeleteRoutine(getContext(), r);
+                        ScheduleUtils.instance().deleteRoutineWithLinkedSchedules(getContext(), r);
                         notifyDataChange();
                     }
                 })
