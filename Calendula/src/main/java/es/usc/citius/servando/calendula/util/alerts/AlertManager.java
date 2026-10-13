@@ -19,6 +19,11 @@
 package es.usc.citius.servando.calendula.util.alerts;
 
 import java.util.List;
+import java.sql.SQLException;
+
+import org.joda.time.DateTime;
+
+import es.usc.citius.servando.calendula.scheduling.Agenda;
 import java.util.concurrent.Callable;
 
 import es.usc.citius.servando.calendula.CalendulaApp;
@@ -38,21 +43,24 @@ public class AlertManager {
     private static final String TAG = "AlertManager";
 
     public static void createAlert(final PatientAlert alert) {
-        LogUtil.d(TAG, "createAlert: creating level " + alert.getLevel() + " patient alert");
-        DB.alerts().save(alert);
-
-        switch (alert.getLevel()) {
-            case Level.HIGH:
-                blockSchedulesForMedicine(alert.getMedicine());
-            case Level.MEDIUM:
-                //nothing
-            case Level.LOW:
-                //nothing
-            default:
-                break;
+        if (alert == null) {
+            throw new IllegalArgumentException("A persisted clinical alert is required");
+        }
+        final boolean high = alert.getLevel() == Level.HIGH;
+        // Alert creation and schedule/occurrence blocking commit together.
+        DB.transaction(() -> {
+            DB.alerts().save(alert);
+            if (high) {
+                blockSchedulesForMedicineInSql(alert.getMedicine());
+            }
+            return null;
+        });
+        // AlarmManager and UI observers must only run after SQL COMMIT.
+        if (high) {
+            Agenda.instance().cleanReminders(CalendulaApp.getContext());
+            CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT);
         }
         CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT);
-
     }
 
     public static void removeAlert(final PatientAlert alert) {
@@ -89,26 +97,31 @@ public class AlertManager {
         CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT);
     }
 
-    private static void blockSchedulesForMedicine(final Medicine medicine) {
-
-        DB.transaction(new Callable<Object>() {
-            @Override
-            public Object call() throws Exception {
-                final List<Schedule> schedules = DB.schedules().findByMedicine(medicine);
-                LogUtil.d(TAG, "blockSchedulesForMedicine: Found " + schedules.size() + " schedules to block.");
-                for (Schedule schedule : schedules) {
-                    blockSchedule(schedule);
-                }
-                return null;
+    /** Caller must already be inside the HIGH-alert SQLite transaction. */
+    private static void blockSchedulesForMedicineInSql(final Medicine medicine)
+            throws SQLException {
+        final List<Schedule> schedules = DB.schedules().findByMedicine(medicine);
+        final DateTime cutoff = DateTime.now();
+        for (Schedule selected : schedules) {
+            if (selected == null || selected.getId() == null
+                    || selected.getPatient() == null
+                    || medicine == null || medicine.getPatient() == null
+                    || !selected.getPatient().getId().equals(medicine.getPatient().getId())) {
+                throw new SQLException("Blocked schedule has invalid patient ownership");
             }
-        });
-        CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT);
-    }
-
-    private static void blockSchedule(final Schedule schedule) {
-        schedule.addState(Schedule.ScheduleState.BLOCKED);
-        DB.schedules().save(schedule);
-        ScheduleUtils.instance().removeFutureScheduleEvents(CalendulaApp.getContext(), schedule, false);
+            Schedule persisted = new Schedule();
+            persisted.setId(selected.getId());
+            if (DB.schedules().refresh(persisted) != 1 || persisted.getPatient() == null
+                    || !selected.getPatient().getId().equals(
+                            persisted.getPatient().getId())) {
+                throw new SQLException("Blocked schedule owner changed during alert");
+            }
+            persisted.addState(Schedule.ScheduleState.BLOCKED);
+            if (DB.schedules().update(persisted) != 1) {
+                throw new SQLException("Could not block selected schedule");
+            }
+            DB.eventInstances().removeByRefAndTime(persisted.getId(), cutoff);
+        }
     }
 
 }
