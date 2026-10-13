@@ -59,6 +59,8 @@ import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.RepeatType;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.RoutineDeleteAction;
+
 
 public class RoutinesListFragment extends Fragment {
 
@@ -156,7 +158,14 @@ public class RoutinesListFragment extends Fragment {
                 .onPositive(new MaterialDialog.SingleButtonCallback() {
                     @Override
                     public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
-                        ScheduleUtils.instance().deleteRoutineWithLinkedSchedules(getContext(), r);
+                        boolean deleted = RoutineDeleteAction.run(() ->
+                                ScheduleUtils.instance().deleteRoutineWithLinkedSchedules(
+                                        getContext(), r));
+                        if (!deleted) {
+                            Toast.makeText(getContext(), R.string.routine_delete_failed,
+                                    Toast.LENGTH_LONG).show();
+                            return; // An unsuccessful delete is not a UI success.
+                        }
                         notifyDataChange();
                     }
                 })
