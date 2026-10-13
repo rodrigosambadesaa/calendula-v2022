@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="routine_delete_failed">Non se puido eliminar esta rutina. Comproba a pauta e inténtao de novo.</string>
+</resources>
