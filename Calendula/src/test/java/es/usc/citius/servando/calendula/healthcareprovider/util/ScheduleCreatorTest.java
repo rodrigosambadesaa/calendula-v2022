@@ -107,6 +107,29 @@ public class ScheduleCreatorTest {
     }
 
     @Test
+    public void generalProviderDosageNeverDropsExtraEntriesSilently() {
+        DosageEntryEntity one = new DosageEntryEntity();
+        DosageEntryEntity two = new DosageEntryEntity();
+        assertTrue(ScheduleCreator.requireSingleGeneralEntry(
+                java.util.Collections.singletonList(one)) == one);
+        for (java.util.Collection<DosageEntryEntity> candidates :
+                java.util.Arrays.<java.util.Collection<DosageEntryEntity>>asList(
+                        null,
+                        java.util.Collections.<DosageEntryEntity>emptyList(),
+                        java.util.Arrays.asList(one, two),
+                        java.util.Collections.<DosageEntryEntity>singletonList(null))) {
+            boolean rejected = false;
+            try {
+                ScheduleCreator.requireSingleGeneralEntry(candidates);
+            } catch (IllegalArgumentException expected) {
+                rejected = true;
+            }
+            assertTrue("An absent or multi-entry GENERAL dose requires review",
+                    rejected);
+        }
+    }
+
+    @Test
     public void scheduleQuantityMustBePresentAndPositive() {
         DosageEntryEntity entry = new DosageEntryEntity();
 

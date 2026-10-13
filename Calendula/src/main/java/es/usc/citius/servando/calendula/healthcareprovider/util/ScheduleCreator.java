@@ -130,10 +130,9 @@ public class ScheduleCreator {
                     Collection<DosageEntryEntity> entries = dosage.entity().getEntries();
                     final int entryCount = entries != null ? entries.size() : 0;
                     LogUtil.d(TAG, "General schedule, entries: " + entryCount);
-                    if (entries == null || entries.isEmpty()) {
-                        throw new IllegalArgumentException("Dosage has no entries!");
-                    }
-                    DosageEntryEntity e = entries.iterator().next();
+                    // Never silently discard extra prescriber instructions
+                    // and claim a complete mapping of a general dosage.
+                    DosageEntryEntity e = requireSingleGeneralEntry(entries);
                     dosages = new HashMap<>();
                     Timing.UnitsOfTime units = e.getRepeatUnits();
                     if (units == null) {
@@ -296,6 +295,19 @@ public class ScheduleCreator {
         dosages.put(r.getId(), d.getQuantityValue());
         rb.atFixedTime(time);
         return true;
+    }
+
+    static DosageEntryEntity requireSingleGeneralEntry(
+            Collection<DosageEntryEntity> entries) {
+        if (entries == null || entries.size() != 1) {
+            throw new IllegalArgumentException(
+                    "General provider schedule requires exactly one unambiguous dosage entry");
+        }
+        DosageEntryEntity only = entries.iterator().next();
+        if (only == null) {
+            throw new IllegalArgumentException("General provider dosage entry is missing");
+        }
+        return only;
     }
 
     static boolean hasUsableQuantity(DosageEntryEntity entry) {
