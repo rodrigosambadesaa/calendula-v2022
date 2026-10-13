@@ -611,17 +611,41 @@ public class Agenda {
      * reminder at the same time.
      */
     public void removeRemindersForPatient(Context context, Patient patient) {
-        if (patient == null || patient.getId() == null || patient.getId() <= 0L) {
-            throw new IllegalArgumentException("A persisted patient is required to erase reminders");
+        if (context == null || patient == null || patient.getId() == null
+                || patient.getId() <= 0L
+                || DB.patients().findById(patient.getId()) == null) {
+            throw new IllegalArgumentException("A live persisted patient is required to erase reminders");
         }
-        for (EventReminder reminder : DB.eventReminders().findAll()) {
-            if (reminder == null || reminder.getPatient() == null
-                    || !patient.getId().equals(reminder.getPatient().getId())) {
-                continue;
-            }
-            // Delete and verify persisted SQLite state before revoking the
-            // platform token. A later retry is safe if a previous run stopped.
-            deletePersistedReminderForAlarmCleanup(reminder);
+        final Long ownerId = patient.getId();
+        // Query by owner in SQLite rather than loading every patient's
+        // medical reminders. Capture tokens before deleting their SQL rows.
+        final List<EventReminder> owned = DB.eventReminders().findBy(
+                EventReminder.COLUMN_PATIENT, ownerId);
+        try {
+            TransactionManager.callInTransaction(DB.helper().getConnectionSource(),
+                    (Callable<Void>) () -> {
+                        for (EventReminder reminder : owned) {
+                            if (reminder == null || reminder.getId() == null
+                                    || reminder.getPatient() == null
+                                    || !ownerId.equals(reminder.getPatient().getId())) {
+                                throw new SQLException("Invalid owner in patient reminder erase");
+                            }
+                            if (DB.eventReminders().delete(reminder) != 1) {
+                                throw new SQLException("Could not erase one patient reminder");
+                            }
+                        }
+                        return null;
+                    });
+        } catch (SQLException error) {
+            // Cancel NO OS alarms before a complete successful commit. A
+            // partial SQL failure must leave all reminders and tokens intact.
+            throw new IllegalStateException("Patient reminder erasure rolled back", error);
+        }
+        for (EventReminder reminder : owned) {
+            // Android AlarmManager is not transactional. Any interruption
+            // here leaves a harmless stale token: the SQL ID was already
+            // removed and onReceiveAlarm cannot deliver its old medication.
+            // A repeated erasure is safe; ownership is never widened.
             cancelAlarm(context, reminder);
             IntakeNotificationMgr.cancel(context, reminder);
         }
