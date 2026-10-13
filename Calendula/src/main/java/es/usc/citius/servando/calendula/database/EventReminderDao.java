@@ -167,21 +167,33 @@ public class EventReminderDao extends GenericDao<EventReminder, Long> {
         }
 
         try {
-            DeleteBuilder<EventReminder, Long> qb = dao.deleteBuilder();
-            Where<EventReminder, Long> where = qb.where();
-            // A delayed intake may have an old ORIGINAL event time but a
-            // future NextTime. Pruning by original time alone silently erased
-            // the live snooze while its AlarmManager token still existed.
-            // Keep any reminder whose next delivery is at/after the cutoff.
-            where.and(
-                    where.lt(EventReminder.COLUMN_DATE_TIME, dateTime),
-                    where.or(
-                            where.isNull(EventReminder.COLUMN_NEXT_TIME),
-                            where.lt(EventReminder.COLUMN_NEXT_TIME, dateTime)));
-            qb.setWhere(where);
-            return qb.delete();
+            return com.j256.ormlite.misc.TransactionManager.callInTransaction(
+                    dbHelper.getConnectionSource(), () -> {
+                        // Keep the coarse time selection in SQL, but inspect
+                        // NextTime as a DateTime before deletion. A nested OR
+                        // predicate is not reliably translated for nullable
+                        // legacy NextTime columns on all supported SQLite/ORM
+                        // versions. Deleting by ID also detects partial writes.
+                        QueryBuilder<EventReminder, Long> query = dao.queryBuilder();
+                        query.where().lt(EventReminder.COLUMN_DATE_TIME, dateTime);
+                        int removed = 0;
+                        for (EventReminder reminder : query.query()) {
+                            if (reminder.getId() == null || reminder.getDateTime() == null) {
+                                throw new SQLException("Malformed expired reminder row");
+                            }
+                            if (reminder.getNextTime() != null
+                                    && !reminder.getNextTime().isBefore(dateTime)) {
+                                continue; // A postponed reminder is still due.
+                            }
+                            if (dao.deleteById(reminder.getId()) != 1) {
+                                throw new SQLException("Expired reminder delete was incomplete");
+                            }
+                            removed++;
+                        }
+                        return removed;
+                    });
         } catch (SQLException e) {
-            throw new RuntimeException("Error finding model", e);
+            throw new IllegalStateException("Could not prune expired reminders", e);
         }
 
     }
