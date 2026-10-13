@@ -38,6 +38,48 @@ public class StartupReminderRearmSmokeTest {
     }
 
     @Test
+    public void databaseFutureCandidateQueryExcludesPastAndMissingNextTime() throws Exception {
+        assertTrue(DB.initialized);
+        DateTime now = DateTime.now().withMillisOfSecond(0);
+        EventReminder upcoming = new EventReminder(
+                now.plusMinutes(32), EventType.MEDICATION_INTAKE);
+        upcoming.setNextTime(now.plusMinutes(32));
+        EventReminder expired = new EventReminder(
+                now.minusMinutes(42), EventType.MEDICATION_INTAKE);
+        expired.setNextTime(now.minusMinutes(42));
+        EventReminder incomplete = new EventReminder(
+                now.plusMinutes(33), EventType.MEDICATION_INTAKE);
+        incomplete.setNextTime(null);
+        EventReminder[] fixture = {upcoming, expired, incomplete};
+        try {
+            for (EventReminder reminder : fixture) {
+                assertTrue(DB.eventReminders().create(reminder) == 1);
+                assertNotNull(reminder.getId());
+            }
+            java.util.Set<Long> eligibleIds = new java.util.HashSet<>();
+            for (EventReminder reminder : DB.eventReminders().findFuture(now)) {
+                eligibleIds.add(reminder.getId());
+            }
+            assertTrue("Only actual future next-alarm times are eligible",
+                    eligibleIds.contains(upcoming.getId()));
+            assertTrue("Expired record must stay in SQLite but not be loaded for rearm",
+                    !eligibleIds.contains(expired.getId()));
+            assertTrue("Malformed null next-time record must not be loaded",
+                    !eligibleIds.contains(incomplete.getId()));
+            assertNotNull("Filtering never deletes the historical row",
+                    DB.eventReminders().findById(expired.getId()));
+            assertNotNull(DB.eventReminders().findById(incomplete.getId()));
+        } finally {
+            for (EventReminder reminder : fixture) {
+                if (reminder.getId() != null
+                        && DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().remove(reminder);
+                }
+            }
+        }
+    }
+
+    @Test
     public void malformedPersistedReminderRetiresOldAlarmButPreservesSqliteRecord() {
         assertTrue(DB.initialized);
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
