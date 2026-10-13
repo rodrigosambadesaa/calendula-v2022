@@ -440,8 +440,8 @@ Do you want to install the new database now?
 </plurals>
 <string name="stock_enough_for_weeks_days">"Enough for %1$s and %2$s with current schedules"</string>
 <plurals name="stock_running_out_dialog_message">
-    <item quantity="one">There are %1$d %2$s of %3$s remaining, and the stock will run out in %4$d day with the current schedules.</item>
-    <item quantity="other">There are %1$d %2$s of %3$s remaining, and the stock will run out in %4$d days with the current schedules.</item>
+    <item quantity="one">There are %1$s %2$s of %3$s remaining, and the stock will run out in %4$d day with the current schedules.</item>
+    <item quantity="other">There are %1$s %2$s of %3$s remaining, and the stock will run out in %4$d days with the current schedules.</item>
 </plurals>
 <string name="stock_running_out_dialog_title">"Stock is running out for %1$s"</string>
 <string name="manage_stock">"Manage stock"</string>
