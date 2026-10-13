@@ -100,20 +100,6 @@ public class AlertListFragment extends Fragment {
         notifyDataChange();
     }
 
-    /**
-     * The alert fragment can survive a profile switch. Revalidate the
-     * medicine against the active patient whenever clinical rows are read.
-     */
-    static boolean isMedicineOwnedByActivePatient(
-            Long expectedMedicineId, Long selectedOwnerId,
-            Long currentMedicineId, Long persistedOwnerId, Long activeOwnerId) {
-        return expectedMedicineId != null && expectedMedicineId > 0L
-                && selectedOwnerId != null && selectedOwnerId > 0L
-                && expectedMedicineId.equals(currentMedicineId)
-                && selectedOwnerId.equals(persistedOwnerId)
-                && selectedOwnerId.equals(activeOwnerId);
-    }
-
     @Override
     public void onResume() {
         super.onResume();
@@ -130,11 +116,12 @@ public class AlertListFragment extends Fragment {
             return typed;
         }
         Medicine current = DB.medicines().findById(m.getId());
-        Long activeOwnerId = DB.patients().getActive(getContext()) == null
-                ? null : DB.patients().getActive(getContext()).getId();
+        es.usc.citius.servando.calendula.persistence.Patient activePatient =
+                DB.patients().getActive(getContext());
+        Long activeOwnerId = activePatient == null ? null : activePatient.getId();
         if (current == null || DB.medicines().refresh(current) != 1
                 || current.getPatient() == null
-                || !isMedicineOwnedByActivePatient(
+                || !ClinicalAlertOwnerGuard.isCurrent(
                     m.getId(), m.getPatient().getId(), current.getId(),
                     current.getPatient().getId(), activeOwnerId)) {
             return typed;
