@@ -52,57 +52,120 @@ public class PatientAlertDao extends GenericDao<PatientAlert, Long> {
         }
     }
 
+    /**
+     * An alert's medicine ID alone is not a patient authorization boundary.
+     * Verify its current persisted owner before reading any clinical alert.
+     */
+    private Medicine requireMedicineOwner(Medicine requested) {
+        if (requested == null || requested.getId() == null
+                || requested.getId() <= 0L || requested.getPatient() == null
+                || requested.getPatient().getId() == null
+                || requested.getPatient().getId() <= 0L) {
+            throw new IllegalArgumentException("An owned persisted medicine is required");
+        }
+        final Long ownerId = requested.getPatient().getId();
+        Medicine persisted = DB.medicines().findById(requested.getId());
+        if (persisted == null || DB.medicines().refresh(persisted) != 1
+                || persisted.getPatient() == null
+                || !ownerId.equals(persisted.getPatient().getId())) {
+            throw new IllegalStateException("Medicine owner is no longer current");
+        }
+        return persisted;
+    }
+
+    /**
+     * Pure identity policy, independent of Android's Patient initialization
+     * and callable from local JVM tests without an Android runtime.
+     */
+    static boolean matchingOwnerIds(Long medicineId, Long patientId,
+                                    Long alertMedicineId, Long alertPatientId) {
+        return medicineId != null && medicineId > 0L
+                && patientId != null && patientId > 0L
+                && medicineId.equals(alertMedicineId)
+                && patientId.equals(alertPatientId);
+    }
+
+    /** Reject corrupt cross-owner rows instead of returning/discarding them. */
+    static boolean belongsToMedicineOwner(PatientAlert alert, Long medicineId, Long patientId) {
+        return alert != null
+                && matchingOwnerIds(medicineId, patientId,
+                        alert.getMedicine() == null ? null : alert.getMedicine().getId(),
+                        alert.getPatient() == null ? null : alert.getPatient().getId());
+    }
+
+    private List<PatientAlert> requireSameOwner(
+            Medicine medicine, List<PatientAlert> results) {
+        Long medicineId = medicine.getId();
+        Long patientId = medicine.getPatient().getId();
+        for (PatientAlert result : results) {
+            if (!belongsToMedicineOwner(result, medicineId, patientId)) {
+                throw new IllegalStateException("Alert row belongs to another patient");
+            }
+        }
+        return results;
+    }
+
     public List<PatientAlert> findByMedicineAndLevel(Medicine m, int level) {
+        Medicine stored = requireMedicineOwner(m);
         try {
             final PreparedQuery<PatientAlert> q = dao.queryBuilder().where()
-                    .eq(PatientAlert.COLUMN_MEDICINE, m)
+                    .eq(PatientAlert.COLUMN_MEDICINE, stored)
                     .and().eq(PatientAlert.COLUMN_LEVEL, level)
                     .prepare();
-            return dao.query(q);
+            return requireSameOwner(stored, dao.query(q));
         } catch (SQLException e) {
             LogUtil.e(TAG, "findByMedicineAndLevel: ", e);
-            throw new RuntimeException("Cannot retrieve alerts: ", e);
+            throw new RuntimeException("Cannot retrieve alerts", e);
         }
     }
 
     public List<PatientAlert> findByMedicineSortByLevel(Medicine m) {
+        Medicine stored = requireMedicineOwner(m);
         try {
-
             final QueryBuilder<PatientAlert, Long> qb = dao.queryBuilder();
-            final Where<PatientAlert, Long> eq = qb.where().eq(PatientAlert.COLUMN_MEDICINE, m);
-            qb.setWhere(eq);
+            qb.where().eq(PatientAlert.COLUMN_MEDICINE, stored);
             qb.orderBy(PatientAlert.COLUMN_LEVEL, false);
-            return dao.query(qb.prepare());
+            return requireSameOwner(stored, dao.query(qb.prepare()));
         } catch (SQLException e) {
-            LogUtil.e(TAG, "findByMedicineAndLevel: ", e);
-            throw new RuntimeException("Cannot retrieve alerts: ", e);
+            LogUtil.e(TAG, "findByMedicineSortByLevel: ", e);
+            throw new RuntimeException("Cannot retrieve alerts", e);
         }
     }
 
-    public List<PatientAlert> findByPatientMedicineAndType(Patient p, Medicine m, String className) {
-
+    public List<PatientAlert> findByPatientMedicineAndType(
+            Patient p, Medicine m, String className) {
+        Medicine stored = requireMedicineOwner(m);
+        if (p == null || p.getId() == null
+                || !p.getId().equals(stored.getPatient().getId())
+                || className == null || className.isEmpty()) {
+            throw new IllegalArgumentException("Patient and alert type must match the medicine");
+        }
         try {
-            final PreparedQuery<PatientAlert> query = this.queryBuilder().where()
+            final PreparedQuery<PatientAlert> query = dao.queryBuilder().where()
                     .eq(PatientAlert.COLUMN_TYPE, className).and()
-                    .eq(PatientAlert.COLUMN_PATIENT, p).and()
-                    .eq(PatientAlert.COLUMN_MEDICINE, m).prepare();
-            return query(query);
+                    .eq(PatientAlert.COLUMN_MEDICINE, stored).prepare();
+            // An SQLite failure must never masquerade as 'no clinical alert'.
+            return requireSameOwner(stored, dao.query(query));
         } catch (SQLException e) {
             LogUtil.e(TAG, "findByPatientMedicineAndType: ", e);
-            return null;
+            throw new RuntimeException("Cannot retrieve patient alerts", e);
         }
     }
 
     public List<PatientAlert> findByMedicineAndType(Medicine m, String type) {
+        Medicine stored = requireMedicineOwner(m);
+        if (type == null || type.isEmpty()) {
+            throw new IllegalArgumentException("Alert type is required");
+        }
         try {
             final PreparedQuery<PatientAlert> q = dao.queryBuilder().where()
-                    .eq(PatientAlert.COLUMN_MEDICINE, m)
+                    .eq(PatientAlert.COLUMN_MEDICINE, stored)
                     .and().eq(PatientAlert.COLUMN_TYPE, type)
                     .prepare();
-            return dao.query(q);
+            return requireSameOwner(stored, dao.query(q));
         } catch (SQLException e) {
             LogUtil.e(TAG, "findByMedicineAndType: ", e);
-            throw new RuntimeException("Cannot retrieve alerts: ", e);
+            throw new RuntimeException("Cannot retrieve alerts", e);
         }
     }
 
