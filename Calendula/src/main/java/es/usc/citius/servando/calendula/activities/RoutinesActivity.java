@@ -24,6 +24,8 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.TextView;
+import android.widget.Toast;
+
 
 import butterknife.ButterKnife;
 import es.usc.citius.servando.calendula.CalendulaActivity;
@@ -36,6 +38,7 @@ import es.usc.citius.servando.calendula.persistence.Routine;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.util.FragmentUtils;
 import es.usc.citius.servando.calendula.util.RoutineOwnerGuard;
+import es.usc.citius.servando.calendula.util.RoutineDeleteAction;
 
 public class RoutinesActivity extends CalendulaActivity implements RoutineCreateOrEditFragment.OnRoutineEditListener {
 
@@ -97,7 +100,13 @@ public class RoutinesActivity extends CalendulaActivity implements RoutineCreate
             finish();
             return;
         }
-        ScheduleUtils.instance().deleteRoutineWithLinkedSchedules(this, persisted);
+        boolean deleted = RoutineDeleteAction.run(
+                () -> ScheduleUtils.instance().deleteRoutineWithLinkedSchedules(
+                        this, persisted));
+        if (!deleted) {
+            Toast.makeText(this, R.string.routine_delete_failed, Toast.LENGTH_LONG).show();
+            return; // Preserve the editor and allow retry.
+        }
         finish();
     }
 
