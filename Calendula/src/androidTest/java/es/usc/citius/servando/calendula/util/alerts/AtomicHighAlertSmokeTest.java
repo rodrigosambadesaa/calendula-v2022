@@ -85,7 +85,6 @@ public class AtomicHighAlertSmokeTest {
         EventInstance one = null;
         EventInstance two = null;
         AllergyPatientAlert failedAlert = new AllergyPatientAlert();
-        AllergyPatientAlert validAlert = new AllergyPatientAlert();
         SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
         final String trigger = "ci_block_second_alert_event_abort";
         sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
@@ -132,10 +131,8 @@ public class AtomicHighAlertSmokeTest {
                 rejected = true;
             }
             assertTrue("HIGH alert must reject an incomplete schedule-blocking write", rejected);
-            if (failedAlert.id() != null) {
-                assertNull("Alert cannot commit if later schedule blocking failed",
-                        DB.alerts().findById(failedAlert.id()));
-            }
+            assertNull("A rolled-back new alert must retain no generated SQL ID",
+                    failedAlert.id());
             Schedule storedFirst = DB.schedules().findById(first.getId());
             Schedule storedSecond = DB.schedules().findById(second.getId());
             assertNotNull(storedFirst);
@@ -150,11 +147,11 @@ public class AtomicHighAlertSmokeTest {
                     DB.eventInstances().findById(two.getId()));
 
             sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
-            validAlert.setMedicine(medicine);
-            validAlert.setPatient(owner);
-            validAlert.setLevel(3);
-            AlertManager.createAlert(validAlert);
-            assertNotNull(DB.alerts().findById(validAlert.id()));
+            // Retry the EXACT original Java draft. A rolled-back auto-ID
+            // must not force createOrUpdate into a stale UPDATE.
+            AlertManager.createAlert(failedAlert);
+            assertNotNull("Retry must insert the clinical alert",
+                    DB.alerts().findById(failedAlert.id()));
             assertTrue(DB.schedules().findById(first.getId())
                     .hasState(Schedule.ScheduleState.BLOCKED));
             assertTrue(DB.schedules().findById(second.getId())
@@ -163,10 +160,9 @@ public class AtomicHighAlertSmokeTest {
             assertNull(DB.eventInstances().findById(two.getId()));
         } finally {
             sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
-            for (AllergyPatientAlert a : new AllergyPatientAlert[]{failedAlert, validAlert}) {
-                if (a.id() != null && DB.alerts().findById(a.id()) != null) {
-                    DB.alerts().remove(a);
-                }
+            if (failedAlert.id() != null
+                    && DB.alerts().findById(failedAlert.id()) != null) {
+                DB.alerts().remove(failedAlert);
             }
             for (EventInstance e : new EventInstance[]{one, two}) {
                 if (e != null && e.getId() != null
