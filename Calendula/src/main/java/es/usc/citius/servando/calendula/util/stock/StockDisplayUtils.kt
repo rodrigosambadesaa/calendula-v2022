@@ -98,7 +98,8 @@ object StockDisplayUtils {
         }
         val remainingDays = days?.takeIf { it >= 0L && it <= Int.MAX_VALUE }?.toInt()
             ?: return
-        val quantity = displayableQuantity(stored.stock) ?: return
+        val stock = stored.stock ?: return
+        val quantity = displayableQuantity(stock) ?: return
         val presentation = stored.presentation ?: return
         val name = stored.name ?: return
 
@@ -106,7 +107,7 @@ object StockDisplayUtils {
             R.plurals.stock_running_out_dialog_message,
             remainingDays,
             quantity,
-            presentation.units(context.resources, stored.stock!!.toDouble()),
+            presentation.units(context.resources, stock.toDouble()),
             name,
             remainingDays
         )
