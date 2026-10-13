@@ -116,7 +116,7 @@ public class LoginReceiveActivity extends AppCompatActivity {
         try {
             return AuthState.jsonDeserialize(intent.getStringExtra(EXTRA_AUTH_STATE));
         } catch (JSONException ex) {
-            LogUtil.e(TAG, "Malformed AuthState JSON saved", ex);
+            AuthLogPolicy.logFailure(TAG, AuthLogPolicy.Failure.STATE_PARSING, ex);
             throw new IllegalArgumentException("The AuthState instance is missing in the intent.");
         }
     }
@@ -141,7 +141,7 @@ public class LoginReceiveActivity extends AppCompatActivity {
                     mAuthState = AuthState.jsonDeserialize(
                             savedInstanceState.getString(KEY_AUTH_STATE));
                 } catch (JSONException ex) {
-                    LogUtil.e(TAG, "Malformed authorization JSON saved", ex);
+                    AuthLogPolicy.logFailure(TAG, AuthLogPolicy.Failure.STATE_PARSING, ex);
                 }
             }
         }
@@ -156,7 +156,7 @@ public class LoginReceiveActivity extends AppCompatActivity {
                 LogUtil.d(TAG, "Received AuthorizationResponse.");
                 exchangeAuthorizationCode(response);
             } else {
-                LogUtil.i(TAG, "Authorization failed: " + ex);
+                AuthLogPolicy.logFailure(TAG, AuthLogPolicy.Failure.AUTHORIZATION_RESPONSE, ex);
                 onLoginFailed("AUTH_FAILED");
             }
         }
@@ -259,7 +259,7 @@ public class LoginReceiveActivity extends AppCompatActivity {
             try {
                 c.call();
             } catch (Exception e) {
-                LogUtil.e(TAG, "call: ", e);
+                AuthLogPolicy.logFailure(TAG, AuthLogPolicy.Failure.CALLBACK, e);
             }
         }
     }
@@ -305,7 +305,7 @@ public class LoginReceiveActivity extends AppCompatActivity {
                 performTokenRequest(authorizationResponse.createTokenExchangeRequest());
             }
         } catch (InstanceIDHelper.NoInstanceIDException e) {
-            LogUtil.e(TAG, "exchangeAuthorizationCode: ", e);
+            AuthLogPolicy.logFailure(TAG, AuthLogPolicy.Failure.AUTH_CODE_EXCHANGE, e);
             onLoginFailed("INSTANCE_ID");
         }
     }
