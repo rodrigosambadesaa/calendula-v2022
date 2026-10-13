@@ -31,6 +31,116 @@ import static org.junit.Assert.*;
 @RunWith(AndroidJUnit4.class)
 public class RoutineDeleteDependencySmokeTest {
     @Test
+    public void secondScheduleFailureRollsBackFirstScheduleAndItsPendingDose() throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        Patient previous = DB.patients().getActive(context);
+        Patient owner = new Patient();
+        owner.setCode("ci-multischedule-atomic-owner-" + System.nanoTime());
+        owner.setName("Synthetic atomic routine deletion owner");
+        Medicine medicine = new Medicine("Synthetic atomic routine medication", Presentation.PILLS);
+        Routine routine = null;
+        Schedule first = null;
+        Schedule second = null;
+        es.usc.citius.servando.calendula.scheduling.model.EventInstance event = null;
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        final String trigger = "ci_routine_second_schedule_abort";
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            DB.patients().setActive(owner);
+            medicine.setPatient(owner);
+            assertEquals(1, DB.medicines().create(medicine));
+            routine = new Routine(owner, new LocalTime(14, 35), "Synthetic shared routine");
+            routine.setDailyEventType(RepeatType.TIME_OF_DAY);
+            assertEquals(1, DB.routines().create(routine));
+
+            DailyFixedTime ref = new DailyFixedTime(
+                    routine.getId(), DailyFixedTime.ReferenceType.ROUTINE);
+            RecurringEvent recurrence = new RecurringEvent.Builder()
+                    .from(DateTime.now().minusDays(1))
+                    .repeatEvery(1, Freq.DAILY)
+                    .atFixedTime(ref)
+                    .build();
+            java.util.Map<Long, Double> dose = new HashMap<>();
+            dose.put(routine.getId(), 1d);
+            first = new Schedule(recurrence);
+            first.setPatient(owner);
+            first.setMedicine(medicine);
+            first.setDosages(dose);
+            second = new Schedule(recurrence);
+            second.setPatient(owner);
+            second.setMedicine(medicine);
+            second.setDosages(new HashMap<>(dose));
+            assertEquals(1, DB.schedules().create(first));
+            assertEquals(1, DB.schedules().create(second));
+            assertTrue("The second schedule must have the larger ID",
+                    second.getId() > first.getId());
+
+            event = new es.usc.citius.servando.calendula.scheduling.model.EventInstance(
+                    DateTime.now().plusMinutes(20),
+                    es.usc.citius.servando.calendula.scheduling.model.EventType.MEDICATION_INTAKE);
+            event.setPatient(owner);
+            event.setRef(first.getId());
+            event.addParam(
+                    es.usc.citius.servando.calendula.scheduling.model.EventInstance.PARAM_DOSE,
+                    1.0d);
+            assertEquals(1, DB.eventInstances().create(event));
+
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE DELETE ON NewSchedules WHEN OLD._id = " + second.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic second schedule abort'); END;");
+            boolean rejected = false;
+            try {
+                ScheduleUtils.instance().deleteRoutineWithLinkedSchedules(context, routine);
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("Second schedule failure must reject complete deletion", rejected);
+            assertNotNull("First schedule must roll back", DB.schedules().findById(first.getId()));
+            assertNotNull("Second schedule must survive", DB.schedules().findById(second.getId()));
+            assertNotNull("First schedule's pending dose must roll back",
+                    DB.eventInstances().findById(event.getId()));
+            assertNotNull("Shared routine must survive unchanged",
+                    DB.routines().findById(routine.getId()));
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            ScheduleUtils.instance().deleteRoutineWithLinkedSchedules(context, routine);
+            assertNull(DB.schedules().findById(first.getId()));
+            assertNull(DB.schedules().findById(second.getId()));
+            assertNull(DB.routines().findById(routine.getId()));
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            if (event != null && event.getId() != null
+                    && DB.eventInstances().findById(event.getId()) != null) {
+                DB.eventInstances().remove(event);
+            }
+            for (Schedule schedule : new Schedule[]{first, second}) {
+                if (schedule != null && schedule.getId() != null
+                        && DB.schedules().findById(schedule.getId()) != null) {
+                    DB.schedules().remove(schedule);
+                }
+            }
+            if (routine != null && routine.getId() != null
+                    && DB.routines().findById(routine.getId()) != null) {
+                DB.routines().remove(routine);
+            }
+            if (medicine.getId() != null
+                    && DB.medicines().findById(medicine.getId()) != null) {
+                DB.medicines().remove(medicine);
+            }
+            if (previous != null && DB.patients().findById(previous.getId()) != null) {
+                DB.patients().setActive(previous);
+            } else {
+                PreferenceUtils.edit().remove(PreferenceKeys.PATIENTS_ACTIVE.key()).apply();
+            }
+            if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().remove(owner);
+            }
+        }
+    }
+
+    @Test
     public void failedLinkedScheduleRemovalCannotLeaveDanglingRoutineReference() throws Exception {
         assertTrue(DB.initialized);
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
