@@ -796,6 +796,45 @@ public class ScheduleUtils {
         return  getSchedulesLinkedTo(r).size();
     }
 
+    /**
+     * A routine may be the time source for one or more prescriptions. First
+     * remove linked schedules, and only THEN remove the routine. The older UI
+     * did this backwards, leaving broken recurrence references whenever a
+     * schedule DELETE failed. Re-check the active profile at click time.
+     */
+    public void deleteRoutineWithLinkedSchedules(Context ctx, Routine candidate) {
+        if (ctx == null || candidate == null || candidate.getId() == null
+                || candidate.getId() <= 0L) {
+            throw new IllegalArgumentException("A saved routine is required");
+        }
+        Routine current = DB.routines().findById(candidate.getId());
+        Patient active = DB.patients().getActive(ctx);
+        if (current == null || active == null
+                || !samePatientIdentity(current.getPatient(), active)
+                || !samePatientIdentity(candidate.getPatient(), current.getPatient())) {
+            throw new IllegalArgumentException("Routine is no longer owned by the active patient");
+        }
+        // Morning/lunch/dinner reference routines are required throughout the
+        // application; never let a stale editor or DAO call delete them.
+        if (current.dailyEventType() != RepeatType.TIME_OF_DAY) {
+            throw new IllegalArgumentException("Only user time-of-day routines may be removed");
+        }
+        // If any linked schedule deletion fails, the routine stays available
+        // as the recurrence's time reference. Do not delete it first.
+        onDeleteRoutine(ctx, current);
+        Routine remaining = DB.routines().findById(current.getId());
+        if (remaining != null) {
+            try {
+                if (DB.routines().delete(remaining) != 1) {
+                    throw new IllegalStateException("Expected one deleted routine");
+                }
+            } catch (java.sql.SQLException error) {
+                throw new IllegalStateException("Could not remove selected routine", error);
+            }
+        }
+        DB.routines().fireEvent();
+    }
+
     public void onDeleteRoutine(Context c, Routine r) {
         List<Schedule> linkedTo = getSchedulesLinkedTo(r);
         if(!linkedTo.isEmpty()) {
