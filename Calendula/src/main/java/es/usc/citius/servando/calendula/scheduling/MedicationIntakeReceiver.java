@@ -49,9 +49,14 @@ public class MedicationIntakeReceiver implements EventReminderReceiver, AgendaUp
         // it or auto-repeat may have moved NextTime forward. Judging the
         // notification by its old intake time incorrectly hides Snooze/Cancel
         // actions and retires an otherwise current reminder.
-        // Malformed times fail closed; the notifier handles unverified data.
-        boolean alarmLost = isScheduledDeliveryLost(
-                reminder, DateTime.now(), ReminderTiming.windowMinutes());
+        // An incomplete legacy record must reach the existing unverified-data
+        // notification path without triggering destructive alarm cleanup.
+        // Only a complete original intake and delivery timestamp may be
+        // classified as truly late.
+        boolean alarmLost = reminder.getDateTime() != null
+                && reminder.getNextTime() != null
+                && isScheduledDeliveryLost(
+                        reminder, DateTime.now(), ReminderTiming.windowMinutes());
         IntakeNotificationMgr.notify(context, reminder, alarmLost);
         CalendulaApp.eventBus().post(new Agenda.AgendaUpdatedEvent());
         if (alarmLost) {
