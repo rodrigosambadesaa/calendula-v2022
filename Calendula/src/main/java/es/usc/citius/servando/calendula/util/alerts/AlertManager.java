@@ -48,7 +48,12 @@ public class AlertManager {
         }
         final boolean high = alert.getLevel() == Level.HIGH;
         // Alert creation and schedule/occurrence blocking commit together.
-        DB.transaction(() -> {
+        // ORMLite leaves a generated ID on the Java object after SQL ROLLBACK.
+        // Restore the original identity so retrying the same clinical alert
+        // draft cannot accidentally UPDATE a row that was never committed.
+        final Long originalId = alert.id();
+        try {
+            DB.transaction(() -> {
             Medicine verifiedMedicine = null;
             if (high) {
                 // Never let a stale or mislinked HIGH alert mutate another
@@ -74,7 +79,13 @@ public class AlertManager {
                 blockSchedulesForMedicineInSql(verifiedMedicine);
             }
             return null;
-        });
+            });
+        } catch (RuntimeException failure) {
+            if (originalId == null) {
+                alert.setId(null);
+            }
+            throw failure;
+        }
         // AlarmManager and UI observers must only run after SQL COMMIT.
         if (high) {
             Agenda.instance().cleanReminders(CalendulaApp.getContext());
