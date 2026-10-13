@@ -140,6 +140,9 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
 
     float stock = -1;
     String estimatedStockText = "";
+    // Owned by the UI thread. A completed background calculation must not
+    // update a newer medicine, stock quantity, or destroyed editor view.
+    private long stockEstimateRequestVersion;
     private String mIntentAction;
 
     private Unbinder unbinder;
@@ -253,6 +256,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
 
     @Override
     public void onDestroyView() {
+        ++stockEstimateRequestVersion;
         super.onDestroyView();
         if (unbinder != null)
             unbinder.unbind();
@@ -328,6 +332,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
 
     public void setMedicne(Medicine r) {
         LogUtil.d(TAG, "Medicine selected for editing");
+        ++stockEstimateRequestVersion;
         mMedicine = r;
         mNameTextView.setText(mMedicine.getName());
         mPresentationTv.setText(getString(R.string.colon_prefixed_value, mMedicine.getPresentation().getName(getResources())));
@@ -361,6 +366,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
     }
 
     public void clear() {
+        ++stockEstimateRequestVersion;
         mMedicine = null;
         mNameTextView.setText("");
     }
@@ -473,7 +479,8 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
     void updateStockText() {
         String units = selectedPresentation != null ? selectedPresentation.units(getResources(), stock) : Presentation.UNKNOWN.units(getResources(), stock);
         String text = stock == -1 ? getString(R.string.no_stock_info_msg) : (stock + " " + units);
-        mStockEstimation.setVisibility(estimatedStockText != null ? View.VISIBLE : View.INVISIBLE);
+        mStockEstimation.setVisibility(stockSwitch.isChecked() && estimatedStockText != null
+                ? View.VISIBLE : View.INVISIBLE);
         mStockEstimation.setText(estimatedStockText != null ? estimatedStockText : "");
         mStockUnits.setText(text);
     }
@@ -577,6 +584,10 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
 
         stockSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if (!isChecked) {
+                    ++stockEstimateRequestVersion;
+                    estimatedStockText = null;
+                }
                 updateStockControlsVisibility();
                 if (isChecked) {
                     // user is enabling stock first time
@@ -694,28 +705,44 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
     }
 
     private void computeEstimatedStockEndAsync() {
+        // Invalidate every pending result before any early return.
+        final long requestVersion = ++stockEstimateRequestVersion;
         estimatedStockText = null;
         updateStockText();
 
         final Context context = getContext();
         final Medicine medicine = mMedicine;
         final float currentStock = stock;
-        if (context == null || currentStock < 0 || medicine == null) {
+        if (context == null || Float.isNaN(currentStock) || Float.isInfinite(currentStock)
+                || currentStock < 0f || medicine == null || !stockSwitch.isChecked()) {
             return;
         }
 
-        final Context applicationContext = context.getApplicationContext();
+        final Context applicationContext = context.getApplicationContext() != null
+                ? context.getApplicationContext() : context;
         final Handler mainHandler = new Handler(Looper.getMainLooper());
         STOCK_ESTIMATE_EXECUTOR.execute(() -> {
-            LogUtil.d(TAG, "updateStockText: medicina ok");
-            final StockCalculator.StockEnd stockEnd = StockCalculator.calculateStockEnd(
-                    LocalDate.now(),
-                    new MedicineScheduleStockProvider(medicine),
-                    currentStock);
-            final String text = StockDisplayUtils.getReadableStockDuration(stockEnd, applicationContext);
+            final String text;
+            try {
+                final StockCalculator.StockEnd stockEnd = StockCalculator.calculateStockEnd(
+                        LocalDate.now(),
+                        new MedicineScheduleStockProvider(medicine),
+                        currentStock);
+                text = StockDisplayUtils.getReadableStockDuration(
+                        stockEnd, applicationContext);
+            } catch (RuntimeException failure) {
+                // A concurrent edit/deletion or unavailable SQLite helper
+                // must never crash the estimator worker or publish stale data.
+                LogUtil.e(TAG, "Unable to calculate a medication stock estimate", failure);
+                return;
+            }
 
             mainHandler.post(() -> {
-                if (!isAdded() || getView() == null) {
+                if (!isAdded() || getView() == null
+                        || !StockEstimateRequestGuard.isCurrent(
+                        requestVersion, stockEstimateRequestVersion,
+                        medicine, mMedicine, currentStock, stock,
+                        stockSwitch.isChecked())) {
                     return;
                 }
                 estimatedStockText = text;
@@ -723,6 +750,5 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
             });
         });
     }
-
 
 }
