@@ -9,6 +9,7 @@ package es.usc.citius.servando.calendula.healthcareprovider.util;
 import org.junit.Test;
 
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageEntryEntity;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageType;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.RepeatType;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 
@@ -17,6 +18,23 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class ScheduleCreatorTest {
+
+    @Test
+    public void importedAsNeededOrAbsentDosageMustNotInventEightHourlyMedication() {
+        ScheduleCreator.requireAutomaticallySchedulableDosage(DosageType.GENERAL);
+        ScheduleCreator.requireAutomaticallySchedulableDosage(DosageType.DETAILED);
+        for (DosageType type : new DosageType[]{
+                DosageType.AS_NEEDED, DosageType.NONE, null}) {
+            boolean rejected = false;
+            try {
+                ScheduleCreator.requireAutomaticallySchedulableDosage(type);
+            } catch (IllegalArgumentException expected) {
+                rejected = true;
+            }
+            assertTrue("A missing/as-needed prescription cannot imply an automatic pill every 8 hours",
+                    rejected);
+        }
+    }
 
     @Test
     public void beforeMealCodesUseBeforeOffset() {
@@ -102,5 +120,28 @@ public class ScheduleCreatorTest {
 
         entry.setQuantityValue(0.5d);
         assertTrue(ScheduleCreator.hasUsableQuantity(entry));
+
+        entry.setQuantityValue(Double.POSITIVE_INFINITY);
+        assertFalse("Infinite doses must never be scheduled",
+                ScheduleCreator.hasUsableQuantity(entry));
+        entry.setQuantityValue(Double.NEGATIVE_INFINITY);
+        assertFalse(ScheduleCreator.hasUsableQuantity(entry));
+        entry.setQuantityValue(Double.NaN);
+        assertFalse(ScheduleCreator.hasUsableQuantity(entry));
+    }
+
+    @Test
+    public void importedRepeatIntervalMustBeFiniteAndExactWholeNumber() {
+        assertTrue(ScheduleCreator.hasUsableRepeatValue(1d));
+        assertTrue(ScheduleCreator.hasUsableRepeatValue(8d));
+        assertFalse(ScheduleCreator.hasUsableRepeatValue(null));
+        assertFalse(ScheduleCreator.hasUsableRepeatValue(0d));
+        assertFalse(ScheduleCreator.hasUsableRepeatValue(-1d));
+        assertFalse(ScheduleCreator.hasUsableRepeatValue(0.5d));
+        assertFalse("Fractional repeat must not be truncated to whole hours",
+                ScheduleCreator.hasUsableRepeatValue(2.5d));
+        assertFalse(ScheduleCreator.hasUsableRepeatValue(Double.NaN));
+        assertFalse(ScheduleCreator.hasUsableRepeatValue(Double.POSITIVE_INFINITY));
+        assertFalse(ScheduleCreator.hasUsableRepeatValue((double) Integer.MAX_VALUE + 1d));
     }
 }
