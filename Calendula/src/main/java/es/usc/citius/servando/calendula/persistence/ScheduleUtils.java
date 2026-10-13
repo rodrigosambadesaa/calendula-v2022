@@ -83,6 +83,7 @@ public class ScheduleUtils {
      * are deliberately dispatched only after the transaction has committed.
      */
     public void createScheduleWithOccurrences(Context ctx, Schedule schedule) {
+        ScheduleDoseGuard.requireSafeAutomatedDoseMap(schedule);
         persistNewScheduleRows(ctx, schedule, null);
     }
 
@@ -211,6 +212,7 @@ public class ScheduleUtils {
      * and a subsequent failure pruning old occurrences left it mismatched.
      */
     public void updateScheduleWithOccurrences(Context ctx, Schedule schedule) {
+        ScheduleDoseGuard.requireSafeAutomatedDoseMap(schedule);
         DateTime now = DateTime.now();
         persistEditedScheduleRows(ctx, schedule, now, getEventsFromTime(schedule, now));
     }
