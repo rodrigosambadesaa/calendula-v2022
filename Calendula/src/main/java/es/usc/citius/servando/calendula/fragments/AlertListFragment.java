@@ -100,9 +100,33 @@ public class AlertListFragment extends Fragment {
         notifyDataChange();
     }
 
+    @Override
+    public void onResume() {
+        super.onResume();
+        // A different profile can be selected while this fragment is paused.
+        if (rvAdapter != null) {
+            notifyDataChange();
+        }
+    }
+
     public List<PatientAlert> buildItems() {
         List<PatientAlert> typed = new ArrayList<>();
-        List<PatientAlert> original = DB.alerts().findByMedicineSortByLevel(m);
+        if (m == null || m.getId() == null || m.getPatient() == null
+                || getContext() == null) {
+            return typed;
+        }
+        Medicine current = DB.medicines().findById(m.getId());
+        es.usc.citius.servando.calendula.persistence.Patient activePatient =
+                DB.patients().getActive(getContext());
+        Long activeOwnerId = activePatient == null ? null : activePatient.getId();
+        if (current == null || DB.medicines().refresh(current) != 1
+                || current.getPatient() == null
+                || !ClinicalAlertOwnerGuard.isCurrent(
+                    m.getId(), m.getPatient().getId(), current.getId(),
+                    current.getPatient().getId(), activeOwnerId)) {
+            return typed;
+        }
+        List<PatientAlert> original = DB.alerts().findByMedicineSortByLevel(current);
         for (PatientAlert a : original) {
             typed.add(a.map());
         }
@@ -125,14 +149,25 @@ public class AlertListFragment extends Fragment {
                 rvAdapter.notifyItemRangeInserted(0, newItems.size());
             }
             // show empty list view if there are no items
-            rv.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    showOrHideEmptyView(items.isEmpty());
-                }
-            }, 100);
-        } catch (Exception e) {
-            LogUtil.e(TAG, "Error onPostExecute", e);
+            if (rv != null) {
+                rv.postDelayed(() -> {
+                    if (isAdded() && getView() != null && emptyView != null) {
+                        showOrHideEmptyView(items.isEmpty());
+                    }
+                }, 100);
+            }
+        } catch (RuntimeException e) {
+            // Do not leave the preceding patient's clinical warnings visible
+            // when SQLite fails or rejects a corrupt/cross-owner alert.
+            LogUtil.e(TAG, "Unable to load patient clinical alerts", e);
+            int previousCount = items.size();
+            items.clear();
+            if (rvAdapter != null && previousCount > 0) {
+                rvAdapter.notifyItemRangeRemoved(0, previousCount);
+            }
+            if (emptyView != null) {
+                showOrHideEmptyView(true);
+            }
         }
     }
 
