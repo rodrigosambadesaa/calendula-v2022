@@ -173,6 +173,9 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
     }
 
     public void showAddNewDailyFixedTimeDialog() {
+        if (!editorOwnerAvailable()) {
+            return;
+        }
         DateTime now = DateTime.now();
         float density = getResources().getDisplayMetrics().densityDpi;
         if (density >= DisplayMetrics.DENSITY_XHIGH) {
@@ -191,10 +194,16 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
     }
 
     public void showDailyFixedTimeOffsetDialog(final DailyFixedTime dft) {
+        if (!editorOwnerAvailable()) {
+            return;
+        }
         AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
         builder.setTitle(R.string.routine_offset_dialog_title)
                 .setItems(items, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int which) {
+                        if (!editorOwnerAvailable()) {
+                            return;
+                        }
                         EventInstance.EventOffset offset;
                         if (which == 1) {
                             offset = EventInstance.EventOffset.BEFORE;
@@ -219,8 +228,15 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
 
     @Override
     public void onTimeSet(RadialTimePickerDialogFragment dialog, int hourOfDay, int minute) {
+        // The picker dialog can stay open while the active profile changes.
+        // Never create a custom routine for a newly active patient.
+        es.usc.citius.servando.calendula.persistence.Patient owner =
+                buildActivity == null ? null : buildActivity.patientForOpenedEditor();
+        if (owner == null) {
+            return;
+        }
         LocalTime t = new LocalTime(hourOfDay, minute);
-        Routine r = DB.routines().findByPatientAndTime(getPatient(), t);
+        Routine r = DB.routines().findByPatientAndTime(owner, t);
         if (r != null) {
             // if the routine exists, select it
             if (selected.containsKey(r.getId())) {
@@ -232,7 +248,7 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
         } else {
             // in other case, create a new routine
             r = new Routine(t, null);
-            r.setPatient(getPatient());
+            r.setPatient(owner);
             DB.routines().save(r);
             // select it by adding a new fixed time which references it
             DailyFixedTime dft = new DailyFixedTime(r.getId(), DailyFixedTime.ReferenceType.ROUTINE);
@@ -249,6 +265,10 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
 
     @Override
     public VerificationError verifyStep() {
+        if (!editorOwnerAvailable()) {
+            return error(getString(R.string.schedule_build_pick_routine_error_empty),
+                    ScheduleBuildActivity.ScheduleStep.ROUTINES);
+        }
         //return null if the user can go to the next step, create a new VerificationError instance otherwise
         if ((hourlySelection && selectedHours > 0) || !selected.isEmpty()) {
             updateActivity();
@@ -260,6 +280,14 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
 
     @Override
     public void onSelected() {
+        if (!editorOwnerAvailable()) {
+            selected.clear();
+            times.clear();
+            if (fastAdapter != null) {
+                fastAdapter.clear();
+            }
+            return;
+        }
         if (!initialScrollDone) {
             if (buildActivity.isInEditMode()) {
                 if (buildActivity.getHourlyInterval() > 0) {
@@ -299,10 +327,25 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
     @SuppressWarnings("unused")
     @Subscribe
     public void handleModelUpdate(final PersistenceEvents.ModelCreateOrUpdateEvent event) {
-        if (event.clazz.equals(Routine.class)) {
-            fastAdapter.clear();
+        if (event.clazz.equals(Routine.class) && fastAdapter != null) {
             populateAdapter();
             updateActivity();
+        }
+    }
+
+    @Subscribe
+    public void handleActivePatientChange(final PersistenceEvents.ActiveUserChangeEvent event) {
+        // Clear rendered rows immediately, not only on the next re-entry.
+        if (fastAdapter != null) {
+            populateAdapter();
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (fastAdapter != null) {
+            populateAdapter();
         }
     }
 
@@ -385,7 +428,16 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
     }
 
     private void onDailyFixedTimeClick(DailyFixedTime dft) {
+        es.usc.citius.servando.calendula.persistence.Patient owner =
+                buildActivity == null ? null : buildActivity.patientForOpenedEditor();
+        if (owner == null || dft == null || dft.getReference() == null) {
+            return;
+        }
         final Routine r = DB.routines().findById(dft.getReference());
+        if (r == null || r.getPatient() == null
+                || !owner.getId().equals(r.getPatient().getId())) {
+            return;
+        }
         if (selected.containsKey(dft.getReference())) {
             selected.remove(dft.getReference());
             removeDosage(dft.getReference());
@@ -428,23 +480,37 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
         }
     }
 
+    private boolean editorOwnerAvailable() {
+        return buildActivity != null && buildActivity.patientForOpenedEditor() != null;
+    }
+
     private void populateAdapter() {
-        List<Routine> routines = DB.routines().findAllForActivePatient(getContext());
-        for (Routine r : routines) {
-            times.put(r.getId(), new DailyFixedTime(r.getId(), DailyFixedTime.ReferenceType.ROUTINE));
+        // Keep the editor tied to its opening owner. Never follow
+        // findAllForActivePatient() after a profile switch.
+        List<Routine> routines = buildActivity == null
+                ? Collections.emptyList() : buildActivity.routinesForOpenedPatient();
+        times.clear();
+        for (Routine routine : routines) {
+            times.put(routine.getId(), new DailyFixedTime(
+                    routine.getId(), DailyFixedTime.ReferenceType.ROUTINE));
         }
+        // Remove selections whose underlying routine was deleted. On a
+        // profile switch this also clears every private old selection.
+        selected.keySet().retainAll(times.keySet());
         timesList = new ArrayList<>(times.values());
         Collections.sort(timesList, Comparators.DAILY_FIXED_TIME);
-        if (fastAdapter.getAdapterItemCount() != timesList.size() + 1) {
+        if (editorOwnerAvailable()) {
             DailyFixedTime dummy = new DailyFixedTime();
             dummy.setReference(-1L);
             timesList.add(dummy);
-            fastAdapter.clear();
-            for (DailyFixedTime t : timesList) {
-                fastAdapter.add(new DailyFixedTimeItem(t));
-            }
-            fastAdapter.notifyAdapterDataSetChanged();
         }
+        // Counts can coincide for two different patients. Always redraw
+        // actual content rather than preserving rows by count alone.
+        fastAdapter.clear();
+        for (DailyFixedTime time : timesList) {
+            fastAdapter.add(new DailyFixedTimeItem(time));
+        }
+        fastAdapter.notifyAdapterDataSetChanged();
     }
 
     private Drawable offsetIcon(EventInstance.EventOffset offset) {
@@ -469,6 +535,9 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
     }
 
     private void updateActivity() {
+        if (!editorOwnerAvailable()) {
+            return;
+        }
         if (hourlySelection && selectedHours > 0) {
             buildActivity.setHourlyInterval(selectedHours);
         } else if (!selected.isEmpty()) {
