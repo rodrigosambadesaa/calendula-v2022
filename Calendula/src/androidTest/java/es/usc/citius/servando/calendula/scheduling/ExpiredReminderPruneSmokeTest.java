@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import es.usc.citius.servando.calendula.database.DB;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
@@ -55,10 +56,17 @@ public class ExpiredReminderPruneSmokeTest {
                 cutoff.minusHours(1), EventType.MEDICATION_INTAKE);
         atBoundary.setNextTime(cutoff);
         EventReminder[] fixture = {snoozed, expired, noNextTime, atBoundary};
+        Patient owner = new Patient();
+        owner.setCode("ci-snoozed-prune-" + System.nanoTime());
+        owner.setName("Synthetic snoozed reminder owner");
         try {
+            assertEquals(1, DB.patients().create(owner));
             for (EventReminder reminder : fixture) {
+                reminder.setPatient(owner);
                 assertEquals(1, DB.eventReminders().create(reminder));
                 assertNotNull(reminder.getId());
+                assertNotNull("Fixture must survive its INSERT before pruning",
+                        DB.eventReminders().findById(reminder.getId()));
             }
             int removedReminders = DB.eventReminders().removeOlderThan(cutoff);
             EventReminder expiredPersisted = DB.eventReminders().findById(expired.getId());
@@ -87,6 +95,9 @@ public class ExpiredReminderPruneSmokeTest {
                         && DB.eventReminders().findById(reminder.getId()) != null) {
                     DB.eventReminders().remove(reminder);
                 }
+            }
+            if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().remove(owner);
             }
         }
     }
@@ -132,15 +143,30 @@ public class ExpiredReminderPruneSmokeTest {
         expiredDose.addParam(EventInstance.PARAM_DOSE, 1d);
         EventReminder delayed = new EventReminder(
                 intake, EventType.MEDICATION_INTAKE);
-        delayed.setNextTime(DateTime.now().plusHours(5));
+        // Delivery must be AFTER the same explicit cutoff used by pruning.
+        // DateTime.now().plusHours(5) could be before tomorrow's midnight.
+        delayed.setNextTime(cutoff.plusHours(5));
         EventReminder expired = new EventReminder(
                 expiredIntake, EventType.MEDICATION_INTAKE);
         expired.setNextTime(cutoff.minusHours(1));
+        Patient owner = new Patient();
+        owner.setCode("ci-snoozed-event-" + System.nanoTime());
+        owner.setName("Synthetic postponed dose owner");
         try {
+            assertEquals(1, DB.patients().create(owner));
+            for (EventInstance event : new EventInstance[]{snoozedDose, expiredDose}) {
+                event.setPatient(owner);
+            }
+            delayed.setPatient(owner);
+            expired.setPatient(owner);
             assertEquals(1, DB.eventInstances().create(snoozedDose));
             assertEquals(1, DB.eventInstances().create(expiredDose));
             assertEquals(1, DB.eventReminders().create(delayed));
             assertEquals(1, DB.eventReminders().create(expired));
+            assertNotNull("Pending event fixture must exist before prune",
+                    DB.eventInstances().findById(snoozedDose.getId()));
+            assertNotNull("Snooze must be queryable for exactly this patient",
+                    DB.eventReminders().findBy(EventType.MEDICATION_INTAKE, intake, owner));
             int removedDoses = DB.eventInstances().removeOlderThan(
                     EventType.MEDICATION_INTAKE, cutoff);
             EventInstance expiredPersisted = DB.eventInstances().findById(expiredDose.getId());
@@ -166,6 +192,9 @@ public class ExpiredReminderPruneSmokeTest {
                         && DB.eventReminders().findById(reminder.getId()) != null) {
                     DB.eventReminders().remove(reminder);
                 }
+            }
+            if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().remove(owner);
             }
         }
     }
