@@ -105,11 +105,11 @@ public class UpdateMedicationHelper {
                         status = Status.ERROR_GENERIC;
                 }
             } catch (IOException e) {
-                LogUtil.e(TAG, "checkForUpdates: ", e);
+                LogUtil.e(TAG, "Provider medication update request failed");
                 return Status.ERROR_NO_CONNECTION;
             } catch (Exception e) {
                 // for unexpected stuff
-                LogUtil.e(TAG, "checkForUpdates: ", e);
+                LogUtil.e(TAG, "Provider medication update request failed");
                 return Status.ERROR_GENERIC;
             }
 
@@ -129,7 +129,7 @@ public class UpdateMedicationHelper {
 
     public static Medicine addMedicineToMedKit(ActiveMedEntity entity, es.usc.citius.servando.calendula.persistence.Patient p) {
         Medicine m = null;
-        LogUtil.d(TAG, "addMedicineToMedKit: " + entity.getCode() + ", " + entity.getType());
+        LogUtil.d(TAG, "Adding provider medication to local medicine kit");
         if (entity.getType().equals(ActiveMedType.DCPF)) {
             m = DB.medicines().findByGroupAndPatient(entity.getCode(), p);
             if (m == null) {

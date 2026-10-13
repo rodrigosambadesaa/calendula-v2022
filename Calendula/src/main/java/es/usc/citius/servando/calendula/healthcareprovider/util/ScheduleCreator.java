@@ -180,7 +180,7 @@ public class ScheduleCreator {
             }
             return new Pair<>(result, s);
         } catch (Exception e) {
-            LogUtil.e(TAG, "An error occurred while mapping active med to schedule", e);
+            LogUtil.e(TAG, "Could not map provider medication schedule");
             return new Pair<>(ScheduleMappingResult.NONE, null);
         }
 
@@ -193,17 +193,11 @@ public class ScheduleCreator {
             s.setMedicine(m);
             s.setPatient(m.getPatient());
 
-            LogUtil.d(TAG, "Generating schedule with dosages " + dosages);
-
-            if (s.getRecur().hasDailyFixedTimes()) {
-                for (DailyFixedTime t : s.getRecur().getDailyFixedTimes()) {
-                    LogUtil.d(TAG, "create: " + t.getTime().toString("HH:mm") + ": " + s.getDosage(t.getTime()));
-                }
-            }
+            LogUtil.d(TAG, "Generating schedule from provider data");
 
             return s;
         } catch (Exception e) {
-            LogUtil.e(TAG, "Error creating schedule", e);
+            LogUtil.e(TAG, "Could not create local medication schedule");
             throw new IllegalArgumentException("Error creating schedule", e);
         }
     }
