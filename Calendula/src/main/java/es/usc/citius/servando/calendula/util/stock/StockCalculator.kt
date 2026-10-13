@@ -41,6 +41,12 @@ object StockCalculator {
         stockProvider: StockForDayProvider,
         currentStock: Float
     ): StockEnd {
+        // An invalid quantity must never be reported as "sufficient for more
+        // than three months". This method is also used directly by UI code,
+        // not only by StockAlertHandler.
+        if (!currentStock.isFinite() || currentStock < 0f) {
+            return StockEnd.Unavailable
+        }
         val endDate = startDate.plusMonths(MAX_STOCK_DURATION_MONTHS)
 
         var virtualDate = LocalDate(startDate)
@@ -49,7 +55,15 @@ object StockCalculator {
         // simulate daily intakes until the stock runs out (or we reach the max duration)
         do {
             val stockForDay = stockProvider.stockNeededForDay(virtualDate)
+            if (!stockForDay.isFinite() || stockForDay < 0f) {
+                // Invalid recurrence/dosage data cannot be used to reassure a
+                // patient that they have enough medication.
+                return StockEnd.Unavailable
+            }
             virtualStock -= stockForDay
+            if (!virtualStock.isFinite()) {
+                return StockEnd.Unavailable
+            }
 
             if (virtualStock < 0) {
                 return StockEnd.OnDate(
@@ -71,6 +85,9 @@ object StockCalculator {
      * Result of stock duration estimates
      */
     sealed class StockEnd {
+        /** Invalid stock or consumption prevents a trustworthy estimate. */
+        object Unavailable : StockEnd()
+
         /**
          * The estimation overstepped the maximum simulation time
          */
