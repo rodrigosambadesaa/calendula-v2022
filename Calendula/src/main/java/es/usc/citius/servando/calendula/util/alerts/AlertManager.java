@@ -95,17 +95,39 @@ public class AlertManager {
     }
 
     public static void removeAlert(final PatientAlert alert) {
+        if (alert == null || alert.id() == null || alert.id() <= 0L) {
+            throw new IllegalArgumentException("A persisted alert ID is required");
+        }
+        // A UI/worker may hold an old alert object. Do not let that stale
+        // object delete a replacement or a clinical alert reassigned to
+        // another patient, medicine, or severity.
+        PatientAlert persisted = (PatientAlert) DB.transaction(() -> {
+            PatientAlert current = DB.alerts().findById(alert.id());
+            if (current == null) {
+                return null; // Already removed; never unblock anything.
+            }
+            if (!sameAlertIdentity(alert, current)) {
+                throw new IllegalStateException("Alert identity changed before deletion");
+            }
+            if (DB.alerts().deleteById(current.id()) != 1) {
+                throw new SQLException("Alert deletion did not remove exactly one row");
+            }
+            return current;
+        });
+        if (persisted == null) {
+            return;
+        }
 
-        DB.alerts().remove(alert);
-        //if alertlevel was high, check if we need to unblock schedules
-        if (alert.getLevel() == Level.HIGH) {
-
-            final List<Schedule> blocked = DB.schedules()
-                    .findByMedicineAndState(alert.getMedicine(), Schedule.ScheduleState.BLOCKED);
-            if (blocked.size() > 0) {
-                final List<PatientAlert> alerts = DB.alerts()
-                        .findByMedicineAndLevel(alert.getMedicine(), Level.HIGH);
-                if (alerts.size() == 0) {
+        // The remaining HIGH alerts must be checked AFTER the committed
+        // deletion. Reuse the authoritative persisted owner/medicine rather
+        // than an untrusted callback snapshot.
+        if (persisted.getLevel() == Level.HIGH) {
+            final List<Schedule> blocked = DB.schedules().findByMedicineAndState(
+                    persisted.getMedicine(), Schedule.ScheduleState.BLOCKED);
+            if (!blocked.isEmpty()) {
+                final List<PatientAlert> alerts = DB.alerts().findByMedicineAndLevel(
+                        persisted.getMedicine(), Level.HIGH);
+                if (alerts.isEmpty()) {
                     DB.transaction(new Callable<Object>() {
                         @Override
                         public Object call() throws Exception {
@@ -117,8 +139,21 @@ public class AlertManager {
                     });
                 }
             }
-
         }
+    }
+
+    /** Check clinical identity without exposing patient or medicine details. */
+    static boolean sameAlertIdentity(PatientAlert snapshot, PatientAlert current) {
+        return snapshot != null && current != null
+                && snapshot.id() != null && snapshot.id().equals(current.id())
+                && snapshot.getPatient() != null && current.getPatient() != null
+                && snapshot.getPatient().getId() != null
+                && snapshot.getPatient().getId().equals(current.getPatient().getId())
+                && snapshot.getMedicine() != null && current.getMedicine() != null
+                && snapshot.getMedicine().getId() != null
+                && snapshot.getMedicine().getId().equals(current.getMedicine().getId())
+                && snapshot.getLevel() == current.getLevel()
+                && java.util.Objects.equals(snapshot.getType(), current.getType());
     }
 
     public static void unblockSchedule(final Schedule schedule) {
