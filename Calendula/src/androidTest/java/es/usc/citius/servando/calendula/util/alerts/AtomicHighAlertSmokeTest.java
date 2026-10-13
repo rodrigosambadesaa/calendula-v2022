@@ -25,6 +25,53 @@ import static org.junit.Assert.*;
 @RunWith(AndroidJUnit4.class)
 public class AtomicHighAlertSmokeTest {
     @Test
+    public void highAlertCannotBlockMedicationOwnedByAnotherPatient() throws Exception {
+        assertTrue(DB.initialized);
+        String suffix = Long.toString(System.nanoTime());
+        Patient owner = new Patient();
+        owner.setCode("ci-high-owner-" + suffix);
+        owner.setName("Synthetic medicine owner");
+        Patient unrelated = new Patient();
+        unrelated.setCode("ci-high-unrelated-" + suffix);
+        unrelated.setName("Synthetic unrelated patient");
+        Medicine medicine = new Medicine("Synthetic owner-scoped medicine", Presentation.PILLS);
+        AllergyPatientAlert incorrect = new AllergyPatientAlert();
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            assertEquals(1, DB.patients().create(unrelated));
+            medicine.setPatient(owner);
+            assertEquals(1, DB.medicines().create(medicine));
+
+            incorrect.setLevel(3);
+            incorrect.setPatient(unrelated);
+            incorrect.setMedicine(medicine);
+            boolean rejected = false;
+            try {
+                AlertManager.createAlert(incorrect);
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("A HIGH alert must never cross a patient boundary", rejected);
+            if (incorrect.id() != null) {
+                assertNull("Rejected cross-patient alert must not be stored",
+                        DB.alerts().findById(incorrect.id()));
+            }
+        } finally {
+            if (incorrect.id() != null && DB.alerts().findById(incorrect.id()) != null) {
+                DB.alerts().remove(incorrect);
+            }
+            if (medicine.getId() != null && DB.medicines().findById(medicine.getId()) != null) {
+                DB.medicines().remove(medicine);
+            }
+            for (Patient patient : new Patient[]{owner, unrelated}) {
+                if (patient.getId() != null && DB.patients().findById(patient.getId()) != null) {
+                    DB.patients().remove(patient);
+                }
+            }
+        }
+    }
+
+    @Test
     public void failedSecondIntakeDeleteRollsBackAlertAndBothBlockedSchedules()
             throws Exception {
         assertTrue(DB.initialized);
