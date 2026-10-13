@@ -7,6 +7,7 @@
 package es.usc.citius.servando.calendula.healthcareprovider.util;
 
 import org.junit.Test;
+import org.joda.time.DateTime;
 
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageEntryEntity;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageType;
@@ -32,6 +33,26 @@ public class ScheduleCreatorTest {
                 rejected = true;
             }
             assertTrue("A missing/as-needed prescription cannot imply an automatic pill every 8 hours",
+                    rejected);
+        }
+    }
+
+    @Test
+    public void importedPrescriptionRejectsReversedOrEmptyValidityInterval() {
+        DateTime start = new DateTime(2026, 10, 13, 9, 0);
+        DateTime later = start.plusMinutes(1);
+        ScheduleCreator.requireValidProviderInterval(start, later);
+        ScheduleCreator.requireValidProviderInterval(null, later);
+        ScheduleCreator.requireValidProviderInterval(start, null);
+        ScheduleCreator.requireValidProviderInterval(null, null);
+        for (DateTime invalidEnd : new DateTime[]{start, start.minusMillis(1), start.minusDays(1)}) {
+            boolean rejected = false;
+            try {
+                ScheduleCreator.requireValidProviderInterval(start, invalidEnd);
+            } catch (IllegalArgumentException expected) {
+                rejected = true;
+            }
+            assertTrue("An empty or reversed official prescription must not be scheduled",
                     rejected);
         }
     }
