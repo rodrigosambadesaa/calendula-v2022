@@ -98,6 +98,13 @@ public class Agenda {
      * Keep the legacy save behavior for explicitly persisted model updates
      * and event types without medication schedule identity.
      */
+    private static boolean sameEventPatientIdentity(
+            EventInstance incoming, EventInstance stored) {
+        Long first = incoming.getPatient() == null ? null : incoming.getPatient().getId();
+        Long second = stored.getPatient() == null ? null : stored.getPatient().getId();
+        return first == null ? second == null : first.equals(second);
+    }
+
     public void addEvents(Collection<EventInstance> evts) {
         if (evts == null || evts.isEmpty()) {
             return;
@@ -115,8 +122,17 @@ public class Agenda {
                                     && event.getTime() != null
                                     && DB.eventInstances().exists(
                                             event.getType(), event.getTime(), event.getRef())) {
-                                // Keep the existing dose snapshot, decision and
-                                // patient identity; only truly new slots are added.
+                                // A corrupted imported row can share another
+                                // patient's schedule ref and time. Never
+                                // silently omit the rightful owner's dose.
+                                for (EventInstance stored : DB.eventInstances()
+                                        .findByTypeAndTime(event.getType(), event.getTime())) {
+                                    if (event.getRef().equals(stored.getRef())
+                                            && !sameEventPatientIdentity(event, stored)) {
+                                        throw new SQLException(
+                                                "Duplicate schedule occurrence belongs to another patient");
+                                    }
+                                }
                                 continue;
                             }
                             DB.eventInstances().save(event);
