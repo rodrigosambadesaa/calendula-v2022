@@ -52,6 +52,25 @@ public class EventReminderDao extends GenericDao<EventReminder, Long> {
     }
 
 
+    /**
+     * Startup and boot alarm recovery only need reminders whose *next* OS
+     * delivery lies in the future. Filter in SQLite rather than loading years
+     * of historic, handled or malformed reminder rows into Java/ORM memory.
+     * This is not a history-deletion operation.
+     */
+    public List<EventReminder> findFuture(DateTime afterExclusive) {
+        if (afterExclusive == null) {
+            throw new IllegalArgumentException("A future reminder cutoff is required");
+        }
+        try {
+            QueryBuilder<EventReminder, Long> qb = dao.queryBuilder();
+            qb.where().gt(EventReminder.COLUMN_NEXT_TIME, afterExclusive);
+            return qb.query();
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not query pending future reminders", e);
+        }
+    }
+
     public List<EventReminder> findByType(EventType type) {
         try {
             QueryBuilder<EventReminder, Long> qb = dao.queryBuilder();

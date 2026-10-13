@@ -468,7 +468,10 @@ public class Agenda {
     int rearmPendingFutureReminders(Context context) {
         int count = 0;
         final DateTime now = DateTime.now();
-        for (EventReminder reminder : DB.eventReminders().findAll()) {
+        // Expired/null NextTime rows are not actionable OS alarms. Keep them
+        // in SQLite for cleanup/migration, but avoid loading all that history
+        // during every startup, reboot or clock-change recovery pass.
+        for (EventReminder reminder : DB.eventReminders().findFuture(now)) {
             if (reminder == null || reminder.getId() == null
                     || reminder.getId() <= 0L
                     || reminder.getNextTime() == null
