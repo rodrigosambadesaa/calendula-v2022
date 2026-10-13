@@ -27,13 +27,15 @@ public class PatientAlertTypeMappingTest {
         owner.setId(470101L);
         Medicine medicine = new Medicine();
         medicine.setId(470102L);
-        PatientAlert[] supported = {
-                new AllergyPatientAlert(), new DrivingCautionAlert(),
-                new StockRunningOutAlert()
+        Class<?>[] supported = {
+                AllergyPatientAlert.class, DrivingCautionAlert.class,
+                StockRunningOutAlert.class
         };
-        for (PatientAlert original : supported) {
+        for (Class<?> supportedClass : supported) {
             PatientAlert stored = new PatientAlert();
-            stored.setType(original.getType());
+            // The no-argument ORM constructors of Driving/Stock alerts
+            // intentionally leave Type empty until persistence rehydrates it.
+            stored.setType(supportedClass.getCanonicalName());
             stored.setId(470103L);
             stored.setPatient(owner);
             stored.setMedicine(medicine);
@@ -41,7 +43,7 @@ public class PatientAlertTypeMappingTest {
             stored.setJsonDetails("{\"synthetic\":true}");
 
             PatientAlert restored = stored.map();
-            assertEquals(original.getClass(), restored.getClass());
+            assertEquals(supportedClass, restored.getClass());
             assertEquals(stored.id(), restored.id());
             assertEquals(owner, restored.getPatient());
             assertEquals(medicine, restored.getMedicine());
