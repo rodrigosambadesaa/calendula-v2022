@@ -48,6 +48,25 @@ public class ExpiredReminderAlarmPruneTest {
     }
 
     @Test
+    public void oldIntakeSnoozedBeyondCutoffIsNotCancelledAsExpired() {
+        DateTimeZone madrid = DateTimeZone.forID("Europe/Madrid");
+        DateTime cutoff = new DateTime(2026, 10, 13, 0, 0, madrid);
+        EventReminder snoozed = at(2001, cutoff.minusDays(3));
+        snoozed.setNextTime(cutoff.plusHours(4));
+        EventReminder originalPastAndExpired = at(2002, cutoff.minusDays(3));
+        EventReminder missingNextTime = at(2003, cutoff.minusDays(3));
+        missingNextTime.setNextTime(null);
+        EventReminder atBoundary = at(2004, cutoff.minusDays(3));
+        atBoundary.setNextTime(cutoff);
+        List<EventReminder> expired = Agenda.expiredRemindersBefore(
+                Arrays.asList(snoozed, originalPastAndExpired,
+                        missingNextTime, atBoundary), cutoff);
+        assertEquals("Only truly expired deliveries can lose their OS tokens", 2, expired.size());
+        assertSame(originalPastAndExpired, expired.get(0));
+        assertSame(missingNextTime, expired.get(1));
+    }
+
+    @Test
     public void emptySnapshotNeverInventsAnOsCancellation() {
         DateTime cutoff = DateTime.now().minusDays(1);
         assertEquals(0, Agenda.expiredRemindersBefore(
