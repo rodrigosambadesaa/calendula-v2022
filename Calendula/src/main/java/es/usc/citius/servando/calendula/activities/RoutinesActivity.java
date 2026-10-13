@@ -97,8 +97,7 @@ public class RoutinesActivity extends CalendulaActivity implements RoutineCreate
             finish();
             return;
         }
-        DB.routines().remove(persisted);
-        ScheduleUtils.instance().onDeleteRoutine(this, persisted);
+        ScheduleUtils.instance().deleteRoutineWithLinkedSchedules(this, persisted);
         finish();
     }
 
