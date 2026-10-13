@@ -39,6 +39,7 @@ public class ClinicalDebugLogRedactionTest {
         doses.put(Schedule.DEFAULT_DOSAGE_KEY, Double.parseDouble(sensitiveQuantity));
         RecurringEvent.Builder recurrence = new RecurringEvent.Builder();
         recurrence.repeatEvery(8, Freq.HOURLY);
+        recurrence.from(org.joda.time.DateTime.now());
 
         // Robolectric exposes an immutable Logcat snapshot. Compare only
         // messages emitted by this call; never mutate ShadowLog.getLogs().
