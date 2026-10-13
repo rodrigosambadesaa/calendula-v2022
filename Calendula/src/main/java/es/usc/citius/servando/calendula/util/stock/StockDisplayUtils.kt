@@ -58,6 +58,7 @@ object StockDisplayUtils {
                 }
             }
             StockCalculator.StockEnd.OverMax -> ctx.getString(R.string.stock_enough_for_upper_limit)
+            StockCalculator.StockEnd.Unavailable -> ctx.getString(R.string.stock_estimate_unavailable)
         }
 
 

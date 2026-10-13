@@ -295,6 +295,7 @@ Para este desarrollo se hace uso de algunas librerías y utilidades de código a
     <item quantity="other">Suficiente para %1$d días con las pautas actuales</item>
 </plurals>
 <string name="stock_enough_for_upper_limit">"Suficiente para más de tres meses con las pautas actuales"</string>
+<string name="stock_estimate_unavailable">No se puede estimar la duración de las existencias con las cantidades o pautas actuales</string>
 <string name="no_alerts_detected">"No se han detectado alertas para este medicamento"</string>
 <string name="stock_depleted">"No queda stock"</string>
 <string name="stock_depleted_msg">"No queda stock para este medicamento."</string>

@@ -277,6 +277,7 @@ Calendula is being developed by the Centro de Investigación en Tecnoloxías Int
     <item quantity="other">Enough for %1$d days with current schedules</item>
 </plurals>
 <string name="stock_enough_for_upper_limit">"Enough for more than three months with current schedules"</string>
+<string name="stock_estimate_unavailable">Unable to estimate the remaining stock from the current quantities or medication schedule</string>
 <string name="no_alerts_detected">"No alerts detected for this medicine"</string>
 <string name="stock_depleted">"Stock is depleted"</string>
 <string name="stock_depleted_msg">"There is no stock remaining for this medicine."</string>
