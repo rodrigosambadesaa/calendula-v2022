@@ -44,6 +44,7 @@ import es.usc.citius.servando.calendula.healthcareprovider.model.DosageVO;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedType;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageEntryEntity;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageType;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.RepeatType;
 import es.usc.citius.servando.calendula.util.LogUtil;
 
@@ -59,11 +60,27 @@ public class ScheduleCreator {
     private static final EnumSet<RepeatType> AFTER_MEAL =
             EnumSet.of(RepeatType.PCD, RepeatType.PCM, RepeatType.PCV);
 
+    /**
+     * Unscheduled/as-needed treatment does not authorize a synthesized dose.
+     * Never invent a recurrence or quantity when a provider omits the plan.
+     */
+    static void requireAutomaticallySchedulableDosage(DosageType type) {
+        if (type != DosageType.GENERAL && type != DosageType.DETAILED) {
+            throw new IllegalArgumentException(
+                    "Provider dosage does not specify an automatic recurrence");
+        }
+    }
+
     public static Pair<ScheduleMappingResult, Schedule> fromActiveMed(Long activeMedId) {
         try {
             ActiveMedEntity am = DB.healthcareProviderDB().activeMeds().findById(activeMedId);
             ActiveMedVO vo = ActiveMedVO.forEntity(am);
             Patient patient = vo.getPatient();
+            // Reject unsupported, absent or as-needed dose types BEFORE
+            // adding the medicine to the local kit or creating any schedule.
+            // A missing provider plan is not equivalent to 1 pill / 8 hours.
+            DosageVO dosage = vo.getDosage();
+            requireAutomaticallySchedulableDosage(dosage == null ? null : dosage.getType());
 
             Medicine m;
             Map<Long, Double> dosages;
@@ -83,7 +100,6 @@ public class ScheduleCreator {
 
             RecurringEvent.Builder rb = new RecurringEvent.Builder();
 
-            DosageVO dosage = vo.getDosage();
             switch (dosage.getType()) {
                 case GENERAL:
                     DB.healthcareProviderDB().dosages().refresh(dosage.entity());
@@ -154,11 +170,10 @@ public class ScheduleCreator {
                     }
                     break;
                 default:
-                    // set a default schedule
-                    rb.repeatEvery(8, Freq.HOURLY);
-                    dosages = new HashMap<>();
-                    dosages.put(Schedule.DEFAULT_DOSAGE_KEY, 1d);
-                    result = ScheduleMappingResult.PARTIAL;
+                    // Defense in depth: never produce an invented clinical
+                    // dose even if a new DosageType is introduced later.
+                    throw new IllegalArgumentException(
+                            "Unsupported provider dosage type for automatic schedule");
             }
 
             // set start
