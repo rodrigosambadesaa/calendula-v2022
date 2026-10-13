@@ -18,7 +18,7 @@
 
 package es.usc.citius.servando.calendula.util.stock
 
-import org.joda.time.Duration
+import org.joda.time.Days
 import org.joda.time.LocalDate
 
 object StockCalculator {
@@ -68,10 +68,10 @@ object StockCalculator {
             if (virtualStock < 0) {
                 return StockEnd.OnDate(
                     date = virtualDate,
-                    days = Duration(
-                        startDate.toDateTimeAtStartOfDay(),
-                        virtualDate.toDateTimeAtStartOfDay()
-                    ).standardDays
+                    // A calendar day may last 23 or 25 hours at a DST
+                    // transition. Duration.standardDays truncates fixed 24h
+                    // periods and understated medication supply in spring.
+                    days = Days.daysBetween(startDate, virtualDate).days.toLong()
                 )
             }
 
