@@ -40,19 +40,18 @@ public class ClinicalDebugLogRedactionTest {
         RecurringEvent.Builder recurrence = new RecurringEvent.Builder();
         recurrence.repeatEvery(8, Freq.HOURLY);
 
-        ShadowLog.getLogs().clear();
-        try {
-            Schedule mapped = ScheduleCreator.create(recurrence, doses, medicine);
-            assertNotNull(mapped);
-            for (ShadowLog.LogItem item : ShadowLog.getLogs()) {
-                String message = item.msg == null ? "" : item.msg;
-                assertFalse("Debug output must not include a patient's exact dose quantity",
-                        message.contains(sensitiveQuantity));
-                assertFalse("Debug output must not print patient dosage maps",
-                        message.contains(doses.toString()));
-            }
-        } finally {
-            ShadowLog.getLogs().clear();
+        // Robolectric exposes an immutable Logcat snapshot. Compare only
+        // messages emitted by this call; never mutate ShadowLog.getLogs().
+        final int previousCount = ShadowLog.getLogs().size();
+        Schedule mapped = ScheduleCreator.create(recurrence, doses, medicine);
+        assertNotNull(mapped);
+        java.util.List<ShadowLog.LogItem> recorded = ShadowLog.getLogs();
+        for (int index = previousCount; index < recorded.size(); index++) {
+            String message = recorded.get(index).msg == null ? "" : recorded.get(index).msg;
+            assertFalse("Debug output must not include a patient's exact dose quantity",
+                    message.contains(sensitiveQuantity));
+            assertFalse("Debug output must not print patient dosage maps",
+                    message.contains(doses.toString()));
         }
     }
 }
