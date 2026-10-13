@@ -158,6 +158,71 @@ public class StartupReminderRearmSmokeTest {
     }
 
     @Test
+    public void retryCreateRemindersRecoversCommittedFutureAlarmWithoutDuplicates() {
+        assertTrue(DB.initialized);
+        Context ctx = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime future = DateTime.now().plusMinutes(38).withMillisOfSecond(0);
+        DateTime handledTime = future.plusMinutes(1);
+        DateTime past = DateTime.now().minusMinutes(8).withMillisOfSecond(0);
+        EventInstance pending = new EventInstance(future, EventType.MEDICATION_INTAKE);
+        EventInstance cancelled = new EventInstance(handledTime, EventType.MEDICATION_INTAKE);
+        cancelled.setCancelled(true);
+        EventInstance oldPending = new EventInstance(past, EventType.MEDICATION_INTAKE);
+        EventInstance[] events = {pending, cancelled, oldPending};
+        EventReminder live = new EventReminder(future, EventType.MEDICATION_INTAKE);
+        live.setNextTime(future);
+        EventReminder handled = new EventReminder(handledTime, EventType.MEDICATION_INTAKE);
+        handled.setNextTime(handledTime);
+        EventReminder old = new EventReminder(past, EventType.MEDICATION_INTAKE);
+        old.setNextTime(past);
+        EventReminder[] reminders = {live, handled, old};
+        try {
+            for (EventInstance e : events) {
+                DB.eventInstances().save(e);
+                assertNotNull(e.getId());
+            }
+            for (EventReminder reminder : reminders) {
+                DB.eventReminders().save(reminder);
+                assertNotNull(reminder.getId());
+                Agenda.instance().cancelAlarm(ctx, reminder);
+                assertNull("Simulated post-commit interruption has no OS alarm",
+                        token(ctx, reminder));
+            }
+            // The rows already exist, so the old path skipped alarm setup.
+            // Retrying now must repair the future registration without
+            // inserting another row, reviving a cancelled dose or firing a
+            // stale historical reminder.
+            assertTrue(Agenda.instance().createReminders(ctx,
+                    java.util.Arrays.asList(pending, cancelled, oldPending)));
+            assertNotNull("Pending future alarm was recovered",
+                    token(ctx, live));
+            assertNull("Cancelled dose must not reappear", token(ctx, handled));
+            assertNull("Past reminder must not be scheduled again", token(ctx, old));
+            assertNotNull(DB.eventReminders().findById(live.getId()));
+            assertTrue(Agenda.instance().createReminders(ctx,
+                    java.util.Collections.singletonList(pending)));
+            assertNotNull("Second retry is idempotent", token(ctx, live));
+            assertTrue("No duplicate reminder row created",
+                    DB.eventReminders().findBy(
+                            EventType.MEDICATION_INTAKE, future, null).getId().equals(live.getId()));
+        } finally {
+            for (EventReminder reminder : reminders) {
+                if (reminder.getId() != null) {
+                    Agenda.instance().cancelAlarm(ctx, reminder);
+                    if (DB.eventReminders().findById(reminder.getId()) != null) {
+                        DB.eventReminders().remove(reminder);
+                    }
+                }
+            }
+            for (EventInstance e : events) {
+                if (e.getId() != null && DB.eventInstances().findById(e.getId()) != null) {
+                    DB.eventInstances().remove(e);
+                }
+            }
+        }
+    }
+
+    @Test
     public void startupRearmsCommittedFutureIntakeButSkipsCancelledAndPastOnes() {
         assertTrue(DB.initialized);
         Context ctx = InstrumentationRegistry.getInstrumentation().getTargetContext();
