@@ -5,6 +5,8 @@
  */
 package es.usc.citius.servando.calendula.database;
 
+import android.database.sqlite.SQLiteDatabase;
+import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import org.joda.time.DateTime;
@@ -81,6 +83,77 @@ public class PatientDeletionScopeSmokeTest {
             if (survivor.getId() != null
                     && DB.patients().findById(survivor.getId()) != null) {
                 DB.patients().remove(survivor);
+            }
+        }
+    }
+
+    @Test
+    public void patientReminderDeletionMustRollbackAllRowsOnSqlFailure() throws Exception {
+        assertTrue(DB.initialized);
+        Patient first = new Patient();
+        first.setCode("ci-reminder-txn-first-" + System.nanoTime());
+        first.setName("Synthetic reminder owner A");
+        Patient other = new Patient();
+        other.setCode("ci-reminder-txn-other-" + System.nanoTime());
+        other.setName("Synthetic reminder owner B");
+        DateTime time = DateTime.now().plusHours(15).withMillisOfSecond(0);
+        EventReminder one = new EventReminder(time, EventType.MEDICATION_INTAKE);
+        EventReminder two = new EventReminder(time.plusMinutes(1), EventType.MEDICATION_INTAKE);
+        EventReminder retained = new EventReminder(time, EventType.MEDICATION_INTAKE);
+        for (EventReminder reminder : new EventReminder[]{one, two, retained}) {
+            reminder.setNextTime(reminder.getDateTime());
+        }
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        final String trigger = "ci_patient_reminder_erasure_abort";
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            assertEquals(1, DB.patients().create(first));
+            assertEquals(1, DB.patients().create(other));
+            one.setPatient(first);
+            two.setPatient(first);
+            retained.setPatient(other);
+            for (EventReminder reminder : new EventReminder[]{one, two, retained}) {
+                assertEquals(1, DB.eventReminders().create(reminder));
+            }
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE DELETE ON EventReminders WHEN OLD._id = " + two.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic reminder erase failure'); END;");
+            boolean failed = false;
+            try {
+                es.usc.citius.servando.calendula.scheduling.Agenda.instance()
+                        .removeRemindersForPatient(
+                                InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                                first);
+            } catch (RuntimeException expected) {
+                failed = true;
+            }
+            assertTrue("A later SQL delete must abort the complete patient erase", failed);
+            assertNotNull("First deleted reminder must be rolled back",
+                    DB.eventReminders().findById(one.getId()));
+            assertNotNull("Second deleted reminder must also survive",
+                    DB.eventReminders().findById(two.getId()));
+            assertNotNull("Other patient's reminder must never be touched",
+                    DB.eventReminders().findById(retained.getId()));
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            es.usc.citius.servando.calendula.scheduling.Agenda.instance()
+                    .removeRemindersForPatient(
+                            InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                            first);
+            assertNull(DB.eventReminders().findById(one.getId()));
+            assertNull(DB.eventReminders().findById(two.getId()));
+            assertNotNull(DB.eventReminders().findById(retained.getId()));
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            for (EventReminder reminder : new EventReminder[]{one, two, retained}) {
+                if (reminder.getId() != null
+                        && DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().remove(reminder);
+                }
+            }
+            for (Patient patient : new Patient[]{first, other}) {
+                if (patient.getId() != null && DB.patients().findById(patient.getId()) != null) {
+                    DB.patients().remove(patient);
+                }
             }
         }
     }
