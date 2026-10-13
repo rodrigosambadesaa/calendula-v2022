@@ -133,8 +133,37 @@ public class MedicineInfoActivity extends CalendulaActivity {
         return super.onPrepareOptionsMenu(menu);
     }
 
+    /**
+     * An activity may be opened using an old intent ID, or remain alive after
+     * a patient switch. Verify the active profile and persisted owner before
+     * ever displaying clinical details or invoking an edit/delete action.
+     */
+    private boolean canViewMedicine(Medicine selected) {
+        if (selected == null || selected.getId() == null
+                || activePatient == null || activePatient.getId() == null) {
+            return false;
+        }
+        Patient currentPatient = DB.patients().getActive(this);
+        Medicine persisted = DB.medicines().findById(selected.getId());
+        if (persisted == null || DB.medicines().refresh(persisted) != 1) {
+            return false;
+        }
+        return MedicineDetailsOwnerGuard.matches(
+                activePatient.getId(),
+                currentPatient == null ? null : currentPatient.getId(),
+                selected.getId(),
+                selected.getPatient() == null ? null : selected.getPatient().getId(),
+                persisted.getId(),
+                persisted.getPatient() == null ? null : persisted.getPatient().getId());
+    }
+
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
+        if ((item.getItemId() == R.id.action_edit || item.getItemId() == R.id.action_remove)
+                && !canViewMedicine(medicine)) {
+            finish();
+            return true;
+        }
         switch (item.getItemId()) {
             case R.id.action_edit:
                 Intent intent = new Intent(this, MedicinesActivity.class);
@@ -149,6 +178,10 @@ public class MedicineInfoActivity extends CalendulaActivity {
     }
 
     public void showDeleteConfirmationDialog(final Medicine m) {
+        if (!canViewMedicine(m)) {
+            finish();
+            return;
+        }
         String message;
         if (!DB.schedules().findByMedicine(m).isEmpty()) {
             message = String.format(getString(R.string.remove_medicine_message_long), m.getName());
@@ -169,6 +202,12 @@ public class MedicineInfoActivity extends CalendulaActivity {
                 .onPositive(new MaterialDialog.SingleButtonCallback() {
                     @Override
                     public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
+                        // The selected patient and medicine owner may change
+                        // while the destructive confirmation dialog is open.
+                        if (!canViewMedicine(m)) {
+                            finish();
+                            return;
+                        }
                         DB.medicines().deleteCascade(m, true);
                         CalendulaApp.eventBus().post(PersistenceEvents.MEDICINE_EVENT);
                         finish();
@@ -234,9 +273,16 @@ public class MedicineInfoActivity extends CalendulaActivity {
         setupStatusBar(Color.TRANSPARENT);
 
         activePatient = DB.patients().getActive(this);
+        if (activePatient == null || activePatient.getId() == null) {
+            finish();
+            return;
+        }
         dbMgr = DBRegistry.instance().current();
 
         processIntent();
+        if (isFinishing()) {
+            return;
+        }
 
         // Create the adapter that will return a fragment for each of the three
         // primary sections of the activity.
@@ -310,6 +356,15 @@ public class MedicineInfoActivity extends CalendulaActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        Patient current = DB.patients().getActive(this);
+        if (activePatient == null || activePatient.getId() == null
+                || current == null
+                || !activePatient.getId().equals(current.getId())
+                || (medicine != null && !canViewMedicine(medicine))) {
+            // Close rather than leave a ViewPager showing another patient's
+            // medical information after the account switches.
+            finish();
+        }
     }
 
     @Override
@@ -351,7 +406,11 @@ public class MedicineInfoActivity extends CalendulaActivity {
         final long medId = intent.getLongExtra("medicine_id", -1);
         final String activeMedCode = intent.getStringExtra(EXTRA_ACTIVE_MED);
 
-        medicine = DB.medicines().findById(medId);
+        medicine = medId <= 0L ? null : DB.medicines().findById(medId);
+        if (medicine != null && !canViewMedicine(medicine)) {
+            // A caller-provided medicine ID alone never authorizes access.
+            medicine = null;
+        }
         if (activeMedCode != null) {
             final ActiveMedEntity amEntity = DB.healthcareProviderDB().activeMeds().findOneBy(ActiveMedEntity.COLUMN_CODE, activeMedCode);
             activeMedVO = amEntity!=null ? ActiveMedVO.forEntity(amEntity) : null;
@@ -384,6 +443,7 @@ public class MedicineInfoActivity extends CalendulaActivity {
             if (medicine == null) {
                 Toast.makeText(MedicineInfoActivity.this, R.string.medicine_not_found_error, Toast.LENGTH_SHORT).show();
                 finish();
+                return;
             } else {
                 // decide if we show the active med page
                 if (medicine.isFromActiveMed()) {
