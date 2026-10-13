@@ -6,52 +6,29 @@ package es.usc.citius.servando.calendula.database;
 
 import org.junit.Test;
 
-import es.usc.citius.servando.calendula.persistence.Medicine;
-import es.usc.citius.servando.calendula.persistence.Patient;
-import es.usc.citius.servando.calendula.persistence.PatientAlert;
-import es.usc.citius.servando.calendula.persistence.Presentation;
-
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-/** No SQLite access: validate the cross-owner read rejection policy. */
+/**
+ * Pure ID tests: Android's Patient initializer calls Color.parseColor and
+ * cannot be constructed in local JVM tests (Android instrumentation covers it).
+ */
 public class AlertReadOwnerGuardTest {
     @Test
-    public void onlyExactMedicineAndPatientPairCanProduceAnAlert() {
-        Patient owner = new Patient();
-        owner.setId(11001L);
-        Medicine medicine = new Medicine("Synthetic", Presentation.PILLS);
-        medicine.setId(11002L);
-        medicine.setPatient(owner);
-        PatientAlert alert = new PatientAlert();
-        alert.setPatient(owner);
-        alert.setMedicine(medicine);
-
-        assertTrue(PatientAlertDao.belongsToMedicineOwner(alert, 11002L, 11001L));
-        assertFalse(PatientAlertDao.belongsToMedicineOwner(alert, 11003L, 11001L));
-        assertFalse(PatientAlertDao.belongsToMedicineOwner(alert, 11002L, 11003L));
-        assertFalse(PatientAlertDao.belongsToMedicineOwner(alert, null, 11001L));
-        assertFalse(PatientAlertDao.belongsToMedicineOwner(alert, 11002L, null));
-        assertFalse(PatientAlertDao.belongsToMedicineOwner(null, 11002L, 11001L));
+    public void onlyExactMedicineAndPatientIdsAreAllowed() {
+        assertTrue(PatientAlertDao.matchingOwnerIds(11002L, 11001L, 11002L, 11001L));
+        assertFalse(PatientAlertDao.matchingOwnerIds(11002L, 11001L, 11003L, 11001L));
+        assertFalse(PatientAlertDao.matchingOwnerIds(11002L, 11001L, 11002L, 11003L));
+        assertFalse(PatientAlertDao.matchingOwnerIds(11002L, 11001L, null, 11001L));
+        assertFalse(PatientAlertDao.matchingOwnerIds(11002L, 11001L, 11002L, null));
     }
 
     @Test
-    public void orphanedOrMismatchedAlertIsNotAuthorizedByMedicineIdOnly() {
-        Patient owner = new Patient();
-        owner.setId(11001L);
-        Patient stranger = new Patient();
-        stranger.setId(11004L);
-        Medicine medicine = new Medicine("Synthetic", Presentation.PILLS);
-        medicine.setId(11002L);
-        medicine.setPatient(owner);
-        PatientAlert alert = new PatientAlert();
-        alert.setMedicine(medicine);
-        assertFalse(PatientAlertDao.belongsToMedicineOwner(alert, 11002L, 11001L));
-
-        alert.setPatient(stranger);
-        assertFalse(PatientAlertDao.belongsToMedicineOwner(alert, 11002L, 11001L));
-        alert.setPatient(owner);
-        alert.setMedicine(null);
-        assertFalse(PatientAlertDao.belongsToMedicineOwner(alert, 11002L, 11001L));
+    public void missingOrInvalidPatientAndMedicineIdsAreRejected() {
+        assertFalse(PatientAlertDao.matchingOwnerIds(null, 11001L, 11002L, 11001L));
+        assertFalse(PatientAlertDao.matchingOwnerIds(11002L, null, 11002L, 11001L));
+        assertFalse(PatientAlertDao.matchingOwnerIds(0L, 11001L, 0L, 11001L));
+        assertFalse(PatientAlertDao.matchingOwnerIds(11002L, 0L, 11002L, 0L));
+        assertFalse(PatientAlertDao.matchingOwnerIds(-1L, 11001L, -1L, 11001L));
     }
 }
