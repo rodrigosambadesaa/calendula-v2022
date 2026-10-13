@@ -24,6 +24,9 @@ import com.google.gson.GsonBuilder;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
 
+import es.usc.citius.servando.calendula.persistence.alerts.AllergyPatientAlert;
+import es.usc.citius.servando.calendula.persistence.alerts.DrivingCautionAlert;
+import es.usc.citius.servando.calendula.persistence.alerts.StockRunningOutAlert;
 import es.usc.citius.servando.calendula.util.LogUtil;
 
 /**
@@ -134,20 +137,34 @@ public class PatientAlert<P extends PatientAlert<P, T>, T> {
         return null;
     }
 
+    /**
+     * Only built-in alert types may be reconstructed from SQLite. A tampered
+     * or obsolete Type value must not cause arbitrary Class.forName loading,
+     * constructor execution or creation of an unknown UI provider.
+     */
+    @SuppressWarnings("unchecked")
     public P map() {
-        try {
-            P result = (P) Class.forName(getType()).getDeclaredConstructor().newInstance();
-            result.setId(id);
-            result.setPatient(patient);
-            result.setMedicine(medicine);
-            result.setJsonDetails(jsonDetails);
-            result.setLevel(level);
-            result.setType(type);
-            return result;
-        } catch (Exception e) {
-            LogUtil.e(TAG, "Unable to map alert to an specific alert type", e);
-            throw new RuntimeException(e);
+        final PatientAlert<?, ?> mapped;
+        if (AllergyPatientAlert.class.getCanonicalName().equals(type)) {
+            mapped = new AllergyPatientAlert();
+        } else if (DrivingCautionAlert.class.getCanonicalName().equals(type)) {
+            mapped = new DrivingCautionAlert();
+        } else if (StockRunningOutAlert.class.getCanonicalName().equals(type)) {
+            mapped = new StockRunningOutAlert();
+        } else {
+            // Never include the untrusted class string or patient information
+            // in a production exception or Logcat.
+            LogUtil.e(TAG, "Persisted alert has an unsupported type");
+            throw new IllegalArgumentException("Unsupported persisted clinical alert type");
         }
+        P result = (P) mapped;
+        result.setId(id);
+        result.setPatient(patient);
+        result.setMedicine(medicine);
+        result.setJsonDetails(jsonDetails);
+        result.setLevel(level);
+        result.setType(type);
+        return result;
     }
 
     @Override
