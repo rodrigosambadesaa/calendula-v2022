@@ -121,6 +121,17 @@ object StockDisplayUtils {
             .setDescription(msg)
             .setPositiveText(R.string.manage_stock)
             .onPositive { _, _ ->
+                // The patient may change WHILE this dialog is visible. An
+                // authorization check at display time is not sufficient to
+                // launch an editor for another patient's medicine later.
+                val currentPatientId = DB.patients().getActive(context)?.id
+                val latestMedicine = DB.medicines().findById(medicineId)
+                if (latestMedicine == null || DB.medicines().refresh(latestMedicine) != 1
+                    || !ownerMatchesActivePatient(
+                        emittedOwnerId, latestMedicine.patient?.id, currentPatientId
+                    )) {
+                    return@onPositive
+                }
                 val i = Intent(context, MedicinesActivity::class.java)
                 i.putExtra(CalendulaApp.INTENT_EXTRA_MEDICINE_ID, medicineId)
                 context.startActivity(i)
