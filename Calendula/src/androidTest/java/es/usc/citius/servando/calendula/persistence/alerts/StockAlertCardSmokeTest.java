@@ -23,7 +23,7 @@ import es.usc.citius.servando.calendula.persistence.Presentation;
 
 import static org.junit.Assert.*;
 
-/** Real Android rendering and synthetic SQLite fixtures only. */
+/** Tests Android stock cards with independent, disposable medicine rows. */
 @RunWith(AndroidJUnit4.class)
 public class StockAlertCardSmokeTest {
 
@@ -34,42 +34,53 @@ public class StockAlertCardSmokeTest {
         Patient owner = new Patient();
         owner.setCode("ci-stock-card-" + System.nanoTime());
         owner.setName("Synthetic stock card patient");
-        Medicine medicine = new Medicine("Synthetic stock card medicine", Presentation.PILLS);
-        medicine.setStock(0.5f);
+        // These independent rows deliberately avoid updating a medicine
+        // while a background agenda/alert observer might be reading it.
+        Medicine fraction = new Medicine("Synthetic fractional stock", Presentation.PILLS);
+        fraction.setStock(0.5f);
+        Medicine depleted = new Medicine("Synthetic depleted stock", Presentation.PILLS);
+        depleted.setStock(0f);
+        Medicine replenished = new Medicine("Synthetic replenished stock", Presentation.PILLS);
+        replenished.setStock(2f);
+        Medicine missing = new Medicine("Synthetic missing stock", Presentation.PILLS);
+        missing.setStock(null);
+        Medicine[] fixtures = {fraction, depleted, replenished, missing};
         StockRunningOutAlert.StockAlertViewProvider provider =
                 new StockRunningOutAlert.StockAlertViewProvider();
-        StockRunningOutAlert.StockAlertViewProvider.StockAlertViewHolder holder = null;
 
         try {
             assertEquals("Create synthetic stock patient", 1, DB.patients().create(owner));
-            medicine.setPatient(owner);
-            assertEquals("Create synthetic stock medicine", 1, DB.medicines().create(medicine));
-            StockRunningOutAlert alert = new StockRunningOutAlert(medicine, LocalDate.now());
-            holder = (StockRunningOutAlert.StockAlertViewProvider.StockAlertViewHolder)
-                    provider.onCreateViewHolder(new FrameLayout(context));
+            for (Medicine medicine : fixtures) {
+                medicine.setPatient(owner);
+                assertEquals("Persist independent synthetic medicine: " + medicine.getName(),
+                        1, DB.medicines().create(medicine));
+                assertNotNull("Fixture must have an ID", medicine.getId());
+            }
 
-            provider.onBindViewHolder(holder, alert);
+            StockRunningOutAlert.StockAlertViewProvider.StockAlertViewHolder holder =
+                    (StockRunningOutAlert.StockAlertViewProvider.StockAlertViewHolder)
+                            provider.onCreateViewHolder(new FrameLayout(context));
+
+            provider.onBindViewHolder(holder,
+                    new StockRunningOutAlert(fraction, LocalDate.now()));
             assertEquals(View.VISIBLE, holder.description.getVisibility());
             assertTrue("Fractional quantity must not be rounded to depleted",
                     holder.description.getText().toString().contains("0.5"));
 
-            medicine.setStock(0f);
-            assertEquals("Write depleted stock fixture", 1, DB.medicines().update(medicine));
-            provider.onBindViewHolder(holder, alert);
+            provider.onBindViewHolder(holder,
+                    new StockRunningOutAlert(depleted, LocalDate.now()));
             assertEquals(context.getString(R.string.stock_depleted),
                     holder.title.getText().toString());
             assertEquals(View.GONE, holder.description.getVisibility());
 
-            medicine.setStock(2f);
-            assertEquals("Write replenished stock fixture", 1, DB.medicines().update(medicine));
-            provider.onBindViewHolder(holder, alert);
-            assertEquals("A recycled zero-stock holder must restore its description",
+            provider.onBindViewHolder(holder,
+                    new StockRunningOutAlert(replenished, LocalDate.now()));
+            assertEquals("Recycled holder must restore its description",
                     View.VISIBLE, holder.description.getVisibility());
             assertTrue(holder.description.getText().toString().contains("2"));
 
-            medicine.setStock(null);
-            assertEquals("Write null-stock legacy fixture", 1, DB.medicines().update(medicine));
-            provider.onBindViewHolder(holder, alert);
+            provider.onBindViewHolder(holder,
+                    new StockRunningOutAlert(missing, LocalDate.now()));
             assertEquals("Missing legacy quantity is unknown, not depleted",
                     context.getString(R.string.stock_estimate_unavailable),
                     holder.duration.getText().toString());
@@ -83,9 +94,11 @@ public class StockAlertCardSmokeTest {
             assertEquals(context.getString(R.string.stock_estimate_unavailable),
                     holder.duration.getText().toString());
         } finally {
-            if (medicine.getId() != null
-                    && DB.medicines().findById(medicine.getId()) != null) {
-                DB.medicines().remove(medicine);
+            for (Medicine medicine : fixtures) {
+                if (medicine.getId() != null
+                        && DB.medicines().findById(medicine.getId()) != null) {
+                    DB.medicines().remove(medicine);
+                }
             }
             if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
                 DB.patients().remove(owner);
