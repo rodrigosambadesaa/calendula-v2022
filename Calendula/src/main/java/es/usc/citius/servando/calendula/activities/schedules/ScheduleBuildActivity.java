@@ -75,6 +75,7 @@ import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Patient;
+import es.usc.citius.servando.calendula.persistence.Routine;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
@@ -931,6 +932,18 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
         }
         return DB.medicines().findAll(patientIdAtEditorOpen);
     }
+
+    Patient patientForOpenedEditor() {
+        return ScheduleEditorRoutineSource.authorizedPatient(
+                patientIdAtEditorOpen, DB.patients().getActive(this));
+    }
+
+    List<Routine> routinesForOpenedPatient() {
+        return ScheduleEditorRoutineSource.load(
+                patientIdAtEditorOpen, DB.patients().getActive(this));
+    }
+
+
 
     private void completeScheduleAsync() {
         String text;
