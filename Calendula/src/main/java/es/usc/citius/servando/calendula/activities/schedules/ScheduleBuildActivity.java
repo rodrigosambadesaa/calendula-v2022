@@ -567,9 +567,9 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
                 editMode = EditMode.EDIT;
                 tmpSchedule.setMedicine(s.getMedicine());
                 tmpSchedule.setDosages(new HashMap<>(s.getDosages()));
-                LogUtil.d(TAG, "enableEditMode: " + tmpSchedule.toString());
+                LogUtil.d(TAG, "Editing an existing medication schedule");
             } catch (RecurringEvent.InvalidRecurringEventException e) {
-                LogUtil.e(TAG, "Invalid recurring event: ", e);
+                LogUtil.e(TAG, "Invalid recurrence data in schedule editor");
                 finish();
             }
         }
