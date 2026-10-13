@@ -455,11 +455,19 @@ public class MedicinesListFragment extends Fragment {
         }
         // Do not retain a previous patient's cards while the new query waits
         // for the single-threaded executor.
-        if (mMedicines != null && mMedicines.stream().anyMatch(m ->
-                m.getPatient() == null
-                || !requestedPatientId.equals(m.getPatient().getId()))) {
-            mMedicines.clear();
-            if (adapter != null) updateAdapterItems();
+        if (mMedicines != null) {
+            boolean wrongPatientVisible = false;
+            for (Medicine visible : mMedicines) {
+                if (visible == null || visible.getPatient() == null
+                        || !requestedPatientId.equals(visible.getPatient().getId())) {
+                    wrongPatientVisible = true;
+                    break;
+                }
+            }
+            if (wrongPatientVisible) {
+                mMedicines.clear();
+                if (adapter != null) updateAdapterItems();
+            }
         }
         RELOAD_EXECUTOR.execute(() -> {
             final List<Medicine> medicines;
