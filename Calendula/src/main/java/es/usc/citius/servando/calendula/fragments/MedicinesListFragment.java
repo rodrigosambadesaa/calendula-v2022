@@ -99,6 +99,9 @@ public class MedicinesListFragment extends Fragment {
     FastItemAdapter<MedicineItem> adapter;
     Handler handler;
     Unbinder unbinder;
+    // UI-thread generation: invalidate older background DB results when the
+    // active patient changes, a later reload starts, or the view is destroyed.
+    private long reloadRequestVersion;
 
     @SuppressLint("ClickableViewAccessibility")
     @Override
@@ -124,6 +127,7 @@ public class MedicinesListFragment extends Fragment {
 
     @Override
     public void onDestroyView() {
+        ++reloadRequestVersion;
         super.onDestroyView();
         if (unbinder != null)
             unbinder.unbind();
@@ -197,18 +201,51 @@ public class MedicinesListFragment extends Fragment {
         }
     }
 
+    /**
+     * A list item can be stale after a patient switch. Resolve the medicine
+     * from SQLite rather than trusting the card's in-memory identity.
+     */
+    private Medicine currentOwnedMedicine(Medicine selected) {
+        Context context = getContext();
+        if (context == null || selected == null || selected.getId() == null) {
+            return null;
+        }
+        es.usc.citius.servando.calendula.persistence.Patient active =
+                DB.patients().getActive(context);
+        Long activeId = active == null ? null : active.getId();
+        Medicine persisted = DB.medicines().findById(selected.getId());
+        if (persisted == null || DB.medicines().refresh(persisted) != 1
+                || !MedicineListPatientGuard.selectedMedicineIsOwned(
+                    selected.getId(),
+                    selected.getPatient() == null ? null : selected.getPatient().getId(),
+                    activeId, persisted.getId(),
+                    persisted.getPatient() == null ? null : persisted.getPatient().getId())) {
+            return null;
+        }
+        return persisted;
+    }
+
     void openMedicineInfoActivity(Medicine medicine, boolean showAlerts) {
+        Medicine current = currentOwnedMedicine(medicine);
+        if (current == null) {
+            notifyDataChange();
+            return;
+        }
         Intent i = new Intent(getActivity(), MedicineInfoActivity.class);
-        i.putExtra("medicine_id", medicine.getId());
+        i.putExtra("medicine_id", current.getId());
         i.setAction(MedicineInfoActivity.ACTION_SHOW_ALERTS);
         getActivity().startActivity(i);
     }
 
     void showDeleteConfirmationDialog(final Medicine m) {
-
-        if(!m.isFromActiveMed()) {
+        Medicine current = currentOwnedMedicine(m);
+        if (current == null) {
+            notifyDataChange();
+            return;
+        }
+        if (!current.isFromActiveMed()) {
             String message;
-            if (!DB.schedules().findByMedicine(m).isEmpty()) {
+            if (!DB.schedules().findByMedicine(current).isEmpty()) {
                 message = String.format(getString(R.string.remove_medicine_message_long), m.getName());
             } else {
                 message = String.format(getString(R.string.remove_medicine_message_short), m.getName());
@@ -227,7 +264,16 @@ public class MedicinesListFragment extends Fragment {
                     .onPositive(new MaterialDialog.SingleButtonCallback() {
                         @Override
                         public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
-                            DB.medicines().deleteCascade(m, true);
+                            Medicine confirmed = currentOwnedMedicine(m);
+                            if (confirmed == null || confirmed.isFromActiveMed()) {
+                                notifyDataChange();
+                                return;
+                            }
+                            try {
+                                DB.medicines().deleteCascade(confirmed, true);
+                            } catch (RuntimeException failure) {
+                                LogUtil.e(TAG, "Could not safely remove selected medicine", failure);
+                            }
                             notifyDataChange();
                         }
                     })
@@ -388,6 +434,7 @@ public class MedicinesListFragment extends Fragment {
     }
 
     private void reloadItemsAsync() {
+        final long requestVersion = ++reloadRequestVersion;
         final Context context = getContext();
         final Handler mainHandler = handler;
         if (context == null || mainHandler == null) {
@@ -395,16 +442,59 @@ public class MedicinesListFragment extends Fragment {
         }
 
         final Context applicationContext = context.getApplicationContext();
+        final es.usc.citius.servando.calendula.persistence.Patient requestedPatient =
+                DB.patients().getActive(context);
+        final Long requestedPatientId = requestedPatient == null
+                ? null : requestedPatient.getId();
+        if (requestedPatientId == null || requestedPatientId <= 0L) {
+            if (mMedicines != null) {
+                mMedicines.clear();
+                if (adapter != null) updateAdapterItems();
+            }
+            return;
+        }
+        // Do not retain a previous patient's cards while the new query waits
+        // for the single-threaded executor.
+        if (mMedicines != null && mMedicines.stream().anyMatch(m ->
+                m.getPatient() == null
+                || !requestedPatientId.equals(m.getPatient().getId()))) {
+            mMedicines.clear();
+            if (adapter != null) updateAdapterItems();
+        }
         RELOAD_EXECUTOR.execute(() -> {
-            LogUtil.d(TAG, "Reloading items...");
-            final List<Medicine> medicines = DB.medicines().findAllForActivePatient(applicationContext);
+            final List<Medicine> medicines;
+            try {
+                medicines = DB.medicines().findAllForActivePatient(applicationContext);
+            } catch (RuntimeException failure) {
+                LogUtil.e(TAG, "Medication list reload failed", failure);
+                return;
+            }
             mainHandler.post(() -> {
-                if (!isAdded() || getView() == null) {
+                if (!isAdded() || getView() == null || sortSpinner == null) {
                     return;
+                }
+                es.usc.citius.servando.calendula.persistence.Patient active =
+                        DB.patients().getActive(applicationContext);
+                Long activeId = active == null ? null : active.getId();
+                if (!MedicineListPatientGuard.currentReload(
+                        requestVersion, reloadRequestVersion,
+                        requestedPatientId, activeId)) {
+                    return;
+                }
+                // Never display a malformed cross-owner row from legacy SQLite
+                // even if the active patient changed while the query ran.
+                for (Medicine m : medicines) {
+                    if (m == null || m.getPatient() == null
+                            || !requestedPatientId.equals(m.getPatient().getId())) {
+                        LogUtil.e(TAG, "Medication query returned a mismatched owner");
+                        return;
+                    }
                 }
                 mMedicines = medicines;
                 final MedSortType sortType = (MedSortType) sortSpinner.getSelectedItem();
-                Collections.sort(mMedicines, sortType.comparator());
+                if (sortType != null && sortType.comparator() != null) {
+                    Collections.sort(mMedicines, sortType.comparator());
+                }
                 updateViewVisibility();
                 updateAdapterItems();
                 LogUtil.d(TAG, "Reloaded items, count: " + mMedicines.size());
