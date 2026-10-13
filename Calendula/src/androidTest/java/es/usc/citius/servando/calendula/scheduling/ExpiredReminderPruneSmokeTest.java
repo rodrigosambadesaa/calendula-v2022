@@ -37,7 +37,11 @@ public class ExpiredReminderPruneSmokeTest {
     @Test
     public void sqlitePruningPreservesSnoozedOldMedicationReminder() throws Exception {
         assertTrue(DB.initialized);
-        DateTime cutoff = DateTime.now().withTimeAtStartOfDay().minusDays(1);
+        // Use a future synthetic cutoff. Historical fixture timestamps can be
+        // removed by the app's independent daily housekeeping before this
+        // explicit DAO assertion, making the test fail with zero deleted.
+        // The production SQL still receives a caller-supplied retention cutoff.
+        DateTime cutoff = DateTime.now().withTimeAtStartOfDay().plusDays(1);
         EventReminder snoozed = new EventReminder(
                 cutoff.minusHours(4), EventType.MEDICATION_INTAKE);
         snoozed.setNextTime(cutoff.plusDays(2));
@@ -113,8 +117,10 @@ public class ExpiredReminderPruneSmokeTest {
     @Test
     public void oldPendingDoseSurvivesPruneWhileItsSnoozeIsScheduled() throws Exception {
         assertTrue(DB.initialized);
-        DateTime cutoff = DateTime.now().withTimeAtStartOfDay().minusDays(2);
-        DateTime intake = cutoff.minusDays(3).plusMinutes(7);
+        // Keep synthetic events within today's normal app window, so the
+        // background day-boundary job cannot independently prune them.
+        DateTime cutoff = DateTime.now().withTimeAtStartOfDay().plusDays(1);
+        DateTime intake = cutoff.minusHours(4).plusMinutes(7);
         DateTime expiredIntake = intake.plusMinutes(1);
         EventInstance snoozedDose = new EventInstance(
                 intake, EventType.MEDICATION_INTAKE);
