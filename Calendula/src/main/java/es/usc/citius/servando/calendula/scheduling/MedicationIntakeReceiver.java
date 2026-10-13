@@ -44,11 +44,19 @@ public class MedicationIntakeReceiver implements EventReminderReceiver, AgendaUp
             // dereference a missing reminder or update the clinical agenda.
             return;
         }
-        DateTime time = reminder.getDateTime();
-        // A partially restored reminder may lack its timestamp. Forward it
-        // to the existing generic, unverified-data notification instead of
-        // crashing before the privacy/identity validation in notify().
-        boolean alarmLost = time != null && isLost(time);
+        // DateTime is the ORIGINAL medication intake, not necessarily the
+        // scheduled alarm delivery. A user may have intentionally postponed
+        // it or auto-repeat may have moved NextTime forward. Judging the
+        // notification by its old intake time incorrectly hides Snooze/Cancel
+        // actions and retires an otherwise current reminder.
+        // An incomplete legacy record must reach the existing unverified-data
+        // notification path without triggering destructive alarm cleanup.
+        // Only a complete original intake and delivery timestamp may be
+        // classified as truly late.
+        boolean alarmLost = reminder.getDateTime() != null
+                && reminder.getNextTime() != null
+                && isScheduledDeliveryLost(
+                        reminder, DateTime.now(), ReminderTiming.windowMinutes());
         IntakeNotificationMgr.notify(context, reminder, alarmLost);
         CalendulaApp.eventBus().post(new Agenda.AgendaUpdatedEvent());
         if (alarmLost) {
@@ -82,6 +90,21 @@ public class MedicationIntakeReceiver implements EventReminderReceiver, AgendaUp
         }
     }
 
+    /**
+     * Determine staleness using the persisted OS delivery time, rather than
+     * the original clinical intake time. Injectable clock/window make the
+     * policy testable across Android versions without changing patient data.
+     */
+    static boolean isScheduledDeliveryLost(
+            EventReminder reminder, DateTime observedAt, int windowMinutes) {
+        if (reminder == null || reminder.getNextTime() == null
+                || observedAt == null || windowMinutes < 0) {
+            return true;
+        }
+        return reminder.getNextTime().plusMinutes(windowMinutes).isBefore(observedAt);
+    }
+
+    /** Legacy timestamp-based utility; not used for snoozed delivery. */
     public static boolean isLost(DateTime t) {
         return t.plusMinutes(ReminderTiming.windowMinutes()).isBeforeNow();
     }
