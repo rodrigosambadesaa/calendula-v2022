@@ -114,6 +114,17 @@ public class EventReminderDao extends GenericDao<EventReminder, Long> {
     }
 
     public int removeBy(Patient patient, EventType eventType, DateTime dateTime) {
+        // Destructive reminder cleanup must never interpret a missing type or
+        // timestamp as an invitation to target malformed legacy NULL rows.
+        // A deliberately null patient is still supported for legacy events.
+        if (eventType == null || dateTime == null) {
+            throw new IllegalArgumentException("Reminder removal requires an event and original time");
+        }
+        if (patient != null && (patient.getId() == null || patient.getId() <= 0L
+                || DB.patients().findById(patient.getId()) == null)) {
+            throw new IllegalArgumentException("Reminder owner is not persisted");
+        }
+
         try {
             if (patient == null) {
                 // Nullable foreign keys are supported in lookups, but ORM
@@ -151,6 +162,10 @@ public class EventReminderDao extends GenericDao<EventReminder, Long> {
     }
 
     public int removeOlderThan(DateTime dateTime) {
+        if (dateTime == null) {
+            throw new IllegalArgumentException("A reminder retention cutoff is required");
+        }
+
         try {
             DeleteBuilder<EventReminder, Long> qb = dao.deleteBuilder();
             Where w = qb.where();

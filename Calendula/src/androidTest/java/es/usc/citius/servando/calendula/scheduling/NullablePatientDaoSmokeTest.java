@@ -28,6 +28,63 @@ import static org.junit.Assert.assertTrue;
 public class NullablePatientDaoSmokeTest {
 
     @Test
+    public void incompleteReminderDeletionSelectorsCannotEraseLegacyRows() throws Exception {
+        assertTrue(DB.initialized);
+        DateTime future = DateTime.now().plusHours(19).withMillisOfSecond(0);
+        Patient owner = new Patient();
+        owner.setCode("ci-reminder-deletion-owner-" + System.nanoTime());
+        owner.setName("Synthetic reminder deletion survivor");
+        EventReminder legacy = new EventReminder(future, EventType.MEDICATION_INTAKE);
+        legacy.setNextTime(future);
+        EventReminder named = new EventReminder(future, EventType.MEDICATION_INTAKE);
+        named.setNextTime(future);
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            named.setPatient(owner);
+            assertEquals(1, DB.eventReminders().create(legacy));
+            assertEquals(1, DB.eventReminders().create(named));
+            Patient invalid = new Patient();
+            int rejected = 0;
+            try {
+                DB.eventReminders().removeBy(null, null, future);
+            } catch (IllegalArgumentException expected) {
+                rejected++;
+            }
+            try {
+                DB.eventReminders().removeBy(null, EventType.MEDICATION_INTAKE, null);
+            } catch (IllegalArgumentException expected) {
+                rejected++;
+            }
+            try {
+                DB.eventReminders().removeBy(invalid, EventType.MEDICATION_INTAKE, future);
+            } catch (IllegalArgumentException expected) {
+                rejected++;
+            }
+            try {
+                DB.eventReminders().removeOlderThan(null);
+            } catch (IllegalArgumentException expected) {
+                rejected++;
+            }
+            assertEquals("All invalid SQL deletion selectors must fail closed", 4, rejected);
+            assertNotNull("Unassigned reminder must survive every invalid delete",
+                    DB.eventReminders().findById(legacy.getId()));
+            assertNotNull("Named patient's reminder must remain unaffected",
+                    DB.eventReminders().findById(named.getId()));
+            assertNotNull(DB.patients().findById(owner.getId()));
+        } finally {
+            for (EventReminder reminder : new EventReminder[]{legacy, named}) {
+                if (reminder.getId() != null
+                        && DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().remove(reminder);
+                }
+            }
+            if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().remove(owner);
+            }
+        }
+    }
+
+    @Test
     public void nullablePatientForeignKeysCanBeFoundAndRemovedOnSQLite() {
         assertTrue(DB.initialized);
         DateTime future = DateTime.now().plusHours(7).withMillisOfSecond(0);
