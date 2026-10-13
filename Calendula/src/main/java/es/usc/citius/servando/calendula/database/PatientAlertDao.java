@@ -73,14 +73,24 @@ public class PatientAlertDao extends GenericDao<PatientAlert, Long> {
         return persisted;
     }
 
+    /**
+     * Pure identity policy, independent of Android's Patient initialization
+     * and callable from local JVM tests without an Android runtime.
+     */
+    static boolean matchingOwnerIds(Long medicineId, Long patientId,
+                                    Long alertMedicineId, Long alertPatientId) {
+        return medicineId != null && medicineId > 0L
+                && patientId != null && patientId > 0L
+                && medicineId.equals(alertMedicineId)
+                && patientId.equals(alertPatientId);
+    }
+
     /** Reject corrupt cross-owner rows instead of returning/discarding them. */
     static boolean belongsToMedicineOwner(PatientAlert alert, Long medicineId, Long patientId) {
-        return alert != null && medicineId != null && medicineId > 0L
-                && patientId != null && patientId > 0L
-                && alert.getMedicine() != null
-                && medicineId.equals(alert.getMedicine().getId())
-                && alert.getPatient() != null
-                && patientId.equals(alert.getPatient().getId());
+        return alert != null
+                && matchingOwnerIds(medicineId, patientId,
+                        alert.getMedicine() == null ? null : alert.getMedicine().getId(),
+                        alert.getPatient() == null ? null : alert.getPatient().getId());
     }
 
     private List<PatientAlert> requireSameOwner(
