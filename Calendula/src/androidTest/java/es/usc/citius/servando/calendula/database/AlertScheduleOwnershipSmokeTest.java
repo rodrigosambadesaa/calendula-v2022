@@ -15,11 +15,72 @@ import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /** Synthetic Android SQLite ownership checks for blocked-schedule alerts. */
 @RunWith(AndroidJUnit4.class)
 public class AlertScheduleOwnershipSmokeTest {
+    @Test
+    public void medicineDeletionCannotCascadeIntoAnotherPatientsSchedule() throws Exception {
+        assertTrue(DB.initialized);
+        String seed = Long.toString(System.nanoTime());
+        Patient owner = new Patient();
+        owner.setCode("ci-med-cascade-owner-" + seed);
+        owner.setName("Synthetic cascade owner");
+        Patient foreign = new Patient();
+        foreign.setCode("ci-med-cascade-foreign-" + seed);
+        foreign.setName("Synthetic cascade foreign");
+        Medicine medicine = new Medicine("Synthetic medicine cascade", Presentation.PILLS);
+        Schedule ownSchedule = new Schedule(medicine);
+        Schedule foreignSchedule = new Schedule(medicine);
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            assertEquals(1, DB.patients().create(foreign));
+            medicine.setPatient(owner);
+            assertEquals(1, DB.medicines().create(medicine));
+            ownSchedule.setPatient(owner);
+            foreignSchedule.setPatient(foreign);
+            assertEquals(1, DB.schedules().create(ownSchedule));
+            assertEquals(1, DB.schedules().findByMedicine(medicine).size());
+            // Simulate a damaged import referencing A's medicine from B's
+            // prescription. Any cascade must reject *before* deleting A.
+            assertEquals(1, DB.schedules().create(foreignSchedule));
+            boolean searchRejected = false;
+            try {
+                DB.schedules().findByMedicine(medicine);
+            } catch (IllegalStateException expected) {
+                searchRejected = true;
+            }
+            assertTrue("Cross-owner medication query must reject invalid schedule", searchRejected);
+            boolean deletionRejected = false;
+            try {
+                DB.medicines().deleteCascade(medicine, false);
+            } catch (RuntimeException expected) {
+                deletionRejected = true;
+            }
+            assertTrue("Medicine deletion must abort rather than erase B's schedule",
+                    deletionRejected);
+            assertNotNull(DB.medicines().findById(medicine.getId()));
+            assertNotNull(DB.schedules().findById(ownSchedule.getId()));
+            assertNotNull(DB.schedules().findById(foreignSchedule.getId()));
+        } finally {
+            for (Schedule sc : new Schedule[]{ownSchedule, foreignSchedule}) {
+                if (sc.getId() != null && DB.schedules().findById(sc.getId()) != null) {
+                    DB.schedules().remove(sc);
+                }
+            }
+            if (medicine.getId() != null && DB.medicines().findById(medicine.getId()) != null) {
+                DB.medicines().remove(medicine);
+            }
+            for (Patient patient : new Patient[]{owner, foreign}) {
+                if (patient.getId() != null && DB.patients().findById(patient.getId()) != null) {
+                    DB.patients().remove(patient);
+                }
+            }
+        }
+    }
+
     @Test
     public void alertScheduleSearchRefusesReassignedOrDeletedMedicine() throws Exception {
         assertTrue(DB.initialized);
