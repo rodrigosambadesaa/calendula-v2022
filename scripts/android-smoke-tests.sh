@@ -11,6 +11,7 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.database.GenericD
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.persistence.PatientProfilePersistenceSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.alerts.AtomicHighAlertSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.persistence.alerts.StockAlertCardSmokeTest"
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.alerts.StockAlertOwnershipSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.alerts.AlertDeletionIdentitySmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.database.DefaultRoutineProvisioningSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.scheduling.RoutineDeleteDependencySmokeTest"
