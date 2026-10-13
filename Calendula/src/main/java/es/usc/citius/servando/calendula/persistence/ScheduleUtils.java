@@ -808,34 +808,65 @@ public class ScheduleUtils {
                 || candidate.getId() <= 0L) {
             throw new IllegalArgumentException("A saved routine is required");
         }
-        Routine current = DB.routines().findById(candidate.getId());
-        Patient active = DB.patients().getActive(ctx);
-        if (current == null || active == null
-                || !samePatientIdentity(current.getPatient(), active)
-                || !samePatientIdentity(candidate.getPatient(), current.getPatient())) {
-            throw new IllegalArgumentException("Routine is no longer owned by the active patient");
+        final Long routineId = candidate.getId();
+        final Long expectedOwner = candidate.getPatient() == null
+                ? null : candidate.getPatient().getId();
+        final Patient active = DB.patients().getActive(ctx);
+        if (expectedOwner == null || expectedOwner <= 0L || active == null
+                || !expectedOwner.equals(active.getId())) {
+            throw new IllegalArgumentException("Routine is not owned by the active patient");
         }
-        // Morning/lunch/dinner reference routines are required throughout the
-        // application; never let a stale editor or DAO call delete them.
-        if (current.dailyEventType() != RepeatType.TIME_OF_DAY) {
-            throw new IllegalArgumentException("Only user time-of-day routines may be removed");
-        }
-        // If any linked schedule deletion fails, the routine stays available
-        // as the recurrence's time reference. Do not delete it first.
-        onDeleteRoutine(ctx, current);
-        Routine remaining = DB.routines().findById(current.getId());
-        if (remaining != null) {
-            try {
-                int affected = DB.routines().delete(remaining);
-                // ORMLite can report zero affected rows for a routine removed
-                // by schedule cleanup concurrently. Query SQLite to decide:
-                // success requires that this exact routine no longer exists.
-                if (affected != 1 && DB.routines().findById(current.getId()) != null) {
-                    throw new IllegalStateException("Routine remains after delete attempt");
-                }
-            } catch (java.sql.SQLException error) {
-                throw new IllegalStateException("Could not remove selected routine", error);
+
+        // All linked schedule rows, their *pending* dose occurrences and the
+        // routine are removed in a single SQLite commit. Deleting one linked
+        // schedule at a time previously committed a partial graph if the
+        // second DELETE raised an error. Keep OS alarm and bus effects OUT of
+        // this transaction so a SQLite rollback cannot cancel a valid alarm.
+        final boolean[] hadLinkedSchedules = {false};
+        DB.transaction(() -> {
+            Routine persisted = DB.routines().findById(routineId);
+            Patient activeNow = DB.patients().getActive(ctx);
+            if (persisted == null || persisted.getPatient() == null
+                    || activeNow == null
+                    || !expectedOwner.equals(activeNow.getId())
+                    || !expectedOwner.equals(persisted.getPatient().getId())
+                    || persisted.dailyEventType() != RepeatType.TIME_OF_DAY) {
+                throw new SQLException("Routine is missing, mandatory or no longer owned by patient");
             }
+            List<Schedule> linked = getSchedulesLinkedTo(persisted);
+            // Deterministic order enables a regression to fail on a later
+            // schedule DELETE after one has already succeeded in SQL.
+            Collections.sort(linked, (first, second) ->
+                    first.getId().compareTo(second.getId()));
+            for (Schedule selected : linked) {
+                if (selected == null || selected.getId() == null
+                        || selected.getPatient() == null
+                        || !expectedOwner.equals(selected.getPatient().getId())) {
+                    throw new SQLException("Linked schedule owner is invalid");
+                }
+                Schedule stored = DB.schedules().findById(selected.getId());
+                if (stored == null || stored.getPatient() == null
+                        || !expectedOwner.equals(stored.getPatient().getId())) {
+                    throw new SQLException("Linked schedule ownership changed");
+                }
+                DB.eventInstances().removeByRef(stored.getId());
+                if (DB.schedules().delete(stored) != 1) {
+                    throw new SQLException("Could not delete linked schedule");
+                }
+            }
+            if (DB.routines().delete(persisted) != 1) {
+                throw new SQLException("Could not delete selected routine");
+            }
+            hadLinkedSchedules[0] = !linked.isEmpty();
+            return null;
+        });
+
+        // Only after COMMIT. An alarm whose SQL reminder row became orphaned
+        // may be revoked now; none of the committed intake decisions are lost.
+        if (hadLinkedSchedules[0]) {
+            Agenda.instance().cleanReminders(ctx);
+            removeUnlinkedAutoRoutines(DB.patients().findById(expectedOwner), false);
+            CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT);
         }
         DB.routines().fireEvent();
     }
