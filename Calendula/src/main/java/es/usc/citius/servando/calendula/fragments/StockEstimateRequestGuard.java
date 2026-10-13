@@ -20,7 +20,7 @@ final class StockEstimateRequestGuard {
                 && requestVersion == currentVersion
                 && requestedMedicine != null
                 && requestedMedicine == currentMedicine
-                && Float.isFinite(requestedStock)
+                && !Float.isNaN(requestedStock) && !Float.isInfinite(requestedStock)
                 && requestedStock >= 0f
                 && Float.compare(requestedStock, currentStock) == 0;
     }
