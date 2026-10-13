@@ -41,6 +41,7 @@ import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.events.PersistenceEvents;
 import es.usc.citius.servando.calendula.activities.ConfirmIntakeGuard;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.RepeatType;
 import es.usc.citius.servando.calendula.scheduling.Agenda;
 import es.usc.citius.servando.calendula.scheduling.IntakeSnapshot;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
@@ -794,6 +795,49 @@ public class ScheduleUtils {
 
     public int schedulesLinkedTo(Routine r) {
         return  getSchedulesLinkedTo(r).size();
+    }
+
+    /**
+     * A routine may be the time source for one or more prescriptions. First
+     * remove linked schedules, and only THEN remove the routine. The older UI
+     * did this backwards, leaving broken recurrence references whenever a
+     * schedule DELETE failed. Re-check the active profile at click time.
+     */
+    public void deleteRoutineWithLinkedSchedules(Context ctx, Routine candidate) {
+        if (ctx == null || candidate == null || candidate.getId() == null
+                || candidate.getId() <= 0L) {
+            throw new IllegalArgumentException("A saved routine is required");
+        }
+        Routine current = DB.routines().findById(candidate.getId());
+        Patient active = DB.patients().getActive(ctx);
+        if (current == null || active == null
+                || !samePatientIdentity(current.getPatient(), active)
+                || !samePatientIdentity(candidate.getPatient(), current.getPatient())) {
+            throw new IllegalArgumentException("Routine is no longer owned by the active patient");
+        }
+        // Morning/lunch/dinner reference routines are required throughout the
+        // application; never let a stale editor or DAO call delete them.
+        if (current.dailyEventType() != RepeatType.TIME_OF_DAY) {
+            throw new IllegalArgumentException("Only user time-of-day routines may be removed");
+        }
+        // If any linked schedule deletion fails, the routine stays available
+        // as the recurrence's time reference. Do not delete it first.
+        onDeleteRoutine(ctx, current);
+        Routine remaining = DB.routines().findById(current.getId());
+        if (remaining != null) {
+            try {
+                int affected = DB.routines().delete(remaining);
+                // ORMLite can report zero affected rows for a routine removed
+                // by schedule cleanup concurrently. Query SQLite to decide:
+                // success requires that this exact routine no longer exists.
+                if (affected != 1 && DB.routines().findById(current.getId()) != null) {
+                    throw new IllegalStateException("Routine remains after delete attempt");
+                }
+            } catch (java.sql.SQLException error) {
+                throw new IllegalStateException("Could not remove selected routine", error);
+            }
+        }
+        DB.routines().fireEvent();
     }
 
     public void onDeleteRoutine(Context c, Routine r) {
