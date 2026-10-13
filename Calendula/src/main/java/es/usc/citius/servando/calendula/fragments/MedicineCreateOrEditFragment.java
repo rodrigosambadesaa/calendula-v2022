@@ -713,7 +713,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
         final Context context = getContext();
         final Medicine medicine = mMedicine;
         final float currentStock = stock;
-        if (context == null || !Float.isFinite(currentStock)
+        if (context == null || Float.isNaN(currentStock) || Float.isInfinite(currentStock)
                 || currentStock < 0f || medicine == null || !stockSwitch.isChecked()) {
             return;
         }
