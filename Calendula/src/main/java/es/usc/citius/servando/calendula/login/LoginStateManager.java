@@ -138,10 +138,13 @@ public class LoginStateManager {
                     p.setDefault(true);
                 }
                 try {
-                    DB.patients().create(p);
-                    DefaultDataGenerator.generateDefaultRoutines(p, ctx);
-                } catch (SQLException e) {
-                    AuthLogPolicy.logFailure(TAG, AuthLogPolicy.Failure.PATIENT_PERSISTENCE, e);
+                    createLocalPatientAndRoutines(p, ctx);
+                } catch (RuntimeException error) {
+                    // A failed initialization must not store OAuth session
+                    // state or report a successful authenticated login.
+                    AuthLogPolicy.logFailure(TAG,
+                            AuthLogPolicy.Failure.PATIENT_PERSISTENCE, error);
+                    return LoginResult.FAILURE_EXCEPTION;
                 }
             }
 
@@ -166,6 +169,30 @@ public class LoginStateManager {
             AuthLogPolicy.logFailure(TAG, AuthLogPolicy.Failure.ID_TOKEN, e);
             return LoginResult.FAILURE_EXCEPTION;
         }
+    }
+
+    /**
+     * A remote login must not create half a local patient record: all three
+     * default routine entries and the patient row commit together or none do.
+     * Kept package-private for SQLite failure-injection tests.
+     */
+    static void createLocalPatientAndRoutines(Patient patient, Context context) {
+        if (patient == null || context == null || patient.getCode() == null
+                || patient.getCode().trim().isEmpty() || patient.getId() != null) {
+            throw new IllegalArgumentException("New login requires an unsaved patient identity");
+        }
+        DB.transaction(() -> {
+            if (DB.patients().create(patient) != 1 || patient.getId() == null) {
+                throw new SQLException("Unable to create local authenticated patient");
+            }
+            DefaultDataGenerator.generateDefaultRoutines(patient, context);
+            // The generator uses void DAO.save calls. Verify all initial
+            // entries before marking this authenticated profile usable.
+            if (DB.routines().findAll(patient.getId()).size() < 3) {
+                throw new SQLException("Incomplete default routines for new patient");
+            }
+            return null;
+        });
     }
 
     /**
