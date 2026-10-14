@@ -50,22 +50,25 @@ public class ProviderDocumentOwnerSmokeTest {
             DB.patients().setActive(first);
             Long originalId = DB.patients().getActive(context).getId();
             GetExtraInfoEvent oldResponse = new GetExtraInfoEvent(
-                    GetExtraInfoEvent.Status.SUCCESS, "/cache/synthetic.pdf", originalId);
+                    GetExtraInfoEvent.Status.SUCCESS, "/cache/synthetic.pdf", originalId, 192);
             assertTrue(ProviderDocumentGuard.canAcceptResponse(
                     originalId, DB.patients().getActive(context).getId(),
-                    oldResponse.getPatientId()));
+                    oldResponse.getPatientId(), 192, oldResponse.getJobId()));
 
             DB.patients().setActive(second);
             Long newActiveId = DB.patients().getActive(context).getId();
             assertEquals(second.getId(), newActiveId);
             assertFalse("A delayed PDF for patient A cannot appear for patient B",
                     ProviderDocumentGuard.canAcceptResponse(
-                            originalId, newActiveId, oldResponse.getPatientId()));
+                            originalId, newActiveId, oldResponse.getPatientId(), 192,
+                            oldResponse.getJobId()));
             assertFalse("The new patient's viewer cannot accept patient A's PDF",
                     ProviderDocumentGuard.canAcceptResponse(
-                            newActiveId, newActiveId, oldResponse.getPatientId()));
+                            newActiveId, newActiveId, oldResponse.getPatientId(), 192,
+                            oldResponse.getJobId()));
             assertFalse("Legacy ownerless success events must fail closed",
-                    ProviderDocumentGuard.canAcceptResponse(newActiveId, newActiveId, null));
+                    ProviderDocumentGuard.canAcceptResponse(newActiveId, newActiveId, null,
+                            192, oldResponse.getJobId()));
         } finally {
             if (previous != null && previous.getId() != null
                     && DB.patients().findById(previous.getId()) != null) {
