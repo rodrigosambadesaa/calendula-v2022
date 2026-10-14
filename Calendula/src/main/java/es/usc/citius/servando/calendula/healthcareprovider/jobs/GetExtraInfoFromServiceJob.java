@@ -268,16 +268,13 @@ public class GetExtraInfoFromServiceJob extends Job {
                     LogUtil.w(TAG, "Token renewal timed out");
                     result.setResult(Status.ERROR_NO_CONNECTION);
                 } else if (usableTokenReturned.get()) {
-                    AuthState current = LoginStateManager.getInstance().getCurrentAuthState();
-                    if (current == null
-                            || !originalCredentials.equals(current.jsonSerializeString())) {
+                    if (!LoginStateManager.getInstance()
+                            .updateAuthStateIfUnchanged(originalCredentials, authState)) {
                         // Another login/logout or token refresh won the race.
                         // Treat a changed session as a harmless stale job.
                         // ERROR_AUTHORIZATION logs out the current user and
                         // must never be used for this race.
                         result.setResult(Status.ERROR_GENERIC);
-                    } else {
-                        LoginStateManager.getInstance().updateAuthState(authState);
                     }
                 }
             } catch (InterruptedException interrupted) {
