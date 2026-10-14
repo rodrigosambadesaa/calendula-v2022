@@ -219,7 +219,27 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
         }
 
         if (mMedicineId != -1) {
-            mMedicine = Medicine.findById(mMedicineId);
+            // Repeat the launch authorization just before loading the
+            // medicine into UI fields: an internal intent ID is not permission
+            // to display another patient's treatment, even temporarily.
+            Medicine current = mMedicineId > 0L
+                    ? DB.medicines().findById(mMedicineId) : null;
+            es.usc.citius.servando.calendula.persistence.Patient activePatient =
+                    DB.patients().getActive(getContext());
+            Long activeId = activePatient == null ? null : activePatient.getId();
+            if (current == null || DB.medicines().refresh(current) != 1
+                    || !MedicineEditorOwnershipGuard.canEdit(
+                        editorPatientId, activeId, mMedicineId,
+                        current.getPatient() == null ? null : current.getPatient().getId(),
+                        current.getId(),
+                        current.getPatient() == null ? null : current.getPatient().getId())) {
+                mMedicine = null;
+                if (getActivity() != null) {
+                    getActivity().finish();
+                }
+                return rootView;
+            }
+            mMedicine = current;
         }
 
         addPresentations(rootView);
