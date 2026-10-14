@@ -27,6 +27,21 @@ public class ProviderDocumentGuardTest {
     }
 
     @Test
+    public void twoConcurrentViewersForSamePatientMustNotReceiveEachOthersResult() {
+        assertTrue(ProviderDocumentGuard.canAcceptResponse(42L, 42L, 42L, 15, 15));
+        assertFalse(ProviderDocumentGuard.canAcceptResponse(42L, 42L, 42L, 15, 16));
+        assertFalse(ProviderDocumentGuard.canAcceptResponse(42L, 42L, 42L, -1, 15));
+        assertFalse(ProviderDocumentGuard.canAcceptResponse(42L, 42L, 42L, 15, -1));
+        GetExtraInfoEvent first = new GetExtraInfoEvent(
+                GetExtraInfoEvent.Status.SUCCESS, "/cache/example.pdf", 42L, 15);
+        assertEquals(15, first.getJobId());
+        assertTrue(ProviderDocumentGuard.canAcceptResponse(
+                42L, 42L, first.getPatientId(), 15, first.getJobId()));
+        assertFalse(ProviderDocumentGuard.canAcceptResponse(
+                42L, 42L, first.getPatientId(), 16, first.getJobId()));
+    }
+
+    @Test
     public void eventPreservesTheOwnerAndLegacyUnknownOwnerFailsClosed() {
         GetExtraInfoEvent scoped =
                 new GetExtraInfoEvent(GetExtraInfoEvent.Status.SUCCESS, "/cache/example.pdf", 42L);
