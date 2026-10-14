@@ -59,13 +59,32 @@ public class AllergyPatientAlert extends PatientAlert<AllergyPatientAlert, Aller
         setDetails(new AllergyAlertInfo(allergens));
     }
 
-    private static Spanned genAllergenList(AllergyPatientAlert alert) {
-        List<AllergenVO> vos = alert.getDetails().allergens;
-        List<String> titles = new ArrayList<>(vos.size());
-        for (AllergenVO vo : vos) {
-            titles.add(vo.getName());
+    private static Spanned genAllergenList(PatientAlert incoming, Context context) {
+        // Old imports may omit details, contain null items or have names that
+        // cannot be recovered. Keep the HIGH warning visible and explicitly
+        // describe missing detail instead of crashing or hiding risk.
+        final String unavailable = context.getString(R.string.allergy_details_unavailable);
+        try {
+            AllergyPatientAlert alert = incoming instanceof AllergyPatientAlert
+                    ? (AllergyPatientAlert) incoming
+                    : (AllergyPatientAlert) incoming.map();
+            AllergyAlertInfo details = alert.getDetails();
+            List<AllergenVO> vos = details == null ? null : details.getAllergens();
+            if (vos == null || vos.isEmpty()) {
+                return Html.fromHtml(unavailable);
+            }
+            List<String> titles = new ArrayList<>(vos.size());
+            for (AllergenVO vo : vos) {
+                titles.add(vo == null ? null : vo.getName());
+            }
+            if (!AllergyAlertPresentationGuard.hasCompleteNames(titles)) {
+                return Html.fromHtml(unavailable);
+            }
+            return Strings.genBulletList(titles);
+        } catch (RuntimeException invalidDetails) {
+            // No clinical identifiers or exception contents in device logs.
+            return Html.fromHtml(unavailable);
         }
-        return Strings.genBulletList(titles);
     }
 
     @Override
@@ -121,7 +140,7 @@ public class AllergyPatientAlert extends PatientAlert<AllergyPatientAlert, Aller
             viewHolder.alertIcon.setImageDrawable(icon);
             viewHolder.title.setText(R.string.title_alert_allergy);
             viewHolder.description.setText(Html.fromHtml(viewHolder.description.getContext().getString(R.string.description_alert_allergy)));
-            viewHolder.allergens.setText(genAllergenList((AllergyPatientAlert) alert));
+            viewHolder.allergens.setText(genAllergenList(alert, viewHolder.context));
         }
 
         public static class AllergyAlertViewHolder extends RecyclerView.ViewHolder {
