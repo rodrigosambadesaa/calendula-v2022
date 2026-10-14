@@ -143,8 +143,12 @@ public class RecurringEvent {
                         continue;
                     }
                     else if (isEqualOrAfter(time, until) || isEqualOrAfterEnd(time)) {
-                        LogUtil.d(TAG, "Next fixedTime is out of range, stop. [" + time.toString(f) + "]");
-                        break;
+                        // Fixed times are stored in patient/routine order, not
+                        // guaranteed chronological order. A late occurrence
+                        // must not suppress a later-listed earlier valid dose.
+                        // The outer recurrence iterator controls the day limit.
+                        LogUtil.d(TAG, "Fixed time is outside requested window");
+                        continue;
                     }
                     occurrences.add(new EventTimeInfo(time, rep.offset()));
                 }
