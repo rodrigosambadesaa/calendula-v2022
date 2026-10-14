@@ -430,6 +430,15 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
             }
         }
 
+        // Managed inventory must be finite and non-negative at SAVE time.
+        // This guard intentionally belongs in onEdit(), not the text watcher.
+        if (stockSwitch.isChecked() && !MedicineStockInputGuard.usableStock(stock)) {
+            if (getActivity() != null) {
+                Snack.show(R.string.medicine_stock_amount_invalid, getActivity());
+            }
+            return;
+        }
+
         String name = mNameTextView.getText().toString();
 
         if (name != null && name.length() > 0) {
@@ -523,16 +532,20 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
     }
 
     @Override
-    public void onDialogNumberSet(int reference, BigInteger number, double decimal, boolean isNegative, BigDecimal fullNumber) {
-        float amount = fullNumber.floatValue();
-        if (reference == DIALOG_STOCK_ADD) {
-            stock = (stock == -1) ? amount : (stock + amount);
-        } else if (reference == DIALOG_STOCK_REMOVE) {
-            if (amount >= stock)
-                stock = 0;
-            else
-                stock -= amount;
+    public void onDialogNumberSet(int reference, BigInteger number, double decimal,
+                                  boolean isNegative, BigDecimal fullNumber) {
+        if (reference != DIALOG_STOCK_ADD && reference != DIALOG_STOCK_REMOVE) {
+            return;
         }
+        Float updated = isNegative ? null : MedicineStockInputGuard.adjust(
+                stock, fullNumber, reference == DIALOG_STOCK_ADD);
+        if (updated == null) {
+            if (getActivity() != null) {
+                Snack.show(R.string.medicine_stock_amount_invalid, getActivity());
+            }
+            return;
+        }
+        stock = updated;
         computeEstimatedStockEndAsync();
     }
 
