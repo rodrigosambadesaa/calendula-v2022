@@ -66,7 +66,7 @@ public class HtmlCacheManager {
         if (patientId == null || patientId <= 0L || url == null || url.isEmpty()) {
             return null;
         }
-        return "patient:" + patientId + "\u001f" + url;
+        return "patient:" + patientId + ":" + url;
     }
 
     public boolean isCachedForPatient(Long patientId, String url) {
