@@ -121,5 +121,5 @@ public class SetupDatabaseModule extends CalendulaModule {
         }
         LogUtil.d(TAG, "A newer bundled medication catalog is available");
         return bundledVersion;
-    }}
+    }
 }
