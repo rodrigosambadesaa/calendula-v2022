@@ -638,6 +638,10 @@ public class RecurringEvent {
                         "ActiveDays can not be null on cyclic events");
                 fail(event.cycleInactiveDays == null || event.cycleInactiveDays < 1,
                         "InactiveDays can not be null on cyclic events");
+                fail(event.cycleActiveDays != null && event.cycleInactiveDays != null
+                                && (long) event.cycleActiveDays + event.cycleInactiveDays
+                                        > Integer.MAX_VALUE,
+                        "Medication cycle length must not overflow");
             }
 
             if (event.recurrence.getInterval() > 0) {
