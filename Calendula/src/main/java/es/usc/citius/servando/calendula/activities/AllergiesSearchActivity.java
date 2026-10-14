@@ -314,6 +314,20 @@ public class AllergiesSearchActivity extends CalendulaActivity {
         }
     }
 
+    private void cancelPendingSearch() {
+        ++searchGeneration;
+        if (searchTask != null) {
+            searchTask.cancel(true);
+            searchTask = null;
+        }
+        if (searchAdapter != null) {
+            searchAdapter.deselect();
+            searchAdapter.clear();
+        }
+        selectLayout.setVisibility(View.GONE);
+        progressBar.setVisibility(View.GONE);
+    }
+
     private void doSearch() {
         final String filter = searchEditText.getText().toString().trim();
         if (!stillOwnsSearch()) {
@@ -331,13 +345,34 @@ public class AllergiesSearchActivity extends CalendulaActivity {
             progressBar.setVisibility(View.VISIBLE);
 
             searchTask = SEARCH_EXECUTOR.submit(() -> {
-                final List<AbstractItem> items = performSearch(filter);
+                final List<AbstractItem> items;
+                try {
+                    items = performSearch(filter);
+                } catch (RuntimeException failure) {
+                    // Unusable catalog data should dismiss the spinner but
+                    // must not echo a patient query or other private values.
+                    LogUtil.w(TAG, "Allergen catalog search failed");
+                    runOnUiThread(() -> {
+                        if (!isFinishing() && !isDestroyed()
+                                && AllergenSearchRequestGuard.isCurrent(
+                                    generation, searchGeneration, filter,
+                                    searchEditText.getText().toString().trim())) {
+                            progressBar.setVisibility(View.GONE);
+                            searchTask = null;
+                            checkSearchPlaceholder();
+                        }
+                    });
+                    return;
+                }
                 if (Thread.currentThread().isInterrupted()) {
                     return;
                 }
 
                 runOnUiThread(() -> {
-                    if (generation != searchGeneration || isFinishing() || isDestroyed()) {
+                    if (isFinishing() || isDestroyed()
+                            || !AllergenSearchRequestGuard.isCurrent(
+                                generation, searchGeneration, filter,
+                                searchEditText.getText().toString().trim())) {
                         return;
                     }
                     if (!stillOwnsSearch()) {
@@ -350,6 +385,11 @@ public class AllergiesSearchActivity extends CalendulaActivity {
                     searchTask = null;
                 });
             });
+        } else {
+            // Backspacing below the minimum length must invalidate any
+            // pending longer query rather than showing stale allergen data.
+            cancelPendingSearch();
+            checkSearchPlaceholder();
         }
     }
 
@@ -417,16 +457,8 @@ public class AllergiesSearchActivity extends CalendulaActivity {
                 } else {
                     if (closeSearchButton.getVisibility() == View.VISIBLE)
                         closeSearchButton.setVisibility(View.GONE);
-                    if (searchAdapter.getItemCount() > 0) {
-                        searchAdapter.deselect();
-                        searchAdapter.clear();
-                    }
-                    new Handler().postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            checkSearchPlaceholder();
-                        }
-                    }, 200);
+                    cancelPendingSearch();
+                    checkSearchPlaceholder();
                 }
             }
         });
