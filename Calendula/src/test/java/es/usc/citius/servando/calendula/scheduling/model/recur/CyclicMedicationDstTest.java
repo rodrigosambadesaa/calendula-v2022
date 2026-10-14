@@ -67,6 +67,12 @@ public class CyclicMedicationDstTest {
         assertFalse(RecurringEvent.isActiveOnCycleDay(first, first.minusMinutes(1), 2, 3));
     }
 
+    @Test(expected = RecurringEvent.InvalidRecurringEventException.class)
+    public void builderCannotPersistOverflowingCycleLength() throws Exception {
+        new RecurringEvent.Builder().repeatCyclic(Integer.MAX_VALUE, 1)
+                .from(local(3, 28)).build();
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void invalidRestDaysDoNotBecomeDivisionByZero() {
         RecurringEvent.isActiveOnCycleDay(local(3, 28), local(3, 29), 0, 0);
