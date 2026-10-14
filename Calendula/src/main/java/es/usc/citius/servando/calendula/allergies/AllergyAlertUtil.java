@@ -24,7 +24,6 @@ import com.j256.ormlite.stmt.PreparedQuery;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.Callable;
 
@@ -44,13 +43,15 @@ public class AllergyAlertUtil {
 
 
     public static List<PatientAlert> getAlertsForMedicine(final Medicine m) throws SQLException {
-        LogUtil.d(TAG, "getAlertsForMedicine: lookup started");
-        HashMap<String, Object> query = new HashMap<String, Object>() {{
-            put(PatientAlert.COLUMN_TYPE, AllergyPatientAlert.class.getCanonicalName());
-            put(PatientAlert.COLUMN_PATIENT, m.getPatient());
-            put(PatientAlert.COLUMN_MEDICINE, m);
-        }};
-        return DB.alerts().queryForFieldValuesArgs(query);
+        LogUtil.d(TAG, "getAlertsForMedicine: verified lookup started");
+        if (m == null || m.getPatient() == null) {
+            throw new IllegalArgumentException("Persisted medicine and patient required");
+        }
+        // Generic field queries only compare IDs. A stale medicine object
+        // could hide alerts for a newly assigned owner or expose corrupted
+        // cross-patient rows. The scoped DAO refreshes and checks both owners.
+        return DB.alerts().findByPatientMedicineAndType(m.getPatient(), m,
+                AllergyPatientAlert.class.getCanonicalName());
     }
 
     /**
@@ -62,16 +63,16 @@ public class AllergyAlertUtil {
 
         LogUtil.d(TAG, "removeAllergyAlerts: medicine lookup started");
         final List<PatientAlert> alerts = getAlertsForMedicine(m);
-        DB.transaction(new Callable<Object>() {
-            @Override
-            public Object call() throws Exception {
-                for (PatientAlert alert : alerts) {
-                    DB.alerts().remove(alert);
-                }
-                LogUtil.d(TAG, "removeAllergyAlerts: Removed " + alerts.size() + " alerts");
-                return null;
-            }
-        });
+        // Allergy alerts are HIGH clinical warnings that block treatment
+        // schedules. A raw DAO deletion left those schedules BLOCKED forever.
+        // AlertManager validates every persisted owner, deletes atomically and
+        // unblocks the schedule only if no other HIGH alert remains.
+        // Do not wrap the following in an *outer* transaction: alarm and
+        // schedule changes must occur after each committed alert deletion.
+        for (PatientAlert alert : alerts) {
+            AlertManager.removeAlert(alert);
+        }
+        LogUtil.d(TAG, "removeAllergyAlerts: Removed " + alerts.size() + " alerts");
 
     }
 
