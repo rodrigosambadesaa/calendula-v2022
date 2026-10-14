@@ -264,9 +264,12 @@ public class GetExtraInfoFromServiceJob extends Job {
                                 result.setResult(Status.ERROR_GENERIC);
                             }
                         }));
+                // Return a fixed timeout result. A callback which began just
+                // before the deadline can still finish after the gate closes;
+                // it must not overwrite the worker's failure outcome.
                 if (!gate.await(45, TimeUnit.SECONDS)) {
                     LogUtil.w(TAG, "Token renewal timed out");
-                    result.setResult(Status.ERROR_NO_CONNECTION);
+                    return Status.ERROR_NO_CONNECTION;
                 } else if (usableTokenReturned.get()) {
                     if (!LoginStateManager.getInstance()
                             .updateAuthStateIfUnchanged(originalCredentials, authState)) {
@@ -279,10 +282,10 @@ public class GetExtraInfoFromServiceJob extends Job {
                 }
             } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
-                result.setResult(Status.ERROR_GENERIC);
+                return Status.ERROR_GENERIC;
             } catch (RuntimeException startFailure) {
                 LogUtil.w(TAG, "Could not start token renewal");
-                result.setResult(Status.ERROR_GENERIC);
+                return Status.ERROR_GENERIC;
             } finally {
                 gate.close();
                 try {
