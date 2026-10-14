@@ -28,11 +28,6 @@ import android.widget.Toast;
 import com.google.zxing.integration.android.IntentIntegrator;
 import com.google.zxing.integration.android.IntentResult;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.io.StringWriter;
-import java.util.zip.GZIPInputStream;
 
 import es.usc.citius.servando.calendula.CalendulaActivity;
 import es.usc.citius.servando.calendula.R;
@@ -59,20 +54,32 @@ public class ScanActivity extends CalendulaActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        int color = DB.patients().getActive(this).getColor();
+        Intent source = getIntent();
+        // The scanned token is patient-private. Do not trust redirect package
+        // and class supplied in the launching intent, even inside the app.
+        if (source == null || !ScannedPatientLinkGuard.isValidRoute(
+                source.getStringExtra("after_scan_pkg"),
+                source.getStringExtra("after_scan_cls"), getPackageName())) {
+            finish();
+            return;
+        }
+        patientId = source.getLongExtra("patient_id", -1L);
+        if (!ScannedPatientLinkGuard.isValidPatientId(patientId)
+                || DB.patients().findById(patientId) == null) {
+            finish();
+            return;
+        }
+        es.usc.citius.servando.calendula.persistence.Patient active =
+                DB.patients().getActive(this);
+        if (active == null) {
+            finish();
+            return;
+        }
         setContentView(R.layout.activity_scan);
+        int color = active.getColor();
         setupStatusBar(color);
         findViewById(R.id.container).setBackgroundColor(color);
-        findViewById(R.id.button).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                doScan();
-            }
-        });
-
-        afterScanPkg = getIntent().getStringExtra("after_scan_pkg");
-        afterScanCls = getIntent().getStringExtra("after_scan_cls");
-        patientId = getIntent().getLongExtra("patient_id", -1);
+        findViewById(R.id.button).setOnClickListener(v -> doScan());
     }
 
     @Override
@@ -84,62 +91,39 @@ public class ScanActivity extends CalendulaActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        IntentResult result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data);
-
-
-        if (result != null && requestCode == IntentIntegrator.REQUEST_CODE && data != null) {
-
-
-            if (result.getContents() == null) {
-                Toast.makeText(this, "Cancelled", Toast.LENGTH_LONG).show();
-            } else {
-
-                boolean gziped = false;
-                String content = result.getContents();
-
-                // Never write scanned payloads to Logcat: they may contain patient/medical data.
-                LogUtil.d(TAG, "QR scan received; encoded length=" + content.length());
-
-                // first, decode base64 QR content
-                byte[] raw = Base64.decode(content.getBytes(), Base64.DEFAULT);
-
-                LogUtil.d(TAG, "Decoded QR payload length=" + raw.length);
-
-                // now, try decompress GZIP
-                if (raw[0] == (byte) 0x1f && raw[1] == (byte) 0x8b) {
-                    LogUtil.d(TAG, "Has GZIP magic");
-
-                    Reader reader;
-                    StringWriter writer;
-                    try {
-                        ByteArrayInputStream is = new ByteArrayInputStream(raw);
-                        GZIPInputStream gis = new GZIPInputStream(is);
-                        reader = new InputStreamReader(gis);
-                        writer = new StringWriter();
-
-                        char[] buffer = new char[10240];
-                        for (int length; (length = reader.read(buffer)) > 0; ) {
-                            writer.write(buffer, 0, length);
-                        }
-
-                        content = writer.toString();
-                        LogUtil.d(TAG, "Unzipped QR payload length=" + content.length());
-
-                    } catch (Exception e) {
-                        LogUtil.e(TAG, "Error unzipping qr contents", e);
-                    }
-                }
-
-                Intent intent = new Intent();
-                intent.setClassName(afterScanPkg, afterScanCls);
-                Bundle b = new Bundle();
-                b.putString("qr_data", content);
-                b.putLong("patient_id", patientId);
-                intent.putExtras(b);
-                startActivity(intent);
-                finish();
-            }
+        if (requestCode != IntentIntegrator.REQUEST_CODE || resultCode != RESULT_OK
+                || data == null || !ScannedPatientLinkGuard.isValidPatientId(patientId)
+                || DB.patients().findById(patientId) == null) {
+            return;
         }
+
+        IntentResult result = IntentIntegrator.parseActivityResult(
+                requestCode, resultCode, data);
+        String contents = result == null ? null : result.getContents();
+        if (!ScannedPatientLinkGuard.canDecode(contents)) {
+            Toast.makeText(this, R.string.patient_qr_invalid, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final String payload;
+        try {
+            // Android Base64 decoding may throw for malformed QR input. Bounds
+            // are enforced both before decode and during GZIP inflation.
+            byte[] raw = Base64.decode(contents, Base64.DEFAULT);
+            payload = ScannedPatientLinkGuard.decodePayload(contents, raw);
+        } catch (IllegalArgumentException | java.io.IOException malformed) {
+            // Do not log the scanned bytes: they can include private tokens.
+            LogUtil.w(TAG, "Rejected malformed or oversized patient QR");
+            Toast.makeText(this, R.string.patient_qr_invalid, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Only the internal patient-detail screen may receive a patient-link
+        // token. Never use arbitrary class/package values from the caller.
+        Intent internal = new Intent(this, PatientDetailActivity.class);
+        internal.putExtra("qr_data", payload);
+        internal.putExtra("patient_id", patientId);
+        startActivity(internal);
+        finish();
     }
 
 }
