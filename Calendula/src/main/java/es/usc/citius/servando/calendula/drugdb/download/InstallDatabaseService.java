@@ -517,6 +517,11 @@ public class InstallDatabaseService extends Service {
 
     @Override
     public void onDestroy() {
+        // Unexpected Service teardown (process lifecycle, OS shutdown or
+        // interrupted catalog setup) may bypass onComplete/onFailure. Never
+        // leave the in-process install indicator stuck as "in progress".
+        // The next genuine start will explicitly set it back to true.
+        isRunning = false;
         databaseExecutor.shutdownNow();
         super.onDestroy();
     }
