@@ -242,7 +242,7 @@ public class WebViewActivity extends CalendulaActivity {
         }
 
 
-        LogUtil.d(TAG, "Opening URL: " + originalUrl);
+        LogUtil.d(TAG, "Opening an embedded web document");
 
         //setup progressDialog
         String loadingMessage = request.getLoadingMessage();
@@ -315,7 +315,7 @@ public class WebViewActivity extends CalendulaActivity {
                 preflightApprovedUrl = null;
             }
         } else {
-            LogUtil.w(TAG, "Backend preflight failed for URL: " + targetUrl);
+            LogUtil.w(TAG, "Embedded web navigation failed backend preflight");
             showErrorToast(webRequest.getConnectionErrorMessage());
             hideLoading();
             finish();
@@ -513,7 +513,7 @@ public class WebViewActivity extends CalendulaActivity {
                 // the launch directly and handle the no-handler case explicitly.
                 startActivity(externalIntent);
             } catch (ActivityNotFoundException e) {
-                LogUtil.w(TAG, "No activity can handle external WebView URI: " + targetUrl);
+                LogUtil.w(TAG, "No activity can handle an external embedded-web link");
                 showErrorToast(request.getConnectionErrorMessage());
             }
             return true;
@@ -542,7 +542,7 @@ public class WebViewActivity extends CalendulaActivity {
                 return null;
             }
 
-            LogUtil.w(TAG, "Blocking WebView request after failed mandatory preflight: " + targetUrl);
+            LogUtil.w(TAG, "Blocking embedded-web request after mandatory preflight");
             return new WebResourceResponse(
                     "text/plain",
                     "UTF-8",
@@ -555,7 +555,7 @@ public class WebViewActivity extends CalendulaActivity {
             pageLoaded = true;
             final String pageTitle = view.getTitle();
             if (loadError || (pageTitle != null && pageTitle.matches(HTTP_ERROR_REGEXP))) {
-                LogUtil.e(TAG, "Received HTTP error, page title is: " + pageTitle);
+                LogUtil.e(TAG, "Embedded web document returned an HTTP error");
                 showErrorToast(request.getNotFoundErrorMessage());
                 hideLoading();
                 WebViewActivity.this.finish();
@@ -579,7 +579,7 @@ public class WebViewActivity extends CalendulaActivity {
                             hideLoading();
                         }
                     }, 200);
-                    LogUtil.d(TAG, "Finished loading URL: " + url);
+                    LogUtil.d(TAG, "Embedded web document loaded");
                 }
             }
         }
@@ -638,7 +638,7 @@ public class WebViewActivity extends CalendulaActivity {
                     }
 
                 } catch (Exception e) {
-                    LogUtil.e(TAG, "Error trying to post process content", e);
+                    LogUtil.e(TAG, "Embedded web document postprocessing failed");
                 }
             }
             // in other case, simply write html content to cache
