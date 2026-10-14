@@ -5,6 +5,7 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.pdf.PdfRenderer;
 import android.net.http.SslError;
+import android.os.BadParcelableException;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.ParcelFileDescriptor;
@@ -223,7 +224,14 @@ public class PdfViewActivity extends CalendulaActivity {
         handler = new Handler();
 
         //check for request and URL and finish if not present
-        request = getIntent().getParcelableExtra(PARAM_PDFVIEW_REQUEST);
+        try {
+            request = getIntent().getParcelableExtra(PARAM_PDFVIEW_REQUEST);
+        } catch (BadParcelableException | IllegalArgumentException invalidRequest) {
+            LogUtil.w(TAG, "Corrupted provider PDF view request");
+            showErrorToast(null);
+            finish();
+            return;
+        }
         Patient patient = DB.patients().getActive(this);
         if (request == null || patient == null || patient.getId() == null
                 || patient.getId() <= 0L) {
