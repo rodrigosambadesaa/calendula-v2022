@@ -517,11 +517,11 @@ public class ActiveMedicationListFragment extends Fragment {
             if (first == second) {
                 return 0;
             }
-            if (first == null || first.getVo() == null) {
-                return 1;
-            }
-            if (second == null || second.getVo() == null) {
-                return -1;
+            boolean firstMissing = first == null || first.getVo() == null;
+            boolean secondMissing = second == null || second.getVo() == null;
+            if (firstMissing || secondMissing) {
+                // Comparing two invalid/empty legacy rows must also return 0.
+                return Boolean.compare(firstMissing, secondMissing);
             }
             final ActiveMedVO left = first.getVo();
             final ActiveMedVO right = second.getVo();
