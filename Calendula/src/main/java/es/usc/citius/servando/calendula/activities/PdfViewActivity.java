@@ -328,8 +328,21 @@ public class PdfViewActivity extends CalendulaActivity {
     }
 
     private void hideLoading() {
-        if (loadingDialog != null)
-            loadingDialog.dismiss();
+        // GetExtraInfoEvent can arrive on the background job's posting thread.
+        // The Dialog owns a window and must only be dismissed on Android's UI
+        // thread. Keep PDF rendering on the worker instead of switching the
+        // entire EventBus subscriber to the main thread.
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            if (loadingDialog != null && !isDestroyed()) {
+                loadingDialog.dismiss();
+            }
+        } else {
+            runOnUiThread(() -> {
+                if (loadingDialog != null && !isDestroyed()) {
+                    loadingDialog.dismiss();
+                }
+            });
+        }
     }
 
     private void showProgressDialog(String loadingMsg) {
