@@ -137,6 +137,30 @@ public class WebViewActivity extends CalendulaActivity {
         }
     }
 
+    @Override
+    protected void onDestroy() {
+        // A finished leaflet viewer must not retain an Activity through its
+        // JS bridge, WebView callbacks or delayed patient-specific rendering.
+        if (handler != null) {
+            handler.removeCallbacksAndMessages(null);
+        }
+        if (webView != null) {
+            webView.stopLoading();
+            webView.removeJavascriptInterface("HtmlCache");
+            webView.setWebViewClient(null);
+            if (webView.getParent() instanceof android.view.ViewGroup) {
+                ((android.view.ViewGroup) webView.getParent()).removeView(webView);
+            }
+            webView.destroy();
+            webView = null;
+        }
+        if (loadingDialog != null) {
+            loadingDialog.dismiss();
+            loadingDialog = null;
+        }
+        super.onDestroy();
+    }
+
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_webview);
