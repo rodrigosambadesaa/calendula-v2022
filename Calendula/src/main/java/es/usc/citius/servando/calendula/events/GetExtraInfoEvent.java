@@ -4,10 +4,35 @@ public class GetExtraInfoEvent {
 
     private final Status status;
     private final String url;
+    private final Long patientId;
+    private final int jobId;
 
     public GetExtraInfoEvent(final Status status, String url) {
+        this(status, url, null, -1);
+    }
+
+    public GetExtraInfoEvent(final Status status, String url, Long patientId) {
+        this(status, url, patientId, -1);
+    }
+
+    public GetExtraInfoEvent(final Status status, String url, Long patientId, int jobId) {
         this.status = status;
         this.url = url;
+        this.patientId = patientId;
+        this.jobId = jobId;
+    }
+
+    /** Exact asynchronous request identity, or -1 for legacy status events. */
+    public int getJobId() {
+        return jobId;
+    }
+
+    /**
+     * Persistent owner ID of the PDF request. A null ID never authorizes
+     * showing patient-specific provider content.
+     */
+    public Long getPatientId() {
+        return patientId;
     }
 
     public Status getStatus() {

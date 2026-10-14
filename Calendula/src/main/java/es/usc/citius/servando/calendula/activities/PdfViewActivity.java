@@ -5,6 +5,7 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.pdf.PdfRenderer;
 import android.net.http.SslError;
+import android.os.BadParcelableException;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.ParcelFileDescriptor;
@@ -42,6 +43,7 @@ import es.usc.citius.servando.calendula.CalendulaActivity;
 import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.database.DB;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.events.GetExtraInfoEvent;
 import es.usc.citius.servando.calendula.healthcareprovider.jobs.GetExtraInfoFromServiceJob;
 import es.usc.citius.servando.calendula.util.HtmlCacheManager;
@@ -64,10 +66,14 @@ public class PdfViewActivity extends CalendulaActivity {
 
     private WebView webView;
     private String url;
+    private Long openedPatientId;
+    private int requestedJobId = -1;
 
     @Override
     protected void onDestroy() {
-        CalendulaApp.eventBus().unregister(this);
+        if (CalendulaApp.eventBus().isRegistered(this)) {
+            CalendulaApp.eventBus().unregister(this);
+        }
         super.onDestroy();
     }
 
@@ -77,8 +83,25 @@ public class PdfViewActivity extends CalendulaActivity {
     public void handleExtraInfo(final GetExtraInfoEvent event) {
 
 
+        if (event == null || event.getStatus() == null || isFinishing() || isDestroyed()) {
+            return;
+        }
+        Patient currentPatient = DB.patients().getActive(this);
+        Long activeId = currentPatient == null ? null : currentPatient.getId();
+        if (!ProviderDocumentGuard.samePatient(openedPatientId, activeId)) {
+            // The patient was removed or switched while a provider request was
+            // running. Never keep the old medical document visible.
+            handler.post(this::finish);
+            return;
+        }
+        if (!ProviderDocumentGuard.canAcceptResponse(
+                openedPatientId, activeId, event.getPatientId(),
+                requestedJobId, event.getJobId())) {
+            // Global event bus: another viewer's response is not ours.
+            return;
+        }
         url = event.getUrl();
-        LogUtil.d(TAG, "GetExtraInfoEvent received. Status: " + event.getStatus().name());
+        LogUtil.d(TAG, "Patient-scoped provider document update received");
 
         switch (event.getStatus()) {
             case REQUEST_START:
@@ -129,8 +152,8 @@ public class PdfViewActivity extends CalendulaActivity {
                 File pdfFile = url == null ? null : new File(url);
                 String imageDataUrl = null;
                 try {
-                    if (pdfFile == null || !pdfFile.isFile()) {
-                        throw new IOException("Downloaded PDF is unavailable");
+                    if (!ProviderPdfFilePolicy.isTrustedPdf(getCacheDir(), pdfFile)) {
+                        throw new IOException("Downloaded PDF is not a trusted private cache file");
                     }
                     try (ParcelFileDescriptor descriptor = ParcelFileDescriptor.open(
                             pdfFile, ParcelFileDescriptor.MODE_READ_ONLY);
@@ -170,7 +193,8 @@ public class PdfViewActivity extends CalendulaActivity {
                 } finally {
                     // Temporary provider documents should not remain in storage,
                     // including after a failed or malformed download.
-                    if (pdfFile != null && pdfFile.isFile() && !pdfFile.delete()) {
+                    if (ProviderPdfFilePolicy.isTrustedPdf(getCacheDir(), pdfFile)
+                            && !pdfFile.delete()) {
                         LogUtil.w(TAG, "Could not clean up provider PDF temporary file");
                     }
                 }
@@ -178,7 +202,11 @@ public class PdfViewActivity extends CalendulaActivity {
                 if (imageDataUrl != null) {
                     final String previewUrl = imageDataUrl;
                     handler.post(() -> {
-                        if (isFinishing() || isDestroyed()) {
+                        Patient active = DB.patients().getActive(this);
+                        if (isFinishing() || isDestroyed()
+                                || !ProviderDocumentGuard.samePatient(openedPatientId,
+                                        active == null ? null : active.getId())) {
+                            finish();
                             return;
                         }
                         webView.setWebViewClient(new PdfViewActivity.CustomWebViewClient(request));
@@ -196,18 +224,28 @@ public class PdfViewActivity extends CalendulaActivity {
         handler = new Handler();
 
         //check for request and URL and finish if not present
-        request = getIntent().getParcelableExtra(PARAM_PDFVIEW_REQUEST);
-        if (request == null) {
-            LogUtil.e(TAG, "onCreate: No PdfViewRequest provided in intent!");
+        try {
+            request = getIntent().getParcelableExtra(PARAM_PDFVIEW_REQUEST);
+        } catch (BadParcelableException | IllegalArgumentException invalidRequest) {
+            LogUtil.w(TAG, "Corrupted provider PDF view request");
             showErrorToast(null);
             finish();
+            return;
+        }
+        Patient patient = DB.patients().getActive(this);
+        if (request == null || patient == null || patient.getId() == null
+                || patient.getId() <= 0L) {
+            LogUtil.w(TAG, "Provider document request has no valid active patient");
+            showErrorToast(null);
+            finish();
+            return;
         } else {
-
+            openedPatientId = patient.getId();
             webView = (WebView) findViewById(R.id.webView1);
             toolbarShadow = findViewById(R.id.tabs_shadow);
 
             //setup toolbar and statusbar
-            color = DB.patients().getActive(this).getColor();
+            color = patient.getColor();
             String title = request.getTitle();
             setupToolbar(title, color);
             setupStatusBar(color);
@@ -216,7 +254,13 @@ public class PdfViewActivity extends CalendulaActivity {
             setupWebView(request);
 
             CalendulaApp.eventBus().register(this);
-            GetExtraInfoFromServiceJob.scheduleOneShot(false);
+            requestedJobId = GetExtraInfoFromServiceJob.scheduleOneShot(
+                    false, openedPatientId);
+            if (requestedJobId <= 0) {
+                LogUtil.w(TAG, "Could not schedule a patient-scoped provider document request");
+                showErrorToast(null);
+                finish();
+            }
         }
 
     }

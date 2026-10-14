@@ -31,10 +31,12 @@ import net.openid.appauth.AuthorizationService;
 
 import org.joda.time.DateTime;
 
+import java.io.File;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 import es.usc.citius.servando.calendula.database.DB;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.events.GetExtraInfoEvent;
 import es.usc.citius.servando.calendula.events.GetExtraInfoEvent.Status;
 import es.usc.citius.servando.calendula.login.AuthorizationServiceHelper;
@@ -56,36 +58,39 @@ public class GetExtraInfoFromServiceJob extends Job {
     private static final int ONESHOT_BACKOFF_INITIAL_MS = 500;
     private static final int ONESHOT_EXECUTION_WINDOW_MS = 2000;
     private static final String EXTRA_SHOULD_RETRY = "EXTRA_SHOULD_RETRY";
+    private static final String EXTRA_PATIENT_ID = "EXTRA_PATIENT_ID";
 
     public GetExtraInfoFromServiceJob() {
     }
 
-    public static void scheduleOneShot(final boolean shouldRetry) {
+    public static int scheduleOneShot(final boolean shouldRetry, final long patientId) {
         LogUtil.d(TAG, "scheduleOneShot() called with: shouldRetry = [" + shouldRetry + "]");
 
 
         final JobRequest.Builder builder = new JobRequest.Builder(TAG)
                 .setExecutionWindow(1, ONESHOT_EXECUTION_WINDOW_MS)
-                .setExtras(getExtras(shouldRetry))
+                .setExtras(getExtras(shouldRetry, patientId))
                 .setBackoffCriteria(ONESHOT_BACKOFF_INITIAL_MS, JobRequest.BackoffPolicy.EXPONENTIAL);
-        builder.build().schedule();
+        return builder.build().schedule();
     }
 
-    public static void scheduleWhenConnected() {
+    public static void scheduleWhenConnected(final long patientId) {
         LogUtil.d(TAG, "scheduleWhenConnected() called");
         final JobRequest.Builder builder = new JobRequest.Builder(TAG)
                 .setExecutionWindow(1, CONNECTION_EXECUTION_WINDOW_MS)
                 .setBackoffCriteria(CONNECTION_BACKOFF_INITIAL_MS, JobRequest.BackoffPolicy.LINEAR) //wait linearly for connection!
                 .setRequiredNetworkType(JobRequest.NetworkType.CONNECTED)
-                .setRequirementsEnforced(true);
+                .setRequirementsEnforced(true)
+                .setExtras(getExtras(true, patientId));
 
         builder.build().schedule();
     }
 
     @NonNull
-    private static PersistableBundleCompat getExtras(boolean shouldRetry) {
+    private static PersistableBundleCompat getExtras(boolean shouldRetry, long patientId) {
         PersistableBundleCompat extras = new PersistableBundleCompat();
         extras.putBoolean(EXTRA_SHOULD_RETRY, shouldRetry);
+        extras.putLong(EXTRA_PATIENT_ID, patientId);
         return extras;
     }
 
@@ -102,10 +107,15 @@ public class GetExtraInfoFromServiceJob extends Job {
 
         Status status;
         String url = null;
+        final long requestedPatientId = params.getExtras().getLong(EXTRA_PATIENT_ID, -1L);
 
         if (!DBUtil.isValidDB() || !LoginStateManager.getInstance().isLoggedIn() || DB.patients().count() == 0) {
             LogUtil.w(TAG, "onRunJob: no database or no user logged in");
             status = Status.ERROR_NO_USER_OR_DB;
+        } else if (!sameActivePatient(requestedPatientId)) {
+            // A stale job belongs to the previous patient. Never log the
+            // current account out or publish another patient's error.
+            return Result.FAILURE;
         } else if (!NetworkUtils.isNetworkAvailable(getContext())) {
             status = Status.ERROR_NO_CONNECTION;
         } else if (LoginStateManager.getInstance().getCurrentAuthState().getAccessToken() == null) {
@@ -119,7 +129,19 @@ public class GetExtraInfoFromServiceJob extends Job {
                 final GetExtraInfoEvent event = ExtraInfoHelper.instance().fetchExtraInfo(getContext());
                 status = event.getStatus();
                 url = event.getUrl();
+             }
+        }
+        // A patient can switch during authentication or the download. This
+        // check must precede *every* side effect of the status switch,
+        // including notifications and logout of an unrelated current user.
+        if (DBUtil.isValidDB() && !sameActivePatient(requestedPatientId)) {
+            if (url != null) {
+                File stalePdf = new File(url);
+                if (stalePdf.isFile() && !stalePdf.delete()) {
+                    LogUtil.w(TAG, "Could not delete stale provider PDF");
+                }
             }
+            return Result.FAILURE;
         }
         switch (status) {
             case REQUEST_START:
@@ -134,7 +156,7 @@ public class GetExtraInfoFromServiceJob extends Job {
                 LogUtil.w(TAG, "onRunJob: no connection, request failed.");
                 result = Result.FAILURE;
                 if (params.getExtras().getBoolean(EXTRA_SHOULD_RETRY, false))
-                    scheduleWhenConnected();
+                    scheduleWhenConnected(requestedPatientId);
                 break;
             case ERROR_AUTHORIZATION:
             case ERROR_AUTHORIZATION_LEVEL:
@@ -155,10 +177,21 @@ public class GetExtraInfoFromServiceJob extends Job {
         }
 
         if (result!=Result.RESCHEDULE) {
-            ExtraInfoHelper.notifyStatusUpdate(status, url);
+            ExtraInfoHelper.notifyStatusUpdate(
+                    new GetExtraInfoEvent(status, url, requestedPatientId, params.getId()));
         }
         LogUtil.d(TAG, "onRunJob() returned: " + result);
         return result;
+    }
+
+    private boolean sameActivePatient(long requestedPatientId) {
+        if (requestedPatientId <= 0L) {
+            return false;
+        }
+        Patient active = DB.patients().getActive(getContext());
+        return active != null && active.getId() != null
+                && active.getId().longValue() == requestedPatientId
+                && DB.patients().findById(requestedPatientId) != null;
     }
 
     private class RefreshTokensResult {
@@ -246,7 +279,7 @@ public class GetExtraInfoFromServiceJob extends Job {
         if (params.isPeriodic() && shouldRetry) {
             //if job is periodic, Result.RESCHEDULE won't work, so run a non-periodic copy
             LogUtil.d(TAG, "rescheduleOnError: job is periodic. Executing oneshot job as a retry.");
-            scheduleOneShot(true);
+            scheduleOneShot(true, params.getExtras().getLong(EXTRA_PATIENT_ID, -1L));
             return Result.FAILURE;
         } else {
             final int failureCount = params.getFailureCount();
