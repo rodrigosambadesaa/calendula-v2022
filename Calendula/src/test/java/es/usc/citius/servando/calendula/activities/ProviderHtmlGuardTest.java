@@ -45,7 +45,8 @@ public class ProviderHtmlGuardTest {
         String cleaned = ProviderHtmlGuard.processOrNull(source,
                 new LeafletHtmlPostProcessor()::process);
         org.junit.Assert.assertNotNull(cleaned);
-        assertTrue(cleaned.contains("Medication instructions"));
+        assertTrue("Sanitizer must preserve valid multiword medication instructions",
+                cleaned.contains("Medication instructions"));
         assertFalse(cleaned.contains("<script"));
         assertFalse(cleaned.contains("onclick"));
         assertFalse(cleaned.contains("javascript:"));
