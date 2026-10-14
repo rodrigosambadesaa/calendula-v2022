@@ -88,6 +88,37 @@ public class AbsoluteFixedTimeSerializationTest {
     }
 
     @Test
+    public void partialOrInvalidCycleCannotSilentlyTurnIntoDailyMedication() {
+        String[] corrupted = {
+                "{\"rule\":\"FREQ=DAILY\",\"cycleActive\":2}",
+                "{\"rule\":\"FREQ=DAILY\",\"cycleInactive\":3}",
+                "{\"rule\":\"FREQ=DAILY\",\"cycleActive\":0,\"cycleInactive\":3}",
+                "{\"rule\":\"FREQ=DAILY\",\"cycleActive\":2147483647,"
+                        + "\"cycleInactive\":2}",
+                "{\"rule\":\"FREQ=DAILY\",\"cycleActive\":2,\"cycleInactive\":3}"
+        };
+        for (String invalid : corrupted) {
+            try {
+                GsonUtil.get().fromJson(invalid, RecurringEvent.class);
+                org.junit.Assert.fail("Invalid or startless cycles cannot become daily doses");
+            } catch (com.google.gson.JsonParseException expected) {
+                // Database bytes remain untouched for explicit repair.
+            }
+        }
+    }
+
+    @Test
+    public void aValidPersistedCycleStillRoundTrips() throws Exception {
+        RecurringEvent input = new RecurringEvent.Builder()
+                .repeatCyclic(2, 3)
+                .from(new LocalDate(2026, 10, 14)).build();
+        RecurringEvent output = GsonUtil.get().fromJson(
+                GsonUtil.get().toJson(input), RecurringEvent.class);
+        assertEquals(Integer.valueOf(2), output.getCycleActiveDays());
+        assertEquals(Integer.valueOf(3), output.getCycleInactiveDays());
+    }
+
+    @Test
     public void historicAbsoluteTimeWithoutReferenceStillRoundTrips()
             throws Exception {
         DailyFixedTime slot = new DailyFixedTime(
