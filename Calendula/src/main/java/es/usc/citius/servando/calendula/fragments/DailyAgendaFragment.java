@@ -453,18 +453,13 @@ public class DailyAgendaFragment extends Fragment {
 
         @Override
         public int compare(DailyAgendaItemStub a, DailyAgendaItemStub b) {
-
-            DateTime aT = a.date.toDateTime(a.time);
-            DateTime bT = b.date.toDateTime(b.time);
-
-            if (aT.compareTo(bT) == 0 && a.isSpacer) {
-                return -1;
-            } else if (aT.compareTo(bT) == 0 && b.isSpacer) {
-                return 1;
-            } else if (aT.compareTo(bT) == 0) {
-                return a.hasEvents ? -1 : 1;
-            }
-            return aT.compareTo(bT);
+            // Two spacers, two patient stubs or two empty placeholders at
+            // exactly the same time MUST compare equal. The old comparator
+            // returned -1 (or +1) in both directions, violating TimSort's
+            // contract as the number of simultaneous doses increased.
+            return es.usc.citius.servando.calendula.util.DailyAgendaOrdering.compareStub(
+                    a.date.toDateTime(a.time).getMillis(), a.isSpacer, a.hasEvents,
+                    b.date.toDateTime(b.time).getMillis(), b.isSpacer, b.hasEvents);
         }
     }
 

@@ -85,10 +85,12 @@ public class DailyAgendaItemStub {
 
         @Override
         public int compareTo(DailyAgendaItemStubElement other) {
-            int result = minute.compareTo(other.minute);
-            if (result == 0) result = taken ? 0 : 1;
-            if (result == 0) result = medName.compareTo(other.medName);
-            return result;
+            // For two untaken doses the old comparator always returned +1,
+            // even when comparing an item to itself. Keep taken doses first
+            // while maintaining an antisymmetric and transitive order.
+            return DailyAgendaOrdering.compareElement(
+                    minute, taken, medName,
+                    other.minute, other.taken, other.medName);
         }
     }
 
