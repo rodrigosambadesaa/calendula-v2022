@@ -206,6 +206,12 @@ public class RecurringEvent {
                 throw new IllegalStateException("Cyclic medication has no start date");
             }
             DateTime cycleDay = when.toDateTimeAtStartOfDay(startDateTime.getZone());
+            // A day strictly after the stored end date cannot contain any
+            // medication occurrence, even if cycle arithmetic says active.
+            if (hasEnd() && when.isAfter(
+                    endDateTime.withZone(startDateTime.getZone()).toLocalDate())) {
+                return false;
+            }
             if (when.equals(startDateTime.toLocalDate())
                     && cycleDay.isBefore(startDateTime)) {
                 cycleDay = startDateTime;
