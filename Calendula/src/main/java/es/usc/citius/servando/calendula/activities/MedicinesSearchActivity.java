@@ -102,6 +102,28 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
 
     private Button addCustomMedFooter;
     private MedicinesSearchAutoCompleteAdapter adapter;
+    private Long openedPatientId;
+    private static final String STATE_PATIENT_AT_SEARCH_OPEN = "med_search_original_patient";
+
+    private boolean originalPatientStillActive() {
+        es.usc.citius.servando.calendula.persistence.Patient current =
+                DB.patients().getActive(this);
+        return MedicineSearchOwnerGuard.samePatient(openedPatientId,
+                current == null ? null : current.getId());
+    }
+
+    private void cancelStaleSearch() {
+        setResult(RESULT_CANCELED);
+        finish();
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        if (openedPatientId != null && openedPatientId > 0L) {
+            outState.putLong(STATE_PATIENT_AT_SEARCH_OPEN, openedPatientId);
+        }
+        super.onSaveInstanceState(outState);
+    }
 
     public void doScan() {
         IntentIntegrator integrator = new IntentIntegrator(this);
@@ -152,6 +174,9 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
     @Override
     @UiThread
     public void onFilterResults(@NonNull String constraint, boolean anyExactMatch, int resultCount) {
+        if (isFinishing() || isDestroyed() || !originalPatientStillActive()) {
+            return;
+        }
         progressBar.setVisibility(View.GONE);
         if (resultCount == 0) {
             if (constraint.length() >= MedicinesSearchAutoCompleteAdapter.MIN_SEARCH_LEN) {
@@ -211,7 +236,22 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
         setContentView(R.layout.activity_medicines_search);
         ButterKnife.bind(this);
 
-        final int patientColor = DB.patients().getActive(this).getColor();
+        es.usc.citius.servando.calendula.persistence.Patient active =
+                DB.patients().getActive(this);
+        if (active == null || active.getId() == null) {
+            cancelStaleSearch();
+            return;
+        }
+        Long restored = savedInstanceState != null
+                && savedInstanceState.containsKey(STATE_PATIENT_AT_SEARCH_OPEN)
+                ? savedInstanceState.getLong(STATE_PATIENT_AT_SEARCH_OPEN, -1L)
+                : active.getId();
+        if (!MedicineSearchOwnerGuard.samePatient(restored, active.getId())) {
+            cancelStaleSearch();
+            return;
+        }
+        openedPatientId = restored;
+        final int patientColor = active.getColor();
         setupToolbar(null, patientColor);
         setupStatusBar(patientColor);
         progressBar.getIndeterminateDrawable().setColorFilter(Color.WHITE,
@@ -272,7 +312,8 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
             }
         });
 
-        final String search = getIntent().getStringExtra(EXTRA_SEARCH_TERM);
+        final String search = getIntent() == null ? null
+                : getIntent().getStringExtra(EXTRA_SEARCH_TERM);
         if (search != null) {
             searchEditText.setText(search);
             searchEditText.setSelection(search.length());
@@ -281,10 +322,22 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
         searchList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                Prescription p = ((MedicinesSearchAutoCompleteAdapter.PrescriptionSearchWrapper) parent.getItemAtPosition(position)).getPrescription();
-                Intent i = new Intent();
-                i.putExtra(RETURN_EXTRA_PRESCRIPTION, p);
-                setResult(RESULT_OK, i);
+                if (!originalPatientStillActive()) {
+                    cancelStaleSearch();
+                    return;
+                }
+                // ListView also contains a custom-medicine footer. It is not
+                // a PrescriptionSearchWrapper and must not be cast as one.
+                Object item = parent.getItemAtPosition(position);
+                if (!(item instanceof MedicinesSearchAutoCompleteAdapter.PrescriptionSearchWrapper)) {
+                    return;
+                }
+                Prescription prescription = ((MedicinesSearchAutoCompleteAdapter.PrescriptionSearchWrapper) item)
+                        .getPrescription();
+                if (prescription == null) return;
+                Intent result = new Intent();
+                result.putExtra(RETURN_EXTRA_PRESCRIPTION, prescription);
+                setResult(RESULT_OK, result);
                 finish();
             }
         });
@@ -342,7 +395,12 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode == RESULT_OK) {
+        if (!originalPatientStillActive()) {
+            cancelStaleSearch();
+            return;
+        }
+        if (requestCode == IntentIntegrator.REQUEST_CODE
+                && resultCode == RESULT_OK && data != null) {
             String contents = data.getStringExtra(Intents.Scan.RESULT);
             String format = data.getStringExtra(Intents.Scan.RESULT_FORMAT);
             // Handle successful scan
@@ -353,8 +411,11 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
                     new Handler().post(new Runnable() {
                         @Override
                         public void run() {
-                            //hideSearchView();
-                            //((MedicineCreateOrEditFragment) getViewPagerFragment(0)).setPrescription(p);
+                            if (isFinishing() || isDestroyed()) return;
+                            if (!originalPatientStillActive()) {
+                                cancelStaleSearch();
+                                return;
+                            }
                             searchEditText.setText(p.getCode());
                         }
                     });
@@ -373,7 +434,12 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
 
     @OnClick(R.id.add_custom_med_btn)
     protected void addCustomMed() {
+        if (!originalPatientStillActive()) {
+            cancelStaleSearch();
+            return;
+        }
         final String searchText = searchEditText.getText().toString().trim();
+        if (searchText.isEmpty()) return;
         Intent i = new Intent();
         i.putExtra(RETURN_EXTRA_PRESCRIPTION_NAME, searchText);
         setResult(RESULT_OK, i);
@@ -384,6 +450,10 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
     @Override
     protected void onResume() {
         super.onResume();
+        if (openedPatientId == null || !originalPatientStillActive()) {
+            cancelStaleSearch();
+            return;
+        }
         EventBus.getDefault().register(this);
         refreshViews();
     }
