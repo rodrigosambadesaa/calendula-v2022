@@ -28,6 +28,8 @@ public class DosagePersisterCorruptionTest {
         Map<Long, Double> restored = (Map<Long, Double>) parser.sqlArgToJava(null, encoded, 0);
         assertEquals(doses, restored);
         assertNull(parser.sqlArgToJava(null, null, 0));
+        assertNull("A historical literal null value remains readable",
+                parser.sqlArgToJava(null, "null", 0));
     }
 
     @Test
