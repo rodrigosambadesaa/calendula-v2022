@@ -39,6 +39,7 @@ import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.modules.ModuleManager;
 import es.usc.citius.servando.calendula.modules.modules.StockModule;
 import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.persistence.PatientAlert;
 import es.usc.citius.servando.calendula.util.IconUtils;
 
@@ -76,13 +77,18 @@ public class MedicineItem extends AbstractItem<MedicineItem, MedicineItem.Medici
         super.bindView(holder, payloads);
         Context ctx = holder.itemView.getContext();
 
+        // Legacy or partially restored rows may omit Presentation entirely.
+        // Keep displaying the medicine with a neutral icon/units rather than
+        // crashing the entire patient's list while RecyclerView is binding.
+        Presentation presentation = medicine.getPresentation() == null
+                ? Presentation.UNKNOWN : medicine.getPresentation();
         holder.name.setText(medicine.getName());
         holder.icon.setImageDrawable(new IconicsDrawable(ctx)
-                .icon(medicine.getPresentation().icon())
+                .icon(presentation.icon())
                 .colorRes(R.color.agenda_item_title)
                 .paddingDp(8)
                 .sizeDp(40));
-        holder.icon.setContentDescription(medicine.getPresentation().getName(ctx.getResources()));
+        holder.icon.setContentDescription(presentation.getName(ctx.getResources()));
 
         if (ModuleManager.isEnabled(StockModule.ID)) {
             holder.stockInfo.setVisibility(View.VISIBLE);
@@ -96,7 +102,7 @@ public class MedicineItem extends AbstractItem<MedicineItem, MedicineItem.Medici
                         ? Integer.toString(remaining.intValue())
                         : Float.toString(remaining);
                 holder.stockInfo.setText(ctx.getString(R.string.stock_remaining_msg,
-                        amount, medicine.getPresentation().units(ctx.getResources(), remaining)));
+                        amount, presentation.units(ctx.getResources(), remaining)));
             } else {
                 holder.stockInfo.setText(R.string.no_stock_info_msg);
             }
