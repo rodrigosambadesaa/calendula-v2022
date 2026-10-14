@@ -129,6 +129,39 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
         Snack.show(R.string.medicine_save_error_message, this);
     }
 
+    /**
+     * Protect the editor's *display* as well as its writes. An internal
+     * intent can contain an old medicine ID from another patient.
+     */
+    private boolean canDisplaySelectedMedicine() {
+        es.usc.citius.servando.calendula.persistence.Patient active =
+                DB.patients().getActive(this);
+        Long activeId = active == null ? null : active.getId();
+        if (!MedicineEditorOwnershipGuard.sameEditorPatient(
+                openedPatientId, activeId)) {
+            return false;
+        }
+        if (mMedicineId == null || mMedicineId == -1L) {
+            return true; // Creating a new medicine; no private record to load.
+        }
+        if (mMedicineId <= 0L) {
+            return false;
+        }
+        Medicine persisted = DB.medicines().findById(mMedicineId);
+        if (persisted == null || DB.medicines().refresh(persisted) != 1) {
+            return false;
+        }
+        return MedicineSaveOwnerGuard.canOpenForEdit(
+                openedPatientId, activeId, mMedicineId, persisted.getId(),
+                persisted.getPatient() == null ? null : persisted.getPatient().getId());
+    }
+
+    private void closeStaleMedicineEditor() {
+        Toast.makeText(this, R.string.medicine_editor_profile_changed,
+                Toast.LENGTH_SHORT).show();
+        finish();
+    }
+
     private static final String STATE_STARTED_SEARCH = "STATE_STARTED_SEARCH";
 
     private Prescription prescriptionToSet = null;
@@ -255,6 +288,10 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
         setupStatusBar(color);
 
         processIntent();
+        if (!canDisplaySelectedMedicine()) {
+            closeStaleMedicineEditor();
+            return;
+        }
 
         TextView title = ((TextView) findViewById(R.id.textView2));
         if (mMedicineId != -1) {
@@ -291,6 +328,10 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
     @Override
     protected void onActivityResult(int requestCode, int resultCode, final Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (openedPatientId != null && !canDisplaySelectedMedicine()) {
+            closeStaleMedicineEditor();
+            return;
+        }
         LogUtil.d(TAG, "onActivityResult() called with: requestCode = [" + requestCode + "], resultCode = [" + resultCode + "], data = [" + data + "]");
         if (requestCode == REQUEST_CODE_GET_MED) {
             if (resultCode == RESULT_OK) {
@@ -313,6 +354,16 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
             }
         } else {
             LogUtil.w(TAG, "onActivityResult: invalid request code " + requestCode + ", ignoring");
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (openedPatientId != null && !canDisplaySelectedMedicine()) {
+            // Never leave another patient's previously opened treatment
+            // visible when returning from profile switching or app settings.
+            closeStaleMedicineEditor();
         }
     }
 
