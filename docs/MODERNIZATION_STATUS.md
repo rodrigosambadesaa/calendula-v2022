@@ -1,6 +1,6 @@
 # Calendula v2022 — modernization status
 
-_Last reviewed: 2026-10-10. This is an unofficial development fork, not a released or medically validated product. Tests described below were verified on their respective PR revisions; do not interpret them as end-to-end certification._
+_Last reviewed: 2026-10-14. This is an unofficial development fork, not a released or medically validated product. Tests described below were verified on their respective PR revisions; do not interpret them as end-to-end certification._
 
 ## Verified build baseline
 
@@ -18,7 +18,7 @@ Android CI assembles `ciDebug`, validates `minifyDevelopReleaseWithR8`,
 executes JVM unit tests, builds the instrumentation APK and runs Android lint.
 A separate GitHub Actions workflow **executes instrumented smoke tests on
 emulators** for API 23 (Android 6), API 33 (Android 13) and API 36 (Android 16).
-An independent workflow now runs the same 22 synthetic instrumentation test classes on API 37.0 (Android 17); the expanded suite passed on PR #574. The original eight-class run also passed on PR #569. The existing `compileSdk` and `targetSdk` remain at 36. See [Android 17 compatibility](ANDROID_17_COMPATIBILITY.md) and #570 for the separate targetSdk 37 migration.
+An independent workflow now runs the same shared synthetic instrumentation suite on API 37.0 (Android 17); the expanded suite passed on PR #574. The original eight-class run also passed on PR #569. The existing `compileSdk` and `targetSdk` remain at 36. See [Android 17 compatibility](ANDROID_17_COMPATIBILITY.md) and #570 for the separate targetSdk 37 migration.
 The initial matrix and the subsequent boot, notification-permission, and SQLite
 test branches have passed on all three APIs. The smoke tests are intentionally
 narrow: they verify selected Android platform integration paths, **not** a
@@ -45,6 +45,47 @@ does not imply all legacy accessibility warnings have been resolved.
   that now requires **three** green suites on the same immutable commit:
   Android CI, the API 23/33/36 emulator matrix and Android 17 API 37.0
   runtime smoke (extended by merged PR #572).
+
+## Additional safeguards verified in October 2026
+
+The shared `scripts/android-smoke-tests.sh` currently names **62 isolated
+instrumentation test classes** across API 23, 33, 36 and 37. This is a
+test-configuration count, **not** an assertion that all four devices or all
+clinical workflows were validated together in a production-style release.
+Each merged change must have green checks for the same immutable PR commit.
+
+- **Dose and intake UI:** #735 rejects zero graphical doses and #736 binds
+  confirmation actions to the actually tapped intake, checking stale state.
+  No interaction may infer a missing or invalid medication quantity.
+- **Patient-scoped provider documents:** #742 binds asynchronous PDF responses
+  to the opening patient and exact background job; it rejects foreign,
+  stale and ownerless events, and restricts PDF temporary files to private
+  application cache. #743 bounds the Base64 download and #738 bounds bitmap
+  rendering memory. #737 cancels certificate-invalid PDF navigation.
+- **WebView and local privacy:** #739 and #744 safely handle incompatible
+  cached requests and malformed CSS collections. #741 removes full navigation
+  URLs/document titles from relevant diagnostics. #747 rejects invalid
+  leaflet launches, and #748 keeps loading-dialog dismissals on the UI thread.
+- **Clinical storage and PIN:** #745 wraps invalid persisted dosage encodings
+  in a checked SQLite persistence error rather than fabricating records.
+  #746 rejects malformed PIN credential encodings before expensive PBKDF2
+  derivation without resetting previously valid PINs.
+
+**Not yet completed:** #749 reconciles bounded OAuth token refresh with the
+new patient-scoped PDF workflow and requires live nonproduction provider testing
+before merging. #750 proposes idempotent recovery of missing current-day
+intakes and must finish actual SQLite emulator regression checks before merge.
+Neither draft should be described as shipped functionality.
+
+### Open medication-integrity acceptance gates (#525 and #552)
+
+The fork now uses SQLite transactions and post-commit OS side effects for many
+agenda, intake and stock operations; this materially reduces partial writes,
+but **does not** certify the entire medication lifecycle. Keep #525 and #552
+open until deterministic fault injection, process-death/restart, simultaneous
+confirmation, inventory reconciliation, and representative migration tests
+cover all supported versions. Do not silently rewrite previously completed,
+cancelled or historically recorded intakes during automatic recovery.
 
 ## Unresolved release blockers
 
