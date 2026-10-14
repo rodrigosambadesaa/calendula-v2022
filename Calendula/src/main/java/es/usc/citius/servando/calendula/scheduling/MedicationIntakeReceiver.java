@@ -73,20 +73,19 @@ public class MedicationIntakeReceiver implements EventReminderReceiver, AgendaUp
     public void onBeforeUpdate(Context context, LocalDate day) {
         DateTime dayStart = day.toDateTimeAtStartOfDay();
         DateTime dayEnd = dayStart.plusDays(1);
-        DateTime from, to = dayEnd.plusDays(es.usc.citius.servando.calendula.persistence.ScheduleUtils.NEXT_DAYS_TO_SHOW);
+        DateTime to = dayEnd.plusDays(
+                es.usc.citius.servando.calendula.persistence.ScheduleUtils.NEXT_DAYS_TO_SHOW);
         // delete items older than yesterday
         DB.eventInstances().removeOlderThan(EventType.MEDICATION_INTAKE, dayStart.minusDays(1));
         // delete items beyond tomorrow (only possible when changing date)
         DB.eventInstances().removeBeyond(EventType.MEDICATION_INTAKE, to);
-        // check if today events are already generated
-        if (DB.eventInstances().existBetween(EventType.MEDICATION_INTAKE, dayStart, dayEnd)) {
-            from = dayEnd; // today events are generated
-        }else{
-            from = dayStart; // there are no events generated for today
-        }
+        // One existing event anywhere today does not prove every schedule
+        // and patient has been generated. Revisit today for EVERY schedule.
+        // Agenda.addEvents() rechecks type/ref/time in SQLite, preserves
+        // completed/cancelled history and rejects conflicting patient owners,
+        // so rebuilding missing occurrences is idempotent and non-destructive.
         for (Schedule s : DB.schedules().findAll()) {
-            // generate events for each schedule and add them to the agenda
-            Agenda.instance().addEvents(s.getEventsBetween(from, to));
+            Agenda.instance().addEvents(s.getEventsBetween(dayStart, to));
         }
     }
 
