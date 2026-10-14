@@ -137,11 +137,11 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
         es.usc.citius.servando.calendula.persistence.Patient active =
                 DB.patients().getActive(this);
         Long activeId = active == null ? null : active.getId();
-        if (!MedicineEditorOwnershipGuard.sameEditorPatient(
-                openedPatientId, activeId)) {
+        if (openedPatientId == null || openedPatientId <= 0L
+                || !openedPatientId.equals(activeId) || mMedicineId == null) {
             return false;
         }
-        if (mMedicineId == null || mMedicineId == -1L) {
+        if (mMedicineId == -1L) {
             return true; // Creating a new medicine; no private record to load.
         }
         if (mMedicineId <= 0L) {
