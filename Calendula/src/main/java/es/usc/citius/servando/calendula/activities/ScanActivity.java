@@ -59,7 +59,8 @@ public class ScanActivity extends CalendulaActivity {
         // and class supplied in the launching intent, even inside the app.
         if (source == null || !ScannedPatientLinkGuard.isValidRoute(
                 source.getStringExtra("after_scan_pkg"),
-                source.getStringExtra("after_scan_cls"), getPackageName())) {
+                source.getStringExtra("after_scan_cls"), getPackageName(),
+                PatientDetailActivity.class.getName())) {
             finish();
             return;
         }
