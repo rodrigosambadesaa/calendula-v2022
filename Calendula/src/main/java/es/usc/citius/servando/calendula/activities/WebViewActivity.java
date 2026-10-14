@@ -116,11 +116,16 @@ public class WebViewActivity extends CalendulaActivity {
             finish();
             return;
         }
-        if (request == null || (url = request.getUrl()) == null) {
-            LogUtil.e(TAG, "onCreate: No WebViewRequest provided in intent!");
+        if (request == null
+                || !WebViewNavigationPolicy.isSafeInitialDocumentUrl(request.getUrl())) {
+            // Restored intents and imported catalog entries are untrusted.
+            // Preflight only remote HTTP(S); no local document/script schemes.
+            LogUtil.w(TAG, "Embedded web request has no safe remote URL");
             showErrorToast(null);
             finish();
+            return;
         } else {
+            url = request.getUrl();
             originalUrl = url;
             webView = findViewById(R.id.webView1);
             toolbarSahdow = findViewById(R.id.tabs_shadow);
