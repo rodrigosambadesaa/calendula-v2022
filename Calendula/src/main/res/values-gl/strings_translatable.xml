@@ -505,5 +505,6 @@ Queres instalar a nova base de datos agora?"</string>
     <string name="routine_profile_unavailable">Rutina non dispoñible. Selecciona o perfil de paciente correcto e volve abrir o editor.</string>
     <string name="medicine_editor_profile_changed">Non se pode gardar o medicamento porque cambiou o perfil do paciente ou o seu propietario. Volve abrir o editor co paciente correcto.</string>
     <string name="medicine_alerts_unavailable">Non se poden verificar as alertas clínicas deste medicamento. Comproba o perfil do paciente e volve abrilo.</string>
+    <string name="medicine_stock_amount_invalid">Introduce unha cantidade de existencias válida e non negativa. Non se pode gardar ese valor.</string>
     <string name="allergy_details_unavailable">Non se poden verificar os detalles dos alérxenos. Mantén esta advertencia de alerxia e revisa o medicamento antes de usalo.</string>
 </resources>

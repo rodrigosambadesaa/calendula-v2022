@@ -69,7 +69,10 @@ public class AllergenVO implements Parcelable {
 
     protected AllergenVO(Parcel in) {
         int tmpType = in.readInt();
-        this.type = tmpType == -1 ? null : AllergenType.values()[tmpType];
+        // Old/corrupt Parcels may contain unknown enum ordinals. Keep the
+        // object readable with an unverified type rather than crashing.
+        this.type = tmpType < 0 || tmpType >= AllergenType.values().length
+                ? null : AllergenType.values()[tmpType];
         this.name = in.readString();
         this.identifier = in.readString();
     }
@@ -105,15 +108,21 @@ public class AllergenVO implements Parcelable {
 
         AllergenVO that = (AllergenVO) o;
 
-        if (type != that.type) return false;
-        return identifier.equals(that.identifier);
+        // Missing type or identifier is not sufficient proof that two
+        // clinical allergens are the same. In particular, do not let
+        // contains()/remove() erase an alert using malformed imported data.
+        if (type == null || identifier == null
+                || that.type == null || that.identifier == null) {
+            return false;
+        }
+        return type == that.type && identifier.equals(that.identifier);
 
     }
 
     @Override
     public int hashCode() {
-        int result = type.hashCode();
-        result = 31 * result + identifier.hashCode();
+        int result = type == null ? 0 : type.hashCode();
+        result = 31 * result + (identifier == null ? 0 : identifier.hashCode());
         return result;
     }
 

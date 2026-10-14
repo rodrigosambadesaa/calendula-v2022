@@ -25,6 +25,7 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.login.LoginPatien
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.database.AlertScheduleOwnershipSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.database.AlertReadOwnershipSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.allergies.AllergyAlertOwnershipSmokeTest"
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.allergies.AllergenIdentitySmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.RoutineEditorOwnershipSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.ScheduleEditorOwnershipSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.fragments.DailyAgendaReviewWarningSmokeTest"
