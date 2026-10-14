@@ -109,10 +109,13 @@ public class GetExtraInfoFromServiceJob extends Job {
         String url = null;
         final long requestedPatientId = params.getExtras().getLong(EXTRA_PATIENT_ID, -1L);
 
-        if (!DBUtil.isValidDB() || !LoginStateManager.getInstance().isLoggedIn() || DB.patients().count() == 0
-                || !sameActivePatient(requestedPatientId)) {
+        if (!DBUtil.isValidDB() || !LoginStateManager.getInstance().isLoggedIn() || DB.patients().count() == 0) {
             LogUtil.w(TAG, "onRunJob: no database or no user logged in");
             status = Status.ERROR_NO_USER_OR_DB;
+        } else if (!sameActivePatient(requestedPatientId)) {
+            // A stale job belongs to the previous patient. Never log the
+            // current account out or publish another patient's error.
+            return Result.FAILURE;
         } else if (!NetworkUtils.isNetworkAvailable(getContext())) {
             status = Status.ERROR_NO_CONNECTION;
         } else if (LoginStateManager.getInstance().getCurrentAuthState().getAccessToken() == null) {
@@ -126,20 +129,19 @@ public class GetExtraInfoFromServiceJob extends Job {
                 final GetExtraInfoEvent event = ExtraInfoHelper.instance().fetchExtraInfo(getContext());
                 status = event.getStatus();
                 url = event.getUrl();
-                if (!sameActivePatient(requestedPatientId)) {
-                    // The account/patient changed while the network request was
-                    // in flight. Retire its private PDF without delivering it
-                    // to the next patient's viewer.
-                    if (url != null) {
-                        File stalePdf = new File(url);
-                        if (stalePdf.isFile() && !stalePdf.delete()) {
-                            LogUtil.w(TAG, "Could not delete stale provider PDF");
-                        }
-                    }
-                    url = null;
-                    status = Status.ERROR_NO_USER_OR_DB;
+             }
+        }
+        // A patient can switch during authentication or the download. This
+        // check must precede *every* side effect of the status switch,
+        // including notifications and logout of an unrelated current user.
+        if (DBUtil.isValidDB() && !sameActivePatient(requestedPatientId)) {
+            if (url != null) {
+                File stalePdf = new File(url);
+                if (stalePdf.isFile() && !stalePdf.delete()) {
+                    LogUtil.w(TAG, "Could not delete stale provider PDF");
                 }
             }
+            return Result.FAILURE;
         }
         switch (status) {
             case REQUEST_START:
