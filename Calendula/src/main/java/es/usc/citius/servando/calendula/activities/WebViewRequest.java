@@ -60,7 +60,16 @@ public class WebViewRequest implements Parcelable {
         postProcessorClassname = in.readString();
         javaScriptEnabled = in.readByte() != 0;
         externalLinksEnabled = in.readByte() != 0;
-        cacheType = CacheType.valueOf(in.readString());
+        // Restored intents may have been serialized by an older release with
+        // a cache mode no longer recognized by this version. Fallback to the
+        // least permissive default instead of crashing document navigation.
+        String restoredCacheType = in.readString();
+        try {
+            cacheType = restoredCacheType == null
+                    ? CacheType.NO_CACHE : CacheType.valueOf(restoredCacheType);
+        } catch (IllegalArgumentException unsupportedMode) {
+            cacheType = CacheType.NO_CACHE;
+        }
         int cssNumber = in.readInt();
         if (cssNumber > 0) {
             String[] cssFiles = new String[cssNumber];
@@ -69,7 +78,13 @@ public class WebViewRequest implements Parcelable {
             customCss.addAll(Arrays.asList(cssFiles));
         }
         final String cacheTtlValue = in.readString();
-        cacheTTL = cacheTtlValue != null ? Duration.parse(cacheTtlValue) : null;
+        try {
+            cacheTTL = cacheTtlValue != null ? Duration.parse(cacheTtlValue) : null;
+        } catch (IllegalArgumentException invalidDuration) {
+            // An invalid old cache TTL must never prevent a patient from
+            // opening a leaflet; the cache manager applies its default TTL.
+            cacheTTL = null;
+        }
         // read overrides map
         customCssOverrides = new HashMap<>();
         int size = in.readInt();
@@ -91,7 +106,7 @@ public class WebViewRequest implements Parcelable {
         dest.writeString(postProcessorClassname);
         dest.writeByte((byte) (javaScriptEnabled ? 1 : 0));
         dest.writeByte((byte) (externalLinksEnabled ? 1 : 0));
-        dest.writeString(cacheType.toString());
+        dest.writeString((cacheType == null ? CacheType.NO_CACHE : cacheType).name());
         final int cssNumber = customCss != null ? customCss.size() : 0;
         dest.writeInt(cssNumber);
         if (cssNumber > 0) {
@@ -239,7 +254,7 @@ public class WebViewRequest implements Parcelable {
      * @param cacheType the cache type
      */
     public void setCacheType(CacheType cacheType) {
-        this.cacheType = cacheType;
+        this.cacheType = cacheType == null ? CacheType.NO_CACHE : cacheType;
     }
 
     public Duration getCacheTTL() {
