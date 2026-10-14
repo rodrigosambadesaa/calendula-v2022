@@ -5,6 +5,9 @@
 package es.usc.citius.servando.calendula.healthcareprovider.jobs;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedType;
 import es.usc.citius.servando.calendula.persistence.Patient;
@@ -12,6 +15,8 @@ import es.usc.citius.servando.calendula.persistence.Patient;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = 28)
 public class ImportedMedicationPatientOwnershipTest {
     private Patient patient(long id) {
         Patient patient = new Patient();
