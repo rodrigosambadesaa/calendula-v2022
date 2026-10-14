@@ -36,5 +36,15 @@ public class ProspectUtilsValidationTest {
         assertFalse(ProspectUtils.canOpenProspect(owner, ""));
         assertFalse(ProspectUtils.canOpenProspect(owner, "  "));
         assertTrue(ProspectUtils.canOpenProspect(owner, "https://example.test/leaflet"));
+        assertTrue(ProspectUtils.canOpenProspect(owner, "https://www.aemps.gob.es/cima/dochtml/p/123/Prospecto_123.html"));
+        assertTrue(ProspectUtils.canOpenProspect(owner, "https://www.accessdata.fda.gov/spl/data/42/42.xml"));
+        assertFalse(ProspectUtils.canOpenProspect(owner, "javascript:alert(1)"));
+        assertFalse(ProspectUtils.canOpenProspect(owner, "data:text/html,payload"));
+        assertFalse(ProspectUtils.canOpenProspect(owner, "file:///data/user/0/calendula/secret"));
+        assertFalse(ProspectUtils.canOpenProspect(owner, "content://untrusted.provider/leaflet"));
+        assertFalse(ProspectUtils.canOpenProspect(owner, "../relative-leaflet.html"));
+        assertFalse(ProspectUtils.canOpenProspect(owner, "https://user:password@example.test/leaflet"));
+        assertFalse(ProspectUtils.canOpenProspect(owner, "https://example.test/unterminated["));
+
     }
 }
