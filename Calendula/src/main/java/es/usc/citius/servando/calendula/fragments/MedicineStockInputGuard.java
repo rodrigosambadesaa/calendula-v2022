@@ -43,6 +43,10 @@ final class MedicineStockInputGuard {
             // misleading "out of stock" quantity.
             return null;
         }
-        return amount >= currentStock ? 0f : currentStock - amount;
+        if (amount >= currentStock) {
+            return 0f;
+        }
+        final float remaining = currentStock - amount;
+        return usableStock(remaining) && remaining < currentStock ? remaining : null;
     }
 }
