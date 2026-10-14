@@ -23,7 +23,6 @@ import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Bundle;
-import android.os.Handler;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
@@ -57,6 +56,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -73,6 +73,7 @@ import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.events.ActiveMedUpdateEvent;
 import es.usc.citius.servando.calendula.events.PersistenceEvents;
 import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.healthcareprovider.jobs.UpdateMedicationFromServiceJob;
 import es.usc.citius.servando.calendula.healthcareprovider.jobs.UpdateMedicationHelper;
@@ -91,9 +92,11 @@ public class ActiveMedicationListFragment extends Fragment {
     private final Runnable ticker = new Runnable() {
         @Override
         public void run() {
-            final FragmentActivity activity = getActivity();
-            if (activity != null) {
-                getActivity().runOnUiThread(updateViewsRunnable);
+            if (isAdded() && getView() != null && handler != null) {
+                updateViewsRunnable.run();
+                // Header text is minute-granularity: do not run a repeated
+                // one-second callback (nor retain a destroyed fragment).
+                handler.postDelayed(this, 60_000L);
             }
         }
     };
@@ -110,14 +113,45 @@ public class ActiveMedicationListFragment extends Fragment {
     private final Runnable updateViewsRunnable = new Runnable() {
         @Override
         public void run() {
-            updateHeaderText();
-            updateProgressBarVisibility();
+            if (isAdded() && getView() != null) {
+                updateHeaderText();
+                updateProgressBarVisibility();
+            }
         }
     };
 
     private FastItemAdapter<ActiveMedicationListItem> adapter;
+    private final AtomicLong reloadGeneration = new AtomicLong();
+    private Long displayedPatientId;
     private Handler handler;
     private Unbinder unbinder;
+
+    /**
+     * Recheck the displayed owner, active profile and persisted provider
+     * record when a user interacts with a medical card, even if a profile
+     * change notification has not arrived yet.
+     */
+    private boolean canOpenProviderMedicine(ActiveMedicationListItem item) {
+        if (item == null || item.getVo() == null
+                || item.getVo().getBackingEntity() == null || getContext() == null) {
+            return false;
+        }
+        ActiveMedEntity requested = item.getVo().getBackingEntity();
+        if (requested.getId() == null || requested.getPatient() == null) {
+            return false;
+        }
+        Patient active = DB.patients().getActive(getContext());
+        ActiveMedEntity persisted = DB.healthcareProviderDB().activeMeds()
+                .findById(requested.getId());
+        if (persisted == null || persisted.getPatient() == null) {
+            return false;
+        }
+        Long activeId = active == null ? null : active.getId();
+        return ActiveMedicationOwnerGuard.matchingPatient(
+                        displayedPatientId, activeId, requested.getPatient().getId())
+                && ActiveMedicationOwnerGuard.matchingPatient(
+                        displayedPatientId, activeId, persisted.getPatient().getId());
+    }
 
 
     @Override
@@ -127,9 +161,7 @@ public class ActiveMedicationListFragment extends Fragment {
 
         updateHeaderText();
 
-        handler = new Handler();
-
-        handler.postDelayed(ticker, 1000);
+        handler = new Handler(Looper.getMainLooper());
 
         updateProgressBarVisibility();
 
@@ -146,6 +178,12 @@ public class ActiveMedicationListFragment extends Fragment {
 
     @Override
     public void onDestroyView() {
+        reloadGeneration.incrementAndGet();
+        displayedPatientId = null;
+        if (handler != null) {
+            handler.removeCallbacks(ticker);
+            handler.removeCallbacks(updateViewsRunnable);
+        }
         super.onDestroyView();
         if (unbinder != null)
             unbinder.unbind();
@@ -169,12 +207,22 @@ public class ActiveMedicationListFragment extends Fragment {
     @Override
     public void onStart() {
         super.onStart();
-        handler.postDelayed(ticker, 1000);
+        if (handler != null) {
+            handler.removeCallbacks(ticker);
+            handler.post(ticker);
+        }
         CalendulaApp.eventBus().register(this);
+        // onStop cancels pending generations; onStart must refresh again.
+        reloadItemsAsync();
     }
 
     @Override
     public void onStop() {
+        reloadGeneration.incrementAndGet();
+        if (handler != null) {
+            handler.removeCallbacks(ticker);
+            handler.removeCallbacks(updateViewsRunnable);
+        }
         CalendulaApp.eventBus().unregister(this);
         super.onStop();
     }
@@ -198,14 +246,21 @@ public class ActiveMedicationListFragment extends Fragment {
     @Subscribe
     public void handleActiveMedUpdate(final ActiveMedUpdateEvent event) {
         LogUtil.v(TAG, "Received active med event: " + event.toString());
-        getActivity().runOnUiThread(updateViewsRunnable);
+        final FragmentActivity activity = getActivity();
+        if (activity != null) {
+            activity.runOnUiThread(() -> {
+                if (isAdded() && getView() != null) {
+                    updateViewsRunnable.run();
+                }
+            });
+        }
     }
 
 
     public void updateProgressBarVisibility() {
         if (refreshLayout != null) {
             final String statusString = PreferenceUtils.getString(PreferenceKeys.REMOTE_UPDATE_STATUS, "");
-            if (!TextUtils.isEmpty(statusString) && ActiveMedUpdateEvent.Status.valueOf(statusString) == ActiveMedUpdateEvent.Status.UPDATE_START) {
+            if (ActiveMedUpdateEvent.Status.UPDATE_START.name().equals(statusString)) {
                 refreshLayout.setRefreshing(true);
             } else {
                 refreshLayout.setRefreshing(false);
@@ -252,19 +307,27 @@ public class ActiveMedicationListFragment extends Fragment {
 
     @UiThread
     private void updateHeaderText() {
-        String last = PreferenceUtils.getString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_DATE, null);
-        if (last != null) {
-            DateTime t = DateTime.parse(last);
-            DateTime now = DateTime.now();
-            String relativeTimeStr = DateUtils.getRelativeTimeSpanString(
-                    t.getMillis(),
-                    now.getMillis(),
-                    DateUtils.MINUTE_IN_MILLIS,
-                    DateUtils.FORMAT_ABBREV_ALL).toString();
-            timeSinceUpdateText.setText(getString(R.string.active_med_last_checked_time, relativeTimeStr));
-        } else {
-            timeSinceUpdateText.setText(getString(R.string.active_med_not_checked_yet));
+        if (timeSinceUpdateText == null) {
+            return;
         }
+        String last = PreferenceUtils.getString(
+                PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_DATE, null);
+        if (!TextUtils.isEmpty(last)) {
+            try {
+                DateTime date = DateTime.parse(last);
+                DateTime now = DateTime.now();
+                String relativeTime = DateUtils.getRelativeTimeSpanString(
+                        date.getMillis(), now.getMillis(),
+                        DateUtils.MINUTE_IN_MILLIS, DateUtils.FORMAT_ABBREV_ALL)
+                        .toString();
+                timeSinceUpdateText.setText(
+                        getString(R.string.active_med_last_checked_time, relativeTime));
+                return;
+            } catch (IllegalArgumentException malformed) {
+                LogUtil.w(TAG, "Ignoring malformed provider update timestamp");
+            }
+        }
+        timeSinceUpdateText.setText(R.string.active_med_not_checked_yet);
     }
 
     private void setupRecyclerView() {
@@ -277,9 +340,20 @@ public class ActiveMedicationListFragment extends Fragment {
         adapter.withOnClickListener(new OnClickListener<ActiveMedicationListItem>() {
             @Override
             public boolean onClick(View v, IAdapter<ActiveMedicationListItem> adapter, ActiveMedicationListItem item, int position) {
+                if (!canOpenProviderMedicine(item)) {
+                    notifyDataChange();
+                    return true;
+                }
                 final ActiveMedVO vo = item.getVo();
-
-                Medicine m = DB.medicines().findOneBy(Medicine.COLUMN_ACTIVE_MED_ID, vo.getBackingEntity().getId());
+                Medicine m = DB.medicines().findOneBy(
+                        Medicine.COLUMN_ACTIVE_MED_ID, vo.getBackingEntity().getId());
+                final Patient activePatient = DB.patients().getActive(getContext());
+                if (m != null && (m.getPatient() == null || activePatient == null
+                        || !ActiveMedicationOwnerGuard.matchingPatient(
+                            displayedPatientId, activePatient.getId(),
+                            m.getPatient().getId()))) {
+                    m = null;
+                }
 
                 Intent i = new Intent(getActivity(), MedicineInfoActivity.class);
                 i.setAction(MedicineInfoActivity.ACTION_SHOW_ONLY_ACTIVE_MED);
@@ -311,6 +385,10 @@ public class ActiveMedicationListFragment extends Fragment {
 
             @Override
             public void onClick(View v, int position, FastAdapter<ActiveMedicationListItem> fastAdapter, ActiveMedicationListItem item) {
+                if (!canOpenProviderMedicine(item)) {
+                    notifyDataChange();
+                    return;
+                }
                 Intent intent;
                 Schedule s;
                 Long id;
@@ -364,47 +442,94 @@ public class ActiveMedicationListFragment extends Fragment {
     }
 
     private void reloadItemsAsync() {
+        final long requestedVersion = reloadGeneration.incrementAndGet();
         final Context context = getContext();
         if (context == null) {
             return;
         }
-
-        final Context applicationContext = context.getApplicationContext();
+        final Context applicationContext = context.getApplicationContext() != null
+                ? context.getApplicationContext() : context;
+        final Patient active = DB.patients().getActive(applicationContext);
+        final Long ownerId = active == null ? null : active.getId();
         final Handler mainHandler = new Handler(Looper.getMainLooper());
-        RELOAD_EXECUTOR.execute(() -> {
-            LogUtil.d(TAG, "Reloading items...");
-            final List<ActiveMedEntity> entities = DB.healthcareProviderDB().activeMeds().findBy(
-                    ActiveMedEntity.COLUMN_PATIENT,
-                    DB.patients().getActive(applicationContext));
-            final List<ActiveMedicationListItem> items = new ArrayList<>(entities.size());
-            for (ActiveMedEntity entity : entities) {
-                ActiveMedVO vo = ActiveMedVO.forEntity(entity);
-                items.add(new ActiveMedicationListItem(vo));
-            }
-            Collections.sort(items, amComparator);
 
+        mainHandler.post(() -> {
+            if (!isAdded() || getView() == null || adapter == null) {
+                return;
+            }
+            if (displayedPatientId != null && !displayedPatientId.equals(ownerId)) {
+                // Do not leave the previous patient's medical data displayed
+                // while a potentially slow replacement query is in flight.
+                adapter.setNewList(new ArrayList<>());
+                displayedPatientId = null;
+                checkPlaceholder();
+            }
+        });
+
+        RELOAD_EXECUTOR.execute(() -> {
+            final List<ActiveMedicationListItem> items = new ArrayList<>();
+            if (ownerId != null && ownerId > 0L) {
+                try {
+                    final List<ActiveMedEntity> entities =
+                            DB.healthcareProviderDB().activeMeds().findBy(
+                                    ActiveMedEntity.COLUMN_PATIENT, active);
+                    if (entities != null) {
+                        for (ActiveMedEntity entity : entities) {
+                            if (entity != null && entity.getPatient() != null
+                                    && ownerId.equals(entity.getPatient().getId())) {
+                                final ActiveMedVO vo = ActiveMedVO.forEntity(entity);
+                                if (vo != null) {
+                                    items.add(new ActiveMedicationListItem(vo));
+                                }
+                            }
+                        }
+                    }
+                    Collections.sort(items, amComparator);
+                } catch (RuntimeException error) {
+                    // Never publish a partial set from an invalid/failed
+                    // clinical query or retain cards from another patient.
+                    LogUtil.e(TAG, "Unable to load verified provider medicines", error);
+                    items.clear();
+                }
+            }
             mainHandler.post(() -> {
-                if (!isAdded() || getView() == null) {
+                if (!isAdded() || getView() == null || adapter == null) {
                     return;
                 }
-                LogUtil.d(TAG, "Reloaded items, count: " + items.size());
+                final Patient nowActive = DB.patients().getActive(applicationContext);
+                final Long nowOwnerId = nowActive == null ? null : nowActive.getId();
+                if (!ActiveMedicationOwnerGuard.canApply(
+                        requestedVersion, reloadGeneration.get(), ownerId, nowOwnerId)) {
+                    return;
+                }
                 adapter.setNewList(items);
+                displayedPatientId = ownerId;
                 checkPlaceholder();
             });
         });
     }
 
 
-    private Comparator<ActiveMedicationListItem> amComparator = new Comparator<ActiveMedicationListItem>() {
+    private final Comparator<ActiveMedicationListItem> amComparator =
+            new Comparator<ActiveMedicationListItem>() {
         @Override
-        public int compare(ActiveMedicationListItem o1, ActiveMedicationListItem o2) {
-            if (ActiveMedEntity.ActiveMedState.INACTIVE.equals(o1.getVo().getState())) {
-                return 1;
-            } else if (ActiveMedEntity.ActiveMedState.INACTIVE.equals(o2.getVo().getState())) {
-                return -1;
-            } else {
-                return o1.getVo().getLastUpdated().compareTo(o2.getVo().getLastUpdated());
+        public int compare(ActiveMedicationListItem first, ActiveMedicationListItem second) {
+            if (first == second) {
+                return 0;
             }
+            boolean firstMissing = first == null || first.getVo() == null;
+            boolean secondMissing = second == null || second.getVo() == null;
+            if (firstMissing || secondMissing) {
+                // Comparing two invalid/empty legacy rows must also return 0.
+                return Boolean.compare(firstMissing, secondMissing);
+            }
+            final ActiveMedVO left = first.getVo();
+            final ActiveMedVO right = second.getVo();
+            return ActiveMedicationOrdering.compare(
+                    ActiveMedEntity.ActiveMedState.INACTIVE.equals(left.getState()),
+                    ActiveMedEntity.ActiveMedState.INACTIVE.equals(right.getState()),
+                    left.getLastUpdated() == null ? null : left.getLastUpdated().getMillis(),
+                    right.getLastUpdated() == null ? null : right.getLastUpdated().getMillis());
         }
     };
 
