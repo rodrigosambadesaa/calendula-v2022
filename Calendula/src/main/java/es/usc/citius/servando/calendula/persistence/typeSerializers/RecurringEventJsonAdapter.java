@@ -94,6 +94,7 @@ public class RecurringEventJsonAdapter extends TypeAdapter<RecurringEvent> {
     @Override
     public RecurringEvent read(JsonReader in) throws IOException {
         RecurringEvent event = null;
+        boolean hasRule = false;
         try {
             event = new RecurringEvent();
             in.beginObject();
@@ -101,6 +102,7 @@ public class RecurringEventJsonAdapter extends TypeAdapter<RecurringEvent> {
                 switch (in.nextName()) {
                     case "rule":
                         event.setRecurrence(new RecurrenceRule(in.nextString()));
+                        hasRule = true;
                         break;
                     case "start":
                         event.setStartDateTime(dateFormat.parseDateTime(in.nextString()));
@@ -162,6 +164,12 @@ public class RecurringEventJsonAdapter extends TypeAdapter<RecurringEvent> {
                 }
             }
             in.endObject();
+            if (!hasRule) {
+                // The no-arg constructor initializes DAILY for new objects.
+                // A corrupt database record without an actual rule must
+                // never silently inherit this default daily treatment.
+                throw new IOException("Stored medication recurrence has no rule");
+            }
         } catch (InvalidRecurrenceRuleException e) {
             // Returning the default DAILY recurrence would silently invent a
             // different clinical schedule when the persisted rule is corrupt.
