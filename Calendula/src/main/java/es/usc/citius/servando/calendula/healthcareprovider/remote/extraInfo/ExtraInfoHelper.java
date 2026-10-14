@@ -31,6 +31,7 @@ import es.usc.citius.servando.calendula.healthcareprovider.util.DBUtil;
 import es.usc.citius.servando.calendula.login.InstanceIDHelper;
 import es.usc.citius.servando.calendula.login.LoginActivity;
 import es.usc.citius.servando.calendula.login.LoginStateManager;
+import es.usc.citius.servando.calendula.healthcareprovider.remote.ProviderTokenGuard;
 import es.usc.citius.servando.calendula.login.TestingConnectionBuilder;
 import es.usc.citius.servando.calendula.notifications.NotificationHelper;
 import es.usc.citius.servando.calendula.util.GsonUtil;
@@ -84,7 +85,7 @@ public class ExtraInfoHelper {
             status = Status.ERROR_NO_USER_OR_DB;
         } else if (!NetworkUtils.isNetworkAvailable(ctx)) {
             status = Status.ERROR_NO_CONNECTION;
-        } else if (authState.getAccessToken() == null) {
+        } else if (!ProviderTokenGuard.isUsable(authState.getAccessToken())) {
             // user is logged in but has not an access token
             // force login next time the user opens the app
             status = Status.ERROR_AUTHORIZATION;
@@ -199,7 +200,7 @@ public class ExtraInfoHelper {
                     public okhttp3.Response intercept(@NonNull Chain chain) throws IOException {
                         final AuthState state = LoginStateManager.getInstance().getCurrentAuthState();
                         final String currentAccessToken = state != null ? state.getAccessToken() : null;
-                        if (currentAccessToken == null) {
+                        if (!ProviderTokenGuard.isUsable(currentAccessToken)) {
                             throw new IOException("Access token is unavailable");
                         }
                         final Request request = chain.request().newBuilder()
