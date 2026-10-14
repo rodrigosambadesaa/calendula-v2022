@@ -5,12 +5,17 @@
 package es.usc.citius.servando.calendula.util.prospects;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
 
 import es.usc.citius.servando.calendula.persistence.Patient;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = 28)
 public class ProspectUtilsValidationTest {
     @Test
     public void aMissingOrUnpersistedOwnerMustNotLaunchAClinicalLeaflet() {
