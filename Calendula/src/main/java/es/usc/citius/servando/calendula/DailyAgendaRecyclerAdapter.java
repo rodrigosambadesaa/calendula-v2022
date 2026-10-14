@@ -416,6 +416,7 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
                                        DailyAgendaItemStub selected, int position) {
         if (rows == null || selected == null || position < 0
                 || position >= rows.size() || rows.get(position) != selected
+                || !selected.hasEvents || !selected.displayable
                 || selected.patient == null || selected.patient.getId() == null
                 || selected.patient.getId() <= 0L
                 || selected.date == null || selected.time == null
