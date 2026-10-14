@@ -275,8 +275,10 @@ public class UpdateMedicationFromServiceJob extends Job {
                     if (current == null
                             || !originalCredentials.equals(current.jsonSerializeString())) {
                         // Another login/logout or token refresh won the race.
-                        // Do not resurrect an old session.
-                        result.setResult(Status.ERROR_AUTHORIZATION);
+                        // Treat a changed session as a harmless stale job.
+                        // ERROR_AUTHORIZATION logs out the current user and
+                        // must never be used for this race.
+                        result.setResult(Status.ERROR_GENERIC);
                     } else {
                         LoginStateManager.getInstance().updateAuthState(authState);
                     }
