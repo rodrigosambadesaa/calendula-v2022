@@ -18,83 +18,92 @@
 
 package es.usc.citius.servando.calendula.pinlock;
 
-import org.joda.time.DateTime;
-import org.joda.time.Duration;
+import android.os.SystemClock;
 
 import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
 /**
- * Utility class to handle unlock state (for PIN lock)
+ * In-process PIN unlock state. Elapsed realtime is independent of wall-clock
+ * changes, timezone updates and daylight-saving transitions.
  */
-public class UnlockStateManager {
+public final class UnlockStateManager {
+    private static final String DEFAULT_UNLOCK_DURATION_SECONDS = "120";
+    private static final String TAG = "UnlockStateManager";
+    private static final UnlockStateManager INSTANCE = new UnlockStateManager();
 
-    private final static String DEFAULT_UNLOCK_DURATION_SECONDS = "120";
-    private final static String TAG = "UnlockStateManager";
-    private static UnlockStateManager theInstance;
-    private DateTime unlockTimestamp;
+    // -1 means locked. A monotonic timestamp is never persisted across boots.
+    private volatile long unlockedAtElapsedMs = -1L;
 
     private UnlockStateManager() {
-
     }
 
     public static UnlockStateManager getInstance() {
-        if (theInstance == null) {
-            theInstance = new UnlockStateManager();
-        }
-        return theInstance;
+        return INSTANCE;
     }
 
-    /**
-     * Stores unlock status
-     */
+    /** Called only after authenticating the PIN or approved biometric. */
     public void unlock() {
-        LogUtil.v(TAG, "unlock() called");
-        if (unlockTimestamp != null)
-            LogUtil.d(TAG, "unlock: timestamp was already set. Overwriting.");
-        unlockTimestamp = DateTime.now();
+        unlockedAtElapsedMs = SystemClock.elapsedRealtime();
     }
 
+    /** Immediately revokes access to the protected patient information. */
+    public void lock() {
+        unlockedAtElapsedMs = -1L;
+    }
 
     /**
-     * Stores lock status
+     * Invalid, unsupported or tampered timeouts deny access instead of
+     * crashing, defaulting to an unlimited window or silently lengthening it.
      */
-    public void lock() {
-        LogUtil.v(TAG, "lock() called");
-        if (unlockTimestamp != null) {
-            unlockTimestamp = null;
-        } else {
-            LogUtil.d(TAG, "lock: timestamp wasn't set. Doing nothing.");
+    static int parseAllowedTimeoutSeconds(String raw) {
+        if (raw == null) {
+            return -1;
+        }
+        String selected = raw.trim();
+        switch (selected) {
+            case "30":
+                return 30;
+            case "60":
+                return 60;
+            case "120":
+                return 120;
+            case "300":
+                return 300;
+            default:
+                return -1;
         }
     }
 
+    /** Pure monotonic-time policy for local JVM and instrumentation tests. */
+    static boolean withinUnlockWindow(long startMs, long nowMs, int durationSeconds) {
+        if (startMs < 0 || nowMs < startMs || durationSeconds <= 0 || durationSeconds > 300) {
+            return false;
+        }
+        // Subtraction after ordering handles epoch crossing and avoids a
+        // future-date bypass if elapsed realtime resets after device restart.
+        return nowMs - startMs <= durationSeconds * 1000L;
+    }
+
     /**
-     * Checks if unlock is set and not expired
-     *
-     * @return <code>true</code> if unlocked, false otherwise.
+     * Check whether a completed authentication is still valid.
+     * An invalid preference, clock reset or elapsed timeout locks immediately.
      */
     public boolean isUnlocked() {
-        LogUtil.v(TAG, "isUnlocked() called");
-        if (unlockTimestamp != null) {
-            Duration diff = new Duration(unlockTimestamp, DateTime.now());
-            // need to be a string to use a ListPreference
-            final String maxDurationStr = PreferenceUtils.getString(PreferenceKeys.UNLOCK_PIN_TIMEOUT, DEFAULT_UNLOCK_DURATION_SECONDS);
-            Duration maxDuration = Duration.standardSeconds(Integer.parseInt(maxDurationStr));
-            LogUtil.d(TAG, "Max unlock duration is " + maxDuration.toString());
-            if (diff.compareTo(maxDuration) <= 0) {
-                LogUtil.d(TAG, "isUnlocked() returned: " + true);
-                return true;
-            } else {
-                LogUtil.d(TAG, "isUnlocked: unlock has expired, unsetting and returning null");
-                unlockTimestamp = null;
-                return false;
-            }
-        } else {
-            LogUtil.d(TAG, "isUnlocked: timestamp is null");
+        final long start = unlockedAtElapsedMs;
+        if (start < 0L) {
+            return false;
         }
+        final String stored = PreferenceUtils.getString(
+                PreferenceKeys.UNLOCK_PIN_TIMEOUT, DEFAULT_UNLOCK_DURATION_SECONDS);
+        final int seconds = parseAllowedTimeoutSeconds(stored);
+        final long now = SystemClock.elapsedRealtime();
+        if (withinUnlockWindow(start, now, seconds)) {
+            return true;
+        }
+        unlockedAtElapsedMs = -1L;
+        LogUtil.d(TAG, "PIN unlock expired or invalidated");
         return false;
     }
-
-
 }
