@@ -47,6 +47,18 @@ final class WebViewNavigationPolicy {
         return parseRemoteHttpUri(targetUrl) != null;
     }
 
+    /**
+     * Initial requests come from persisted intents and catalog lookups.
+     * Never allow local filesystem, script, relative or credential-bearing
+     * URLs to enter a privileged WebView that may inject CSS or cache HTML.
+     */
+    static boolean isSafeInitialDocumentUrl(String targetUrl) {
+        URI uri = parseRemoteHttpUri(targetUrl);
+        return uri != null && uri.getUserInfo() == null
+                && uri.getHost() != null && !uri.getHost().isEmpty()
+                && uri.getPort() <= 65535;
+    }
+
     static boolean isWebViewLocalUrl(String targetUrl) {
         if (targetUrl == null) {
             return false;
