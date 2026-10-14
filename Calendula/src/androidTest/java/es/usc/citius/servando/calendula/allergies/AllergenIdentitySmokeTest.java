@@ -33,7 +33,7 @@ public class AllergenIdentitySmokeTest {
         AllergenVO otherType = new AllergenVO(AllergenType.ACTIVE_INGREDIENT, "Synthetic", "test-1");
         assertEquals(validA, validB);
         assertEquals(validA.hashCode(), validB.hashCode());
-        assertNotEquals(validA, otherType);
+        assertFalse(validA.equals(otherType));
     }
 
     @Test
