@@ -139,6 +139,19 @@ public class RecurringEventJsonAdapter extends TypeAdapter<RecurringEvent> {
                                 }
                             }
                             in.endObject();
+                            // Never return an unusable recurrence and let a
+                            // later medication alarm dereference a null time.
+                            // Historic ABSOLUTE rows which contained only a
+                            // reference lost the clock time and cannot be
+                            // reconstructed without patient confirmation.
+                            if (t.getReferenceType() == null
+                                    || (t.getReferenceType() == DailyFixedTime.ReferenceType.ABSOLUTE
+                                            && t.getTime() == null)
+                                    || (t.getReferenceType() == DailyFixedTime.ReferenceType.ROUTINE
+                                            && (t.getReference() == null
+                                                    || t.getReference() <= 0L))) {
+                                throw new IOException("Incomplete stored medication recurrence");
+                            }
                             event.addDailyFixedTime(t);
                         }
                         in.endArray();
