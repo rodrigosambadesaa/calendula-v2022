@@ -93,8 +93,7 @@ public class LiquidDosePickerFragment extends DosePickerFragment {
         // The slider displays whole values from 0 to MAX_DOSE. Never keep
         // a different (fractional, oversized or non-finite) hidden dose to
         // submit while the visible thumb shows another number.
-        int visible = Double.isNaN(initialDose) || initialDose < 0 ? 0
-                : (int) Math.min(initialDose, MAX_DOSE);
+        int visible = DoseInputGuard.liquidSliderValue(initialDose, MAX_DOSE);
         seekBar.setProgress(visible);
         dose = seekBar.getProgress();
         seekBarText.setText(getString(R.string.liquid_dose_value,
