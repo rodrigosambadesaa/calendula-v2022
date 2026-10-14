@@ -51,6 +51,26 @@ class StockCalculatorInvalidInputTest {
     }
 
     @Test
+    fun invalidPersistedRecurrenceNeverCrashesStockOrClaimsAmpleSupply() {
+        var queriedDays = 0
+        val corruptRecurrence = object : StockForDayProvider {
+            override fun stockNeededForDay(date: LocalDate): Float {
+                queriedDays++
+                if (queriedDays == 2) {
+                    throw IllegalStateException("Synthetic corrupt patient recurrence")
+                }
+                return 0.25f
+            }
+        }
+        assertEquals(
+            StockCalculator.StockEnd.Unavailable,
+            StockCalculator.calculateStockEnd(today, corruptRecurrence, 100f)
+        )
+        assertEquals("The calculation must stop at the first invalid dose day",
+            2, queriedDays)
+    }
+
+    @Test
     fun validZeroConsumptionStillPreservesExistingOverMaxSemantics() {
         val noConsumption = object : StockForDayProvider {
             override fun stockNeededForDay(date: LocalDate): Float = 0f
