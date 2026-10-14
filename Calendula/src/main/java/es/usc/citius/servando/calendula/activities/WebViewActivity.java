@@ -27,6 +27,7 @@ import android.net.Uri;
 import android.net.http.SslError;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.BadParcelableException;
 import android.os.Handler;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
@@ -68,6 +69,7 @@ import java.util.concurrent.Executors;
 import es.usc.citius.servando.calendula.CalendulaActivity;
 import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.database.DB;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.util.HtmlCacheManager;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
@@ -106,7 +108,14 @@ public class WebViewActivity extends CalendulaActivity {
         handler = new Handler();
 
         //check for request and URL  and finish if not present
-        request = getIntent().getParcelableExtra(PARAM_WEBVIEW_REQUEST);
+        try {
+            request = getIntent().getParcelableExtra(PARAM_WEBVIEW_REQUEST);
+        } catch (BadParcelableException | IllegalArgumentException invalidRequest) {
+            LogUtil.w(TAG, "Invalid saved embedded-web request");
+            showErrorToast(null);
+            finish();
+            return;
+        }
         if (request == null || (url = request.getUrl()) == null) {
             LogUtil.e(TAG, "onCreate: No WebViewRequest provided in intent!");
             showErrorToast(null);
@@ -117,7 +126,14 @@ public class WebViewActivity extends CalendulaActivity {
             toolbarSahdow = findViewById(R.id.tabs_shadow);
 
             //setup toolbar and statusbar
-            color = DB.patients().getActive(this).getColor();
+            Patient active = DB.patients().getActive(this);
+            if (active == null || active.getId() == null || active.getId() <= 0L) {
+                LogUtil.w(TAG, "No active patient available for embedded-web request");
+                showErrorToast(null);
+                finish();
+                return;
+            }
+            color = active.getColor();
             String title = request.getTitle();
             setupToolbar(title, color);
             setupStatusBar(color);
