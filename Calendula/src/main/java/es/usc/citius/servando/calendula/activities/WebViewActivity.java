@@ -706,6 +706,28 @@ public class WebViewActivity extends CalendulaActivity {
         }
     }
 
+    /**
+     * The provider HTML bridge runs off the UI thread. On processing failure,
+     * never fall back to loading the raw provider page as trusted local HTML:
+     * the sanitation stage must complete successfully before rendering.
+     */
+    private void rejectUnsafeLeafletHtml() {
+        handler.post(() -> {
+            if (isFinishing() || isDestroyed() || rejectChangedPatient()) {
+                return;
+            }
+            LogUtil.w(TAG, "Embedded leaflet HTML validation failed");
+            if (webView != null) {
+                webView.stopLoading();
+                webView.removeJavascriptInterface("HtmlCache");
+                webView.setVisibility(View.INVISIBLE);
+            }
+            hideLoading();
+            showErrorToast(null);
+            finish();
+        });
+    }
+
     private class SimpleJSCacheInterface {
         private Context ctx;
 
@@ -720,28 +742,33 @@ public class WebViewActivity extends CalendulaActivity {
             if (isFinishing() || isDestroyed() || !sameOpeningPatient()) {
                 return;
             }
-            final Duration ttl = request.getCacheTTL(); //can  be null
-            String processed = null;
-            // if there is a postprocessor enabled
-            if (request.needsPostprocessing()) {
-                // instantiate postprocessor
-                try {
-                    HtmlPostprocessor processor = (HtmlPostprocessor) Class.forName(request.getPostProcessorClassname()).newInstance();
-                    // get processed html
-                    processed = processor.process(html);
-                    // Processing may take time. Recheck after processing,
-                    // just before writing patient-specific provider HTML.
-                    if (request.getCacheType().equals(WebViewRequest.CacheType.DOWNLOAD_CACHE)
-                            && !isFinishing() && !isDestroyed() && sameOpeningPatient()) {
-                        HtmlCacheManager.getInstance().putForPatient(openedPatientId, originalUrl, processed, ttl);
-                    }
-
-                } catch (Exception e) {
-                    LogUtil.e(TAG, "Embedded web document postprocessing failed");
-                }
+            // Check before parsing: Jsoup's DOM can multiply memory usage
+            // several-fold. Invalid pages must never reach a local WebView.
+            if (!ProviderHtmlGuard.isBoundedHtml(html)) {
+                rejectUnsafeLeafletHtml();
+                return;
             }
-            // in other case, simply write html content to cache
-            else if (request.getCacheType().equals(WebViewRequest.CacheType.DOWNLOAD_CACHE)
+            final Duration ttl = request.getCacheTTL(); // may be null
+            String processed = null;
+            if (request.needsPostprocessing()) {
+                try {
+                    HtmlPostprocessor processor = (HtmlPostprocessor) Class
+                            .forName(request.getPostProcessorClassname()).newInstance();
+                    processed = ProviderHtmlGuard.processOrNull(html, processor::process);
+                } catch (ReflectiveOperationException | ClassCastException invalidProcessor) {
+                    LogUtil.w(TAG, "Unable to initialize leaflet HTML sanitizer");
+                }
+                if (processed == null) {
+                    // NEVER display raw input when the requested sanitizer
+                    // cannot produce a bounded, valid sanitized document.
+                    rejectUnsafeLeafletHtml();
+                    return;
+                }
+                if (request.getCacheType().equals(WebViewRequest.CacheType.DOWNLOAD_CACHE)
+                        && !isFinishing() && !isDestroyed() && sameOpeningPatient()) {
+                    HtmlCacheManager.getInstance().putForPatient(openedPatientId, originalUrl, processed, ttl);
+                }
+            } else if (request.getCacheType().equals(WebViewRequest.CacheType.DOWNLOAD_CACHE)
                     && !isFinishing() && !isDestroyed() && sameOpeningPatient()) {
                 HtmlCacheManager.getInstance().putForPatient(openedPatientId, url, html, ttl);
             }
