@@ -56,8 +56,9 @@ public class HomeAgendaConfirmRoutingTest {
 
     @Test
     public void malformedVisibleClinicalRowsCannotLaunchBulkConfirmation() {
+        DailyAgendaItemStub invalidId = row(101L, 0L, 1d);
         assertFalse(DailyAgendaRecyclerAdapter.isCurrentConfirmRow(
-                Collections.singletonList(row(101L, 0L, 1d)), row(101L, 0L, 1d), 0));
+                Collections.singletonList(invalidId), invalidId, 0));
         for (double bad : new double[]{0d, -1d, Double.NaN, Double.POSITIVE_INFINITY}) {
             DailyAgendaItemStub row = row(101L, 2001L, bad);
             assertFalse(DailyAgendaRecyclerAdapter.isCurrentConfirmRow(
