@@ -72,6 +72,49 @@ public class WebViewRequestTest {
     }
 
     @Test
+    public void legacyUnknownCacheModeAndMalformedTtlRestoreSafely() {
+        Parcel parcel = Parcel.obtain();
+        try {
+            parcel.writeString("https://example.test/synthetic-leaflet");
+            for (int i = 0; i < 5; i++) {
+                parcel.writeString(null);
+            }
+            parcel.writeByte((byte) 0);
+            parcel.writeByte((byte) 0);
+            parcel.writeString("REMOVED_LEGACY_CACHE_MODE");
+            parcel.writeInt(0); // no CSS
+            parcel.writeString("not-an-iso-duration");
+            parcel.writeInt(0); // no overrides
+            parcel.setDataPosition(0);
+
+            WebViewRequest restored = WebViewRequest.CREATOR.createFromParcel(parcel);
+            assertEquals(WebViewRequest.CacheType.NO_CACHE, restored.getCacheType());
+            assertNull(restored.getCacheTTL());
+            assertFalse(restored.isJavaScriptEnabled());
+            assertFalse(restored.isExternalLinksEnabled());
+        } finally {
+            parcel.recycle();
+        }
+    }
+
+    @Test
+    public void nullCacheModeDoesNotCrashSerializationOrTurnOnExternalFeatures() {
+        WebViewRequest request = new WebViewRequest("https://example.test/leaflet");
+        request.setCacheType(null);
+        assertEquals(WebViewRequest.CacheType.NO_CACHE, request.getCacheType());
+        Parcel parcel = Parcel.obtain();
+        try {
+            request.writeToParcel(parcel, 0);
+            parcel.setDataPosition(0);
+            WebViewRequest restored = WebViewRequest.CREATOR.createFromParcel(parcel);
+            assertEquals(WebViewRequest.CacheType.NO_CACHE, restored.getCacheType());
+            assertFalse(restored.isJavaScriptEnabled());
+        } finally {
+            parcel.recycle();
+        }
+    }
+
+    @Test
     public void parcelRoundTripPreservesCssAndTtl() {
         WebViewRequest request = new WebViewRequest("https://example.test/page");
         request.setCustomCss(Arrays.asList("prospect.css"));
