@@ -157,9 +157,13 @@ public class LoginStateManager {
                     .putString(PreferenceKeys.LOGIN_LAST_LOGGEDIN_USER.key(), sub)
                     .apply();
 
-            SecurePrefBundle.INSTANCE
-                    .setAuthState(authState.jsonSerializeString())
-                    .apply();
+            // Serialize the credential publication with background refresh
+            // compare-and-swap, so an in-flight job cannot overwrite login.
+            synchronized (this) {
+                SecurePrefBundle.INSTANCE
+                        .setAuthState(authState.jsonSerializeString())
+                        .apply();
+            }
 
             UpdateMedicationFromServiceJob.scheduleUniquePeriodic();
 
@@ -204,9 +208,11 @@ public class LoginStateManager {
 
         LogUtil.d(TAG, "logout() called with: defer = [" + defer + "]");
         UpdateMedicationFromServiceJob.cancelAll();
-        SecurePrefBundle.INSTANCE
-                .clearAuthState()
-                .apply();
+        synchronized (this) {
+            SecurePrefBundle.INSTANCE
+                    .clearAuthState()
+                    .apply();
+        }
         final SharedPreferences.Editor editor = prefs.edit();
         if (defer) {
             editor.putBoolean(PreferenceKeys.PATIENTS_REMOVE_ACTIVE_ON_BOOT.key(), true);
@@ -219,7 +225,9 @@ public class LoginStateManager {
 
     public void logoutAndClearData(final Context ctx) {
         LogUtil.d(TAG, "logoutAndClearData() called with: ctx = [" + ctx + "]");
-        LogoutHelper.clearData(ctx);
+        synchronized (this) {
+            LogoutHelper.clearData(ctx);
+        }
     }
 
     /**
@@ -281,8 +289,25 @@ public class LoginStateManager {
         }
     }
 
-    public void updateAuthState(final AuthState newAuthState) {
+    public synchronized void updateAuthState(final AuthState newAuthState) {
         SecurePrefBundle.INSTANCE.setAuthState(newAuthState.jsonSerializeString()).apply();
+    }
+
+    /**
+     * Publish an asynchronous token refresh only if its original persisted
+     * session is still the current one. Compare and write under the same
+     * monitor used by login/logout; a stale worker cannot revive their tokens.
+     * Never expose the expected serialized credentials in diagnostic logs.
+     */
+    public synchronized boolean updateAuthStateIfUnchanged(
+            final String expectedSerializedState, final AuthState refreshed) {
+        if (expectedSerializedState == null || refreshed == null
+                || !expectedSerializedState.equals(
+                        SecurePrefBundle.INSTANCE.getAuthState())) {
+            return false;
+        }
+        SecurePrefBundle.INSTANCE.setAuthState(refreshed.jsonSerializeString()).apply();
+        return true;
     }
 
     public String getUserId() {
