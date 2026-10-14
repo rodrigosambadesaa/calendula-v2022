@@ -226,7 +226,7 @@ public class UpdateMedicationHelper {
      *
      * @param responseVO the {@link ResponseVO} received from the service
      */
-    private static Status onAuthorizationError(final ResponseVO responseVO, final Context ctx) {
+    static Status onAuthorizationError(final ResponseVO responseVO, final Context ctx) {
         LogUtil.d(TAG, "onAuthorizationError() called; response code = " + responseVO.getCode());
         Status status = Status.ERROR_AUTHORIZATION;
         if (responseVO.getCode() != HttpURLConnection.HTTP_UNAUTHORIZED) {
