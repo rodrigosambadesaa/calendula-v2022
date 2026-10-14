@@ -198,7 +198,25 @@ public class RecurringEvent {
     public boolean hasOccurrencesAt(LocalDate when) {
         DateTime t = when.toDateTimeAtStartOfDay();
         if (isCyclic()) {
-            return isCycleActiveAt(t);
+            // This method asks whether a LOCAL DATE has an intake, not
+            // whether midnight precedes the exact start instant. If the
+            // cycle starts today at 08:00, midnight must not hide its first
+            // valid day from the calendar.
+            if (startDateTime == null) {
+                throw new IllegalStateException("Cyclic medication has no start date");
+            }
+            DateTime cycleDay = when.toDateTimeAtStartOfDay(startDateTime.getZone());
+            // A day strictly after the stored end date cannot contain any
+            // medication occurrence, even if cycle arithmetic says active.
+            if (hasEnd() && when.isAfter(
+                    endDateTime.withZone(startDateTime.getZone()).toLocalDate())) {
+                return false;
+            }
+            if (when.equals(startDateTime.toLocalDate())
+                    && cycleDay.isBefore(startDateTime)) {
+                cycleDay = startDateTime;
+            }
+            return isCycleActiveAt(cycleDay);
         }
         // iterator start is not synchronized to avoid starting always
         // on a valid date. Due to this, we have to manually check the
@@ -401,15 +419,32 @@ public class RecurringEvent {
         recurrence = new RecurrenceRule(freq, RFC_MODE);
     }
 
+    /**
+     * Days of a medication cycle are LOCAL CALENDAR DAYS, not blocks of
+     * 86,400 seconds. At daylight-saving changes a calendar day may contain
+     * 23 or 25 hours. Using Interval.getStandardDays() can shift rest days
+     * into active days, accidentally generating a patient's extra intake.
+     */
+    static boolean isActiveOnCycleDay(DateTime start, DateTime occurrence,
+                                      Integer active, Integer inactive) {
+        if (start == null || occurrence == null || active == null || inactive == null
+                || active < 1 || inactive < 1
+                || (long) active + inactive > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Invalid medication cycle configuration");
+        }
+        if (occurrence.isBefore(start)) {
+            return false;
+        }
+        // Use the schedule start's time zone to interpret both dates, even
+        // when a caller supplies an equivalent UTC instant.
+        int days = org.joda.time.Days.daysBetween(
+                start.toLocalDate(),
+                occurrence.withZone(start.getZone()).toLocalDate()).getDays();
+        return days % (active + inactive) < active;
+    }
+
     private boolean isCycleActiveAt(DateTime date) {
-        if (date.isBefore(startDateTime)) return false;
-        int cycleLength = cycleActiveDays + cycleInactiveDays;
-        Interval interval = new Interval(startDateTime, date);
-        int days = (int) interval.toDuration().getStandardDays();
-        int cyclesUntilNow = days / cycleLength;
-        DateTime currentCycleStart = startDateTime.plusDays(cyclesUntilNow * cycleLength);
-        interval = new Interval(currentCycleStart, currentCycleStart.plusDays(cycleActiveDays));
-        return interval.contains(date);
+        return isActiveOnCycleDay(startDateTime, date, cycleActiveDays, cycleInactiveDays);
     }
 
     private void addDailyFixedTimes(List<DailyFixedTime> dailyFixedTimes) {
@@ -621,6 +656,10 @@ public class RecurringEvent {
                         "ActiveDays can not be null on cyclic events");
                 fail(event.cycleInactiveDays == null || event.cycleInactiveDays < 1,
                         "InactiveDays can not be null on cyclic events");
+                fail(event.cycleActiveDays != null && event.cycleInactiveDays != null
+                                && (long) event.cycleActiveDays + event.cycleInactiveDays
+                                        > Integer.MAX_VALUE,
+                        "Medication cycle length must not overflow");
             }
 
             if (event.recurrence.getInterval() > 0) {
