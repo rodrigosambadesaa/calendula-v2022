@@ -28,7 +28,6 @@ import com.j256.ormlite.support.DatabaseResults;
 
 import java.lang.reflect.Type;
 import java.sql.SQLException;
-import java.util.List;
 import java.util.Map;
 
 public class DosageMapPersister extends BaseDataType {
@@ -39,7 +38,7 @@ public class DosageMapPersister extends BaseDataType {
     private static final DosageMapPersister singleton = new DosageMapPersister();
 
     public DosageMapPersister() {
-        super(SqlType.STRING, new Class<?>[]{List.class});
+        super(SqlType.STRING, new Class<?>[]{Map.class});
     }
 
     public static DosageMapPersister getSingleton() {
@@ -58,8 +57,21 @@ public class DosageMapPersister extends BaseDataType {
 
     @Override
     public Object sqlArgToJava(FieldType fieldType, Object sqlArg, int columnPos) throws SQLException {
-        Map<Long, Double> result = gson.fromJson((String) sqlArg, dosageMapType);
-        return result;
+        if (sqlArg == null) {
+            // Old nullable dosage fields must remain null, not an invented
+            // empty treatment schedule.
+            return null;
+        }
+        if (!(sqlArg instanceof String)) {
+            throw new SQLException("Persisted schedule dosage map is not text");
+        }
+        try {
+            return gson.fromJson((String) sqlArg, dosageMapType);
+        } catch (RuntimeException malformed) {
+            // Gson's JsonSyntaxException is unchecked. Wrap it in the checked
+            // ORM persistence contract without logging medicine quantities.
+            throw new SQLException("Persisted schedule dosage map is malformed", malformed);
+        }
     }
 
     @Override
