@@ -201,7 +201,18 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
         }
         // check for allergies
         if (m.isBoundToPrescription()) {
-            final List<AllergenVO> vos = AllergenFacade.checkAllergies(this, DB.drugDB().prescriptions().findByCn(m.getCn()));
+            final List<AllergenVO> vos;
+            try {
+                vos = AllergenFacade.checkAllergies(
+                        this, DB.drugDB().prescriptions().findByCn(m.getCn()));
+            } catch (RuntimeException unverifiableCatalog) {
+                // Missing or inconsistent catalog data is NOT the same as a
+                // negative clinical allergy screen. Never persist a linked
+                // medicine without a verifiable ingredient/excipient lookup.
+                LogUtil.e(TAG, "Medication allergen catalog verification failed");
+                Snack.show(R.string.medicine_allergy_catalog_unavailable, this);
+                return;
+            }
             if (!vos.isEmpty()) {
                 showAllergyDialog(new MaterialDialog.SingleButtonCallback() {
                     @Override
@@ -225,7 +236,18 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
         }
         // check for allergies
         if (m.isBoundToPrescription()) {
-            final List<AllergenVO> vos = AllergenFacade.checkAllergies(this, DB.drugDB().prescriptions().findByCn(m.getCn()));
+            final List<AllergenVO> vos;
+            try {
+                vos = AllergenFacade.checkAllergies(
+                        this, DB.drugDB().prescriptions().findByCn(m.getCn()));
+            } catch (RuntimeException unverifiableCatalog) {
+                // Missing or inconsistent catalog data is NOT the same as a
+                // negative clinical allergy screen. Never persist a linked
+                // medicine without a verifiable ingredient/excipient lookup.
+                LogUtil.e(TAG, "Medication allergen catalog verification failed");
+                Snack.show(R.string.medicine_allergy_catalog_unavailable, this);
+                return;
+            }
             if (!vos.isEmpty()) {
                 showAllergyDialog(new MaterialDialog.SingleButtonCallback() {
                     @Override
