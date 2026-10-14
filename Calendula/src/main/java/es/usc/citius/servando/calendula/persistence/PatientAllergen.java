@@ -149,8 +149,17 @@ public class PatientAllergen {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PatientAllergen other = (PatientAllergen) o;
+        // Two distinct imported rows lacking an allergen identity must NOT
+        // be considered the same clinical allergy. In particular, list
+        // removal by equality must never erase a HIGH warning using
+        // incomplete/null catalog identifiers. Object identity remains
+        // reflexive via the early 'this == o' case above.
+        if (type == null || identifier == null
+                || other.type == null || other.identifier == null) {
+            return false;
+        }
         return type == other.type
-                && Objects.equals(identifier, other.identifier)
+                && identifier.equals(other.identifier)
                 && samePatientRecord(patient, other.patient);
     }
 
