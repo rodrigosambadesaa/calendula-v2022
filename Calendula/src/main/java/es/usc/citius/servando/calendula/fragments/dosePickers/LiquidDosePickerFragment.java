@@ -36,6 +36,25 @@ public class LiquidDosePickerFragment extends DosePickerFragment {
     double initialDose = 10.0f;
     double dose = initialDose;
 
+    private void updateConfirmAvailability() {
+        android.app.Dialog current = getDialog();
+        if (current instanceof android.app.AlertDialog) {
+            android.widget.Button button = ((android.app.AlertDialog) current)
+                    .getButton(android.app.AlertDialog.BUTTON_POSITIVE);
+            if (button != null) {
+                button.setEnabled(DoseInputGuard.isPositiveFinite(getSelectedDose()));
+            }
+        }
+    }
+
+    @Override
+    public android.app.Dialog onCreateDialog(android.os.Bundle savedInstanceState) {
+        android.app.AlertDialog dialog =
+                (android.app.AlertDialog) super.onCreateDialog(savedInstanceState);
+        dialog.setOnShowListener(ignored -> updateConfirmAvailability());
+        return dialog;
+    }
+
     @Override
     protected int getLayoutResource() {
         return R.layout.liquid_dose_picker;
@@ -53,6 +72,7 @@ public class LiquidDosePickerFragment extends DosePickerFragment {
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 seekBarText.setText(getString(R.string.liquid_dose_value, progress));
                 dose = progress;
+                updateConfirmAvailability();
             }
 
             @Override
@@ -70,9 +90,16 @@ public class LiquidDosePickerFragment extends DosePickerFragment {
 
     @Override
     protected void setInitialValue(double initialDose) {
-        seekBar.setProgress((int) initialDose);
-        seekBarText.setText(getString(R.string.liquid_dose_value, (int) initialDose));
-        dose = initialDose;
+        // The slider displays whole values from 0 to MAX_DOSE. Never keep
+        // a different (fractional, oversized or non-finite) hidden dose to
+        // submit while the visible thumb shows another number.
+        int visible = Double.isNaN(initialDose) || initialDose < 0 ? 0
+                : (int) Math.min(initialDose, MAX_DOSE);
+        seekBar.setProgress(visible);
+        dose = seekBar.getProgress();
+        seekBarText.setText(getString(R.string.liquid_dose_value,
+                seekBar.getProgress()));
+        updateConfirmAvailability();
     }
 
     @Override
