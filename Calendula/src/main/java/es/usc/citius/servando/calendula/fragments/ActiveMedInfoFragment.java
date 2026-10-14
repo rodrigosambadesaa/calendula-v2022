@@ -56,6 +56,7 @@ import org.joda.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -72,6 +73,8 @@ import es.usc.citius.servando.calendula.healthcareprovider.model.ActiveMedVO;
 import es.usc.citius.servando.calendula.healthcareprovider.model.DosageEntryVO;
 import es.usc.citius.servando.calendula.healthcareprovider.model.DosageVO;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
+import es.usc.citius.servando.calendula.healthcareprovider.database.ActiveMedOwnerGuard;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DispensationInfoEntity;
 import es.usc.citius.servando.calendula.util.DispensationInfoStore;
 import es.usc.citius.servando.calendula.util.IconUtils;
@@ -126,8 +129,12 @@ public class ActiveMedInfoFragment extends Fragment {
     @Override
     public void onStart() {
         super.onStart();
-        setupView();
         refreshData();
+        if (activeMed == null) {
+            closeUnavailableProviderPage();
+            return;
+        }
+        setupView();
     }
 
     @Override
@@ -152,18 +159,59 @@ public class ActiveMedInfoFragment extends Fragment {
 
     public void notifyDataChange() {
         refreshData();
-        if (!isStateSaved())
+        if (activeMed == null) {
+            closeUnavailableProviderPage();
+        } else if (!isStateSaved() && getView() != null) {
             setupView();
+        }
+    }
+
+    private void closeUnavailableProviderPage() {
+        // The selected profile/official medication may have changed while
+        // this fragment was paused. Never leave the old dosage visible.
+        if (getView() != null) {
+            getView().setVisibility(View.GONE);
+        }
+        if (getActivity() != null) {
+            getActivity().finish();
+        }
     }
 
     private void refreshData() {
-        if (getArguments() != null) {
-            final ActiveMedEntity medEntity = DB.healthcareProviderDB().activeMeds().findOneBy(ActiveMedEntity.COLUMN_CODE, getArguments().getString(ID_ARG, null));
+        activeMed = null;
+        if (getArguments() == null || getContext() == null) {
+            return;
+        }
+        Patient patient = DB.patients().getActive(getContext());
+        final ActiveMedEntity medEntity = DB.healthcareProviderDB().activeMeds()
+                .findByCodeForPatient(getArguments().getString(ID_ARG, null), patient);
+        if (medEntity != null) {
             activeMed = ActiveMedVO.forEntity(medEntity);
         }
     }
 
     private void setupView() {
+        if (activeMed == null || getView() == null || getContext() == null) {
+            return;
+        }
+        Patient currentPatient = DB.patients().getActive(getContext());
+        ActiveMedEntity provider = activeMed.getBackingEntity();
+        if (provider == null || provider.getPatient() == null
+                || currentPatient == null || !ActiveMedOwnerGuard.samePatient(
+                        provider.getPatient().getId(), currentPatient.getId())) {
+            closeUnavailableProviderPage();
+            return;
+        }
+        final Long providerId = provider.getId();
+        final Schedule linkedSchedule = DB.schedules().findOneBy(
+                Schedule.BOUND_TO, providerId);
+        if (linkedSchedule != null && (linkedSchedule.getPatient() == null
+                || !ActiveMedOwnerGuard.samePatient(
+                        linkedSchedule.getPatient().getId(), currentPatient.getId()))) {
+            // An imported cross-owner routine cannot be offered for editing.
+            closeUnavailableProviderPage();
+            return;
+        }
         // validity period
         final DateTime validityStart = activeMed.getValidityStart();
         final DateTime validityEnd = activeMed.getValidityEnd();
@@ -184,7 +232,8 @@ public class ActiveMedInfoFragment extends Fragment {
             scheduleText.setText(dosage.toReadableString(getContext()));
         }
 
-        List<DosageEntryVO> entries = dosage.getEntries();
+        List<DosageEntryVO> entries = dosage == null || dosage.getEntries() == null
+                ? Collections.emptyList() : dosage.getEntries();
         if(entries.size()!=0) {
             String instructions = entries.get(0).getPatientInstruction();
             if (instructions == null || org.apache.commons.lang3.StringUtils.isBlank(instructions)){
@@ -199,8 +248,7 @@ public class ActiveMedInfoFragment extends Fragment {
             intakeInstructions.setVisibility(View.GONE);
         }
 
-        final Schedule schedule = DB.schedules().findOneBy(Schedule.BOUND_TO, activeMed.getBackingEntity().getId());
-        final boolean hasReminders = schedule != null;
+        final boolean hasReminders = linkedSchedule != null;
 
         remindersButton.setCompoundDrawables(null, null, IconUtils.icon(getContext(),
                 hasReminders ? CommunityMaterial.Icon.cmd_bell_ring : CommunityMaterial.Icon.cmd_bell_plus,
@@ -211,12 +259,35 @@ public class ActiveMedInfoFragment extends Fragment {
         remindersButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                if (getContext() == null || activeMed == null
+                        || activeMed.getBackingEntity() == null) {
+                    return;
+                }
+                Patient nowActive = DB.patients().getActive(getContext());
                 Long id = activeMed.getBackingEntity().getId();
+                ActiveMedEntity currentProvider = DB.healthcareProviderDB().activeMeds()
+                        .findByIdForPatient(id, nowActive);
+                if (currentProvider == null) {
+                    closeUnavailableProviderPage();
+                    return;
+                }
+                // The linked schedule may change after this fragment was
+                // rendered. Re-query and revalidate the owner on every click.
+                Schedule currentSchedule = DB.schedules().findOneBy(
+                        Schedule.BOUND_TO, id);
+                if (currentSchedule != null && (currentSchedule.getPatient() == null
+                        || !ActiveMedOwnerGuard.samePatient(
+                                currentSchedule.getPatient().getId(), nowActive.getId()))) {
+                    closeUnavailableProviderPage();
+                    return;
+                }
                 Intent intent = new Intent(getContext(), ScheduleBuildActivity.class);
-                if (hasReminders) {
-                    intent.putExtra(CalendulaApp.INTENT_EXTRA_SCHEDULE_ID, schedule.getId());
+                if (currentSchedule != null) {
+                    intent.putExtra(CalendulaApp.INTENT_EXTRA_SCHEDULE_ID,
+                            currentSchedule.getId());
                 } else {
-                    intent.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_CREATE_REMINDER);
+                    intent.putExtra(IntentParams.EXTRA_ACTION,
+                            IntentParams.ACTION_CREATE_REMINDER);
                     intent.putExtra(IntentParams.EXTRA_ACTIVEMED_ID, id);
                 }
                 getContext().startActivity(intent);
