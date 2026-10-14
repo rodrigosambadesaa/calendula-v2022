@@ -164,7 +164,9 @@ public class MedicineSortUtil {
 
         @Override
         public int compare(Medicine o1, Medicine o2) {
-            return Boolean.valueOf(o2.isFromActiveMed()).compareTo(o1.isFromActiveMed());
+            int missing = compareNullableMedicines(o1, o2);
+            if (missing != Integer.MIN_VALUE) return missing;
+            return Boolean.compare(o2.isFromActiveMed(), o1.isFromActiveMed());
         }
     }
 
