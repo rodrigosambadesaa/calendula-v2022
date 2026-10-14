@@ -440,8 +440,11 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
                 if (mPrescription != null) {
                     mMedicine.setCn(String.valueOf(mPrescription.getCode()));
                     mMedicine.setDatabase(DBRegistry.instance().current().id());
-                } else if (mPrescription == null) {
+                } else {
+                    // Removing a linked prescription also invalidates its
+                    // drug-database origin and any previous allergy warning.
                     mMedicine.setCn(null);
+                    mMedicine.setDatabase(null);
                 }
 
                 if (mMedicineEditCallback != null && !checkIfDuplicate(mMedicine)) {
