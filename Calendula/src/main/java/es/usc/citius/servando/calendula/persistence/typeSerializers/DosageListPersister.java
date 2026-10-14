@@ -54,9 +54,29 @@ public class DosageListPersister extends BaseDataType {
 
     @Override
     public Object sqlArgToJava(FieldType fieldType, Object sqlArg, int columnPos) throws SQLException {
+        if (sqlArg == null) {
+            return null;
+        }
+        if (!(sqlArg instanceof String)) {
+            throw new SQLException("Persisted legacy dosage list is not text");
+        }
+        String raw = (String) sqlArg;
         List<Double> result = new ArrayList<>();
-        for (String p : StringUtils.split((String) sqlArg, SEPARATOR)) {
-            result.add(Double.parseDouble(p));
+        if (raw.isEmpty()) {
+            return result;
+        }
+        // Preserve the stored clinical amounts exactly. A malformed legacy
+        // dose must not be silently interpreted as zero or dropped.
+        String[] entries = raw.split("\\|", -1);
+        try {
+            for (String entry : entries) {
+                if (entry.isEmpty()) {
+                    throw new NumberFormatException("Missing legacy dosage entry");
+                }
+                result.add(Double.parseDouble(entry));
+            }
+        } catch (NumberFormatException malformed) {
+            throw new SQLException("Persisted legacy dosage list is malformed", malformed);
         }
         return result;
     }
