@@ -121,6 +121,48 @@ public class AllergiesSearchActivity extends CalendulaActivity {
     private Future<?> searchTask = null;
     private int searchGeneration;
     private List<AllergenVO> patientAllergies;
+    private Long openedPatientId;
+    private static final String STATE_OPENED_PATIENT_ID = "allergy_search_opened_patient_id";
+
+    private boolean stillOwnsSearch() {
+        es.usc.citius.servando.calendula.persistence.Patient active =
+                DB.patients().getActive(this);
+        return AllergenSearchOwnerGuard.samePatient(
+                openedPatientId, active == null ? null : active.getId());
+    }
+
+    private void closeStaleSearch() {
+        ++searchGeneration;
+        if (searchTask != null) {
+            searchTask.cancel(true);
+            searchTask = null;
+        }
+        setResult(Activity.RESULT_CANCELED);
+        finish();
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        if (openedPatientId != null && openedPatientId > 0L) {
+            outState.putLong(STATE_OPENED_PATIENT_ID, openedPatientId);
+        }
+        super.onSaveInstanceState(outState);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (openedPatientId != null && !stillOwnsSearch()) {
+            closeStaleSearch();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        ++searchGeneration;
+        if (searchTask != null) searchTask.cancel(true);
+        super.onDestroy();
+    }
 
     @Override
     public void onBackPressed() {
@@ -178,6 +220,10 @@ public class AllergiesSearchActivity extends CalendulaActivity {
 
     @OnClick(R.id.accept_selection_button)
     void saveAllergies() {
+        if (!stillOwnsSearch()) {
+            closeStaleSearch();
+            return;
+        }
         acceptFab.setEnabled(false);
         Intent returnIntent = new Intent();
         final List<AbstractItem> selected = getSelected();
@@ -215,7 +261,22 @@ public class AllergiesSearchActivity extends CalendulaActivity {
         setContentView(R.layout.activity_allergies_search);
         ButterKnife.bind(this);
 
-        int color = DB.patients().getActive(this).getColor();
+        es.usc.citius.servando.calendula.persistence.Patient opened =
+                DB.patients().getActive(this);
+        if (opened == null || opened.getId() == null) {
+            closeStaleSearch();
+            return;
+        }
+        Long savedOwner = savedInstanceState != null
+                && savedInstanceState.containsKey(STATE_OPENED_PATIENT_ID)
+                ? savedInstanceState.getLong(STATE_OPENED_PATIENT_ID, -1L)
+                : opened.getId();
+        if (!AllergenSearchOwnerGuard.samePatient(savedOwner, opened.getId())) {
+            closeStaleSearch();
+            return;
+        }
+        openedPatientId = savedOwner;
+        int color = opened.getColor();
         searchLayout.setBackgroundColor(color);
         setupStatusBar(color);
 
@@ -255,6 +316,10 @@ public class AllergiesSearchActivity extends CalendulaActivity {
 
     private void doSearch() {
         final String filter = searchEditText.getText().toString().trim();
+        if (!stillOwnsSearch()) {
+            closeStaleSearch();
+            return;
+        }
         if (filter.length() >= 3) {
             if (searchTask != null) {
                 searchTask.cancel(true);
@@ -273,6 +338,10 @@ public class AllergiesSearchActivity extends CalendulaActivity {
 
                 runOnUiThread(() -> {
                     if (generation != searchGeneration || isFinishing() || isDestroyed()) {
+                        return;
+                    }
+                    if (!stillOwnsSearch()) {
+                        closeStaleSearch();
                         return;
                     }
                     searchAdapter.add(items);
