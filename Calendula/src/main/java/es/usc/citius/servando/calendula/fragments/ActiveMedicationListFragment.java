@@ -510,16 +510,26 @@ public class ActiveMedicationListFragment extends Fragment {
     }
 
 
-    private Comparator<ActiveMedicationListItem> amComparator = new Comparator<ActiveMedicationListItem>() {
+    private final Comparator<ActiveMedicationListItem> amComparator =
+            new Comparator<ActiveMedicationListItem>() {
         @Override
-        public int compare(ActiveMedicationListItem o1, ActiveMedicationListItem o2) {
-            if (ActiveMedEntity.ActiveMedState.INACTIVE.equals(o1.getVo().getState())) {
-                return 1;
-            } else if (ActiveMedEntity.ActiveMedState.INACTIVE.equals(o2.getVo().getState())) {
-                return -1;
-            } else {
-                return o1.getVo().getLastUpdated().compareTo(o2.getVo().getLastUpdated());
+        public int compare(ActiveMedicationListItem first, ActiveMedicationListItem second) {
+            if (first == second) {
+                return 0;
             }
+            if (first == null || first.getVo() == null) {
+                return 1;
+            }
+            if (second == null || second.getVo() == null) {
+                return -1;
+            }
+            final ActiveMedVO left = first.getVo();
+            final ActiveMedVO right = second.getVo();
+            return ActiveMedicationOrdering.compare(
+                    ActiveMedEntity.ActiveMedState.INACTIVE.equals(left.getState()),
+                    ActiveMedEntity.ActiveMedState.INACTIVE.equals(right.getState()),
+                    left.getLastUpdated() == null ? null : left.getLastUpdated().getMillis(),
+                    right.getLastUpdated() == null ? null : right.getLastUpdated().getMillis());
         }
     };
 
