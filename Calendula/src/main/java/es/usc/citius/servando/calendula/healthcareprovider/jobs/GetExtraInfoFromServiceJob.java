@@ -207,7 +207,7 @@ public class GetExtraInfoFromServiceJob extends Job {
                         gate.complete(() -> {
                             try {
                                 if (ex != null) {
-                                    LogUtil.d(TAG, "Token refresh failed", ex);
+                                    LogUtil.w(TAG, "Token renewal failed (sensitive response omitted)");
                                     result.setResult(
                                             ex.code == AuthorizationException.GeneralErrors.NETWORK_ERROR.code
                                                     ? Status.ERROR_NO_CONNECTION
