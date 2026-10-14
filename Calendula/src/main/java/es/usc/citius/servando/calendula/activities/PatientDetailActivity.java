@@ -284,12 +284,18 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
         avatarGrid.setVisibility(View.VISIBLE);
         gridContainer.setVisibility(View.GONE);
 
-        patientId = getIntent().getLongExtra("patient_id", -1);
-
-        lookForQrData(getIntent());
+        Intent request = getIntent();
+        patientId = request == null ? -1L : request.getLongExtra("patient_id", -1L);
 
         if (patientId != -1) {
-            patient = DB.patients().findById(patientId);
+            patient = patientId > 0L ? DB.patients().findById(patientId) : null;
+            if (!PatientDetailEntryGuard.canOpen(patientId,
+                    patient == null ? null : patient.getId())) {
+                // The caller may hold a stale/deleted patient ID. Never
+                // construct a profile editor with missing clinical data.
+                finish();
+                return;
+            }
             addRoutinesCheckBox.setVisibility(View.GONE);
 
             token = loadPatientLinkToken(patientId);
@@ -312,6 +318,12 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
         } else {
             linkButton.setVisibility(View.GONE);
             patient = new Patient();
+        }
+
+        // Only process a scanned token after the target profile is confirmed
+        // to exist and the correct editor state has been initialized.
+        if (request != null && patientId > 0L) {
+            lookForQrData(request);
         }
 
         iconClose = new IconicsDrawable(this, CommunityMaterial.Icon.cmd_close)
@@ -341,6 +353,16 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
                 scroll.smoothScrollTo(0, patientNameLabel.getTop());
             }
         }, 200);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (patientId != null && patientId > 0L
+                && DB.patients().findById(patientId) == null) {
+            // A profile could be deleted while this editor was paused.
+            finish();
+        }
     }
 
     private void showUnlinkPatientDialog() {
