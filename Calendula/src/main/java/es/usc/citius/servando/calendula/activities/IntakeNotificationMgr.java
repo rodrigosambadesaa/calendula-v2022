@@ -40,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Locale;
-import java.util.Random;
 
 import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.database.DB;
@@ -73,7 +72,22 @@ import es.usc.citius.servando.calendula.util.PreferenceUtils;
 public class IntakeNotificationMgr {
 
     private static final String TAG = "IntakeNotificationMgr";
-    private static Random random = new Random();
+    private static final String PENDING_ACTION_PREFIX =
+            "es.usc.citius.servando.calendula.notification.";
+
+    /**
+     * PendingIntent identity excludes extras. Use distinct stable Android
+     * intent actions per notification button and use the reminder's persisted
+     * ID as the request code, so updating an existing notification refreshes
+     * the snapshot instead of leaking fresh random PendingIntents.
+     */
+    static Intent identifyNotificationAction(Intent intent, String buttonKind) {
+        if (intent == null || buttonKind == null || buttonKind.isEmpty()) {
+            throw new IllegalArgumentException("A distinct notification action is required");
+        }
+        intent.setAction(PENDING_ACTION_PREFIX + buttonKind);
+        return intent;
+    }
 
     /**
      * Official prescription notification lines contain no numeric dose.
@@ -421,8 +435,8 @@ public class IntakeNotificationMgr {
         // prepare notification intents
         PendingIntent defaultIntent = PendingIntent.getActivity(
                 context,
-                random.nextInt(),
-                intent,
+                id,
+                identifyNotificationAction(intent, "OPEN"),
                 PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
         PendingIntent delayIntent = null;
         PendingIntent cancelIntent = null;
@@ -431,18 +445,18 @@ public class IntakeNotificationMgr {
         if (!options.lost) {
             delayIntent = PendingIntent.getBroadcast(
                     context,
-                    random.nextInt(),
-                    actionIntents.first,
+                    id,
+                    identifyNotificationAction(actionIntents.first, "DELAY"),
                     PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
             cancelIntent = PendingIntent.getBroadcast(
                     context,
-                    random.nextInt(),
-                    actionIntents.second,
+                    id,
+                    identifyNotificationAction(actionIntents.second, "CANCEL"),
                     PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
             confirmAllIntent = PendingIntent.getBroadcast(
                     context,
-                    random.nextInt(),
-                    confirmIntent,
+                    id,
+                    identifyNotificationAction(confirmIntent, "CONFIRM"),
                     PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
         }
 
