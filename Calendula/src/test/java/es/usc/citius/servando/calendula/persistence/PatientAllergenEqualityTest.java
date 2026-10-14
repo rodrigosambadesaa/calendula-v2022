@@ -104,17 +104,36 @@ public class PatientAllergenEqualityTest {
     }
 
     @Test
-    public void nullableLegacyIdentifiersHaveSafeEqualityAndHashCode() {
-        Patient a = new Patient();
-        a.setId(9000005544L);
+    public void nullableLegacyIdentifiersAreNeverAssumedToBeEquivalentAllergies() {
+        Patient owner = new Patient();
+        owner.setId(9000005544L);
         PatientAllergen missingA = new PatientAllergen("Unknown",
-                AllergenType.ACTIVE_INGREDIENT, null, a);
+                AllergenType.ACTIVE_INGREDIENT, null, owner);
         PatientAllergen missingB = new PatientAllergen("Unknown",
-                AllergenType.ACTIVE_INGREDIENT, null, a);
-        assertEquals(missingA, missingB);
-        assertEquals(missingA.hashCode(), missingB.hashCode());
+                AllergenType.ACTIVE_INGREDIENT, null, owner);
+        assertEquals("The same Java record remains equal to itself", missingA, missingA);
+        assertNotEquals("Two different unknown allergens must not merge or delete each other",
+                missingA, missingB);
         assertNotEquals(missingA, new PatientAllergen("Known",
-                AllergenType.ACTIVE_INGREDIENT, "known-key", a));
+                AllergenType.ACTIVE_INGREDIENT, "known-key", owner));
         assertNotEquals(missingA, null);
+
+        PatientAllergen noType = new PatientAllergen("Missing type",
+                null, "known-key", owner);
+        PatientAllergen otherNoType = new PatientAllergen("Different missing type",
+                null, "known-key", owner);
+        assertNotEquals(noType, otherNoType);
+        assertNotEquals(noType, new PatientAllergen("Known",
+                AllergenType.ACTIVE_INGREDIENT, "known-key", owner));
+        // Hashing incomplete data is still safe, even if unequal objects
+        // happen to share the same hash bucket.
+        new java.util.HashSet<>(java.util.Arrays.asList(
+                missingA, missingB, noType, otherNoType));
+        java.util.Set<PatientAllergen> unique = new java.util.HashSet<>();
+        assertTrue(unique.add(missingA));
+        assertTrue(unique.add(missingB));
+        assertTrue(unique.add(noType));
+        assertTrue(unique.add(otherNoType));
+        assertEquals(4, unique.size());
     }
 }
