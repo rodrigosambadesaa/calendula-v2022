@@ -65,8 +65,20 @@ public class DosageMapPersister extends BaseDataType {
         if (!(sqlArg instanceof String)) {
             throw new SQLException("Persisted schedule dosage map is not text");
         }
+        String json = ((String) sqlArg).trim();
+        // Gson accepts some non-object JSON structures when deserializing a
+        // Map, including an empty array as an empty Map. That must never turn
+        // a corrupt clinical database value into a seemingly valid schedule.
+        // Preserve the literal "null" emitted by earlier Gson versions for
+        // nullable dosage maps.
+        if ("null".equals(json)) {
+            return null;
+        }
+        if (!json.startsWith("{") || !json.endsWith("}")) {
+            throw new SQLException("Persisted schedule dosage map must be a JSON object");
+        }
         try {
-            return gson.fromJson((String) sqlArg, dosageMapType);
+            return gson.fromJson(json, dosageMapType);
         } catch (RuntimeException malformed) {
             // Gson's JsonSyntaxException is unchecked. Wrap it in the checked
             // ORM persistence contract without logging medicine quantities.
