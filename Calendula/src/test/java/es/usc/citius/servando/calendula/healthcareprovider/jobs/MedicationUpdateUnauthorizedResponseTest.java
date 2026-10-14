@@ -23,6 +23,6 @@ public class MedicationUpdateUnauthorizedResponseTest {
         response.setCode(java.net.HttpURLConnection.HTTP_UNAUTHORIZED);
         // The server has supplied no FHIR MessageHeader or clinical metadata.
         assertEquals(Status.ERROR_AUTHORIZATION,
-                UpdateMedicationHelper.authorizationErrorStatus(response));
+                UpdateMedicationHelper.onAuthorizationError(response, null));
     }
 }
