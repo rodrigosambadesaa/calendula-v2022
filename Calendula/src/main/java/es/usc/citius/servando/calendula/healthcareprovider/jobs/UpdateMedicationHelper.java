@@ -232,7 +232,10 @@ public class UpdateMedicationHelper {
         if (responseVO.getCode() != HttpURLConnection.HTTP_UNAUTHORIZED) {
             LogUtil.e(TAG, "onAuthorizationError called with wrong code! code: " + responseVO.getCode());
         }
-        final MessageHeader.MessageHeaderResponseComponent response = responseVO.getHeader().getResponse();
+        // A 401 may legitimately arrive without a FHIR MessageHeader.
+        // It remains an authorization failure, not an unexpected parse crash.
+        final MessageHeader.MessageHeaderResponseComponent response =
+                responseVO.getHeader() == null ? null : responseVO.getHeader().getResponse();
         if (response != null && response.getDetailsTarget() != null && response.getDetailsTarget().getIssueFirstRep() != null) {
             final OperationOutcome.IssueType code = response.getDetailsTarget().getIssueFirstRep().getCode();
             if (code != null) {
