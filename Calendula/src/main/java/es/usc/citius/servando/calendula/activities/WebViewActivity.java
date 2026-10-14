@@ -100,6 +100,42 @@ public class WebViewActivity extends CalendulaActivity {
     private String originalUrl;
     private String url;
     private String preflightApprovedUrl;
+    private Long openedPatientId;
+
+    /** Prevent a document opened by one patient from outliving their session. */
+    private boolean sameOpeningPatient() {
+        if (openedPatientId == null || openedPatientId <= 0L) {
+            return false;
+        }
+        try {
+            Patient active = DB.patients().getActive(this);
+            return ProviderDocumentGuard.samePatient(openedPatientId,
+                    active == null ? null : active.getId());
+        } catch (RuntimeException unavailableDatabase) {
+            return false;
+        }
+    }
+
+    private boolean rejectChangedPatient() {
+        if (sameOpeningPatient()) {
+            return false;
+        }
+        if (webView != null) {
+            webView.setVisibility(View.INVISIBLE);
+            webView.stopLoading();
+            webView.removeJavascriptInterface("HtmlCache");
+        }
+        finish();
+        return true;
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (openedPatientId != null) {
+            rejectChangedPatient();
+        }
+    }
 
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -133,6 +169,7 @@ public class WebViewActivity extends CalendulaActivity {
                 finish();
                 return;
             }
+            openedPatientId = active.getId();
             color = active.getColor();
             String title = request.getTitle();
             setupToolbar(title, color);
@@ -320,6 +357,9 @@ public class WebViewActivity extends CalendulaActivity {
             String targetUrl,
             WebViewRequest webRequest,
             boolean available) {
+        if (rejectChangedPatient()) {
+            return;
+        }
         if (available) {
             // The approval only exists while this programmatic loadUrl call is
             // executing. If WebView does not synchronously invoke the navigation
@@ -500,6 +540,9 @@ public class WebViewActivity extends CalendulaActivity {
         }
 
         private boolean handleTopLevelNavigation(String targetUrl, Uri targetUri) {
+            if (rejectChangedPatient()) {
+                return true;
+            }
             if (WebViewNavigationPolicy.isWebViewLocalUrl(targetUrl)) {
                 return false;
             }
@@ -567,7 +610,9 @@ public class WebViewActivity extends CalendulaActivity {
 
         @Override
         public void onPageFinished(WebView view, String url) {
-
+            if (rejectChangedPatient()) {
+                return;
+            }
             pageLoaded = true;
             final String pageTitle = view.getTitle();
             if (loadError || (pageTitle != null && pageTitle.matches(HTTP_ERROR_REGEXP))) {
@@ -591,6 +636,9 @@ public class WebViewActivity extends CalendulaActivity {
                     handler.postDelayed(new Runnable() {
                         @Override
                         public void run() {
+                            if (rejectChangedPatient()) {
+                                return;
+                            }
                             webView.setVisibility(View.VISIBLE);
                             hideLoading();
                         }
@@ -638,7 +686,11 @@ public class WebViewActivity extends CalendulaActivity {
 
         @JavascriptInterface
         public void writeToCache(String html) {
-
+            // JavascriptInterface callbacks run on a worker, not the UI thread.
+            // Never persist HTML from a previous patient after account switch.
+            if (isFinishing() || isDestroyed() || !sameOpeningPatient()) {
+                return;
+            }
             final Duration ttl = request.getCacheTTL(); //can  be null
             String processed = null;
             // if there is a postprocessor enabled
@@ -666,10 +718,16 @@ public class WebViewActivity extends CalendulaActivity {
             handler.post(new Runnable() {
                 @Override
                 public void run() {
+                    if (rejectChangedPatient()) {
+                        return;
+                    }
                     webView.removeJavascriptInterface("HtmlCache");
                     webView.setWebViewClient(new CustomWebViewClient(request) {
                                                  @Override
                                                  public void onPageFinished(WebView view, String url) {
+                                                     if (rejectChangedPatient()) {
+                                                         return;
+                                                     }
                                                      pageLoaded = true;
                                                      if (customCssSheets != null) {
                                                          injectCSS(customCssSheets, request.getCustomCssOverrides());
@@ -679,6 +737,9 @@ public class WebViewActivity extends CalendulaActivity {
                                                      handler.postDelayed(new Runnable() {
                                                          @Override
                                                          public void run() {
+                                                             if (rejectChangedPatient()) {
+                                                                 return;
+                                                             }
                                                              webView.setVisibility(View.VISIBLE);
                                                              webView.getSettings().setJavaScriptEnabled(request.isJavaScriptEnabled());
                                                              hideLoading();
