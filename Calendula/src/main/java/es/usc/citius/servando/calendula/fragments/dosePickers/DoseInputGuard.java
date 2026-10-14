@@ -9,6 +9,11 @@ final class DoseInputGuard {
     private DoseInputGuard() {
     }
 
+    /** All graphical dose pickers must reject missing, zero and non-finite quantities. */
+    static boolean isPositiveFinite(double dose) {
+        return dose > 0.0d && !Double.isNaN(dose) && !Double.isInfinite(dose);
+    }
+
     static Double parsePositive(String raw) {
         if (raw == null) {
             return null;
@@ -39,8 +44,7 @@ final class DoseInputGuard {
         }
         try {
             double dose = Double.parseDouble(text.replace(',', '.'));
-            return dose > 0.0d && !Double.isNaN(dose)
-                    && !Double.isInfinite(dose) ? dose : null;
+            return isPositiveFinite(dose) ? dose : null;
         } catch (NumberFormatException invalid) {
             return null;
         }
