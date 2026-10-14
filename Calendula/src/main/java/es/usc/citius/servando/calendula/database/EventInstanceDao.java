@@ -107,6 +107,30 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
         }
     }
 
+    /**
+     * Events with a missing scheduled time are excluded by SQL date-range
+     * comparisons. Warn their confirmed owner rather than silently hiding a
+     * potentially unreviewed intake behind a seemingly complete daily agenda.
+     * Count-only query: no clinical details or other patients' rows are read.
+     */
+    public boolean hasUntimedMedicationForPatient(Patient patient) {
+        if (patient == null || patient.getId() == null || patient.getId() <= 0L) {
+            return false;
+        }
+        try {
+            QueryBuilder<EventInstance, Long> query = dao.queryBuilder();
+            Where<EventInstance, Long> where = query.where();
+            where.and(where.eq(EventInstance.COLUMN_EVENT_TYPE, EventType.MEDICATION_INTAKE),
+                    where.isNull(EventInstance.COLUMN_DATE_TIME),
+                    where.eq(EventInstance.COLUMN_PATIENT, patient.getId()));
+            query.setWhere(where);
+            return query.countOf() > 0;
+        } catch (SQLException error) {
+            throw new IllegalStateException(
+                    "Unable to verify incomplete medication timestamps", error);
+        }
+    }
+
     public List<EventInstance> findByTypeAndTime(EventType type, DateTime dateTime) {
         try {
             QueryBuilder<EventInstance, Long> qb = dao.queryBuilder();

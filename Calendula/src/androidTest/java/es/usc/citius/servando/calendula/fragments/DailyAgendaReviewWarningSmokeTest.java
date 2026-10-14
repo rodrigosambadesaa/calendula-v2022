@@ -18,6 +18,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import es.usc.citius.servando.calendula.R;
+import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Presentation;
@@ -70,5 +71,49 @@ public class DailyAgendaReviewWarningSmokeTest {
         event.addParam(EventInstance.PARAM_DOSE, "Infinity");
         assertTrue(DailyAgendaReviewPolicy.needsReview(event, schedule, a));
         assertFalse(DailyAgendaReviewPolicy.needsReview(event, schedule, b));
+    }
+
+    @Test
+    public void missingTimeProducesOnlyItsOwnersGenericReviewWarning() throws Exception {
+        assertTrue(DB.initialized);
+        long seed = System.nanoTime();
+        Patient a = new Patient();
+        a.setCode("ci-untimed-owner-" + seed);
+        a.setName("Synthetic untimed patient A");
+        Patient b = new Patient();
+        b.setCode("ci-untimed-other-" + seed);
+        b.setName("Synthetic untimed patient B");
+        EventInstance malformed = new EventInstance(null, EventType.MEDICATION_INTAKE);
+        try {
+            DB.patients().create(a);
+            DB.patients().create(b);
+            assertFalse(DB.eventInstances().hasUntimedMedicationForPatient(a));
+            assertFalse(DB.eventInstances().hasUntimedMedicationForPatient(b));
+            malformed.setPatient(a);
+            malformed.addParam(EventInstance.PARAM_DOSE, "unverifiable");
+            DB.eventInstances().save(malformed);
+            assertNotNull(malformed.getId());
+            assertTrue("The time window cannot display an untimed intake, but its owner must get a warning",
+                    DB.eventInstances().hasUntimedMedicationForPatient(a));
+            assertFalse("A different patient must not be warned about this medication",
+                    DB.eventInstances().hasUntimedMedicationForPatient(b));
+            assertFalse(DB.eventInstances().hasUntimedMedicationForPatient(null));
+            assertFalse(DB.eventInstances().hasUntimedMedicationForPatient(new Patient()));
+
+            DB.eventInstances().remove(malformed);
+            assertFalse("Removing the corrupt event clears its generic review warning",
+                    DB.eventInstances().hasUntimedMedicationForPatient(a));
+        } finally {
+            if (malformed.getId() != null
+                    && DB.eventInstances().findById(malformed.getId()) != null) {
+                DB.eventInstances().remove(malformed);
+            }
+            if (a.getId() != null && DB.patients().findById(a.getId()) != null) {
+                DB.patients().remove(a);
+            }
+            if (b.getId() != null && DB.patients().findById(b.getId()) != null) {
+                DB.patients().remove(b);
+            }
+        }
     }
 }

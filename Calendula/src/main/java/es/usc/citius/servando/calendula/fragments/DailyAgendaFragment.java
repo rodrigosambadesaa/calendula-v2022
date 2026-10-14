@@ -149,8 +149,12 @@ public class DailyAgendaFragment extends Fragment {
 
         List<DailyAgendaItemStub> stubs = new ArrayList<>();
         Map<DateTime, List<EventInstance>> grouped = new HashMap<>();
-        needsMedicationReview = false;
         Patient activePatient = DB.patients().getActive(getContext());
+        // The bounded date-window query below cannot return a null DateTime.
+        // Check those malformed rows separately, scoped exclusively to the
+        // active patient's persisted identity, and show only a generic warning.
+        needsMedicationReview =
+                DB.eventInstances().hasUntimedMedicationForPatient(activePatient);
 
         // The home agenda displays yesterday, today and tomorrow. Keep
         // decided doses in historical SQLite storage without loading years of
