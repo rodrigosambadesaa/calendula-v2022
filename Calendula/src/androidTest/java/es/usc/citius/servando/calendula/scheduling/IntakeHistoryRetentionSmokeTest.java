@@ -36,6 +36,141 @@ import static org.junit.Assert.assertTrue;
 public class IntakeHistoryRetentionSmokeTest {
 
     @Test
+    public void existingDoseTodayMustNotSuppressMissingOtherPatientDose() throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        LocalDate today = LocalDate.now();
+        DateTime firstTime = today.toDateTimeAtStartOfDay().plusHours(20).plusMinutes(37);
+        DateTime secondTime = today.toDateTimeAtStartOfDay().plusHours(21).plusMinutes(42);
+        Patient first = new Patient();
+        first.setCode("ci-rebuild-first-" + System.nanoTime());
+        first.setName("Synthetic existing-today patient");
+        Patient second = new Patient();
+        second.setCode("ci-rebuild-second-" + System.nanoTime());
+        second.setName("Synthetic missing-today patient");
+        es.usc.citius.servando.calendula.persistence.Medicine firstMedicine =
+                new es.usc.citius.servando.calendula.persistence.Medicine(
+                        "Synthetic first medicine",
+                        es.usc.citius.servando.calendula.persistence.Presentation.PILLS);
+        es.usc.citius.servando.calendula.persistence.Medicine secondMedicine =
+                new es.usc.citius.servando.calendula.persistence.Medicine(
+                        "Synthetic second medicine",
+                        es.usc.citius.servando.calendula.persistence.Presentation.PILLS);
+        // Exercise the real persisted routine-backed recurrence path. Joda
+        // ABSOLUTE LocalTime fields in historical Gson recurrences can be
+        // missing after DB round-trip, so a fixture must use valid routines.
+        es.usc.citius.servando.calendula.persistence.Routine firstRoutine =
+                new es.usc.citius.servando.calendula.persistence.Routine(
+                        first, new org.joda.time.LocalTime(20, 37), "Synthetic routine one");
+        es.usc.citius.servando.calendula.persistence.Routine secondRoutine =
+                new es.usc.citius.servando.calendula.persistence.Routine(
+                        second, new org.joda.time.LocalTime(21, 42), "Synthetic routine two");
+        es.usc.citius.servando.calendula.persistence.Schedule firstSchedule = null;
+        es.usc.citius.servando.calendula.persistence.Schedule secondSchedule = null;
+        EventInstance completed = null;
+        try {
+            assertEquals(1, DB.patients().create(first));
+            assertEquals(1, DB.patients().create(second));
+            firstMedicine.setPatient(first);
+            secondMedicine.setPatient(second);
+            assertEquals(1, DB.medicines().create(firstMedicine));
+            assertEquals(1, DB.medicines().create(secondMedicine));
+            assertEquals(1, DB.routines().create(firstRoutine));
+            assertEquals(1, DB.routines().create(secondRoutine));
+            firstSchedule = new es.usc.citius.servando.calendula.persistence.Schedule(
+                    new es.usc.citius.servando.calendula.scheduling.model.recur.RecurringEvent.Builder()
+                            .repeatDaily().from(today)
+                            .atFixedTime(
+                                    new es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime(
+                                            firstRoutine.getId(),
+                                            es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime.ReferenceType.ROUTINE))
+                            .build());
+            secondSchedule = new es.usc.citius.servando.calendula.persistence.Schedule(
+                    new es.usc.citius.servando.calendula.scheduling.model.recur.RecurringEvent.Builder()
+                            .repeatDaily().from(today)
+                            .atFixedTime(
+                                    new es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime(
+                                            secondRoutine.getId(),
+                                            es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime.ReferenceType.ROUTINE))
+                            .build());
+            firstSchedule.setPatient(first);
+            firstSchedule.setMedicine(firstMedicine);
+            firstSchedule.setDosages(java.util.Arrays.asList(1.0d));
+            secondSchedule.setPatient(second);
+            secondSchedule.setMedicine(secondMedicine);
+            secondSchedule.setDosages(java.util.Arrays.asList(0.5d));
+            assertEquals(1, DB.schedules().create(firstSchedule));
+            assertEquals(1, DB.schedules().create(secondSchedule));
+
+            completed = new EventInstance(firstTime, EventType.MEDICATION_INTAKE);
+            completed.setPatient(first);
+            completed.setRef(firstSchedule.getId());
+            completed.addParam(EventInstance.PARAM_DOSE, 1.0d);
+            completed.setCompleted(true);
+            completed.setCompletedAt(firstTime.plusMinutes(3));
+            assertEquals(1, DB.eventInstances().create(completed));
+            Long completedId = completed.getId();
+            assertNotNull(completedId);
+            assertFalse("Missing second patient dose is our precondition",
+                    DB.eventInstances().exists(
+                            EventType.MEDICATION_INTAKE, secondTime, secondSchedule.getId()));
+
+            MedicationIntakeReceiver receiver = new MedicationIntakeReceiver();
+            receiver.onBeforeUpdate(context, today);
+            assertTrue("A preexisting dose must not hide another patient's missing dose",
+                    DB.eventInstances().exists(
+                            EventType.MEDICATION_INTAKE, secondTime, secondSchedule.getId()));
+            EventInstance stillCompleted = DB.eventInstances().findById(completedId);
+            assertNotNull(stillCompleted);
+            assertTrue("Original taken decision must remain unchanged", stillCompleted.completed());
+            assertEquals(firstTime.plusMinutes(3), stillCompleted.completedAt());
+
+            receiver.onBeforeUpdate(context, today);
+            assertEquals("Repeat regeneration must not create duplicate doses",
+                    1, DB.eventInstances().find(EventType.MEDICATION_INTAKE, secondTime, second).size());
+            assertNotNull(DB.eventInstances().findById(completedId));
+        } finally {
+            // removeByRef deliberately retains completed clinical history.
+            // This is a disposable CI fixture: delete ONLY the exact generated
+            // synthetic schedule IDs before deleting the synthetic schedules.
+            for (EventInstance row : DB.eventInstances().findAll()) {
+                if (row.getRef() != null
+                        && ((firstSchedule != null && row.getRef().equals(firstSchedule.getId()))
+                            || (secondSchedule != null && row.getRef().equals(secondSchedule.getId())))) {
+                    DB.eventInstances().remove(row);
+                }
+            }
+            if (firstSchedule != null && firstSchedule.getId() != null
+                    && DB.schedules().findById(firstSchedule.getId()) != null) {
+                DB.schedules().remove(firstSchedule);
+            }
+            if (secondSchedule != null && secondSchedule.getId() != null
+                    && DB.schedules().findById(secondSchedule.getId()) != null) {
+                DB.schedules().remove(secondSchedule);
+            }
+            for (es.usc.citius.servando.calendula.persistence.Medicine medicine :
+                    new es.usc.citius.servando.calendula.persistence.Medicine[]{
+                            firstMedicine, secondMedicine}) {
+                if (medicine.getId() != null && DB.medicines().findById(medicine.getId()) != null) {
+                    DB.medicines().remove(medicine);
+                }
+            }
+            for (es.usc.citius.servando.calendula.persistence.Routine routine :
+                    new es.usc.citius.servando.calendula.persistence.Routine[]{
+                            firstRoutine, secondRoutine}) {
+                if (routine.getId() != null && DB.routines().findById(routine.getId()) != null) {
+                    DB.routines().remove(routine);
+                }
+            }
+            for (Patient patient : new Patient[]{first, second}) {
+                if (patient.getId() != null && DB.patients().findById(patient.getId()) != null) {
+                    DB.patients().remove(patient);
+                }
+            }
+        }
+    }
+
+    @Test
     public void dailyRegenerationPreservesHistoricalDecisionsAndPatients() {
         assertTrue(DB.initialized);
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
