@@ -106,6 +106,35 @@ public class ConfirmIntakeGuardTest {
     }
 
     @Test
+    public void recycledOrDelayedRowActionsMustKeepTheirOriginalClinicalSnapshot() {
+        Patient p = owner(800100L);
+        DateTime date = DateTime.now();
+        EventInstance selected = intake(p, date);
+        EventInstance other = intake(p, date);
+        other.setId(810003L);
+        java.util.List<EventInstance> rows = java.util.Arrays.asList(selected, other);
+
+        assertTrue(ConfirmIntakeGuard.matchesVisibleRow(rows, 0, selected));
+        assertFalse(ConfirmIntakeGuard.matchesVisibleRow(rows, 1, selected));
+        assertFalse(ConfirmIntakeGuard.matchesVisibleRow(rows, -1, selected));
+        assertFalse(ConfirmIntakeGuard.matchesVisibleRow(rows, 2, selected));
+        assertFalse(ConfirmIntakeGuard.matchesVisibleRow(null, 0, selected));
+
+        EventInstance changed = intake(p, date);
+        changed.addParam(EventInstance.PARAM_DOSE, 2.0d);
+        assertFalse(ConfirmIntakeGuard.matchesPersistedEvent(selected, changed));
+        changed.addParam(EventInstance.PARAM_DOSE, 1.5d);
+        changed.setCompleted(true);
+        assertFalse(ConfirmIntakeGuard.matchesPersistedEvent(selected, changed));
+        changed.setCompleted(false);
+        changed.setCancelled(true);
+        assertFalse(ConfirmIntakeGuard.matchesPersistedEvent(selected, changed));
+        changed.setCancelled(false);
+        changed.addParam(EventInstance.PARAM_DOSE, "broken");
+        assertFalse(ConfirmIntakeGuard.matchesPersistedEvent(selected, changed));
+    }
+
+    @Test
     public void staleSelectionCannotSubstituteChangedClinicalEvent() {
         Patient p = owner(800100L);
         DateTime date = DateTime.now();
