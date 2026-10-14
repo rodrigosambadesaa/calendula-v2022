@@ -43,6 +43,7 @@ import com.mikepenz.iconics.typeface.IIcon;
 import org.joda.time.DateTime;
 
 import java.util.List;
+import java.util.Collections;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -104,16 +105,19 @@ public class ActiveMedicationListItem extends AbstractItem<ActiveMedicationListI
     @Override
     public void bindView(ActiveMedicationViewHolder holder, List<Object> payloads) {
         super.bindView(holder, payloads);
-        final PrescriptionDBMgr current = DBRegistry.instance().current();
-
+        // FastAdapter recycles holders from unrelated medicines and patients.
+        // Do not retain any clinical text, icons or clickable stale action
+        // when a new provider snapshot fails to render.
+        resetForReuse(holder);
         if (vo != null) {
             try {
+                final PrescriptionDBMgr current = DBRegistry.instance().current();
                 final Context ctx = holder.itemView.getContext();
                 final String dateFormat = ctx.getString(R.string.schedule_limits_date_format);
                 final boolean isInactive = ActiveMedEntity.ActiveMedState.INACTIVE.equals(vo.getState());
                 DosageVO dosage = vo.getDosage();
-
-                DosageType dosageType = dosage.getType();
+                DosageType dosageType = dosage == null || dosage.getType() == null
+                        ? DosageType.NONE : dosage.getType();
                 if (vo.hasExtraInfo()) {
                     if (vo.getVisualizationType() == ActiveMedVisualizationType.ANTICOAGULANT_TYPE) {
                         holder.infoButton.setVisibility(View.VISIBLE);
@@ -152,7 +156,8 @@ public class ActiveMedicationListItem extends AbstractItem<ActiveMedicationListI
                 }
 
                 String dosageStr;
-                List<DosageEntryVO> entries = dosage.getEntries();
+                List<DosageEntryVO> entries = dosage == null || dosage.getEntries() == null
+                        ? Collections.emptyList() : dosage.getEntries();
                 if (vo.hasExtraInfo()) {
                     switch (vo.getVisualizationType()) {
                         case ANTICOAGULANT_TYPE:
@@ -167,12 +172,27 @@ public class ActiveMedicationListItem extends AbstractItem<ActiveMedicationListI
                 } else {
                     switch (dosageType) {
                         case AS_NEEDED:
-                            String units = StringUtils.timeUnitDisplayName(ctx, entries.get(0).getRepeatUnits());
-                            dosageStr = ctx.getString(R.string.as_needed) + " - " + ctx.getString(R.string.dosage_string_duration, Strings.prettyDouble(entries.get(0).getRepeatValue()), units);
+                            if (!ProviderCardPresentationGuard.hasFirstDosageEntry(entries.size())
+                                    || entries.get(0) == null) {
+                                dosageStr = ctx.getString(R.string.aml_schedule_info_missing);
+                                break;
+                            }
+                            String units = StringUtils.timeUnitDisplayName(
+                                    ctx, entries.get(0).getRepeatUnits());
+                            dosageStr = ctx.getString(R.string.as_needed) + " - "
+                                    + ctx.getString(R.string.dosage_string_duration,
+                                            Strings.prettyDouble(entries.get(0).getRepeatValue()), units);
                             break;
                         case GENERAL:
-                            String generalUnits = StringUtils.timeUnitDisplayName(ctx, entries.get(0).getRepeatUnits());
-                            dosageStr = ctx.getString(R.string.repeat_every_tostr, Strings.prettyDouble(entries.get(0).getRepeatValue()), generalUnits);
+                            if (!ProviderCardPresentationGuard.hasFirstDosageEntry(entries.size())
+                                    || entries.get(0) == null) {
+                                dosageStr = ctx.getString(R.string.aml_schedule_info_missing);
+                                break;
+                            }
+                            String generalUnits = StringUtils.timeUnitDisplayName(
+                                    ctx, entries.get(0).getRepeatUnits());
+                            dosageStr = ctx.getString(R.string.repeat_every_tostr,
+                                    Strings.prettyDouble(entries.get(0).getRepeatValue()), generalUnits);
                             break;
                         case DETAILED:
                             dosageStr = ScheduleDisplayUtils.getTimesByDayStr(entries.size(), ctx);
@@ -187,7 +207,7 @@ public class ActiveMedicationListItem extends AbstractItem<ActiveMedicationListI
                 }
 
                 holder.intakeSummary.setText(dosageStr.replaceAll(" +", " "));
-                if(entries.size()!=0) {
+                if (!entries.isEmpty() && entries.get(0) != null) {
                     String instructions = entries.get(0).getPatientInstruction();
                     if (instructions == null || org.apache.commons.lang3.StringUtils.isBlank(instructions)){
                         holder.intakeInstructions.setVisibility(View.GONE);
@@ -202,21 +222,24 @@ public class ActiveMedicationListItem extends AbstractItem<ActiveMedicationListI
                 }
 
 
-                if (vo.getLastUpdated().isAfter(DateTime.now().minusDays(3)) || !vo.isUpdateSeen()) {
+                final DateTime updateTime = vo.getLastUpdated();
+                if (ProviderCardPresentationGuard.mayShowUpdateDate(
+                        updateTime == null ? null : updateTime.getMillis(),
+                        DateTime.now().getMillis(), vo.isUpdateSeen())) {
                     holder.lastUpdateInfo.setVisibility(View.VISIBLE);
 
                     IIcon icon = isInactive ? CommunityMaterial.Icon.cmd_delete_circle : CommunityMaterial.Icon.cmd_autorenew;
 
                     holder.lastUpdateInfo.setCompoundDrawables(IconUtils.icon(ctx, icon, R.color.android_orange, 30, 4), null, null, null);
-                    holder.lastUpdateInfo.setText(vo.getLastUpdated().toString("dd MMM"));
+                    holder.lastUpdateInfo.setText(updateTime.toString("dd MMM"));
                     holder.lastUpdateInfo.setOnClickListener(new View.OnClickListener() {
                         @Override
                         public void onClick(View v) {
                             String text;
                             if(isInactive){
-                                text=ctx.getString(R.string.aml_removed_date, vo.getLastUpdated().toString(dateFormat));
+                                text=ctx.getString(R.string.aml_removed_date, updateTime.toString(dateFormat));
                             }else {
-                                text=ctx.getString(R.string.aml_updated_date, vo.getLastUpdated().toString(dateFormat));
+                                text=ctx.getString(R.string.aml_updated_date, updateTime.toString(dateFormat));
                             }
                             Toast.makeText(ctx, text, Toast.LENGTH_SHORT).show();
                         }
@@ -269,10 +292,40 @@ public class ActiveMedicationListItem extends AbstractItem<ActiveMedicationListI
 
                 holder.middleSection.setVisibility(isInactive ? View.GONE : View.VISIBLE);
 
-            } catch (Exception e) {
-                LogUtil.e(TAG, "Oooops!", e);
+            } catch (RuntimeException e) {
+                // Never show the previous item's dosage, medicine title or
+                // enabled actions when a malformed external row is bound.
+                LogUtil.e(TAG, "Unable to render provider medication safely", e);
+                resetForReuse(holder);
             }
         }
+    }
+
+    private void resetForReuse(ActiveMedicationViewHolder holder) {
+        final Context context = holder.itemView.getContext();
+        holder.medName.setText(R.string.active_med_details_unavailable);
+        holder.icon.setImageDrawable(null);
+        holder.icon.setContentDescription(null);
+        holder.intakeSummary.setText(null);
+        holder.intakeInstructions.setText(null);
+        holder.intakeInstructions.setVisibility(View.GONE);
+        holder.startDate.setText(null);
+        holder.endDate.setText(null);
+        holder.fromContainer.setVisibility(View.GONE);
+        holder.toContainer.setVisibility(View.GONE);
+        holder.substitutionInfo.setText(null);
+        holder.lastUpdateInfo.setText(null);
+        holder.lastUpdateInfo.setCompoundDrawables(null, null, null, null);
+        holder.lastUpdateInfo.setOnClickListener(null);
+        holder.lastUpdateInfo.setVisibility(View.GONE);
+        holder.middleSection.setVisibility(View.GONE);
+        holder.reminderButton.setEnabled(false);
+        holder.reminderButton.setVisibility(View.GONE);
+        holder.reminderButton.setImageDrawable(IconUtils.icon(
+                context, CommunityMaterial.Icon.cmd_bell_plus,
+                R.color.black, 30, 5));
+        holder.infoButton.setEnabled(false);
+        holder.infoButton.setVisibility(View.GONE);
     }
 
     @NonNull
