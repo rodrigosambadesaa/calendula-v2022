@@ -66,6 +66,7 @@ public class PdfViewActivity extends CalendulaActivity {
     private WebView webView;
     private String url;
     private Long openedPatientId;
+    private int requestedJobId = -1;
 
     @Override
     protected void onDestroy() {
@@ -93,7 +94,8 @@ public class PdfViewActivity extends CalendulaActivity {
             return;
         }
         if (!ProviderDocumentGuard.canAcceptResponse(
-                openedPatientId, activeId, event.getPatientId())) {
+                openedPatientId, activeId, event.getPatientId(),
+                requestedJobId, event.getJobId())) {
             // Global event bus: another viewer's response is not ours.
             return;
         }
@@ -244,7 +246,13 @@ public class PdfViewActivity extends CalendulaActivity {
             setupWebView(request);
 
             CalendulaApp.eventBus().register(this);
-            GetExtraInfoFromServiceJob.scheduleOneShot(false, openedPatientId);
+            requestedJobId = GetExtraInfoFromServiceJob.scheduleOneShot(
+                    false, openedPatientId);
+            if (requestedJobId <= 0) {
+                LogUtil.w(TAG, "Could not schedule a patient-scoped provider document request");
+                showErrorToast(null);
+                finish();
+            }
         }
 
     }
