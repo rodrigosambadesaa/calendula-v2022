@@ -111,17 +111,23 @@ public class IntakeHistoryRetentionSmokeTest {
                     1, DB.eventInstances().find(EventType.MEDICATION_INTAKE, secondTime, second).size());
             assertNotNull(DB.eventInstances().findById(completedId));
         } finally {
-            if (firstSchedule.getId() != null) {
-                DB.eventInstances().removeByRef(firstSchedule.getId());
-                if (DB.schedules().findById(firstSchedule.getId()) != null) {
-                    DB.schedules().remove(firstSchedule);
+            // removeByRef deliberately retains completed clinical history.
+            // This is a disposable CI fixture: delete ONLY the exact generated
+            // synthetic schedule IDs before deleting the synthetic schedules.
+            for (EventInstance row : DB.eventInstances().findAll()) {
+                if (row.getRef() != null
+                        && (row.getRef().equals(firstSchedule.getId())
+                            || row.getRef().equals(secondSchedule.getId()))) {
+                    DB.eventInstances().remove(row);
                 }
             }
-            if (secondSchedule.getId() != null) {
-                DB.eventInstances().removeByRef(secondSchedule.getId());
-                if (DB.schedules().findById(secondSchedule.getId()) != null) {
-                    DB.schedules().remove(secondSchedule);
-                }
+            if (firstSchedule.getId() != null
+                    && DB.schedules().findById(firstSchedule.getId()) != null) {
+                DB.schedules().remove(firstSchedule);
+            }
+            if (secondSchedule.getId() != null
+                    && DB.schedules().findById(secondSchedule.getId()) != null) {
+                DB.schedules().remove(secondSchedule);
             }
             for (es.usc.citius.servando.calendula.persistence.Medicine medicine :
                     new es.usc.citius.servando.calendula.persistence.Medicine[]{
