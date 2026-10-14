@@ -46,6 +46,20 @@ public class AbsoluteFixedTimeSerializationTest {
     }
 
     @Test
+    public void referenceOnlyAbsoluteTimeCannotBeSilentlyReconstructed() {
+        // A historical serializer dropped the clock time when a reference
+        // was present. Never invent or guess a medication administration hour.
+        String corrupt = "{\"rule\":\"FREQ=DAILY\",\"dailyTimes\":["
+                + "{\"refType\":\"ABSOLUTE\",\"ref\":900371}]}";
+        try {
+            GsonUtil.get().fromJson(corrupt, RecurringEvent.class);
+            org.junit.Assert.fail("A missing historical dose time must be rejected");
+        } catch (com.google.gson.JsonIOException expected) {
+            // Gson wraps the adapter's checked IOException.
+        }
+    }
+
+    @Test
     public void historicAbsoluteTimeWithoutReferenceStillRoundTrips()
             throws Exception {
         DailyFixedTime slot = new DailyFixedTime(
