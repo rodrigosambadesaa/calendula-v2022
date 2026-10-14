@@ -2,7 +2,6 @@ package es.usc.citius.servando.calendula.activities;
 
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.pdf.PdfRenderer;
 import android.net.http.SslError;
@@ -125,63 +124,67 @@ public class PdfViewActivity extends CalendulaActivity {
                 break;
             case SUCCESS:
 
-                String tmpUrl = null;
+                // Provider PDF files can declare arbitrarily large page dimensions.
+                // Render within a fixed pixel budget before making a PNG data URL.
+                File pdfFile = url == null ? null : new File(url);
+                String imageDataUrl = null;
                 try {
-                    File pdfFile = new File(url);
-                    ParcelFileDescriptor parcelFileDescriptor = ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_WRITE);
-                    if (parcelFileDescriptor != null) {
-                        Bitmap bitmap = null;
-                        PdfRenderer renderer = new PdfRenderer(parcelFileDescriptor);
-                        final int pageCount = renderer.getPageCount();
-                        if (pageCount > 0) {
-                            PdfRenderer.Page page = renderer.openPage(0);
-                            int pageWidth = page.getWidth();
-                            int pageHeight = page.getHeight();
-                            bitmap = Bitmap.createBitmap(2 * pageWidth, 2 * pageHeight,
-                                    Bitmap.Config.ARGB_8888);
-                            Canvas canvas = new Canvas(bitmap);
-                            canvas.drawColor(Color.WHITE);
-                            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
-                            page.close();
-                        }
-                        renderer.close();
-                        if (bitmap != null) {
-
-                            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-                            bitmap.setHasAlpha(true);
-                            bitmap.compress(Bitmap.CompressFormat.PNG, 100, byteArrayOutputStream);
-                            byte[] byteArray = byteArrayOutputStream.toByteArray();
-                            String imageBase64 = Base64.encodeToString(byteArray, Base64.DEFAULT);
-                            tmpUrl = "data:image/png;base64," + imageBase64;
-                        }
-
-                        parcelFileDescriptor.close();
+                    if (pdfFile == null || !pdfFile.isFile()) {
+                        throw new IOException("Downloaded PDF is unavailable");
                     }
-                    pdfFile.delete();
-                } catch (IOException e) {
-                    LogUtil.e(TAG, "handleExtraInfo: ", e);
+                    try (ParcelFileDescriptor descriptor = ParcelFileDescriptor.open(
+                            pdfFile, ParcelFileDescriptor.MODE_READ_ONLY);
+                         PdfRenderer renderer = new PdfRenderer(descriptor)) {
+                        if (renderer.getPageCount() < 1) {
+                            throw new IOException("Downloaded PDF has no pages");
+                        }
+                        try (PdfRenderer.Page page = renderer.openPage(0)) {
+                            int[] size = PdfBitmapBounds.fit(page.getWidth(), page.getHeight());
+                            Bitmap bitmap = Bitmap.createBitmap(
+                                    size[0], size[1], Bitmap.Config.ARGB_8888);
+                            try {
+                                bitmap.eraseColor(Color.WHITE);
+                                page.render(bitmap, null, null,
+                                        PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+                                try (ByteArrayOutputStream png = new ByteArrayOutputStream()) {
+                                    if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, png)) {
+                                        throw new IOException("Could not encode PDF page");
+                                    }
+                                    imageDataUrl = "data:image/png;base64,"
+                                            + Base64.encodeToString(png.toByteArray(), Base64.NO_WRAP);
+                                }
+                            } finally {
+                                bitmap.recycle();
+                            }
+                        }
+                    }
+                } catch (IOException | RuntimeException invalidPdf) {
+                    // Failure is not a successful document load. Never leave
+                    // the spinner indefinitely on missing/corrupt PDF files.
+                    LogUtil.w(TAG, "Unable to render a bounded PDF preview");
                     hideLoading();
-                    handler.post(new Runnable() {
-                        public void run() {
-                            showErrorToast(getString(R.string.remote_extrainfo_generic_error));
-                            finish();
-                        }
+                    handler.post(() -> {
+                        showErrorToast(getString(R.string.remote_extrainfo_generic_error));
+                        finish();
                     });
+                } finally {
+                    // Temporary provider documents should not remain in storage,
+                    // including after a failed or malformed download.
+                    if (pdfFile != null && pdfFile.isFile() && !pdfFile.delete()) {
+                        LogUtil.w(TAG, "Could not clean up provider PDF temporary file");
+                    }
                 }
 
-                if (tmpUrl != null) {
-                    final String imageUrl = tmpUrl;
-                    handler.post(new Runnable() {
-                        public void run() {
-                            LogUtil.d(TAG, "Opening URL: " + url);
-                            webView.setWebViewClient(new PdfViewActivity.CustomWebViewClient(request));
-                            LogUtil.d(TAG, "handleExtraInfo: Loading resource from URL");
-                            webView.loadUrl(imageUrl);
-
+                if (imageDataUrl != null) {
+                    final String previewUrl = imageDataUrl;
+                    handler.post(() -> {
+                        if (isFinishing() || isDestroyed()) {
+                            return;
                         }
+                        webView.setWebViewClient(new PdfViewActivity.CustomWebViewClient(request));
+                        webView.loadUrl(previewUrl);
                     });
                 }
-
                 break;
         }
 
