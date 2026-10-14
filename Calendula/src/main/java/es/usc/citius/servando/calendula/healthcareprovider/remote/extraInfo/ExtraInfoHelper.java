@@ -112,20 +112,38 @@ public class ExtraInfoHelper {
                 LogUtil.d(TAG, "ExtraInfoService response code is: " + code);
                 if (response.isSuccessful()) {
                     final ExtraInfo info = parseExtraInfo(response.body());
-                    if (info != null && info.pdf != null && !info.pdf.trim().isEmpty()) {
-                        byte[] byteStream = Base64.decode(info.pdf, DEFAULT);
+                    if (info != null && info.pdf != null
+                            && ProviderPdfPayloadGuard.canAttemptDecode(info.pdf.length())) {
+                        // Reject an excessive encoded response before Base64.decode
+                        // attempts to allocate another large byte array. The PDF
+                        // bitmap renderer has its own independent pixel budget.
                         try {
-                            File tmpFile = File.createTempFile(FILE_NAME, ".pdf", ctx.getCacheDir());
-                            tmpFile.deleteOnExit();
-                            FileUtils.copyInputStreamToFile(new ByteArrayInputStream(byteStream), tmpFile);
-                            status = Status.SUCCESS;
-                            url = tmpFile.toString();
-                        } catch (IOException e) {
-                            LogUtil.e(TAG, "Error retrieving ExtraInfo:", e);
+                            byte[] byteStream = Base64.decode(info.pdf, DEFAULT);
+                            if (!ProviderPdfPayloadGuard.canStoreDecoded(byteStream.length)) {
+                                LogUtil.w(TAG, "Provider PDF exceeds the safe download size");
+                                status = Status.ERROR_GENERIC;
+                            } else {
+                                File tmpFile = null;
+                                try {
+                                    tmpFile = File.createTempFile(FILE_NAME, ".pdf", ctx.getCacheDir());
+                                    FileUtils.copyInputStreamToFile(
+                                            new ByteArrayInputStream(byteStream), tmpFile);
+                                    status = Status.SUCCESS;
+                                    url = tmpFile.toString();
+                                } catch (IOException e) {
+                                    LogUtil.w(TAG, "Could not save provider PDF download");
+                                    status = Status.ERROR_GENERIC;
+                                    if (tmpFile != null && tmpFile.isFile() && !tmpFile.delete()) {
+                                        LogUtil.w(TAG, "Could not remove incomplete provider PDF");
+                                    }
+                                }
+                            }
+                        } catch (IllegalArgumentException malformedBase64) {
+                            LogUtil.w(TAG, "Provider PDF has invalid Base64 encoding");
                             status = Status.ERROR_GENERIC;
                         }
                     } else {
-                        LogUtil.e(TAG, "Error retrieving ExtraInfo: response contains no PDF");
+                        LogUtil.w(TAG, "Provider PDF response was missing or exceeded its size budget");
                         status = Status.ERROR_GENERIC;
                     }
                 } else {
