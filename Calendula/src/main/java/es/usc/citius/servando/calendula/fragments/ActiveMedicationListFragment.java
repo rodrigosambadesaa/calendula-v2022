@@ -259,7 +259,7 @@ public class ActiveMedicationListFragment extends Fragment {
 
     public void updateProgressBarVisibility() {
         if (refreshLayout != null) {
-            final String statusString = PreferenceUtils.getString(PreferenceKeys.REMOTE_UPDATE_STATUS, "");
+            final String statusString = ProviderPreferenceReader.read(PreferenceKeys.REMOTE_UPDATE_STATUS, "");
             if (ActiveMedUpdateEvent.Status.UPDATE_START.name().equals(statusString)) {
                 refreshLayout.setRefreshing(true);
             } else {
@@ -269,7 +269,7 @@ public class ActiveMedicationListFragment extends Fragment {
     }
 
     private void updateMedication() {
-        final String lastGoodUpdate = PreferenceUtils.getString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_DATE, "");
+        final String lastGoodUpdate = ProviderPreferenceReader.read(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_DATE, "");
         if (lastGoodUpdate.equals("")) {
             LogUtil.d(TAG, "updateMedication: no last good update. Scheduling now");
             UpdateMedicationFromServiceJob.scheduleOneShot(false);
@@ -310,7 +310,7 @@ public class ActiveMedicationListFragment extends Fragment {
         if (timeSinceUpdateText == null) {
             return;
         }
-        String last = PreferenceUtils.getString(
+        String last = ProviderPreferenceReader.read(
                 PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_DATE, null);
         if (!TextUtils.isEmpty(last)) {
             try {
@@ -454,7 +454,10 @@ public class ActiveMedicationListFragment extends Fragment {
         final Handler mainHandler = new Handler(Looper.getMainLooper());
 
         mainHandler.post(() -> {
-            if (!isAdded() || getView() == null || adapter == null) {
+            if (!isAdded() || getView() == null || adapter == null
+                    || requestedVersion != reloadGeneration.get()) {
+                // An obsolete reload must not clear cards populated by a
+                // newer request for the current patient.
                 return;
             }
             if (displayedPatientId != null && !displayedPatientId.equals(ownerId)) {
