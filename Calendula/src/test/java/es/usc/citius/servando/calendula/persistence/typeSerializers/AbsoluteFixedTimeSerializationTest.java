@@ -60,6 +60,17 @@ public class AbsoluteFixedTimeSerializationTest {
     }
 
     @Test
+    public void invalidStoredRecurrenceCannotBecomeAnInventedDailyTreatment() {
+        String corrupt = "{\"rule\":\"not-a-valid-recurrence-rule\"}";
+        try {
+            GsonUtil.get().fromJson(corrupt, RecurringEvent.class);
+            org.junit.Assert.fail("A corrupt recurrence must not be replaced with DAILY");
+        } catch (com.google.gson.JsonParseException expected) {
+            // The original database bytes must be retained for explicit repair.
+        }
+    }
+
+    @Test
     public void historicAbsoluteTimeWithoutReferenceStillRoundTrips()
             throws Exception {
         DailyFixedTime slot = new DailyFixedTime(
