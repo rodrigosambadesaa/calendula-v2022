@@ -259,7 +259,13 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
 
             @Override
             public void afterTextChanged(Editable s) {
-                String name = mNameTextView.getText().toString();
+                if (stockSwitch.isChecked() && !MedicineStockInputGuard.usableStock(stock)) {
+            if (getActivity() != null) {
+                Snack.show(R.string.medicine_stock_amount_invalid, getActivity());
+            }
+            return;
+        }
+        String name = mNameTextView.getText().toString();
 
                 if (mPrescription != null && !dbMgr.shortName(mPrescription).equalsIgnoreCase(name)) {
                     mPrescription = null;
@@ -519,16 +525,20 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
     }
 
     @Override
-    public void onDialogNumberSet(int reference, BigInteger number, double decimal, boolean isNegative, BigDecimal fullNumber) {
-        float amount = fullNumber.floatValue();
-        if (reference == DIALOG_STOCK_ADD) {
-            stock = (stock == -1) ? amount : (stock + amount);
-        } else if (reference == DIALOG_STOCK_REMOVE) {
-            if (amount >= stock)
-                stock = 0;
-            else
-                stock -= amount;
+    public void onDialogNumberSet(int reference, BigInteger number, double decimal,
+                                  boolean isNegative, BigDecimal fullNumber) {
+        if (reference != DIALOG_STOCK_ADD && reference != DIALOG_STOCK_REMOVE) {
+            return;
         }
+        Float updated = MedicineStockInputGuard.adjust(
+                stock, fullNumber, reference == DIALOG_STOCK_ADD);
+        if (updated == null) {
+            if (getActivity() != null) {
+                Snack.show(R.string.medicine_stock_amount_invalid, getActivity());
+            }
+            return;
+        }
+        stock = updated;
         computeEstimatedStockEndAsync();
     }
 
