@@ -33,7 +33,10 @@ final class MedicineStockInputGuard {
             }
             final float base = currentStock == -1f ? 0f : currentStock;
             final float sum = base + amount;
-            return usableStock(sum) ? sum : null;
+            // Reject additions too small for float precision at the current
+            // magnitude, rather than claiming to have added units when the
+            // persisted quantity would be bit-for-bit unchanged.
+            return usableStock(sum) && sum > base ? sum : null;
         }
         if (!usableStock(currentStock)) {
             // Subtracting from an unknown stock must not manufacture a
