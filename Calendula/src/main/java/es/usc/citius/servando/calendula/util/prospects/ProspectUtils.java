@@ -49,17 +49,41 @@ public class ProspectUtils {
     private static final String CSS_NORMALIZE_FILENAME = "normalize.css";
     private static final String CSS_ADDITIONAL_TEMPLATE_FILENAME = "prospectView.css.template";
 
+    /** No active patient or missing leaflet URL means no safe document request. */
+    static boolean canOpenProspect(Patient patient, String url) {
+        return patient != null && patient.getId() != null && patient.getId() > 0L
+                && url != null && !url.trim().isEmpty();
+    }
+
     public static void openProspect(Prescription p, final Context context, boolean enableCache) {
+        if (context == null || p == null) {
+            return;
+        }
+        // An auto-complete result may outlive the selected patient/profile.
+        // Verify ownership context before constructing a colored, cached page.
+        final Patient patient = DB.patients().getActive(context);
+        if (patient == null || patient.getId() == null || patient.getId() <= 0L) {
+            android.widget.Toast.makeText(context,
+                    R.string.message_prospect_connection_error,
+                    android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
         PrescriptionDBMgr dbMgr = DBRegistry.instance().current();
-        final String url = dbMgr.getProspectURL(p);
+        final String url = dbMgr == null ? null : dbMgr.getProspectURL(p);
+        if (!canOpenProspect(patient, url)) {
+            android.widget.Toast.makeText(context,
+                    R.string.message_prospect_not_found_error,
+                    android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
 
         Intent i = new Intent(context, WebViewActivity.class);
-
-        final Patient patient = DB.patients().getActive(context);
-        Map<String, String> overrides = new HashMap<String, String>() {{
-            put(CSS_PLACEHOLDER_SCREEN_WIDTH, (int) (ScreenUtils.getDpSize(context).x * 0.9) + "px");
-            put(CSS_PLACEHOLDER_PATIENT_COLOR, String.format("#%06X", (0xFFFFFF & patient.getColor())));
-        }};
+        Map<String, String> overrides = new HashMap<>();
+        overrides.put(CSS_PLACEHOLDER_SCREEN_WIDTH,
+                (int) (ScreenUtils.getDpSize(context).x * 0.9) + "px");
+        overrides.put(CSS_PLACEHOLDER_PATIENT_COLOR,
+                String.format(java.util.Locale.ROOT, "#%06X",
+                        (0xFFFFFF & patient.getColor())));
 
         final List<String> cssFiles = Arrays.asList(CSS_NORMALIZE_FILENAME, CSS_ADDITIONAL_TEMPLATE_FILENAME);
 
