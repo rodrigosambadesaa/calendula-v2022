@@ -724,8 +724,10 @@ public class WebViewActivity extends CalendulaActivity {
                     HtmlPostprocessor processor = (HtmlPostprocessor) Class.forName(request.getPostProcessorClassname()).newInstance();
                     // get processed html
                     processed = processor.process(html);
-                    // save it to cache if needed
-                    if (request.getCacheType().equals(WebViewRequest.CacheType.DOWNLOAD_CACHE)) {
+                    // Processing may take time. Recheck after processing,
+                    // just before writing patient-specific provider HTML.
+                    if (request.getCacheType().equals(WebViewRequest.CacheType.DOWNLOAD_CACHE)
+                            && !isFinishing() && !isDestroyed() && sameOpeningPatient()) {
                         HtmlCacheManager.getInstance().put(originalUrl, processed, ttl);
                     }
 
@@ -734,7 +736,8 @@ public class WebViewActivity extends CalendulaActivity {
                 }
             }
             // in other case, simply write html content to cache
-            else if (request.getCacheType().equals(WebViewRequest.CacheType.DOWNLOAD_CACHE)) {
+            else if (request.getCacheType().equals(WebViewRequest.CacheType.DOWNLOAD_CACHE)
+                    && !isFinishing() && !isDestroyed() && sameOpeningPatient()) {
                 HtmlCacheManager.getInstance().put(url, html, ttl);
             }
 
