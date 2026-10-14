@@ -482,4 +482,5 @@ Do you want to install the new database now?
     <string name="medicine_editor_profile_changed">Medicine cannot be saved because the patient profile or medicine owner changed. Reopen the editor for the correct patient.</string>
     <string name="medicine_alerts_unavailable">Cannot verify clinical alerts for this medicine. Reopen it after reviewing the patient profile.</string>
     <string name="medicine_stock_amount_invalid">Enter a valid, non-negative stock quantity. This amount cannot be saved.</string>
+    <string name="allergy_details_unavailable">Allergen details could not be verified. Treat this as an active allergy warning and review the medicine before use.</string>
 </resources>
