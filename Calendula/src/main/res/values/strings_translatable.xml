@@ -484,4 +484,5 @@ Do you want to install the new database now?
     <string name="medicine_stock_amount_invalid">Enter a valid, non-negative stock quantity. This amount cannot be saved.</string>
     <string name="allergy_details_unavailable">Allergen details could not be verified. Treat this as an active allergy warning and review the medicine before use.</string>
     <string name="medicine_allergy_catalog_unavailable">Cannot check allergy safety because ingredient or excipient information is missing from the medicine catalog. Review the catalog before saving.</string>
+    <string name="patient_qr_invalid">The scanned patient link is invalid or too large.</string>
 </resources>
