@@ -18,6 +18,7 @@
 
 package es.usc.citius.servando.calendula.util.stock
 
+import java.math.BigDecimal
 import org.joda.time.Days
 import org.joda.time.LocalDate
 
@@ -50,7 +51,11 @@ object StockCalculator {
         val endDate = startDate.plusMonths(MAX_STOCK_DURATION_MONTHS)
 
         var virtualDate = LocalDate(startDate)
-        var virtualStock = currentStock
+        // The dosage interface stores finite Floats, but repeated Float
+        // subtraction can cross zero one day too early (e.g. 1.0 minus ten
+        // daily doses of 0.1). Use their canonical decimal representation to
+        // accumulate exact units across the 3-month simulation horizon.
+        var virtualStock = BigDecimal(currentStock.toString())
 
         // simulate daily intakes until the stock runs out (or we reach the max duration)
         do {
@@ -60,12 +65,9 @@ object StockCalculator {
                 // patient that they have enough medication.
                 return StockEnd.Unavailable
             }
-            virtualStock -= stockForDay
-            if (!virtualStock.isFinite()) {
-                return StockEnd.Unavailable
-            }
+            virtualStock = virtualStock.subtract(BigDecimal(stockForDay.toString()))
 
-            if (virtualStock < 0) {
+            if (virtualStock.signum() < 0) {
                 return StockEnd.OnDate(
                     date = virtualDate,
                     // A calendar day may last 23 or 25 hours at a DST
