@@ -49,10 +49,30 @@ public class ProspectUtils {
     private static final String CSS_NORMALIZE_FILENAME = "normalize.css";
     private static final String CSS_ADDITIONAL_TEMPLATE_FILENAME = "prospectView.css.template";
 
-    /** No active patient or missing leaflet URL means no safe document request. */
+    /**
+     * A prescription catalog may be imported from historic data. Never treat
+     * a javascript:, data:, file: or content: link as a remote leaflet: that
+     * could execute local WebView content instead of fetching medical advice.
+     * Both currently supported catalog managers produce absolute HTTPS URLs;
+     * retain HTTP for legacy external catalogs until separately migrated.
+     */
     static boolean canOpenProspect(Patient patient, String url) {
-        return patient != null && patient.getId() != null && patient.getId() > 0L
-                && url != null && !url.trim().isEmpty();
+        if (patient == null || patient.getId() == null || patient.getId() <= 0L
+                || url == null || url.trim().isEmpty()) {
+            return false;
+        }
+        try {
+            java.net.URI location = new java.net.URI(url.trim());
+            String scheme = location.getScheme();
+            return scheme != null
+                    && ("https".equalsIgnoreCase(scheme)
+                            || "http".equalsIgnoreCase(scheme))
+                    && location.getHost() != null
+                    && !location.getHost().isEmpty()
+                    && location.getUserInfo() == null;
+        } catch (java.net.URISyntaxException invalid) {
+            return false;
+        }
     }
 
     public static void openProspect(Prescription p, final Context context, boolean enableCache) {
