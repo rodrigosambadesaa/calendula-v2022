@@ -76,6 +76,18 @@ public class AbsoluteFixedTimeSerializationTest {
     }
 
     @Test
+    public void missingStoredRecurrenceRuleIsNotAnImplicitDailyTreatment() {
+        for (String invalid : new String[]{"{}", "{\"dailyTimes\":[]}"}) {
+            try {
+                GsonUtil.get().fromJson(invalid, RecurringEvent.class);
+                org.junit.Assert.fail("A missing stored rule must not produce daily intakes");
+            } catch (com.google.gson.JsonParseException expected) {
+                // Invalid row remains available for explicit manual repair.
+            }
+        }
+    }
+
+    @Test
     public void historicAbsoluteTimeWithoutReferenceStillRoundTrips()
             throws Exception {
         DailyFixedTime slot = new DailyFixedTime(
