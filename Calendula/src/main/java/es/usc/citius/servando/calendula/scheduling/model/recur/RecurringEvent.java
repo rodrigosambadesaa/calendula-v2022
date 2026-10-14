@@ -198,7 +198,19 @@ public class RecurringEvent {
     public boolean hasOccurrencesAt(LocalDate when) {
         DateTime t = when.toDateTimeAtStartOfDay();
         if (isCyclic()) {
-            return isCycleActiveAt(t);
+            // This method asks whether a LOCAL DATE has an intake, not
+            // whether midnight precedes the exact start instant. If the
+            // cycle starts today at 08:00, midnight must not hide its first
+            // valid day from the calendar.
+            if (startDateTime == null) {
+                throw new IllegalStateException("Cyclic medication has no start date");
+            }
+            DateTime cycleDay = when.toDateTimeAtStartOfDay(startDateTime.getZone());
+            if (when.equals(startDateTime.toLocalDate())
+                    && cycleDay.isBefore(startDateTime)) {
+                cycleDay = startDateTime;
+            }
+            return isCycleActiveAt(cycleDay);
         }
         // iterator start is not synchronized to avoid starting always
         // on a valid date. Due to this, we have to manually check the
