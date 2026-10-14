@@ -52,6 +52,9 @@ import es.usc.citius.servando.calendula.drugdb.model.persistence.Prescription;
 import es.usc.citius.servando.calendula.modules.ModuleManager;
 import es.usc.citius.servando.calendula.modules.modules.StockModule;
 import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.Patient;
+import es.usc.citius.servando.calendula.persistence.Presentation;
+import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.prospects.ProspectUtils;
 import es.usc.citius.servando.calendula.util.stock.MedicineScheduleStockProvider;
@@ -112,7 +115,8 @@ public class MedInfoFragment extends Fragment {
         super.onCreate(savedInstanceState);
         dbMgr = DBRegistry.instance().current();
         if (getArguments() != null) {
-            m = DB.medicines().findById(getArguments().getLong("medicine_id", -1));
+            long medicineId = getArguments().getLong("medicine_id", -1L);
+            m = medicineId > 0L ? DB.medicines().findById(medicineId) : null;
         }
 
     }
@@ -133,12 +137,57 @@ public class MedInfoFragment extends Fragment {
     }
 
     public void notifyDataChange() {
-        DB.medicines().refresh(m);
-        setupView();
+        if (getView() != null) {
+            setupView();
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // Profile switches can occur while this fragment is paused. A
+        // previous patient's clinical description must not remain visible.
+        if (getView() != null && !isCurrentMedicine()) {
+            if (getActivity() != null) {
+                getActivity().finish();
+            }
+        }
+    }
+
+    /** Validate before any clinical fields, medication schedules or stock. */
+    private boolean isCurrentMedicine() {
+        Context context = getContext();
+        if (context == null || m == null || m.getId() == null
+                || m.getPatient() == null || m.getPatient().getId() == null) {
+            return false;
+        }
+        Long medicineId = m.getId();
+        Long selectedOwnerId = m.getPatient().getId();
+        Patient active = DB.patients().getActive(context);
+        Medicine stored = DB.medicines().findById(medicineId);
+        if (stored == null || DB.medicines().refresh(stored) != 1) {
+            return false;
+        }
+        if (!MedicineInfoReadGuard.isCurrentOwner(
+                medicineId, selectedOwnerId,
+                stored.getId(),
+                stored.getPatient() == null ? null : stored.getPatient().getId(),
+                active == null ? null : active.getId())) {
+            return false;
+        }
+        m = stored;
+        return true;
     }
 
     private void setupView() {
         Context c = getActivity();
+        if (c == null || !isCurrentMedicine()) {
+            // A deleted or cross-owner medicine must not populate this view.
+            if (getActivity() != null) {
+                getActivity().finish();
+            }
+            return;
+        }
         int color = R.color.black;
         icMedName.setImageDrawable(IconUtils.icon(c, CommunityMaterial.Icon2.cmd_script, color, 24, 4));
         icProspect.setImageDrawable(IconUtils.icon(c, CommunityMaterial.Icon2.cmd_information, color, 24, 4));
@@ -167,9 +216,12 @@ public class MedInfoFragment extends Fragment {
                     desc += "" + p.getContent() + "\n";
                     desc += "" + p.getDose();
                 }
-            } else {
+            }
+            if (!foundOnDB) {
+                // An expired or removed drug database entry must still show
+                // the local medicine's name, not a blank clinical title.
                 desc = getString(R.string.message_link_real_prescription);
-                name += m.getName();
+                name = m.getName() == null ? "" : m.getName();
             }
         }
 
@@ -208,24 +260,41 @@ public class MedInfoFragment extends Fragment {
             });
         }
 
+        stockLayout.setVisibility(ModuleManager.isEnabled(StockModule.ID)
+                ? View.VISIBLE : View.GONE);
         if (ModuleManager.isEnabled(StockModule.ID)) {
-            stockLayout.setVisibility(View.VISIBLE);
-            if (m.stockManagementEnabled()) {
-                final Float s = m.getStock();
-                final String stock = s.intValue() == s ? String.valueOf(s.intValue()) : String.valueOf(s);
-                stockInfo.setText(getString(R.string.value_with_unit, stock, m.getPresentation().units(getResources(), s)));
-                final StockCalculator.StockEnd stockEnd = StockCalculator.calculateStockEnd(LocalDate.now(), new MedicineScheduleStockProvider(m), m.getStock());
-                String msg = StockDisplayUtils.getReadableStockDuration(stockEnd, getContext());
-                stockInfoEnd.setText(msg);
+            final Float quantity = m.getStock();
+            if (MedicineInfoReadGuard.isUsableStock(quantity)) {
+                Presentation presentation = m.getPresentation() == null
+                        ? Presentation.UNKNOWN : m.getPresentation();
+                stockInfo.setText(getString(R.string.value_with_unit,
+                        MedicineInfoReadGuard.formatStock(quantity),
+                        presentation.units(getResources(), quantity)));
+                try {
+                    final StockCalculator.StockEnd stockEnd =
+                            StockCalculator.calculateStockEnd(
+                                    LocalDate.now(), new MedicineScheduleStockProvider(m),
+                                    quantity);
+                    stockInfoEnd.setText(StockDisplayUtils.getReadableStockDuration(
+                            stockEnd, getContext()));
+                } catch (RuntimeException error) {
+                    // Broken imported schedules are not evidence that the
+                    // patient has a known number of days of medicine left.
+                    LogUtil.e("MedInfoFragment", "Could not estimate stock safely", error);
+                    stockInfoEnd.setText(R.string.stock_estimate_unavailable);
+                }
+            } else if (quantity != null && quantity != -1f) {
+                // NaN, infinity and negative legacy inventory values must
+                // never be shown as depleted or as trusted remaining stock.
+                stockInfo.setText(R.string.stock_estimate_unavailable);
+                stockInfoEnd.setText(R.string.stock_estimate_unavailable);
             } else {
                 stockInfo.setText(R.string.stock_no_data);
                 stockInfoEnd.setText(R.string.stock_no_stock_info);
             }
         }
 
-        if (m.isFromActiveMed()) {
-            providerLayout.setVisibility(View.VISIBLE);
-        }
+        providerLayout.setVisibility(m.isFromActiveMed() ? View.VISIBLE : View.GONE);
 
     }
 
@@ -233,6 +302,12 @@ public class MedInfoFragment extends Fragment {
 
         String dose = p.getDose();
         String originalName = p.getName();
+        if (originalName == null) {
+            return "";
+        }
+        if (dose == null || dose.isEmpty()) {
+            return originalName;
+        }
         String doseFirstPart = dose.contains(" ") ? dose.split(" ")[0] : dose;
 
         if (doseFirstPart != null && originalName.contains(doseFirstPart)) {
