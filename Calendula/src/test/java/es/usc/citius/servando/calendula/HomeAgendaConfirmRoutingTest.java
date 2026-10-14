@@ -77,6 +77,15 @@ public class HomeAgendaConfirmRoutingTest {
         placeholder.hasEvents = false;
         assertFalse(DailyAgendaRecyclerAdapter.isCurrentConfirmRow(
                 Collections.singletonList(placeholder), placeholder, 0));
+        DailyAgendaItemStub duplicate = row(101L, 2001L, 1d);
+        DailyAgendaItemStub.DailyAgendaItemStubElement copy =
+                new DailyAgendaItemStub.DailyAgendaItemStubElement();
+        copy.eventId = 2001L;
+        copy.dose = 1d;
+        duplicate.meds.add(copy);
+        assertFalse(DailyAgendaRecyclerAdapter.isCurrentConfirmRow(
+                Collections.singletonList(duplicate), duplicate, 0));
+
         DailyAgendaItemStub missingRows = row(101L, 2001L, 1d);
         missingRows.meds.clear();
         assertFalse(DailyAgendaRecyclerAdapter.isCurrentConfirmRow(
