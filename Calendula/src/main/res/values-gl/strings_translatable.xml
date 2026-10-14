@@ -507,4 +507,5 @@ Queres instalar a nova base de datos agora?"</string>
     <string name="medicine_alerts_unavailable">Non se poden verificar as alertas clínicas deste medicamento. Comproba o perfil do paciente e volve abrilo.</string>
     <string name="medicine_stock_amount_invalid">Introduce unha cantidade de existencias válida e non negativa. Non se pode gardar ese valor.</string>
     <string name="allergy_details_unavailable">Non se poden verificar os detalles dos alérxenos. Mantén esta advertencia de alerxia e revisa o medicamento antes de usalo.</string>
+    <string name="patient_qr_invalid">O código de vinculación do paciente non é válido ou é demasiado grande.</string>
 </resources>
