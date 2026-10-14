@@ -430,7 +430,8 @@ public class MedicineInfoActivity extends CalendulaActivity {
                 case ACTION_SHOW_ONLY_ACTIVE_MED:
                     pageSet = medicine != null ? MedInfoPageAdapter.MedInfoPageSet.ALL : MedInfoPageAdapter.MedInfoPageSet.ONLY_ACTIVE_MED;
                     showActiveMed = true;
-                    if (activeMedVO == null) {
+                    if (!MedicineInfoAvailabilityGuard.canShowRequestedProvider(
+                            true, activeMedVO != null)) {
                         // A stale/malformed provider intent must not build a
                         // pager whose title and prescription are null.
                         LogUtil.w(TAG, "Provider medicine missing for requested detail page");
@@ -461,7 +462,8 @@ public class MedicineInfoActivity extends CalendulaActivity {
                 }
                 // Keep showing the local prescription even when the external
                 // provider's record has disappeared or cannot be retrieved.
-                pageSet = activeMedVO != null
+                pageSet = MedicineInfoAvailabilityGuard.showLinkedProviderTab(
+                        medicine != null, activeMedVO != null)
                         ? MedInfoPageAdapter.MedInfoPageSet.ALL
                         : MedInfoPageAdapter.MedInfoPageSet.NO_ACTIVE_MED;
             }
