@@ -33,6 +33,7 @@ import org.joda.time.DateTime;
 
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.events.GetExtraInfoEvent;
@@ -197,6 +198,11 @@ public class GetExtraInfoFromServiceJob extends Job {
         if (authState != null && authState.getNeedsTokenRefresh()) {
             LogUtil.d(TAG, "refreshTokensIfNeeded: refreshing tokens");
             LogUtil.d(TAG, "AccessTokenExpirationTime: " + new DateTime(authState.getAccessTokenExpirationTime()).toString());
+            // Compare the original persisted auth state *after* the callback.
+            // Never re-save credentials from a job whose user signed out or
+            // switched sessions while the network request was outstanding.
+            final String originalCredentials = authState.jsonSerializeString();
+            final AtomicBoolean usableTokenReturned = new AtomicBoolean(false);
             final TokenRefreshGate gate = new TokenRefreshGate();
             final AuthorizationService authService =
                     AuthorizationServiceHelper.createAuthorizationService(getContext());
@@ -215,7 +221,10 @@ public class GetExtraInfoFromServiceJob extends Job {
                                 } else if (accessToken == null || accessToken.isEmpty()) {
                                     result.setResult(Status.ERROR_AUTHORIZATION);
                                 } else {
-                                    LoginStateManager.getInstance().updateAuthState(authState);
+                                    // Only capture the callback outcome here.
+                                    // Persist credentials on the waiting job thread
+                                    // after we know its wait has succeeded.
+                                    usableTokenReturned.set(true);
                                 }
                             } catch (RuntimeException invalidRefresh) {
                                 LogUtil.w(TAG, "Could not finish token renewal safely");
@@ -225,6 +234,16 @@ public class GetExtraInfoFromServiceJob extends Job {
                 if (!gate.await(45, TimeUnit.SECONDS)) {
                     LogUtil.w(TAG, "Token renewal timed out");
                     result.setResult(Status.ERROR_NO_CONNECTION);
+                } else if (usableTokenReturned.get()) {
+                    AuthState current = LoginStateManager.getInstance().getCurrentAuthState();
+                    if (current == null
+                            || !originalCredentials.equals(current.jsonSerializeString())) {
+                        // Another login/logout or token refresh won the race.
+                        // Do not resurrect an old session.
+                        result.setResult(Status.ERROR_AUTHORIZATION);
+                    } else {
+                        LoginStateManager.getInstance().updateAuthState(authState);
+                    }
                 }
             } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
