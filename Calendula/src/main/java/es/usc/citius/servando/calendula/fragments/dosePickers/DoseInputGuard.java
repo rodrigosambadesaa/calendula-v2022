@@ -14,6 +14,14 @@ final class DoseInputGuard {
         return dose > 0.0d && !Double.isNaN(dose) && !Double.isInfinite(dose);
     }
 
+    /** The initial whole-unit liquid slider cannot display arbitrary doubles. */
+    static int liquidSliderValue(double initial, int sliderMaximum) {
+        if (!isPositiveFinite(initial) || sliderMaximum <= 0) {
+            return 0;
+        }
+        return (int) Math.min(Math.floor(initial), (double) sliderMaximum);
+    }
+
     static Double parsePositive(String raw) {
         if (raw == null) {
             return null;
