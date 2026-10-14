@@ -80,35 +80,46 @@ public class SetupDatabaseModule extends CalendulaModule {
         }
     }
 
+    /**
+     * Decide whether a complete, known catalog has a newer bundled version.
+     * Missing/corrupt legacy preferences must not crash startup or trigger
+     * a destructive catalog reinstall from an untrusted version string.
+     */
+    static boolean shouldUpdateCatalog(String selectedDatabase, String installedVersion,
+                                       String bundledDatabase, String bundledVersion,
+                                       String setupPlaceholder) {
+        if (selectedDatabase == null || installedVersion == null
+                || bundledDatabase == null || bundledVersion == null
+                || bundledDatabase.equals(setupPlaceholder)
+                || !bundledDatabase.equals(selectedDatabase)) {
+            return false;
+        }
+        try {
+            DateTime bundledDate = DateTime.parse(bundledVersion, ISODateTimeFormat.basicDate());
+            DateTime installedDate = DateTime.parse(installedVersion, ISODateTimeFormat.basicDate());
+            return bundledDate.isAfter(installedDate);
+        } catch (IllegalArgumentException malformedVersion) {
+            // The previous valid catalog stays selected; do not claim a
+            // migration can be performed from an unparseable date.
+            return false;
+        }
+    }
+
     public static String checkForUpdate(Context ctx) {
-        final String currentDatabase = PreferenceUtils.getString(PreferenceKeys.DRUGDB_CURRENT_DB, null);
-        final String currentVersion = PreferenceUtils.getString(PreferenceKeys.DRUGDB_VERSION, null);
-        ;
-
-        final String database = BuildConfig.BUNDLED_DB_NAME;
-        final String databaseVersion = BuildConfig.BUNDLED_DB_VERSION;
-
-        if (currentDatabase.equals(database) && !database.equals(ctx.getString(R.string.database_setting_up))) {
-            if (currentVersion != null) {
-                final DateTime databaseDate = DateTime.parse(databaseVersion, ISODateTimeFormat.basicDate());
-                final DateTime currentDatabaseDate = DateTime.parse(currentVersion, ISODateTimeFormat.basicDate());
-
-                if (databaseDate.isAfter(currentDatabaseDate)) {
-                    LogUtil.d(TAG, "checkForUpdate: Update found for database " + database + " (" + databaseVersion + ")");
-                    return databaseVersion;
-                } else {
-                    LogUtil.d(TAG, "checkForUpdate: Database is updated. ID is '" + database + "', version is '" + currentVersion + "'");
-                    return null;
-                }
-            } else {
-                LogUtil.w(TAG, "checkForUpdate: Database is " + database + " but no version is set!");
-                return null;
-            }
-        } else {
-            LogUtil.d(TAG, "checkForUpdate: No database. No version check needed.");
+        if (ctx == null) {
             return null;
         }
-
-
+        final String currentDatabase = PreferenceUtils.getString(PreferenceKeys.DRUGDB_CURRENT_DB, null);
+        final String currentVersion = PreferenceUtils.getString(PreferenceKeys.DRUGDB_VERSION, null);
+        final String bundledDatabase = BuildConfig.BUNDLED_DB_NAME;
+        final String bundledVersion = BuildConfig.BUNDLED_DB_VERSION;
+        if (!shouldUpdateCatalog(currentDatabase, currentVersion,
+                bundledDatabase, bundledVersion, ctx.getString(R.string.database_setting_up))) {
+            // A missing selection or malformed old catalog date is not
+            // evidence that any medical record can safely be migrated.
+            return null;
+        }
+        LogUtil.d(TAG, "A newer bundled medication catalog is available");
+        return bundledVersion;
     }
 }
