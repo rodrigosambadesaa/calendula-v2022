@@ -359,9 +359,12 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
         ++stockEstimateRequestVersion;
         mMedicine = r;
         mNameTextView.setText(mMedicine.getName());
-        mPresentationTv.setText(getString(R.string.colon_prefixed_value, mMedicine.getPresentation().getName(getResources())));
-        selectedPresentation = mMedicine.getPresentation();
-        selectPresentation(mMedicine.getPresentation());
+        Presentation currentPresentation = mMedicine.getPresentation() == null
+                ? Presentation.UNKNOWN : mMedicine.getPresentation();
+        mPresentationTv.setText(getString(R.string.colon_prefixed_value,
+                currentPresentation.getName(getResources())));
+        selectedPresentation = currentPresentation;
+        selectPresentation(currentPresentation);
 
         if (r.getCn() != null) {
             Prescription p = DB.drugDB().prescriptions().findByCn(r.getCn());

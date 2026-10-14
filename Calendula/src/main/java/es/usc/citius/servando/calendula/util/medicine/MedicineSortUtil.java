@@ -21,7 +21,10 @@ package es.usc.citius.servando.calendula.util.medicine;
 import androidx.annotation.StringRes;
 
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.R;
@@ -51,37 +54,109 @@ public class MedicineSortUtil {
         }
 
         public Comparator<Medicine> comparator() {
-            return comparator;
+            // A fresh comparator for each sort avoids retaining clinical alert
+            // summaries across patients or subsequent database mutations.
+            return this == ALERTS ? new MedicineAlertComparator() : comparator;
         }
+    }
+
+    /**
+     * Sort legacy/partially imported records without crashing on missing
+     * names or presentations. Unknown values sort after known values.
+     */
+    private static int compareNullableMedicines(Medicine left, Medicine right) {
+        if (left == right) return 0;
+        if (left == null) return 1;
+        if (right == null) return -1;
+        return Integer.MIN_VALUE; // Both records exist; compare their fields.
     }
 
     private static class MedicineNameComparator implements Comparator<Medicine> {
         @Override
         public int compare(Medicine o1, Medicine o2) {
-            return o1.getName().compareTo(o2.getName());
+            int missing = compareNullableMedicines(o1, o2);
+            if (missing != Integer.MIN_VALUE) return missing;
+            String name1 = o1.getName();
+            String name2 = o2.getName();
+            if (name1 == name2) return 0;
+            if (name1 == null) return 1;
+            if (name2 == null) return -1;
+            return name1.compareTo(name2);
         }
     }
 
     private static class MedicinePresentationComparator implements Comparator<Medicine> {
-
         @Override
         public int compare(Medicine o1, Medicine o2) {
-            final Presentation p1 = o1.getPresentation();
-            final Presentation p2 = o2.getPresentation();
-            return Integer.valueOf(p1.ordinal()).compareTo(p2.ordinal());
+            int missing = compareNullableMedicines(o1, o2);
+            if (missing != Integer.MIN_VALUE) return missing;
+            Presentation p1 = o1.getPresentation() == null
+                    ? Presentation.UNKNOWN : o1.getPresentation();
+            Presentation p2 = o2.getPresentation() == null
+                    ? Presentation.UNKNOWN : o2.getPresentation();
+            return Integer.compare(p1.ordinal(), p2.ordinal());
         }
     }
 
+    /**
+     * Exposed as a package-level factory for deterministic cache tests. The
+     * production provider always uses the validated, patient-scoped DAO.
+     */
+    static Comparator<Medicine> alertComparatorWith(
+            Function<Medicine, List<PatientAlert>> provider) {
+        return new MedicineAlertComparator(provider);
+    }
+
     private static class MedicineAlertComparator implements Comparator<Medicine> {
+        private final Function<Medicine, List<PatientAlert>> fetch;
+        private final Map<Medicine, AlertRank> snapshot = new IdentityHashMap<>();
+
+        MedicineAlertComparator() {
+            this(m -> DB.alerts().findByMedicineSortByLevel(m));
+        }
+
+        MedicineAlertComparator(Function<Medicine, List<PatientAlert>> fetch) {
+            this.fetch = fetch;
+        }
+
+        private AlertRank rank(Medicine medicine) {
+            if (snapshot.containsKey(medicine)) {
+                return snapshot.get(medicine);
+            }
+            // Preserve clinical ownership failures: a DB read error must not
+            // silently turn a HIGH allergy alert into 'no alerts'.
+            List<PatientAlert> alerts = fetch.apply(medicine);
+            int maxLevel = 0;
+            for (PatientAlert alert : alerts) {
+                maxLevel = Math.max(maxLevel, alert.getLevel());
+            }
+            AlertRank rank = new AlertRank(alerts.size(), maxLevel);
+            snapshot.put(medicine, rank);
+            return rank;
+        }
 
         @Override
         public int compare(Medicine o1, Medicine o2) {
-            final List<PatientAlert> a1 = DB.alerts().findByMedicineSortByLevel(o1);
-            final List<PatientAlert> a2 = DB.alerts().findByMedicineSortByLevel(o2);
-            if (a1.size() == 0 || a2.size() == 0) {
-                return Integer.valueOf(a2.size()).compareTo(a1.size());
+            int missing = compareNullableMedicines(o1, o2);
+            if (missing != Integer.MIN_VALUE) return missing;
+            AlertRank a = rank(o1);
+            AlertRank b = rank(o2);
+            // Preserve legacy order: any alerted medicine sorts ahead of no
+            // alerts, otherwise prioritize the highest clinical severity.
+            if (a.count == 0 || b.count == 0) {
+                return Integer.compare(b.count, a.count);
             }
-            return Integer.valueOf(a2.get(0).getLevel()).compareTo(a1.get(0).getLevel());
+            return Integer.compare(b.maxLevel, a.maxLevel);
+        }
+    }
+
+    private static final class AlertRank {
+        final int count;
+        final int maxLevel;
+
+        AlertRank(int count, int maxLevel) {
+            this.count = count;
+            this.maxLevel = maxLevel;
         }
     }
 
@@ -89,7 +164,9 @@ public class MedicineSortUtil {
 
         @Override
         public int compare(Medicine o1, Medicine o2) {
-            return Boolean.valueOf(o2.isFromActiveMed()).compareTo(o1.isFromActiveMed());
+            int missing = compareNullableMedicines(o1, o2);
+            if (missing != Integer.MIN_VALUE) return missing;
+            return Boolean.compare(o2.isFromActiveMed(), o1.isFromActiveMed());
         }
     }
 
