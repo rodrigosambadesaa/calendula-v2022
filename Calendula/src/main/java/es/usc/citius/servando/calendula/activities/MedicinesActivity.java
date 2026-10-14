@@ -334,23 +334,43 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
         }
         LogUtil.d(TAG, "onActivityResult() called with: requestCode = [" + requestCode + "], resultCode = [" + resultCode + "], data = [" + data + "]");
         if (requestCode == REQUEST_CODE_GET_MED) {
-            if (resultCode == RESULT_OK) {
-                final String prescriptionName = data.getStringExtra(MedicinesSearchActivity.RETURN_EXTRA_PRESCRIPTION_NAME);
+            if (resultCode == RESULT_OK && data != null) {
+                final String prescriptionName = data.getStringExtra(
+                        MedicinesSearchActivity.RETURN_EXTRA_PRESCRIPTION_NAME);
                 mViewPager.post(new Runnable() {
                     @Override
                     public void run() {
+                        // The patient can change between onActivityResult and
+                        // this queued UI callback. Refuse stale prescriptions
+                        // even if the original result passed authorization.
+                        if (isFinishing() || isDestroyed()) {
+                            return;
+                        }
+                        if (!canDisplaySelectedMedicine()) {
+                            closeStaleMedicineEditor();
+                            return;
+                        }
+                        Fragment fragment = getViewPagerFragment(0);
+                        if (!(fragment instanceof MedicineCreateOrEditFragment)) {
+                            return;
+                        }
+                        MedicineCreateOrEditFragment editor =
+                                (MedicineCreateOrEditFragment) fragment;
                         if (prescriptionName != null) {
-                            ((MedicineCreateOrEditFragment) getViewPagerFragment(0)).setMedicineName(prescriptionName);
+                            editor.setMedicineName(prescriptionName);
                         } else {
-                            final Prescription p = data.getParcelableExtra(MedicinesSearchActivity.RETURN_EXTRA_PRESCRIPTION);
-                            if (p != null) {
-                                ((MedicineCreateOrEditFragment) getViewPagerFragment(0)).setPrescription(p);
+                            final Prescription prescription = data.getParcelableExtra(
+                                    MedicinesSearchActivity.RETURN_EXTRA_PRESCRIPTION);
+                            if (prescription != null) {
+                                editor.setPrescription(prescription);
                             } else {
-                                LogUtil.e(TAG, "onActivityResult: result was OK but no prescription extras received ");
+                                LogUtil.w(TAG, "Medicine search returned no usable prescription");
                             }
                         }
                     }
                 });
+            } else if (resultCode == RESULT_OK) {
+                LogUtil.w(TAG, "Medicine search returned a missing result intent");
             }
         } else {
             LogUtil.w(TAG, "onActivityResult: invalid request code " + requestCode + ", ignoring");
