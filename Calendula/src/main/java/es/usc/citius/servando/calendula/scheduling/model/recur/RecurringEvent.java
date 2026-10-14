@@ -401,15 +401,32 @@ public class RecurringEvent {
         recurrence = new RecurrenceRule(freq, RFC_MODE);
     }
 
+    /**
+     * Days of a medication cycle are LOCAL CALENDAR DAYS, not blocks of
+     * 86,400 seconds. At daylight-saving changes a calendar day may contain
+     * 23 or 25 hours. Using Interval.getStandardDays() can shift rest days
+     * into active days, accidentally generating a patient's extra intake.
+     */
+    static boolean isActiveOnCycleDay(DateTime start, DateTime occurrence,
+                                      Integer active, Integer inactive) {
+        if (start == null || occurrence == null || active == null || inactive == null
+                || active < 1 || inactive < 1
+                || (long) active + inactive > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Invalid medication cycle configuration");
+        }
+        if (occurrence.isBefore(start)) {
+            return false;
+        }
+        // Use the schedule start's time zone to interpret both dates, even
+        // when a caller supplies an equivalent UTC instant.
+        int days = org.joda.time.Days.daysBetween(
+                start.toLocalDate(),
+                occurrence.withZone(start.getZone()).toLocalDate()).getDays();
+        return days % (active + inactive) < active;
+    }
+
     private boolean isCycleActiveAt(DateTime date) {
-        if (date.isBefore(startDateTime)) return false;
-        int cycleLength = cycleActiveDays + cycleInactiveDays;
-        Interval interval = new Interval(startDateTime, date);
-        int days = (int) interval.toDuration().getStandardDays();
-        int cyclesUntilNow = days / cycleLength;
-        DateTime currentCycleStart = startDateTime.plusDays(cyclesUntilNow * cycleLength);
-        interval = new Interval(currentCycleStart, currentCycleStart.plusDays(cycleActiveDays));
-        return interval.contains(date);
+        return isActiveOnCycleDay(startDateTime, date, cycleActiveDays, cycleInactiveDays);
     }
 
     private void addDailyFixedTimes(List<DailyFixedTime> dailyFixedTimes) {
