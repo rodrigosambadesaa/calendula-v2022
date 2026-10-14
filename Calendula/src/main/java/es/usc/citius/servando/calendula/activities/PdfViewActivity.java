@@ -149,8 +149,8 @@ public class PdfViewActivity extends CalendulaActivity {
                 File pdfFile = url == null ? null : new File(url);
                 String imageDataUrl = null;
                 try {
-                    if (pdfFile == null || !pdfFile.isFile()) {
-                        throw new IOException("Downloaded PDF is unavailable");
+                    if (!ProviderPdfFilePolicy.isTrustedPdf(getCacheDir(), pdfFile)) {
+                        throw new IOException("Downloaded PDF is not a trusted private cache file");
                     }
                     try (ParcelFileDescriptor descriptor = ParcelFileDescriptor.open(
                             pdfFile, ParcelFileDescriptor.MODE_READ_ONLY);
@@ -190,7 +190,8 @@ public class PdfViewActivity extends CalendulaActivity {
                 } finally {
                     // Temporary provider documents should not remain in storage,
                     // including after a failed or malformed download.
-                    if (pdfFile != null && pdfFile.isFile() && !pdfFile.delete()) {
+                    if (ProviderPdfFilePolicy.isTrustedPdf(getCacheDir(), pdfFile)
+                            && !pdfFile.delete()) {
                         LogUtil.w(TAG, "Could not clean up provider PDF temporary file");
                     }
                 }
