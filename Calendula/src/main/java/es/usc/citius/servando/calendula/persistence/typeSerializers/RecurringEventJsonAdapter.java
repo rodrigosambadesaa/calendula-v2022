@@ -66,10 +66,20 @@ public class RecurringEventJsonAdapter extends TypeAdapter<RecurringEvent> {
             for (DailyFixedTime d : evt.getDailyFixedTimes()) {
                 out.beginObject();
                 out.name("refType").value(d.getReferenceType().toString());
+                // Ref is a stable dosage-map key, not a replacement for an
+                // absolute clock time. A reference-bearing ABSOLUTE slot
+                // previously serialized only "ref"; on restart getTime()
+                // returned null and occurrence generation crashed.
                 if (d.getReference() != null) {
                     out.name("ref").value(d.getReference());
-                } else {
+                }
+                if (d.getReferenceType() == DailyFixedTime.ReferenceType.ABSOLUTE) {
+                    if (d.getTime() == null) {
+                        throw new IOException("Absolute medication time is missing");
+                    }
                     out.name("time").value(d.getTime().toString(timeFormat));
+                } else if (d.getReference() == null) {
+                    throw new IOException("Routine-linked medication time has no routine ID");
                 }
                 if (d.offset() != null) {
                     out.name("offset").value(d.offset().name());
