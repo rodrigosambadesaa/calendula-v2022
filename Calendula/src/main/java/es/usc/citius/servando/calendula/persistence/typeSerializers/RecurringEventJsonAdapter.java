@@ -56,7 +56,17 @@ public class RecurringEventJsonAdapter extends TypeAdapter<RecurringEvent> {
         if (evt.hasEnd()) {
             out.name("end").value(evt.getEndDateTime().toString(dateFormat));
         }
-        if (evt.isCyclic()) {
+        // A partially restored 3-on/2-off schedule must not silently become
+        // an everyday schedule when only one duration remains in SQLite.
+        boolean anyCycle = evt.getCycleActiveDays() != null
+                || evt.getCycleInactiveDays() != null;
+        if (anyCycle) {
+            if (evt.getCycleActiveDays() == null || evt.getCycleInactiveDays() == null
+                    || evt.getCycleActiveDays() <= 0 || evt.getCycleInactiveDays() <= 0
+                    || (long) evt.getCycleActiveDays() + evt.getCycleInactiveDays()
+                            > Integer.MAX_VALUE || !evt.hasStart()) {
+                throw new IOException("Stored medication cycle is incomplete");
+            }
             out.name("cycleActive").value(evt.getCycleActiveDays());
             out.name("cycleInactive").value(evt.getCycleInactiveDays());
         }
@@ -169,6 +179,17 @@ public class RecurringEventJsonAdapter extends TypeAdapter<RecurringEvent> {
                 // A corrupt database record without an actual rule must
                 // never silently inherit this default daily treatment.
                 throw new IOException("Stored medication recurrence has no rule");
+            }
+            if (event.getCycleActiveDays() != null || event.getCycleInactiveDays() != null) {
+                if (event.getCycleActiveDays() == null
+                        || event.getCycleInactiveDays() == null
+                        || event.getCycleActiveDays() <= 0
+                        || event.getCycleInactiveDays() <= 0
+                        || (long) event.getCycleActiveDays()
+                                + event.getCycleInactiveDays() > Integer.MAX_VALUE
+                        || !event.hasStart()) {
+                    throw new IOException("Stored medication cycle is incomplete");
+                }
             }
         } catch (InvalidRecurrenceRuleException e) {
             // Returning the default DAILY recurrence would silently invent a
