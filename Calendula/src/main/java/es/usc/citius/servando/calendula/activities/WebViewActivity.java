@@ -346,7 +346,7 @@ public class WebViewActivity extends CalendulaActivity {
         if (needsHtmlAccess(request)) {
             webView.addJavascriptInterface(new SimpleJSCacheInterface(this), "HtmlCache");
         } else {
-            cachedData = HtmlCacheManager.getInstance().get(originalUrl);
+            cachedData = HtmlCacheManager.getInstance().getForPatient(openedPatientId, originalUrl);
         }
 
         LogUtil.d(TAG, "setupWebView: Setting WebViewClient");
@@ -455,7 +455,7 @@ public class WebViewActivity extends CalendulaActivity {
     }
 
     private boolean isCached() {
-        return HtmlCacheManager.getInstance().isCached(url);
+        return HtmlCacheManager.getInstance().isCachedForPatient(openedPatientId, url);
     }
 
     static byte[] readFully(InputStream inputStream) throws IOException {
@@ -733,7 +733,7 @@ public class WebViewActivity extends CalendulaActivity {
                     // just before writing patient-specific provider HTML.
                     if (request.getCacheType().equals(WebViewRequest.CacheType.DOWNLOAD_CACHE)
                             && !isFinishing() && !isDestroyed() && sameOpeningPatient()) {
-                        HtmlCacheManager.getInstance().put(originalUrl, processed, ttl);
+                        HtmlCacheManager.getInstance().putForPatient(openedPatientId, originalUrl, processed, ttl);
                     }
 
                 } catch (Exception e) {
@@ -743,7 +743,7 @@ public class WebViewActivity extends CalendulaActivity {
             // in other case, simply write html content to cache
             else if (request.getCacheType().equals(WebViewRequest.CacheType.DOWNLOAD_CACHE)
                     && !isFinishing() && !isDestroyed() && sameOpeningPatient()) {
-                HtmlCacheManager.getInstance().put(url, html, ttl);
+                HtmlCacheManager.getInstance().putForPatient(openedPatientId, url, html, ttl);
             }
 
             final String finalHtml = processed != null ? processed : html;

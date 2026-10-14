@@ -57,6 +57,34 @@ public class HtmlCacheManager {
         return theInstance;
     }
 
+    /**
+     * Scoped cache keys prevent the same provider URL from reusing a page
+     * originally processed for another patient. Legacy unscoped entries are
+     * deliberately never used by the patient viewer.
+     */
+    static String patientCacheKey(Long patientId, String url) {
+        if (patientId == null || patientId <= 0L || url == null || url.isEmpty()) {
+            return null;
+        }
+        return "patient:" + patientId + ":" + url;
+    }
+
+    public boolean isCachedForPatient(Long patientId, String url) {
+        String key = patientCacheKey(patientId, url);
+        return key != null && isCached(key);
+    }
+
+    public String getForPatient(Long patientId, String url) {
+        String key = patientCacheKey(patientId, url);
+        return key == null ? null : get(key);
+    }
+
+    public boolean putForPatient(Long patientId, String url, String data,
+                                 Duration ttlDuration) {
+        String key = patientCacheKey(patientId, url);
+        return key != null && put(key, data, ttlDuration);
+    }
+
     public boolean isCached(final String url) {
         HtmlCacheEntry entry = retrieve(url);
         return entry != null;
