@@ -69,6 +69,7 @@ import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.healthcareprovider.model.ActiveMedVO;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
+import es.usc.citius.servando.calendula.healthcareprovider.database.ActiveMedOwnerGuard;
 import es.usc.citius.servando.calendula.util.FragmentUtils;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
@@ -342,7 +343,8 @@ public class MedicineInfoActivity extends CalendulaActivity {
         }
 
         if (pageSet != MedInfoPageAdapter.MedInfoPageSet.ONLY_ACTIVE_MED
-                && medicine != null && activeMedVO != null) {
+                && medicine != null && medicine.isFromActiveMed()
+                && activeMedVO != null) {
             providerBadge.setVisibility(View.VISIBLE);
         }
 
@@ -414,9 +416,14 @@ public class MedicineInfoActivity extends CalendulaActivity {
             // A caller-provided medicine ID alone never authorizes access.
             medicine = null;
         }
+        ActiveMedEntity requestedProvider = null;
         if (activeMedCode != null) {
-            final ActiveMedEntity amEntity = DB.healthcareProviderDB().activeMeds().findOneBy(ActiveMedEntity.COLUMN_CODE, activeMedCode);
-            activeMedVO = amEntity!=null ? ActiveMedVO.forEntity(amEntity) : null;
+            // The same official drug code may occur in another patient's
+            // records. Never perform a provider lookup by code alone.
+            requestedProvider = DB.healthcareProviderDB().activeMeds()
+                    .findByCodeForPatient(activeMedCode, activePatient);
+            activeMedVO = requestedProvider == null
+                    ? null : ActiveMedVO.forEntity(requestedProvider);
         }
 
         final String action = intent.getAction();
@@ -428,7 +435,13 @@ public class MedicineInfoActivity extends CalendulaActivity {
                     showAlerts = true;
                     break;
                 case ACTION_SHOW_ONLY_ACTIVE_MED:
-                    pageSet = medicine != null ? MedInfoPageAdapter.MedInfoPageSet.ALL : MedInfoPageAdapter.MedInfoPageSet.ONLY_ACTIVE_MED;
+                    // Only merge provider and local medicine details when
+                    // both refer to the exact same provider record.
+                    pageSet = medicine != null && requestedProvider != null
+                            && ActiveMedOwnerGuard.sameProviderLink(
+                                    medicine.getActiveMedId(), requestedProvider.getId())
+                            ? MedInfoPageAdapter.MedInfoPageSet.ALL
+                            : MedInfoPageAdapter.MedInfoPageSet.ONLY_ACTIVE_MED;
                     showActiveMed = true;
                     if (!MedicineInfoAvailabilityGuard.canShowRequestedProvider(
                             true, activeMedVO != null)) {
@@ -457,8 +470,10 @@ public class MedicineInfoActivity extends CalendulaActivity {
                 // decide if we show the active med page
                 if (medicine.isFromActiveMed()) {
                     ActiveMedEntity linked = DB.healthcareProviderDB().activeMeds()
-                            .findById(medicine.getActiveMedId());
+                            .findByIdForPatient(medicine.getActiveMedId(), activePatient);
                     activeMedVO = linked == null ? null : ActiveMedVO.forEntity(linked);
+                } else {
+                    activeMedVO = null; // Ignore an unrelated provider-code extra.
                 }
                 // Keep showing the local prescription even when the external
                 // provider's record has disappeared or cannot be retrieved.
