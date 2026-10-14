@@ -63,6 +63,7 @@ import java.math.BigInteger;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -259,13 +260,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
 
             @Override
             public void afterTextChanged(Editable s) {
-                if (stockSwitch.isChecked() && !MedicineStockInputGuard.usableStock(stock)) {
-            if (getActivity() != null) {
-                Snack.show(R.string.medicine_stock_amount_invalid, getActivity());
-            }
-            return;
-        }
-        String name = mNameTextView.getText().toString();
+                String name = mNameTextView.getText().toString().trim();
 
                 if (mPrescription != null && !dbMgr.shortName(mPrescription).equalsIgnoreCase(name)) {
                     mPrescription = null;
@@ -435,6 +430,15 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
             }
         }
 
+        // Managed inventory must be finite and non-negative at SAVE time.
+        // This guard intentionally belongs in onEdit(), not the text watcher.
+        if (stockSwitch.isChecked() && !MedicineStockInputGuard.usableStock(stock)) {
+            if (getActivity() != null) {
+                Snack.show(R.string.medicine_stock_amount_invalid, getActivity());
+            }
+            return;
+        }
+
         String name = mNameTextView.getText().toString();
 
         if (name != null && name.length() > 0) {
@@ -449,8 +453,11 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
                 if (mPrescription != null) {
                     mMedicine.setCn(String.valueOf(mPrescription.getCode()));
                     mMedicine.setDatabase(DBRegistry.instance().current().id());
-                } else if (mPrescription == null) {
+                } else {
+                    // Removing a linked prescription also invalidates its
+                    // drug-database origin and any previous allergy warning.
                     mMedicine.setCn(null);
+                    mMedicine.setDatabase(null);
                 }
 
                 if (mMedicineEditCallback != null && !checkIfDuplicate(mMedicine)) {
@@ -732,20 +739,28 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
                         .and().eq(Medicine.COLUMN_PRESENTATION, presentation).prepare();
                 others = DB.medicines().query(query);
             }
-            boolean ret = false;
-            if (others != null && others.size() > 0) {
-                if (others.size() > 1) //should not happen
-                    LogUtil.e(TAG, "checkIfDuplicate: multiple duplicate medicine records detected");
-                final Medicine other = others.get(0);
-                ret = !other.getId().equals(m.getId());
+            List<Long> matchingIds = null;
+            if (others != null) {
+                matchingIds = new ArrayList<>(others.size());
+                for (Medicine match : others) {
+                    matchingIds.add(match == null ? null : match.getId());
+                }
             }
-            if (ret) {
-                Snack.show(R.string.error_duplicate_medicine, this.getActivity());
+            // Old code checked only the first row: if an edit's own record
+            // happened to come first, a second duplicate went unnoticed.
+            // Null IDs and failed queries are not permission to save.
+            boolean conflict = MedicineDuplicateGuard.hasConflictingMatch(
+                    m.getId(), matchingIds);
+            if (conflict && getActivity() != null) {
+                Snack.show(R.string.error_duplicate_medicine, getActivity());
             }
-            return ret;
-        } catch (SQLException e) {
-            LogUtil.e(TAG, "checkIfDuplicate: ", e);
-            return false;
+            return conflict;
+        } catch (SQLException | RuntimeException error) {
+            LogUtil.e(TAG, "Cannot verify medicine uniqueness", error);
+            if (getActivity() != null) {
+                Snack.show(R.string.medicine_save_error_message, getActivity());
+            }
+            return true;
         }
     }
 
