@@ -11,6 +11,24 @@ import static org.junit.Assert.assertTrue;
 /** Pure tests for profile switches while an allergy confirmation is open. */
 public class MedicineSaveOwnerGuardTest {
     @Test
+    public void foreignMedicineIntentIsRejectedBeforeEditorDisplaysData() {
+        assertTrue(MedicineSaveOwnerGuard.canOpenForEdit(
+                17L, 17L, 28L, 28L, 17L));
+        assertFalse(MedicineSaveOwnerGuard.canOpenForEdit(
+                17L, 17L, 28L, 28L, 18L)); // Existing med belongs to B
+        assertFalse(MedicineSaveOwnerGuard.canOpenForEdit(
+                17L, 18L, 28L, 28L, 17L)); // Profile switched
+        assertFalse(MedicineSaveOwnerGuard.canOpenForEdit(
+                17L, 17L, 28L, 29L, 17L)); // Stale medicine identity
+        assertFalse(MedicineSaveOwnerGuard.canOpenForEdit(
+                17L, 17L, 28L, null, 17L)); // Deleted medicine
+        assertFalse(MedicineSaveOwnerGuard.canOpenForEdit(
+                17L, 17L, null, 28L, 17L));
+        assertFalse(MedicineSaveOwnerGuard.canOpenForEdit(
+                17L, 17L, 0L, 0L, 17L));
+    }
+
+    @Test
     public void onlyOriginalActiveProfileCanCreate() {
         assertTrue(MedicineSaveOwnerGuard.canCreate(13L, 13L, 13L, null));
         assertFalse(MedicineSaveOwnerGuard.canCreate(13L, 14L, 13L, null));
