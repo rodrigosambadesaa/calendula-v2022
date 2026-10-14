@@ -56,6 +56,7 @@ import org.joda.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -72,6 +73,8 @@ import es.usc.citius.servando.calendula.healthcareprovider.model.ActiveMedVO;
 import es.usc.citius.servando.calendula.healthcareprovider.model.DosageEntryVO;
 import es.usc.citius.servando.calendula.healthcareprovider.model.DosageVO;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
+import es.usc.citius.servando.calendula.healthcareprovider.database.ActiveMedOwnerGuard;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DispensationInfoEntity;
 import es.usc.citius.servando.calendula.util.DispensationInfoStore;
 import es.usc.citius.servando.calendula.util.IconUtils;
@@ -126,8 +129,12 @@ public class ActiveMedInfoFragment extends Fragment {
     @Override
     public void onStart() {
         super.onStart();
-        setupView();
         refreshData();
+        if (activeMed == null) {
+            closeUnavailableProviderPage();
+            return;
+        }
+        setupView();
     }
 
     @Override
@@ -152,18 +159,41 @@ public class ActiveMedInfoFragment extends Fragment {
 
     public void notifyDataChange() {
         refreshData();
-        if (!isStateSaved())
+        if (activeMed == null) {
+            closeUnavailableProviderPage();
+        } else if (!isStateSaved() && getView() != null) {
             setupView();
+        }
+    }
+
+    private void closeUnavailableProviderPage() {
+        // The selected profile/official medication may have changed while
+        // this fragment was paused. Never leave the old dosage visible.
+        if (getView() != null) {
+            getView().setVisibility(View.GONE);
+        }
+        if (getActivity() != null) {
+            getActivity().finish();
+        }
     }
 
     private void refreshData() {
-        if (getArguments() != null) {
-            final ActiveMedEntity medEntity = DB.healthcareProviderDB().activeMeds().findOneBy(ActiveMedEntity.COLUMN_CODE, getArguments().getString(ID_ARG, null));
+        activeMed = null;
+        if (getArguments() == null || getContext() == null) {
+            return;
+        }
+        Patient patient = DB.patients().getActive(getContext());
+        final ActiveMedEntity medEntity = DB.healthcareProviderDB().activeMeds()
+                .findByCodeForPatient(getArguments().getString(ID_ARG, null), patient);
+        if (medEntity != null) {
             activeMed = ActiveMedVO.forEntity(medEntity);
         }
     }
 
     private void setupView() {
+        if (activeMed == null || getView() == null || getContext() == null) {
+            return;
+        }
         // validity period
         final DateTime validityStart = activeMed.getValidityStart();
         final DateTime validityEnd = activeMed.getValidityEnd();
@@ -184,7 +214,8 @@ public class ActiveMedInfoFragment extends Fragment {
             scheduleText.setText(dosage.toReadableString(getContext()));
         }
 
-        List<DosageEntryVO> entries = dosage.getEntries();
+        List<DosageEntryVO> entries = dosage == null || dosage.getEntries() == null
+                ? Collections.emptyList() : dosage.getEntries();
         if(entries.size()!=0) {
             String instructions = entries.get(0).getPatientInstruction();
             if (instructions == null || org.apache.commons.lang3.StringUtils.isBlank(instructions)){
