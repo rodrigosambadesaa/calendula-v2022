@@ -61,6 +61,25 @@ public class PillDosePickerFragment extends DosePickerFragment {
         }
     }
 
+    private void updateConfirmAvailability() {
+        android.app.Dialog current = getDialog();
+        if (current instanceof android.app.AlertDialog) {
+            android.widget.Button button = ((android.app.AlertDialog) current)
+                    .getButton(android.app.AlertDialog.BUTTON_POSITIVE);
+            if (button != null) {
+                button.setEnabled(DoseInputGuard.isPositiveFinite(getSelectedDose()));
+            }
+        }
+    }
+
+    @Override
+    public android.app.Dialog onCreateDialog(android.os.Bundle savedInstanceState) {
+        android.app.AlertDialog dialog =
+                (android.app.AlertDialog) super.onCreateDialog(savedInstanceState);
+        dialog.setOnShowListener(ignored -> updateConfirmAvailability());
+        return dialog;
+    }
+
     void updateProgress() {
         double value = leftValues[leftPicker.getValue()] + rightValues[rightPicker.getValue()];
         int integerPart = (int) value;
@@ -123,6 +142,7 @@ public class PillDosePickerFragment extends DosePickerFragment {
         }
 
         lastInt = integerPart;
+        updateConfirmAvailability();
     }
 
     @Override
