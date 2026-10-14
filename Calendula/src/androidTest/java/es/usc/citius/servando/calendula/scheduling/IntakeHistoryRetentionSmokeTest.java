@@ -56,30 +56,17 @@ public class IntakeHistoryRetentionSmokeTest {
                 new es.usc.citius.servando.calendula.persistence.Medicine(
                         "Synthetic second medicine",
                         es.usc.citius.servando.calendula.persistence.Presentation.PILLS);
-        // Unlike the pre-2022 list-only fixture, production schedules
-        // require non-null dosage reference IDs for each absolute time.
-        // A null reference is persisted as the JSON key "null", which the
-        // clinical dosage deserializer correctly rejects as malformed.
-        es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime firstSlot =
-                new es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime(
-                        es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime.ReferenceType.ABSOLUTE,
-                        new org.joda.time.LocalTime(20, 37));
-        firstSlot.setReference(80002037L);
-        es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime secondSlot =
-                new es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime(
-                        es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime.ReferenceType.ABSOLUTE,
-                        new org.joda.time.LocalTime(21, 42));
-        secondSlot.setReference(80002142L);
-        es.usc.citius.servando.calendula.persistence.Schedule firstSchedule =
-                new es.usc.citius.servando.calendula.persistence.Schedule(
-                        new es.usc.citius.servando.calendula.scheduling.model.recur.RecurringEvent.Builder()
-                                .repeatDaily().from(today)
-                                .atFixedTime(firstSlot).build());
-        es.usc.citius.servando.calendula.persistence.Schedule secondSchedule =
-                new es.usc.citius.servando.calendula.persistence.Schedule(
-                        new es.usc.citius.servando.calendula.scheduling.model.recur.RecurringEvent.Builder()
-                                .repeatDaily().from(today)
-                                .atFixedTime(secondSlot).build());
+        // Exercise the real persisted routine-backed recurrence path. Joda
+        // ABSOLUTE LocalTime fields in historical Gson recurrences can be
+        // missing after DB round-trip, so a fixture must use valid routines.
+        es.usc.citius.servando.calendula.persistence.Routine firstRoutine =
+                new es.usc.citius.servando.calendula.persistence.Routine(
+                        first, new org.joda.time.LocalTime(20, 37), "Synthetic routine one");
+        es.usc.citius.servando.calendula.persistence.Routine secondRoutine =
+                new es.usc.citius.servando.calendula.persistence.Routine(
+                        second, new org.joda.time.LocalTime(21, 42), "Synthetic routine two");
+        es.usc.citius.servando.calendula.persistence.Schedule firstSchedule = null;
+        es.usc.citius.servando.calendula.persistence.Schedule secondSchedule = null;
         EventInstance completed = null;
         try {
             assertEquals(1, DB.patients().create(first));
@@ -88,6 +75,24 @@ public class IntakeHistoryRetentionSmokeTest {
             secondMedicine.setPatient(second);
             assertEquals(1, DB.medicines().create(firstMedicine));
             assertEquals(1, DB.medicines().create(secondMedicine));
+            assertEquals(1, DB.routines().create(firstRoutine));
+            assertEquals(1, DB.routines().create(secondRoutine));
+            firstSchedule = new es.usc.citius.servando.calendula.persistence.Schedule(
+                    new es.usc.citius.servando.calendula.scheduling.model.recur.RecurringEvent.Builder()
+                            .repeatDaily().from(today)
+                            .atFixedTime(
+                                    new es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime(
+                                            firstRoutine.getId(),
+                                            es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime.ReferenceType.ROUTINE))
+                            .build());
+            secondSchedule = new es.usc.citius.servando.calendula.persistence.Schedule(
+                    new es.usc.citius.servando.calendula.scheduling.model.recur.RecurringEvent.Builder()
+                            .repeatDaily().from(today)
+                            .atFixedTime(
+                                    new es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime(
+                                            secondRoutine.getId(),
+                                            es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime.ReferenceType.ROUTINE))
+                            .build());
             firstSchedule.setPatient(first);
             firstSchedule.setMedicine(firstMedicine);
             firstSchedule.setDosages(java.util.Arrays.asList(1.0d));
@@ -130,16 +135,16 @@ public class IntakeHistoryRetentionSmokeTest {
             // synthetic schedule IDs before deleting the synthetic schedules.
             for (EventInstance row : DB.eventInstances().findAll()) {
                 if (row.getRef() != null
-                        && (row.getRef().equals(firstSchedule.getId())
-                            || row.getRef().equals(secondSchedule.getId()))) {
+                        && ((firstSchedule != null && row.getRef().equals(firstSchedule.getId()))
+                            || (secondSchedule != null && row.getRef().equals(secondSchedule.getId())))) {
                     DB.eventInstances().remove(row);
                 }
             }
-            if (firstSchedule.getId() != null
+            if (firstSchedule != null && firstSchedule.getId() != null
                     && DB.schedules().findById(firstSchedule.getId()) != null) {
                 DB.schedules().remove(firstSchedule);
             }
-            if (secondSchedule.getId() != null
+            if (secondSchedule != null && secondSchedule.getId() != null
                     && DB.schedules().findById(secondSchedule.getId()) != null) {
                 DB.schedules().remove(secondSchedule);
             }
@@ -148,6 +153,13 @@ public class IntakeHistoryRetentionSmokeTest {
                             firstMedicine, secondMedicine}) {
                 if (medicine.getId() != null && DB.medicines().findById(medicine.getId()) != null) {
                     DB.medicines().remove(medicine);
+                }
+            }
+            for (es.usc.citius.servando.calendula.persistence.Routine routine :
+                    new es.usc.citius.servando.calendula.persistence.Routine[]{
+                            firstRoutine, secondRoutine}) {
+                if (routine.getId() != null && DB.routines().findById(routine.getId()) != null) {
+                    DB.routines().remove(routine);
                 }
             }
             for (Patient patient : new Patient[]{first, second}) {
