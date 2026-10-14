@@ -509,4 +509,5 @@ Queres instalar a nova base de datos agora?"</string>
     <string name="allergy_details_unavailable">Non se poden verificar os detalles dos alérxenos. Mantén esta advertencia de alerxia e revisa o medicamento antes de usalo.</string>
     <string name="medicine_allergy_catalog_unavailable">Non se pode comprobar a seguridade fronte ás alerxias porque faltan datos de ingredientes ou excipientes no catálogo. Revisa o catálogo antes de gardar.</string>
     <string name="patient_qr_invalid">O código de vinculación do paciente non é válido ou é demasiado grande.</string>
+    <string name="active_med_details_unavailable">Os datos deste medicamento non están dispoñibles. Revisa o rexistro do provedor sanitario.</string>
 </resources>
