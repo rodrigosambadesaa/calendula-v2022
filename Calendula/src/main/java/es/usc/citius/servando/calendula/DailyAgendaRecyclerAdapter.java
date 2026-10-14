@@ -423,11 +423,15 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
                 || selected.meds == null || selected.meds.isEmpty()) {
             return false;
         }
+        java.util.HashSet<Long> shownIds = new java.util.HashSet<>();
         for (DailyAgendaItemStub.DailyAgendaItemStubElement medicine : selected.meds) {
             if (medicine == null || medicine.eventId == null
                     || medicine.eventId <= 0L
+                    || !shownIds.add(medicine.eventId)
                     || !(medicine.dose > 0d) || Double.isNaN(medicine.dose)
                     || Double.isInfinite(medicine.dose)) {
+                // One displayed dose must have exactly one event identity.
+                // Duplicate cards are not informed consent for two intakes.
                 return false;
             }
         }
