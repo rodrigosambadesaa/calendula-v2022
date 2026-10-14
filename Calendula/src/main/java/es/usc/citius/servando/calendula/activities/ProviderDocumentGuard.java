@@ -16,4 +16,10 @@ final class ProviderDocumentGuard {
     static boolean canAcceptResponse(Long opened, Long active, Long responseOwner) {
         return samePatient(opened, active) && samePatient(opened, responseOwner);
     }
+
+    static boolean canAcceptResponse(Long opened, Long active, Long responseOwner,
+                                     int expectedJobId, int responseJobId) {
+        return canAcceptResponse(opened, active, responseOwner)
+                && expectedJobId > 0 && expectedJobId == responseJobId;
+    }
 }
