@@ -6,6 +6,7 @@
  */
 package es.usc.citius.servando.calendula.activities;
 
+import android.os.BadParcelableException;
 import android.os.Parcel;
 
 import org.joda.time.Duration;
@@ -112,6 +113,54 @@ public class WebViewRequestTest {
         } finally {
             parcel.recycle();
         }
+    }
+
+    @Test
+    public void corruptHugeCssAndOverrideCountsFailBeforeAllocatingCollections() {
+        for (int cssCount : new int[]{-1, 33, Integer.MAX_VALUE}) {
+            Parcel parcel = newRequestParcel();
+            try {
+                parcel.writeInt(cssCount);
+                parcel.setDataPosition(0);
+                try {
+                    WebViewRequest.CREATOR.createFromParcel(parcel);
+                    org.junit.Assert.fail("Corrupt CSS count accepted: " + cssCount);
+                } catch (BadParcelableException expected) {
+                    // Fail closed without allocating a huge String array.
+                }
+            } finally {
+                parcel.recycle();
+            }
+        }
+        for (int overrideCount : new int[]{-1, 129, Integer.MAX_VALUE}) {
+            Parcel parcel = newRequestParcel();
+            try {
+                parcel.writeInt(0); // CSS files
+                parcel.writeString(null); // cache TTL
+                parcel.writeInt(overrideCount);
+                parcel.setDataPosition(0);
+                try {
+                    WebViewRequest.CREATOR.createFromParcel(parcel);
+                    org.junit.Assert.fail("Corrupt override count accepted: " + overrideCount);
+                } catch (BadParcelableException expected) {
+                    // No attacker-sized HashMap iteration.
+                }
+            } finally {
+                parcel.recycle();
+            }
+        }
+    }
+
+    private static Parcel newRequestParcel() {
+        Parcel parcel = Parcel.obtain();
+        parcel.writeString("https://example.test/leaflet");
+        for (int i = 0; i < 5; i++) {
+            parcel.writeString(null);
+        }
+        parcel.writeByte((byte) 0);
+        parcel.writeByte((byte) 0);
+        parcel.writeString("NO_CACHE");
+        return parcel;
     }
 
     @Test

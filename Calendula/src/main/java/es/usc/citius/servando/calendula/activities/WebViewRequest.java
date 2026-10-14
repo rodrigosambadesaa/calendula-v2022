@@ -1,5 +1,6 @@
 package es.usc.citius.servando.calendula.activities;
 
+import android.os.BadParcelableException;
 import android.os.Parcel;
 import android.os.Parcelable;
 
@@ -28,6 +29,9 @@ public class WebViewRequest implements Parcelable {
             return new WebViewRequest[size];
         }
     };
+    private static final int MAX_RESTORED_CSS_FILES = 32;
+    private static final int MAX_RESTORED_CSS_OVERRIDES = 128;
+
     private final String url;
     private String title = null;
     private String loadingMessage = null;
@@ -71,6 +75,9 @@ public class WebViewRequest implements Parcelable {
             cacheType = CacheType.NO_CACHE;
         }
         int cssNumber = in.readInt();
+        if (cssNumber < 0 || cssNumber > MAX_RESTORED_CSS_FILES) {
+            throw new BadParcelableException("Invalid embedded-web CSS file count");
+        }
         if (cssNumber > 0) {
             String[] cssFiles = new String[cssNumber];
             in.readStringArray(cssFiles);
@@ -88,6 +95,9 @@ public class WebViewRequest implements Parcelable {
         // read overrides map
         customCssOverrides = new HashMap<>();
         int size = in.readInt();
+        if (size < 0 || size > MAX_RESTORED_CSS_OVERRIDES) {
+            throw new BadParcelableException("Invalid embedded-web CSS override count");
+        }
         for (int i = 0; i < size; i++) {
             String key = in.readString();
             String value = in.readString();
