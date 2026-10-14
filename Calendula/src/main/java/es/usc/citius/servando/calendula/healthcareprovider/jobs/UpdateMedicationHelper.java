@@ -12,6 +12,7 @@ import androidx.core.app.TaskStackBuilder;
 import org.hl7.fhir.dstu3.model.MessageHeader;
 import org.hl7.fhir.dstu3.model.OperationOutcome;
 import org.joda.time.DateTime;
+import net.openid.appauth.AuthState;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -52,6 +53,17 @@ public class UpdateMedicationHelper {
 
     private static Random random = new Random();
 
+    /**
+     * The logged-in preference and the persisted OAuth state are independent.
+     * After logout, restore or a torn preference update, a logged-in flag may
+     * briefly coexist with absent or corrupt credentials. Never dereference
+     * that absent AuthState or make a provider call with an empty access token.
+     */
+    static boolean hasUsableAccessToken(AuthState state) {
+        return state != null && state.getAccessToken() != null
+                && !state.getAccessToken().trim().isEmpty();
+    }
+
     @NonNull
     public static Status checkForUpdates(final Context ctx) {
 
@@ -62,7 +74,7 @@ public class UpdateMedicationHelper {
             return Status.ERROR_NO_USER_OR_DB;
         } else if (!NetworkUtils.isNetworkAvailable(ctx)) {
             return Status.ERROR_NO_CONNECTION;
-        } else if (LoginStateManager.getInstance().getCurrentAuthState().getAccessToken() == null) {
+        } else if (!hasUsableAccessToken(LoginStateManager.getInstance().getCurrentAuthState())) {
             // user is logged in but has not an access token
             // force login next time the user opens the app
             return Status.ERROR_AUTHORIZATION;
