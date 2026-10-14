@@ -163,7 +163,10 @@ public class RecurringEventJsonAdapter extends TypeAdapter<RecurringEvent> {
             }
             in.endObject();
         } catch (InvalidRecurrenceRuleException e) {
-            LogUtil.e(TAG, "Invalid recurrence rule while deserializing event", e);
+            // Returning the default DAILY recurrence would silently invent a
+            // different clinical schedule when the persisted rule is corrupt.
+            // Fail closed and leave the original database row untouched.
+            throw new IOException("Persisted medication recurrence rule is invalid", e);
         }
         return event;
     }
