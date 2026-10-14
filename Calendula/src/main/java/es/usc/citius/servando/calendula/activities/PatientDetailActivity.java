@@ -358,7 +358,7 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
     @Override
     protected void onResume() {
         super.onResume();
-        if (patientId != null && patientId > 0L
+        if (patientId > 0L
                 && DB.patients().findById(patientId) == null) {
             // A profile could be deleted while this editor was paused.
             finish();
