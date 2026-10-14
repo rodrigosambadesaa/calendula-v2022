@@ -76,38 +76,86 @@ public class AllergyAlertUtil {
 
     }
 
-    public static void removeAllergyAlerts(final Context c, final PatientAllergen allergen) throws SQLException {
-        LogUtil.d(TAG, "removeAllergyAlerts: allergen cleanup started");
-        final AllergenVO vo = new AllergenVO(allergen);
-
-        final List<PatientAlert> removed = new ArrayList<>();
+    /**
+     * Update allergy HIGH alerts safely after a patient's allergen row has
+     * been deleted. Separate the SQLite transaction from Android reminder
+     * effects: AlertManager must NEVER run inside our outer transaction.
+     *
+     * Broken legacy warning details are preserved, not treated as proof of
+     * absence of a serious allergy.
+     */
+    public static void removeAllergyAlerts(final Context c, final PatientAllergen allergen)
+            throws SQLException {
+        if (c == null || allergen == null || allergen.getPatient() == null
+                || allergen.getPatient().getId() == null
+                || allergen.getPatient().getId() <= 0L
+                || allergen.getType() == null || allergen.getIdentifier() == null) {
+            throw new IllegalArgumentException("Persisted patient and allergen identity required");
+        }
+        final Long ownerId = allergen.getPatient().getId();
+        if (DB.patients().findById(ownerId) == null) {
+            throw new IllegalStateException("Cannot clean allergy alerts for a deleted patient");
+        }
+        final AllergenVO removedAllergen = new AllergenVO(allergen);
+        final List<PatientAlert> toRemove = new ArrayList<>();
+        final boolean[] updated = {false};
 
         DB.transaction(new Callable<Object>() {
             @Override
             public Object call() throws Exception {
                 final PreparedQuery<PatientAlert> query = DB.alerts().queryBuilder().where()
                         .eq(PatientAlert.COLUMN_TYPE, AllergyPatientAlert.class.getCanonicalName())
-                        .and().eq(PatientAlert.COLUMN_PATIENT, allergen.getPatient()).prepare();
+                        .and().eq(PatientAlert.COLUMN_PATIENT, ownerId).prepare();
                 final List<PatientAlert> alerts = DB.alerts().query(query);
-
                 for (PatientAlert alert : alerts) {
-                    AllergyPatientAlert a = (AllergyPatientAlert) alert.map();
-                    final AllergyPatientAlert.AllergyAlertInfo details = a.getDetails();
-                    if (details.getAllergens().contains(vo)) {
-                        details.getAllergens().remove(vo);
-                        if (details.getAllergens().isEmpty()) {
-                            AlertManager.removeAlert(alert);
-                            removed.add(a);
-                        } else {
-                            a.setDetails(details);
-                            DB.alerts().save(a);
+                    if (alert == null || alert.id() == null
+                            || alert.getPatient() == null
+                            || !ownerId.equals(alert.getPatient().getId())
+                            || alert.getMedicine() == null
+                            || alert.getMedicine().getId() == null) {
+                        throw new SQLException("Allergy alert owner is incomplete");
+                    }
+                    Medicine stored = DB.medicines().findById(alert.getMedicine().getId());
+                    if (stored == null || DB.medicines().refresh(stored) != 1
+                            || stored.getPatient() == null
+                            || !ownerId.equals(stored.getPatient().getId())) {
+                        throw new SQLException("Allergy alert and medicine owners differ");
+                    }
+                    AllergyPatientAlert mapped = (AllergyPatientAlert) alert.map();
+                    final AllergyPatientAlert.AllergyAlertInfo details = mapped.getDetails();
+                    if (details == null || details.getAllergens() == null) {
+                        // Never remove a HIGH alert whose stored allergen
+                        // details are missing or cannot be verified.
+                        continue;
+                    }
+                    List<AllergenVO> remaining = new ArrayList<>(details.getAllergens());
+                    if (!remaining.remove(removedAllergen)) {
+                        continue;
+                    }
+                    if (remaining.isEmpty()) {
+                        // Defer deletion until after SQL COMMIT so schedule
+                        // unblocking and AlarmManager work cannot outlive a
+                        // transaction rollback.
+                        toRemove.add(alert);
+                    } else {
+                        details.setAllergens(remaining);
+                        mapped.setDetails(details);
+                        if (DB.alerts().update(mapped) != 1) {
+                            throw new SQLException("Allergy alert details were not updated");
                         }
+                        updated[0] = true;
                     }
                 }
                 return null;
             }
         });
-
+        for (PatientAlert alert : toRemove) {
+            AlertManager.removeAlert(alert);
+        }
+        if (updated[0] || !toRemove.isEmpty()) {
+            es.usc.citius.servando.calendula.CalendulaApp.eventBus().post(
+                    es.usc.citius.servando.calendula.events.PersistenceEvents.ALERT_EVENT);
+        }
     }
 
 
