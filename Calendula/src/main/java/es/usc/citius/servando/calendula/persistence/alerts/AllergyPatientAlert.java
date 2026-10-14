@@ -80,7 +80,14 @@ public class AllergyPatientAlert extends PatientAlert<AllergyPatientAlert, Aller
             if (!AllergyAlertPresentationGuard.hasCompleteNames(titles)) {
                 return Html.fromHtml(unavailable);
             }
-            return Strings.genBulletList(titles);
+            // genBulletList internally calls Html.fromHtml. Escape names
+            // supplied by patients/imports so 'A < B' is visible literally,
+            // not interpreted as HTML markup or a clickable injected link.
+            List<String> escaped = new ArrayList<>(titles.size());
+            for (String name : titles) {
+                escaped.add(Html.escapeHtml(name));
+            }
+            return Strings.genBulletList(escaped);
         } catch (RuntimeException invalidDetails) {
             // No clinical identifiers or exception contents in device logs.
             return Html.fromHtml(unavailable);
