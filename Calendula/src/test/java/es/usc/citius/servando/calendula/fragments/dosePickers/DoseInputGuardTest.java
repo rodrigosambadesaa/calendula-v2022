@@ -20,6 +20,17 @@ public class DoseInputGuardTest {
     }
 
     @Test
+    public void graphicalPickersMustRejectZeroAndNonFiniteValues() {
+        org.junit.Assert.assertFalse(DoseInputGuard.isPositiveFinite(0d));
+        org.junit.Assert.assertFalse(DoseInputGuard.isPositiveFinite(-1d));
+        org.junit.Assert.assertFalse(DoseInputGuard.isPositiveFinite(Double.NaN));
+        org.junit.Assert.assertFalse(DoseInputGuard.isPositiveFinite(Double.POSITIVE_INFINITY));
+        org.junit.Assert.assertFalse(DoseInputGuard.isPositiveFinite(Double.NEGATIVE_INFINITY));
+        org.junit.Assert.assertTrue(DoseInputGuard.isPositiveFinite(.125d));
+        org.junit.Assert.assertTrue(DoseInputGuard.isPositiveFinite(50d));
+    }
+
+    @Test
     public void partialAndInvalidInputCannotBeSavedAsMedicationDose() {
         for (String value : new String[]{"", " ", ".", ",", "-", "-2",
                 "0", "0.0", "NaN", "Infinity", "1e309", "1,2.3",
