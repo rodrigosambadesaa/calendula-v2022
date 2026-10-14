@@ -341,7 +341,8 @@ public class MedicineInfoActivity extends CalendulaActivity {
             }
         }
 
-        if (!pageSet.equals(MedInfoPageAdapter.MedInfoPageSet.ONLY_ACTIVE_MED) && medicine.isFromActiveMed()) {
+        if (pageSet != MedInfoPageAdapter.MedInfoPageSet.ONLY_ACTIVE_MED
+                && medicine != null && activeMedVO != null) {
             providerBadge.setVisibility(View.VISIBLE);
         }
 
@@ -401,6 +402,7 @@ public class MedicineInfoActivity extends CalendulaActivity {
         final Intent intent = getIntent();
         if (intent == null) {
             LogUtil.w(TAG, "processIntent: no intent!");
+            finish();
             return;
         }
 
@@ -428,9 +430,14 @@ public class MedicineInfoActivity extends CalendulaActivity {
                 case ACTION_SHOW_ONLY_ACTIVE_MED:
                     pageSet = medicine != null ? MedInfoPageAdapter.MedInfoPageSet.ALL : MedInfoPageAdapter.MedInfoPageSet.ONLY_ACTIVE_MED;
                     showActiveMed = true;
-                    if (activeMedCode == null) {
-                        LogUtil.e(TAG, "processIntent: action is SHOW_ONLY_ACTIVE_MED but no active med received");
-                        throw new IllegalArgumentException("Action is SHOW_ONLY_ACTIVE_MED but no active med received");
+                    if (activeMedVO == null) {
+                        // A stale/malformed provider intent must not build a
+                        // pager whose title and prescription are null.
+                        LogUtil.w(TAG, "Provider medicine missing for requested detail page");
+                        Toast.makeText(this, R.string.medicine_not_found_error,
+                                Toast.LENGTH_SHORT).show();
+                        finish();
+                        return;
                     }
                     if (medId != -1) {
                         LogUtil.w(TAG, "processIntent: Action is SHOW_ONLY_ACTIVE_MED but received medicine as well!");
@@ -448,11 +455,15 @@ public class MedicineInfoActivity extends CalendulaActivity {
             } else {
                 // decide if we show the active med page
                 if (medicine.isFromActiveMed()) {
-                    pageSet = MedInfoPageAdapter.MedInfoPageSet.ALL;
-                    activeMedVO = ActiveMedVO.forEntity(DB.healthcareProviderDB().activeMeds().findById(medicine.getActiveMedId()));
-                } else {
-                    pageSet = MedInfoPageAdapter.MedInfoPageSet.NO_ACTIVE_MED;
+                    ActiveMedEntity linked = DB.healthcareProviderDB().activeMeds()
+                            .findById(medicine.getActiveMedId());
+                    activeMedVO = linked == null ? null : ActiveMedVO.forEntity(linked);
                 }
+                // Keep showing the local prescription even when the external
+                // provider's record has disappeared or cannot be retrieved.
+                pageSet = activeMedVO != null
+                        ? MedInfoPageAdapter.MedInfoPageSet.ALL
+                        : MedInfoPageAdapter.MedInfoPageSet.NO_ACTIVE_MED;
             }
             try {
                 // The generic query trusts only the medicine ID; use the
