@@ -109,8 +109,18 @@ public class SetupDatabaseModule extends CalendulaModule {
         if (ctx == null) {
             return null;
         }
-        final String currentDatabase = PreferenceUtils.getString(PreferenceKeys.DRUGDB_CURRENT_DB, null);
-        final String currentVersion = PreferenceUtils.getString(PreferenceKeys.DRUGDB_VERSION, null);
+        final String currentDatabase;
+        final String currentVersion;
+        try {
+            currentDatabase = PreferenceUtils.getString(PreferenceKeys.DRUGDB_CURRENT_DB, null);
+            currentVersion = PreferenceUtils.getString(PreferenceKeys.DRUGDB_VERSION, null);
+        } catch (ClassCastException wrongPreferenceType) {
+            // Historical SharedPreferences can hold an Integer/Boolean under
+            // a String key. Do not crash during startup or rewrite the
+            // previously installed clinical catalog from that corrupt state.
+            LogUtil.w(TAG, "Stored medication catalog metadata has an invalid type");
+            return null;
+        }
         final String bundledDatabase = BuildConfig.BUNDLED_DB_NAME;
         final String bundledVersion = BuildConfig.BUNDLED_DB_VERSION;
         if (!shouldUpdateCatalog(currentDatabase, currentVersion,
