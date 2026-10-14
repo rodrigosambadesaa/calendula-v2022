@@ -142,6 +142,37 @@ public class HtmlCacheManagerTest {
     }
 
     @Test
+    public void invalidOrOversizedHtmlCannotOverwritePriorLeaflet() {
+        HtmlCacheManager cache = HtmlCacheManager.getInstance();
+        String url = "https://example.test/previously-good-patient-leaflet";
+        assertTrue(cache.put(url, "Safe old leaflet", Duration.standardMinutes(10)));
+
+        assertFalse(cache.put(url, null, Duration.standardMinutes(10)));
+        assertFalse(cache.put(url, "", Duration.standardMinutes(10)));
+        String oversized = new String(new char[HtmlCacheManager.MAX_CACHED_HTML_CHARS + 1])
+                .replace((char) 0, 'x');
+        assertFalse(cache.put(url, oversized, Duration.standardMinutes(10)));
+        assertEquals("A bad download cannot evict the previously committed document",
+                "Safe old leaflet", cache.get(url));
+    }
+
+    @Test
+    public void enormousLegacyCacheRowsAreExpiredInsteadOfDisplayed() throws Exception {
+        String url = "https://example.test/large-imported-cached-html";
+        String oversized = new String(new char[HtmlCacheManager.MAX_CACHED_HTML_CHARS + 1])
+                .replace((char) 0, 'x');
+        com.j256.ormlite.dao.Dao<es.usc.citius.servando.calendula.persistence.HtmlCacheEntry, Long> dao =
+                DB.helper().getDao(es.usc.citius.servando.calendula.persistence.HtmlCacheEntry.class);
+        dao.create(new es.usc.citius.servando.calendula.persistence.HtmlCacheEntry(
+                url.hashCode(), url, new java.util.Date(), oversized,
+                Duration.standardMinutes(10).getMillis()));
+
+        assertNull(HtmlCacheManager.getInstance().get(url));
+        assertNull("The oversized row is discarded rather than rendered",
+                HtmlCacheManager.getInstance().get(url));
+    }
+
+    @Test
     public void missingUrlCannotCreateCacheRow() {
         assertFalse(HtmlCacheManager.getInstance().put(
                 null, "Unkeyed synthetic content", Duration.standardMinutes(5)));
