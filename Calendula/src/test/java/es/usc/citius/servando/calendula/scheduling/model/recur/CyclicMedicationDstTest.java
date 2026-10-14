@@ -39,6 +39,20 @@ public class CyclicMedicationDstTest {
     }
 
     @Test
+    public void cycleStartingAtEightAmRemainsVisibleOnItsFirstCalendarDate()
+            throws Exception {
+        DateTime first = local(3, 28);
+        RecurringEvent schedule = new RecurringEvent.Builder()
+                .repeatCyclic(1, 1).from(first).build();
+        assertTrue("Midnight must not hide the first active treatment date",
+                schedule.hasOccurrencesAt(first.toLocalDate()));
+        assertFalse("Second date is a rest day",
+                schedule.hasOccurrencesAt(local(3, 29).toLocalDate()));
+        assertTrue("Cycle resumes after its rest day",
+                schedule.hasOccurrencesAt(local(3, 30).toLocalDate()));
+    }
+
+    @Test
     public void springClockAdvanceDoesNotCreateAnExtraActiveDay() {
         // March 29 is only 23 elapsed hours after March 28 at 08:00.
         // Nevertheless it is calendar day 2 (rest) in a 1+1-day cycle.
