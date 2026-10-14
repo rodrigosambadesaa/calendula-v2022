@@ -92,9 +92,11 @@ public class ActiveMedicationListFragment extends Fragment {
     private final Runnable ticker = new Runnable() {
         @Override
         public void run() {
-            final FragmentActivity activity = getActivity();
-            if (activity != null) {
-                getActivity().runOnUiThread(updateViewsRunnable);
+            if (isAdded() && getView() != null && handler != null) {
+                updateViewsRunnable.run();
+                // Header text is minute-granularity: do not run a repeated
+                // one-second callback (nor retain a destroyed fragment).
+                handler.postDelayed(this, 60_000L);
             }
         }
     };
@@ -111,8 +113,10 @@ public class ActiveMedicationListFragment extends Fragment {
     private final Runnable updateViewsRunnable = new Runnable() {
         @Override
         public void run() {
-            updateHeaderText();
-            updateProgressBarVisibility();
+            if (isAdded() && getView() != null) {
+                updateHeaderText();
+                updateProgressBarVisibility();
+            }
         }
     };
 
@@ -157,9 +161,7 @@ public class ActiveMedicationListFragment extends Fragment {
 
         updateHeaderText();
 
-        handler = new Handler();
-
-        handler.postDelayed(ticker, 1000);
+        handler = new Handler(Looper.getMainLooper());
 
         updateProgressBarVisibility();
 
@@ -205,8 +207,13 @@ public class ActiveMedicationListFragment extends Fragment {
     @Override
     public void onStart() {
         super.onStart();
-        handler.postDelayed(ticker, 1000);
+        if (handler != null) {
+            handler.removeCallbacks(ticker);
+            handler.post(ticker);
+        }
         CalendulaApp.eventBus().register(this);
+        // onStop cancels pending generations; onStart must refresh again.
+        reloadItemsAsync();
     }
 
     @Override
@@ -253,7 +260,7 @@ public class ActiveMedicationListFragment extends Fragment {
     public void updateProgressBarVisibility() {
         if (refreshLayout != null) {
             final String statusString = PreferenceUtils.getString(PreferenceKeys.REMOTE_UPDATE_STATUS, "");
-            if (!TextUtils.isEmpty(statusString) && ActiveMedUpdateEvent.Status.valueOf(statusString) == ActiveMedUpdateEvent.Status.UPDATE_START) {
+            if (ActiveMedUpdateEvent.Status.UPDATE_START.name().equals(statusString)) {
                 refreshLayout.setRefreshing(true);
             } else {
                 refreshLayout.setRefreshing(false);
@@ -300,19 +307,27 @@ public class ActiveMedicationListFragment extends Fragment {
 
     @UiThread
     private void updateHeaderText() {
-        String last = PreferenceUtils.getString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_DATE, null);
-        if (last != null) {
-            DateTime t = DateTime.parse(last);
-            DateTime now = DateTime.now();
-            String relativeTimeStr = DateUtils.getRelativeTimeSpanString(
-                    t.getMillis(),
-                    now.getMillis(),
-                    DateUtils.MINUTE_IN_MILLIS,
-                    DateUtils.FORMAT_ABBREV_ALL).toString();
-            timeSinceUpdateText.setText(getString(R.string.active_med_last_checked_time, relativeTimeStr));
-        } else {
-            timeSinceUpdateText.setText(getString(R.string.active_med_not_checked_yet));
+        if (timeSinceUpdateText == null) {
+            return;
         }
+        String last = PreferenceUtils.getString(
+                PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_DATE, null);
+        if (!TextUtils.isEmpty(last)) {
+            try {
+                DateTime date = DateTime.parse(last);
+                DateTime now = DateTime.now();
+                String relativeTime = DateUtils.getRelativeTimeSpanString(
+                        date.getMillis(), now.getMillis(),
+                        DateUtils.MINUTE_IN_MILLIS, DateUtils.FORMAT_ABBREV_ALL)
+                        .toString();
+                timeSinceUpdateText.setText(
+                        getString(R.string.active_med_last_checked_time, relativeTime));
+                return;
+            } catch (IllegalArgumentException malformed) {
+                LogUtil.w(TAG, "Ignoring malformed provider update timestamp");
+            }
+        }
+        timeSinceUpdateText.setText(R.string.active_med_not_checked_yet);
     }
 
     private void setupRecyclerView() {
