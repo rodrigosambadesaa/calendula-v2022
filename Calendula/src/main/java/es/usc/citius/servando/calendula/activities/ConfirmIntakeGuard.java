@@ -69,7 +69,19 @@ public final class ConfirmIntakeGuard {
                 || DailyAgendaEventValidator.verifiedDose(event, schedule) == null) {
             return false;
         }
-        return schedule == null || !schedule.isBoundToActiveMed()
+        if (schedule == null) {
+            return false;
+        }
+        // A legacy row can be marked "official" while its imported source
+        // identity has been deleted or lost. Such a row must NOT regain
+        // confirmation privileges simply because isBoundToActiveMed() is false.
+        // Mirror the patient-safe notification gate: official means a
+        // verifiable external source is mandatory, not optional.
+        if (schedule.hasState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL)
+                && !schedule.isBoundToActiveMed()) {
+            return false;
+        }
+        return !schedule.isBoundToActiveMed()
                 || DailyAgendaOfficialTreatmentValidator.verifiedLink(schedule, importedSource);
     }
 }
