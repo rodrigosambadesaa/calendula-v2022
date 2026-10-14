@@ -96,7 +96,21 @@ public class UpdateMedicationHelper {
                         if (isNoChanges(responseVO)) {
                             LogUtil.d(TAG, "onRunJob: received unchanged response from server");
                         } else {
-                            final String newHash = responseVO.getHeader().getResponse().getIdentifier() + (BuildConfig.DEBUG ? random.nextInt() : "");
+                            // A provider response without its real revision
+                            // identifier is not a safe import. Concatenating a
+                            // null String to the debug suffix would otherwise
+                            // manufacture "null123" and mark its clinical data
+                            // as a successfully installed update.
+                            final String revision = responseVO.getHeader() == null
+                                    || responseVO.getHeader().getResponse() == null
+                                    ? null : responseVO.getHeader().getResponse().getIdentifier();
+                            if (!isUsableProviderRevision(revision)) {
+                                LogUtil.w(TAG, "Provider medication update has no usable revision");
+                                status = Status.ERROR_GENERIC;
+                                break;
+                            }
+                            final String newHash = revision
+                                    + (BuildConfig.DEBUG ? random.nextInt() : "");
                             if (newHash.equals(lastHash)) {
                                 LogUtil.w(TAG, "onRunJob: Response indicates new data, but hashes are equal! Skipping addition");
                             } else {
@@ -127,6 +141,23 @@ public class UpdateMedicationHelper {
 
         }
         return status;
+    }
+
+    /**
+     * Server revisions are opaque; do not trim or normalize legitimate ones.
+     * Never create a synthetic revision from a null, blank or malformed value.
+     */
+    static boolean isUsableProviderRevision(String revision) {
+        if (revision == null || revision.trim().isEmpty()
+                || "null".equalsIgnoreCase(revision.trim())) {
+            return false;
+        }
+        for (int i = 0; i < revision.length(); i++) {
+            if (Character.isISOControl(revision.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -222,13 +253,16 @@ public class UpdateMedicationHelper {
      *
      * @param responseVO the {@link ResponseVO} received from the service
      */
-    private static Status onAuthorizationError(final ResponseVO responseVO, final Context ctx) {
+    static Status onAuthorizationError(final ResponseVO responseVO, final Context ctx) {
         LogUtil.d(TAG, "onAuthorizationError() called; response code = " + responseVO.getCode());
         Status status = Status.ERROR_AUTHORIZATION;
         if (responseVO.getCode() != HttpURLConnection.HTTP_UNAUTHORIZED) {
             LogUtil.e(TAG, "onAuthorizationError called with wrong code! code: " + responseVO.getCode());
         }
-        final MessageHeader.MessageHeaderResponseComponent response = responseVO.getHeader().getResponse();
+        // A 401 may legitimately arrive without a FHIR MessageHeader.
+        // It remains an authorization failure, not an unexpected parse crash.
+        final MessageHeader.MessageHeaderResponseComponent response =
+                responseVO.getHeader() == null ? null : responseVO.getHeader().getResponse();
         if (response != null && response.getDetailsTarget() != null && response.getDetailsTarget().getIssueFirstRep() != null) {
             final OperationOutcome.IssueType code = response.getDetailsTarget().getIssueFirstRep().getCode();
             if (code != null) {
