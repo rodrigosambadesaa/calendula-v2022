@@ -116,7 +116,8 @@ public class RecurringEvent {
 
         while (iterator.hasNext()) {
             DateTime next = dtc.convert(iterator.nextDateTime());
-            LogUtil.d(TAG, "Next: " + next.toString(f));
+            // Medicine administration times are patient clinical metadata.
+            // Never emit exact recurrence dates or times to Android Logcat.
 
             // stop when we reach the end of the requested period
             // or if the next occurrence is after end
@@ -139,11 +140,11 @@ public class RecurringEvent {
 
                     // ensure daily times are before #until and before #endDateTime
                     if (time.isBefore(from)) {
-                        LogUtil.d(TAG, "Next fixedTime is out of range, continue. [" + time.toString(f) + "]");
+                        LogUtil.d(TAG, "Fixed-time occurrence is before the selected window");
                         continue;
                     }
                     else if (isEqualOrAfter(time, until) || isEqualOrAfterEnd(time)) {
-                        LogUtil.d(TAG, "Next fixedTime is out of range, stop. [" + time.toString(f) + "]");
+                        LogUtil.d(TAG, "Fixed-time occurrence exceeds the selected window");
                         break;
                     }
                     occurrences.add(new EventTimeInfo(time, rep.offset()));
@@ -370,15 +371,15 @@ public class RecurringEvent {
                 ruleWeekDay = byDay.get(i).weekday.ordinal();
                 if (ruleWeekDay == 0) ruleWeekDay = 7; // byDay start on SU (0 to 6)
 
-                LogUtil.d(TAG, "RWD: " + ruleWeekDay + ", SWD: " + startWeekDay);
+
                 // stop if there is a match, rule and dtStart are in sync
                 if (ruleWeekDay == startWeekDay) {
-                    LogUtil.d(TAG, "SameDay");
+
                     return;
                 }
                 // if the first weekday of the rule is after #dtStart, advance to it
                 else if (ruleWeekDay > startWeekDay) {
-                    LogUtil.d(TAG, ruleWeekDay - startWeekDay + " days after ");
+
                     iterator.fastForward(dtc.convert(dtStart.plusDays(ruleWeekDay - startWeekDay)));
                     return;
                 }
@@ -388,7 +389,7 @@ public class RecurringEvent {
             ruleWeekDay = byDay.get(0).weekday.ordinal();
             if (ruleWeekDay == 0) ruleWeekDay = 7; // byDay start on SU (0 to 6)
             int gap = startWeekDay - ruleWeekDay; // rule week day is before
-            LogUtil.d(TAG, 7 - gap + " days after (on the next week)");
+
             iterator.fastForward(dtc.convert(dtStart.plusDays(7 - gap)));
         }
     }
