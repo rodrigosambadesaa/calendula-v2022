@@ -86,6 +86,25 @@ public class WebViewNavigationPolicyTest {
     }
 
     @Test
+    public void onlyAbsoluteCredentialFreeRemoteDocumentsMayStartWebView() {
+        assertTrue(WebViewNavigationPolicy.isSafeInitialDocumentUrl(TRUSTED));
+        assertTrue(WebViewNavigationPolicy.isSafeInitialDocumentUrl(
+                "https://www.accessdata.fda.gov/spl/data/123/123.xml"));
+        assertFalse(WebViewNavigationPolicy.isSafeInitialDocumentUrl(null));
+        assertFalse(WebViewNavigationPolicy.isSafeInitialDocumentUrl(""));
+        assertFalse(WebViewNavigationPolicy.isSafeInitialDocumentUrl("about:blank"));
+        assertFalse(WebViewNavigationPolicy.isSafeInitialDocumentUrl("javascript:alert(1)"));
+        assertFalse(WebViewNavigationPolicy.isSafeInitialDocumentUrl("data:text/html,test"));
+        assertFalse(WebViewNavigationPolicy.isSafeInitialDocumentUrl("file:///private/patient"));
+        assertFalse(WebViewNavigationPolicy.isSafeInitialDocumentUrl("content://private/file"));
+        assertFalse(WebViewNavigationPolicy.isSafeInitialDocumentUrl("../relative.html"));
+        assertFalse(WebViewNavigationPolicy.isSafeInitialDocumentUrl(
+                "https://user:pass@example.test/document"));
+        assertFalse(WebViewNavigationPolicy.isSafeInitialDocumentUrl(
+                "https://example.test/this is not valid"));
+    }
+
+    @Test
     public void malformedUrlsAreNeverRemoteHttpUrls() {
         assertFalse(WebViewNavigationPolicy.isRemoteHttpUrl("https://exa mple.com"));
         assertFalse(WebViewNavigationPolicy.isRemoteHttpUrl("not a url"));
