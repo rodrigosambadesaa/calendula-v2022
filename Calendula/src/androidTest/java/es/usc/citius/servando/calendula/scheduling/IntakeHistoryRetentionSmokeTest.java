@@ -56,16 +56,30 @@ public class IntakeHistoryRetentionSmokeTest {
                 new es.usc.citius.servando.calendula.persistence.Medicine(
                         "Synthetic second medicine",
                         es.usc.citius.servando.calendula.persistence.Presentation.PILLS);
+        // Unlike the pre-2022 list-only fixture, production schedules
+        // require non-null dosage reference IDs for each absolute time.
+        // A null reference is persisted as the JSON key "null", which the
+        // clinical dosage deserializer correctly rejects as malformed.
+        es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime firstSlot =
+                new es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime(
+                        es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime.ReferenceType.ABSOLUTE,
+                        new org.joda.time.LocalTime(20, 37));
+        firstSlot.setReference(80002037L);
+        es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime secondSlot =
+                new es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime(
+                        es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime.ReferenceType.ABSOLUTE,
+                        new org.joda.time.LocalTime(21, 42));
+        secondSlot.setReference(80002142L);
         es.usc.citius.servando.calendula.persistence.Schedule firstSchedule =
                 new es.usc.citius.servando.calendula.persistence.Schedule(
                         new es.usc.citius.servando.calendula.scheduling.model.recur.RecurringEvent.Builder()
                                 .repeatDaily().from(today)
-                                .atFixedTime(new org.joda.time.LocalTime(20, 37)).build());
+                                .atFixedTime(firstSlot).build());
         es.usc.citius.servando.calendula.persistence.Schedule secondSchedule =
                 new es.usc.citius.servando.calendula.persistence.Schedule(
                         new es.usc.citius.servando.calendula.scheduling.model.recur.RecurringEvent.Builder()
                                 .repeatDaily().from(today)
-                                .atFixedTime(new org.joda.time.LocalTime(21, 42)).build());
+                                .atFixedTime(secondSlot).build());
         EventInstance completed = null;
         try {
             assertEquals(1, DB.patients().create(first));
