@@ -4,10 +4,24 @@ public class GetExtraInfoEvent {
 
     private final Status status;
     private final String url;
+    private final Long patientId;
 
     public GetExtraInfoEvent(final Status status, String url) {
+        this(status, url, null);
+    }
+
+    public GetExtraInfoEvent(final Status status, String url, Long patientId) {
         this.status = status;
         this.url = url;
+        this.patientId = patientId;
+    }
+
+    /**
+     * Persistent owner ID of the PDF request. A null ID never authorizes
+     * showing patient-specific provider content.
+     */
+    public Long getPatientId() {
+        return patientId;
     }
 
     public Status getStatus() {
