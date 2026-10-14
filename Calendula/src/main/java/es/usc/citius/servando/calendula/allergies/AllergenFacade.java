@@ -71,10 +71,21 @@ public class AllergenFacade {
         if (!AllergenCatalogGuard.validPrescriptionCode(code)) {
             throw new IllegalStateException("Cannot verify allergens: missing prescription code");
         }
+        // A missing prescription catalog entry cannot be interpreted as
+        // a medicine with zero allergenic components.
+        if (DB.drugDB().prescriptions().findByCn(code) == null) {
+            throw new IllegalStateException("Cannot verify allergens: unknown prescription");
+        }
         LogUtil.d(TAG, "findAllergensForPrescription: verified lookup started");
         List<AllergenVO> ret = new ArrayList<>();
         // active ingredients
-        List<PrescriptionActiveIngredient> pais = DB.drugDB().prescriptionActiveIngredients().findBy(PrescriptionActiveIngredient.COLUMN_PRESCRIPTION_CODE, code);
+        List<PrescriptionActiveIngredient> pais = DB.drugDB().prescriptionActiveIngredients().findBy(
+                PrescriptionActiveIngredient.COLUMN_PRESCRIPTION_CODE, code);
+        if (pais == null || pais.isEmpty()) {
+            // Every drug prescription must have a known active ingredient.
+            // A missing mapping is not a negative allergy check.
+            throw new IllegalStateException("Cannot verify allergens: active ingredient mapping missing");
+        }
         for (PrescriptionActiveIngredient pai : pais) {
             List<ActiveIngredient> dbai = DB.drugDB().activeIngredients().findBy(ActiveIngredient.COLUMN_ACTIVE_INGREDIENT_CODE, pai.getActiveIngredientID());
             if (!AllergenCatalogGuard.uniqueCatalogMatch(dbai.size())) {
@@ -88,7 +99,11 @@ public class AllergenFacade {
         }
 
         //excipients
-        List<PrescriptionExcipient> pes = DB.drugDB().prescriptionExcipients().findBy(PrescriptionExcipient.COLUMN_PRESCRIPTION_CODE, code);
+        List<PrescriptionExcipient> pes = DB.drugDB().prescriptionExcipients().findBy(
+                PrescriptionExcipient.COLUMN_PRESCRIPTION_CODE, code);
+        if (pes == null) {
+            throw new IllegalStateException("Cannot verify allergens: excipient mapping unavailable");
+        }
         for (PrescriptionExcipient pe : pes) {
             List<Excipient> dbe = DB.drugDB().excipients().findBy(Excipient.COLUMN_EXCIPIENT_ID, pe.getExcipientID());
             if (!AllergenCatalogGuard.uniqueCatalogMatch(dbe.size())) {
