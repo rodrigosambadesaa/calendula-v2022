@@ -530,7 +530,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
         if (reference != DIALOG_STOCK_ADD && reference != DIALOG_STOCK_REMOVE) {
             return;
         }
-        Float updated = MedicineStockInputGuard.adjust(
+        Float updated = isNegative ? null : MedicineStockInputGuard.adjust(
                 stock, fullNumber, reference == DIALOG_STOCK_ADD);
         if (updated == null) {
             if (getActivity() != null) {
