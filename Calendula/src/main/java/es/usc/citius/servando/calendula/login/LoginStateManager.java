@@ -157,9 +157,13 @@ public class LoginStateManager {
                     .putString(PreferenceKeys.LOGIN_LAST_LOGGEDIN_USER.key(), sub)
                     .apply();
 
-            SecurePrefBundle.INSTANCE
-                    .setAuthState(authState.jsonSerializeString())
-                    .apply();
+            // Serialize session publication with asynchronous OAuth refresh
+            // compare-and-swap so a stale callback cannot revive credentials.
+            synchronized (this) {
+                SecurePrefBundle.INSTANCE
+                        .setAuthState(authState.jsonSerializeString())
+                        .apply();
+            }
 
             UpdateMedicationFromServiceJob.scheduleUniquePeriodic();
 
@@ -204,9 +208,11 @@ public class LoginStateManager {
 
         LogUtil.d(TAG, "logout() called with: defer = [" + defer + "]");
         UpdateMedicationFromServiceJob.cancelAll();
-        SecurePrefBundle.INSTANCE
-                .clearAuthState()
-                .apply();
+        synchronized (this) {
+            SecurePrefBundle.INSTANCE
+                    .clearAuthState()
+                    .apply();
+        }
         final SharedPreferences.Editor editor = prefs.edit();
         if (defer) {
             editor.putBoolean(PreferenceKeys.PATIENTS_REMOVE_ACTIVE_ON_BOOT.key(), true);
@@ -219,7 +225,9 @@ public class LoginStateManager {
 
     public void logoutAndClearData(final Context ctx) {
         LogUtil.d(TAG, "logoutAndClearData() called with: ctx = [" + ctx + "]");
-        LogoutHelper.clearData(ctx);
+        synchronized (this) {
+            LogoutHelper.clearData(ctx);
+        }
     }
 
     /**
@@ -281,8 +289,23 @@ public class LoginStateManager {
         }
     }
 
-    public void updateAuthState(final AuthState newAuthState) {
+    public synchronized void updateAuthState(final AuthState newAuthState) {
         SecurePrefBundle.INSTANCE.setAuthState(newAuthState.jsonSerializeString()).apply();
+    }
+
+    /**
+     * Publish a token refresh only when its original persisted session is
+     * still active. Avoid reviving logout or overwriting a newer login.
+     */
+    public synchronized boolean updateAuthStateIfUnchanged(
+            final String expectedSerializedState, final AuthState refreshed) {
+        if (expectedSerializedState == null || refreshed == null
+                || !expectedSerializedState.equals(
+                        SecurePrefBundle.INSTANCE.getAuthState())) {
+            return false;
+        }
+        SecurePrefBundle.INSTANCE.setAuthState(refreshed.jsonSerializeString()).apply();
+        return true;
     }
 
     public String getUserId() {
