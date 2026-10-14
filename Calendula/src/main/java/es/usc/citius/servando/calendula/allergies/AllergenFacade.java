@@ -61,33 +61,56 @@ public class AllergenFacade {
     }
 
     public static List<AllergenVO> findAllergensForPrescription(final Prescription p) {
-        String code = p.getCode();
-        return findAllergensForPrescription(code);
+        if (p == null) {
+            throw new IllegalStateException("Cannot verify allergens: prescription not in catalog");
+        }
+        return findAllergensForPrescription(p.getCode());
     }
 
     public static List<AllergenVO> findAllergensForPrescription(final String code) {
-        LogUtil.d(TAG, "findAllergensForPrescription: lookup started");
+        if (!AllergenCatalogGuard.validPrescriptionCode(code)) {
+            throw new IllegalStateException("Cannot verify allergens: missing prescription code");
+        }
+        // A missing prescription catalog entry cannot be interpreted as
+        // a medicine with zero allergenic components.
+        if (DB.drugDB().prescriptions().findByCn(code) == null) {
+            throw new IllegalStateException("Cannot verify allergens: unknown prescription");
+        }
+        LogUtil.d(TAG, "findAllergensForPrescription: verified lookup started");
         List<AllergenVO> ret = new ArrayList<>();
         // active ingredients
-        List<PrescriptionActiveIngredient> pais = DB.drugDB().prescriptionActiveIngredients().findBy(PrescriptionActiveIngredient.COLUMN_PRESCRIPTION_CODE, code);
+        List<PrescriptionActiveIngredient> pais = DB.drugDB().prescriptionActiveIngredients().findBy(
+                PrescriptionActiveIngredient.COLUMN_PRESCRIPTION_CODE, code);
+        if (pais == null || pais.isEmpty()) {
+            // Every drug prescription must have a known active ingredient.
+            // A missing mapping is not a negative allergy check.
+            throw new IllegalStateException("Cannot verify allergens: active ingredient mapping missing");
+        }
         for (PrescriptionActiveIngredient pai : pais) {
             List<ActiveIngredient> dbai = DB.drugDB().activeIngredients().findBy(ActiveIngredient.COLUMN_ACTIVE_INGREDIENT_CODE, pai.getActiveIngredientID());
-            if (dbai.size() != 1) {
-                LogUtil.e(TAG, "findAllergensForPrescription: wrong AI: " + pai);
-            } else {
-                ret.add(new AllergenVO(dbai.get(0)));
+            if (!AllergenCatalogGuard.uniqueCatalogMatch(dbai.size())) {
+                // A referenced drug substance absent from the local catalog
+                // is UNKNOWN, not proof that the patient is not allergic.
+                // Never put ingredient IDs or prescription contents in logs.
+                throw new IllegalStateException(
+                        "Cannot verify allergens: missing or ambiguous ingredient reference");
             }
+            ret.add(new AllergenVO(dbai.get(0)));
         }
 
         //excipients
-        List<PrescriptionExcipient> pes = DB.drugDB().prescriptionExcipients().findBy(PrescriptionExcipient.COLUMN_PRESCRIPTION_CODE, code);
+        List<PrescriptionExcipient> pes = DB.drugDB().prescriptionExcipients().findBy(
+                PrescriptionExcipient.COLUMN_PRESCRIPTION_CODE, code);
+        if (pes == null) {
+            throw new IllegalStateException("Cannot verify allergens: excipient mapping unavailable");
+        }
         for (PrescriptionExcipient pe : pes) {
             List<Excipient> dbe = DB.drugDB().excipients().findBy(Excipient.COLUMN_EXCIPIENT_ID, pe.getExcipientID());
-            if (dbe.size() != 1) {
-                LogUtil.e(TAG, "findAllergensForPrescription: wrong AI: " + pe);
-            } else {
-                ret.add(new AllergenVO(dbe.get(0)));
+            if (!AllergenCatalogGuard.uniqueCatalogMatch(dbe.size())) {
+                throw new IllegalStateException(
+                        "Cannot verify allergens: missing or ambiguous excipient reference");
             }
+            ret.add(new AllergenVO(dbe.get(0)));
         }
 
 
