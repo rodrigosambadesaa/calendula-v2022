@@ -108,13 +108,41 @@ public class AllergiesActivity extends CalendulaActivity {
     protected ProgressBar progressBar;
 
     private int color;
+    private Long openedPatientId;
+    private static final String STATE_OPENED_PATIENT_ID = "allergies_original_patient_id";
     private FastItemAdapter allergiesAdapter;
+
+    private boolean isOriginalPatientActive() {
+        Patient active = DB.patients().getActive(this);
+        return AllergenSearchOwnerGuard.samePatient(openedPatientId,
+                active == null ? null : active.getId());
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        if (openedPatientId != null && openedPatientId > 0L) {
+            outState.putLong(STATE_OPENED_PATIENT_ID, openedPatientId);
+        }
+        super.onSaveInstanceState(outState);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (openedPatientId != null && !isOriginalPatientActive()) {
+            finish();
+        }
+    }
     private AllergiesStore store;
     private ExpandableExtension<IItem> expandableExtension;
 
 
     @OnClick(R.id.add_button)
     void showSearchView() {
+        if (!isOriginalPatientActive()) {
+            finish();
+            return;
+        }
         Intent i = new Intent(this, AllergiesSearchActivity.class);
         startActivityForResult(i, AllergiesSearchActivity.REQUEST_NEW_ALLERGIES);
     }
@@ -122,9 +150,17 @@ public class AllergiesActivity extends CalendulaActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == AllergiesSearchActivity.REQUEST_NEW_ALLERGIES && resultCode == Activity.RESULT_OK) {
-            final ArrayList<AllergenGroupWrapper> result = data.getParcelableArrayListExtra("result");
-            saveAllergiesAsync(result);
+        if (requestCode == AllergiesSearchActivity.REQUEST_NEW_ALLERGIES
+                && resultCode == Activity.RESULT_OK && data != null) {
+            if (!isOriginalPatientActive()) {
+                finish();
+                return;
+            }
+            final ArrayList<AllergenGroupWrapper> result =
+                    data.getParcelableArrayListExtra("result");
+            if (result != null && !result.isEmpty()) {
+                saveAllergiesAsync(result);
+            }
         }
     }
 
@@ -142,6 +178,19 @@ public class AllergiesActivity extends CalendulaActivity {
 
         //setup toolbar and status bar
         final Patient patient = DB.patients().getActive(this);
+        if (patient == null || patient.getId() == null) {
+            finish();
+            return;
+        }
+        Long savedOwner = savedInstanceState != null
+                && savedInstanceState.containsKey(STATE_OPENED_PATIENT_ID)
+                ? savedInstanceState.getLong(STATE_OPENED_PATIENT_ID, -1L)
+                : patient.getId();
+        if (!AllergenSearchOwnerGuard.samePatient(savedOwner, patient.getId())) {
+            finish();
+            return;
+        }
+        openedPatientId = savedOwner;
         color = patient.getColor();
         final String name = patient.getName();
         setupToolbar(getString(R.string.relation_user_possession_thing, name, getString(R.string.title_activity_allergies)), color);
@@ -564,6 +613,22 @@ public class AllergiesActivity extends CalendulaActivity {
             return (SaveResult) DB.transaction(new Callable<SaveResult>() {
                 @Override
                 public SaveResult call() throws Exception {
+                    // Check inside the transaction before ANY insert. A worker
+                    // may start with patient A and run after the active profile
+                    // has switched to patient B.
+                    Patient active = DB.patients().getActive(context);
+                    Long current = active == null ? null : active.getId();
+                    if (!AllergenSearchOwnerGuard.samePatient(openedPatientId, current)
+                            || !AllergenSearchOwnerGuard.samePatient(loadedPatientId, current)) {
+                        throw new SQLException("Active patient changed during allergen save");
+                    }
+                    for (PatientAllergen allergen : allergens) {
+                        if (allergen == null || allergen.getPatient() == null
+                                || !AllergenSearchOwnerGuard.canStore(
+                                loadedPatientId, current, allergen.getPatient().getId())) {
+                            throw new SQLException("Allergen belongs to a different patient");
+                        }
+                    }
                     SaveResult res = SaveResult.OK;
                     for (PatientAllergen allergen : allergens) {
                         final SaveResult r = storeAllergen(allergen);
@@ -667,6 +732,13 @@ public class AllergiesActivity extends CalendulaActivity {
         ALLERGY_EXECUTOR.execute(() -> {
             final Collection<PatientAllergen> patientAllergens = new ArrayList<>(items.size());
             final Patient patient = DB.patients().getActive(AllergiesActivity.this);
+            if (!AllergenSearchOwnerGuard.samePatient(openedPatientId,
+                    patient == null ? null : patient.getId())) {
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed()) finish();
+                });
+                return;
+            }
             for (AllergenGroupWrapper wrapper : items) {
                 if (wrapper.getGroup() != null) {
                     patientAllergens.add(new PatientAllergen(
@@ -676,13 +748,23 @@ public class AllergiesActivity extends CalendulaActivity {
                 }
             }
 
-            final SaveResult result = store.storeAllergens(patientAllergens);
+            SaveResult result;
+            try {
+                result = store.storeAllergens(patientAllergens);
+            } catch (RuntimeException error) {
+                LogUtil.e(TAG, "Unable to save patient allergens safely", error);
+                result = SaveResult.ERROR;
+            }
             final boolean saved = result == SaveResult.OK || result == SaveResult.ALLERGY;
             final boolean conflicts = result == SaveResult.ALLERGY;
             final List<AbstractItem> allergyItems = getAllergyItems();
 
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed()) {
+                    return;
+                }
+                if (!isOriginalPatientActive()) {
+                    finish();
                     return;
                 }
                 progressBar.setVisibility(View.GONE);
