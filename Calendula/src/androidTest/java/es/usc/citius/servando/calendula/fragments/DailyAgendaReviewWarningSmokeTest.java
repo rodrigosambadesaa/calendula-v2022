@@ -74,7 +74,7 @@ public class DailyAgendaReviewWarningSmokeTest {
     }
 
     @Test
-    public void missingTimeProducesOnlyItsOwnersGenericReviewWarning() {
+    public void missingTimeProducesOnlyItsOwnersGenericReviewWarning() throws Exception {
         assertTrue(DB.initialized);
         long seed = System.nanoTime();
         Patient a = new Patient();
