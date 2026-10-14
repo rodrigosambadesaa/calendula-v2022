@@ -50,6 +50,51 @@ public class ActiveMedDao extends GenericDao<ActiveMedEntity, Long> {
         }
     }
 
+    /**
+     * Provider codes are NOT globally unique across patients. Never use
+     * findOneBy(Code) in clinical views: constrain both the code and the
+     * authoritative persisted owner in the same SQLite query.
+     */
+    public ActiveMedEntity findByCodeForPatient(String code, Patient patient) {
+        if (code == null || code.trim().isEmpty()
+                || patient == null || patient.getId() == null
+                || patient.getId() <= 0L) {
+            return null;
+        }
+        Patient persistedPatient = es.usc.citius.servando.calendula.database.DB
+                .patients().findById(patient.getId());
+        if (persistedPatient == null) {
+            return null;
+        }
+        try {
+            ActiveMedEntity result = dao.queryBuilder().where()
+                    .eq(ActiveMedEntity.COLUMN_CODE, code)
+                    .and().eq(ActiveMedEntity.COLUMN_PATIENT, persistedPatient)
+                    .queryForFirst();
+            if (result != null && (result.getPatient() == null
+                    || !ActiveMedOwnerGuard.samePatient(
+                            result.getPatient().getId(), persistedPatient.getId()))) {
+                throw new IllegalStateException("Provider medicine patient mismatch");
+            }
+            return result;
+        } catch (SQLException failure) {
+            throw new RuntimeException("Unable to load provider medication", failure);
+        }
+    }
+
+    /** Verify ownership even when an imported medicine stores a provider ID. */
+    public ActiveMedEntity findByIdForPatient(Long id, Patient patient) {
+        if (id == null || id <= 0L || patient == null
+                || patient.getId() == null || patient.getId() <= 0L) {
+            return null;
+        }
+        ActiveMedEntity result = findById(id);
+        return result != null && result.getPatient() != null
+                && ActiveMedOwnerGuard.samePatient(
+                        result.getPatient().getId(), patient.getId())
+                ? result : null;
+    }
+
     public DateTime findLastUpdateDate(Patient patient) {
         try {
             ActiveMedEntity med = dao.queryBuilder()
