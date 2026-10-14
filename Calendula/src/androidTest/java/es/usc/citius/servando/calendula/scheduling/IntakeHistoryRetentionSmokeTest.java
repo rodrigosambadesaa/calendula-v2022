@@ -36,7 +36,7 @@ import static org.junit.Assert.assertTrue;
 public class IntakeHistoryRetentionSmokeTest {
 
     @Test
-    public void existingDoseTodayMustNotSuppressMissingOtherPatientDose() {
+    public void existingDoseTodayMustNotSuppressMissingOtherPatientDose() throws Exception {
         assertTrue(DB.initialized);
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         LocalDate today = LocalDate.now();
