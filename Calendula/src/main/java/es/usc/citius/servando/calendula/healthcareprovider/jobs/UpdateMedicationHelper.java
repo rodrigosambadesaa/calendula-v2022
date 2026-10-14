@@ -139,7 +139,34 @@ public class UpdateMedicationHelper {
         CalendulaApp.eventBus().post(new ActiveMedUpdateEvent(status));
     }
 
+    /**
+     * The provider treatment and the local medicine-kit owner must agree
+     * before a record is inserted or a previous medicine's activeMedId is
+     * reassigned. A corrupt imported patient link is not consent to migrate
+     * treatment into another patient's local kit.
+     */
+    static boolean isValidImportedMedicineOwner(
+            ActiveMedEntity entity, es.usc.citius.servando.calendula.persistence.Patient patient) {
+        if (entity == null || patient == null || patient.getId() == null
+                || patient.getId() <= 0L || entity.getId() == null
+                || entity.getId() <= 0L || entity.getPatient() == null
+                || entity.getPatient().getId() == null
+                || !patient.getId().equals(entity.getPatient().getId())
+                || entity.getType() == null || entity.getCode() == null
+                || entity.getCode().trim().isEmpty()) {
+            return false;
+        }
+        return entity.getType() == ActiveMedType.DCPF
+                || entity.getType() == ActiveMedType.NATIONAL_CODE;
+    }
+
     public static Medicine addMedicineToMedKit(ActiveMedEntity entity, es.usc.citius.servando.calendula.persistence.Patient p) {
+        if (!isValidImportedMedicineOwner(entity, p)) {
+            // ScheduleCreator wraps the whole provider mapping in a SQLite
+            // transaction. Throwing here rolls back all earlier local writes
+            // rather than returning a potentially wrong-owner medicine.
+            throw new IllegalArgumentException("Provider medicine ownership is inconsistent");
+        }
         Medicine m = null;
         LogUtil.d(TAG, "Adding provider medication to local medicine kit");
         if (entity.getType().equals(ActiveMedType.DCPF)) {
