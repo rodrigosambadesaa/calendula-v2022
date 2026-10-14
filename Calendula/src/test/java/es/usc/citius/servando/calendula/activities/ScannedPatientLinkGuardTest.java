@@ -19,14 +19,20 @@ public class ScannedPatientLinkGuardTest {
 
     @Test
     public void cannotRedirectPatientQRToExternalOrUnrelatedActivities() {
+        String details = APP + ".activities.PatientDetailActivity";
+        assertTrue(ScannedPatientLinkGuard.isValidRoute(APP, details, APP, details));
         assertTrue(ScannedPatientLinkGuard.isValidRoute(
-                APP, APP + ".activities.PatientDetailActivity", APP));
+                APP + ".dev", details, APP + ".dev", details));
+        assertTrue(ScannedPatientLinkGuard.isValidRoute(
+                APP + ".alpha", details, APP + ".alpha", details));
         assertFalse(ScannedPatientLinkGuard.isValidRoute(
-                "com.other.app", APP + ".activities.PatientDetailActivity", APP));
+                "com.other.app", details, APP, details));
         assertFalse(ScannedPatientLinkGuard.isValidRoute(
-                APP, APP + ".activities.MedicinesActivity", APP));
+                APP, APP + ".activities.MedicinesActivity", APP, details));
         assertFalse(ScannedPatientLinkGuard.isValidRoute(
-                APP, null, APP));
+                APP, null, APP, details));
+        assertFalse(ScannedPatientLinkGuard.isValidRoute(
+                APP, details, APP, null));
         assertFalse(ScannedPatientLinkGuard.isValidPatientId(-1L));
         assertFalse(ScannedPatientLinkGuard.isValidPatientId(0L));
         assertFalse(ScannedPatientLinkGuard.isValidPatientId(null));
