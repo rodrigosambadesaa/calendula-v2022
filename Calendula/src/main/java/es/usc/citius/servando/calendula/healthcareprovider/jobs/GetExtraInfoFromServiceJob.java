@@ -32,7 +32,7 @@ import net.openid.appauth.AuthorizationService;
 import org.joda.time.DateTime;
 
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.events.GetExtraInfoEvent;
@@ -197,30 +197,50 @@ public class GetExtraInfoFromServiceJob extends Job {
         if (authState != null && authState.getNeedsTokenRefresh()) {
             LogUtil.d(TAG, "refreshTokensIfNeeded: refreshing tokens");
             LogUtil.d(TAG, "AccessTokenExpirationTime: " + new DateTime(authState.getAccessTokenExpirationTime()).toString());
-            final CountDownLatch countDownLatch = new CountDownLatch(1);
-            final AuthorizationService authService = AuthorizationServiceHelper.createAuthorizationService(getContext());
-            authState.performActionWithFreshTokens(authService, additionalParams, new AuthState.AuthStateAction() {
-                @Override
-                public void execute(@Nullable String accessToken, @Nullable String idToken, @Nullable AuthorizationException ex) {
-                    if (ex != null) {
-                        LogUtil.d(TAG, "refreshTokensIfNeeded: refresh failed. Exception: ", ex);
-                        if (ex.code == AuthorizationException.GeneralErrors.NETWORK_ERROR.code)
-                            result.setResult(Status.ERROR_NO_CONNECTION);
-                        else result.setResult(Status.ERROR_AUTHORIZATION);
-                    } else {
-                        LoginStateManager.getInstance().updateAuthState(authState);
-                    }
-                    countDownLatch.countDown();
-                }
-            });
-
-            authService.dispose();
+            final TokenRefreshGate gate = new TokenRefreshGate();
+            final AuthorizationService authService =
+                    AuthorizationServiceHelper.createAuthorizationService(getContext());
             try {
-                countDownLatch.await();
-            } catch (InterruptedException e) {
-                LogUtil.w(TAG, "onRunJob: ", e);
+                // Keep AppAuth alive until its asynchronous callback completes.
+                authState.performActionWithFreshTokens(
+                        authService, additionalParams, (accessToken, idToken, ex) ->
+                        gate.complete(() -> {
+                            try {
+                                if (ex != null) {
+                                    LogUtil.d(TAG, "Token refresh failed", ex);
+                                    result.setResult(
+                                            ex.code == AuthorizationException.GeneralErrors.NETWORK_ERROR.code
+                                                    ? Status.ERROR_NO_CONNECTION
+                                                    : Status.ERROR_AUTHORIZATION);
+                                } else if (accessToken == null || accessToken.isEmpty()) {
+                                    result.setResult(Status.ERROR_AUTHORIZATION);
+                                } else {
+                                    LoginStateManager.getInstance().updateAuthState(authState);
+                                }
+                            } catch (RuntimeException invalidRefresh) {
+                                LogUtil.w(TAG, "Could not finish token renewal safely");
+                                result.setResult(Status.ERROR_GENERIC);
+                            }
+                        }));
+                if (!gate.await(45, TimeUnit.SECONDS)) {
+                    LogUtil.w(TAG, "Token renewal timed out");
+                    result.setResult(Status.ERROR_NO_CONNECTION);
+                }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
                 result.setResult(Status.ERROR_GENERIC);
+            } catch (RuntimeException startFailure) {
+                LogUtil.w(TAG, "Could not start token renewal");
+                result.setResult(Status.ERROR_GENERIC);
+            } finally {
+                gate.close();
+                try {
+                    authService.dispose();
+                } catch (IllegalArgumentException disposeFailure) {
+                    LogUtil.w(TAG, "Unable to dispose authorization service");
+                }
             }
+
         } else if (authState != null) {
             LogUtil.d(TAG, "AccessTokenExpirationTime: " + new DateTime(authState.getAccessTokenExpirationTime()).toString());
         } else {
