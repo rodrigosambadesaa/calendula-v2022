@@ -388,7 +388,8 @@ public class MedicineInfoActivity extends CalendulaActivity {
 
     private IIcon getCurrentIcon() {
         if (pageSet != MedInfoPageAdapter.MedInfoPageSet.ONLY_ACTIVE_MED) {
-            return medicine.getPresentation().icon();
+            Presentation presentation = medicine.getPresentation();
+            return (presentation == null ? Presentation.UNKNOWN : presentation).icon();
         } else {
             final Presentation presentation = DBRegistry.instance().current().expectedPresentation(activeMedVO.getDisplay(), "");
             return presentation != null ? presentation.icon() : Presentation.UNKNOWN.icon();
