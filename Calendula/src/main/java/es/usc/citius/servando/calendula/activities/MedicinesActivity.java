@@ -421,14 +421,22 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
             return;
         }
         try {
-            // Clear the *old* prescription's allergy warning BEFORE creating
-            // the warning for the new prescription. The reverse order used to
-            // erase the newly created HIGH warning on medication switches.
-            removeOldAlerts(m);
+            // Evaluate the old prescription BEFORE persisting the new one.
+            boolean oldWarningInvalidated = oldAllergyWarningInvalidated(m);
             if (allergies != null) {
+                // Replace an existing HIGH alert's allergen details in place,
+                // or create the new HIGH alert while the prior prescription is
+                // still stored. Never delete it afterward: the old order
+                // erased the *new* allergy warning on a prescription switch.
                 createAllergyAlerts(m, allergies);
             }
             DB.medicines().saveAndFireEvent(m);
+            if (allergies == null && oldWarningInvalidated) {
+                // Only now, after the medicine was successfully persisted, is
+                // it safe to remove the obsolete HIGH warning. A failed save
+                // must never leave the unchanged old prescription unprotected.
+                AllergyAlertUtil.removeAllergyAlerts(m);
+            }
             Toast.makeText(this, getString(R.string.medicine_edited_message), Toast.LENGTH_SHORT).show();
             finish();
         } catch (RuntimeException | SQLException e) {
@@ -437,27 +445,19 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
         }
     }
 
-    /**
-     * Removes obsolete alerts for a medicine that is going to be updated.
-     * This MUST be called before calling the persistence method.
-     *
-     * @param m the medicine
-     */
-    private void removeOldAlerts(final Medicine m) throws SQLException {
+    /** Check whether a *persisted* prescription's allergy warning is stale. */
+    private boolean oldAllergyWarningInvalidated(final Medicine m) {
         Medicine old = DB.medicines().findById(m.getId());
         if (old == null || DB.medicines().refresh(old) != 1
-                || old.getPatient() == null || m.getPatient() == null
+                || old.getPatient() == null || old.getPatient().getId() == null
+                || m.getPatient() == null || m.getPatient().getId() == null
                 || !old.getPatient().getId().equals(m.getPatient().getId())) {
             throw new IllegalStateException("Medicine changed owner during allergy cleanup");
         }
-        // A drug-db switch or unlinking a previously linked prescription
-        // invalidates its previous allergy warning too. The old conditional
-        // only ran when the *new* prescription was linked, leaving stale HIGH
-        // warnings behind when a prescription was removed entirely.
-        if (MedicineAllergyTransitionGuard.prescriptionChanged(
-                old.getCn(), old.getDatabase(), m.getCn(), m.getDatabase())) {
-            AllergyAlertUtil.removeAllergyAlerts(old);
-        }
+        // Also handle a drug-database switch and removing a prescription.
+        // Whether the *new* medicine is linked must not drive this decision.
+        return MedicineAllergyTransitionGuard.prescriptionChanged(
+                old.getCn(), old.getDatabase(), m.getCn(), m.getDatabase());
     }
 
     private void createMedicine(final Medicine m, final List<AllergenVO> allergies) {
