@@ -116,7 +116,8 @@ public class RecurringEvent {
 
         while (iterator.hasNext()) {
             DateTime next = dtc.convert(iterator.nextDateTime());
-            LogUtil.d(TAG, "Next: " + next.toString(f));
+            // Medicine administration times are patient clinical metadata.
+            // Never emit exact recurrence dates or times to Android Logcat.
 
             // stop when we reach the end of the requested period
             // or if the next occurrence is after end
@@ -139,11 +140,11 @@ public class RecurringEvent {
 
                     // ensure daily times are before #until and before #endDateTime
                     if (time.isBefore(from)) {
-                        LogUtil.d(TAG, "Next fixedTime is out of range, continue. [" + time.toString(f) + "]");
+                        LogUtil.d(TAG, "Fixed-time occurrence is before the selected window");
                         continue;
                     }
                     else if (isEqualOrAfter(time, until) || isEqualOrAfterEnd(time)) {
-                        LogUtil.d(TAG, "Next fixedTime is out of range, stop. [" + time.toString(f) + "]");
+                        LogUtil.d(TAG, "Fixed-time occurrence exceeds the selected window");
                         break;
                     }
                     occurrences.add(new EventTimeInfo(time, rep.offset()));
