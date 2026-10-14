@@ -39,6 +39,9 @@ public class HtmlCacheManager {
 
 
     public static final Long DEFAULT_TTL_MILLIS = Duration.standardMinutes(5).getMillis(); //5 minutes
+    // A remote provider page can be arbitrarily large or deliberately broken.
+    // Limit stored text before SQLite and WebView duplicate its memory.
+    static final int MAX_CACHED_HTML_CHARS = 2_000_000;
     private static final String TAG = "HtmlCacheManager";
     private static HtmlCacheManager theInstance = null;
     private Dao<HtmlCacheEntry, Long> dao = null;
@@ -73,7 +76,10 @@ public class HtmlCacheManager {
      * in place because its original identity cannot be established.
      */
     public boolean put(final String url, final String data, final Duration ttlDuration) {
-        if (url == null || url.isEmpty()) {
+        if (url == null || url.isEmpty()
+                || !isAcceptableCachedHtml(data)) {
+            // A broken or enormous processed document must never replace a
+            // valid earlier cached leaflet, or consume unlimited SQLite space.
             return false;
         }
         final Long ttl = ttlDuration == null ? DEFAULT_TTL_MILLIS : ttlDuration.getMillis();
@@ -241,12 +247,18 @@ public class HtmlCacheManager {
         }
     }
 
+    private static boolean isAcceptableCachedHtml(String html) {
+        return html != null && !html.isEmpty()
+                && html.length() <= MAX_CACHED_HTML_CHARS;
+    }
+
     private boolean checkTtl(HtmlCacheEntry entry) {
         // Old or interrupted imports can contain incomplete cache metadata.
         // Treat those rows as expired instead of allowing one malformed row
         // to abort the entire cleanup or crash a leaflet lookup.
         if (entry == null || entry.getTimestamp() == null
-                || entry.getTtl() == null || entry.getTtl() <= 0L) {
+                || entry.getTtl() == null || entry.getTtl() <= 0L
+                || !isAcceptableCachedHtml(entry.getData())) {
             return false;
         }
         final Date timestamp = entry.getTimestamp();
