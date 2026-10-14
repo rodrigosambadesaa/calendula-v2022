@@ -23,7 +23,7 @@ final class ScannedPatientLinkGuard {
                                 String appPackage) {
         return appPackage != null && !appPackage.isEmpty()
                 && appPackage.equals(requestedPackage)
-                && PatientDetailActivity.class.getName().equals(requestedClass);
+                && (appPackage + ".activities.PatientDetailActivity").equals(requestedClass);
     }
 
     static boolean isValidPatientId(Long id) {
