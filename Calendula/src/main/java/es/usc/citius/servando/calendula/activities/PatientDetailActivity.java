@@ -237,8 +237,13 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
                 LogUtil.w(TAG, "Ignoring malformed patient link QR");
                 return;
             }
-            if (patientId < 0 || p == null || TextUtils.isEmpty(p.token)) {
-                LogUtil.w(TAG, "Ignoring patient link QR without a valid patient or token");
+            if (!ScannedPatientLinkGuard.isValidPatientId(patientId)
+                    || DB.patients().findById(patientId) == null
+                    || p == null || TextUtils.isEmpty(p.token)) {
+                // A stale PatientDetailActivity may have been reopened after
+                // the patient was deleted. Never persist a token for a
+                // missing or unrelated local record.
+                LogUtil.w(TAG, "Ignoring patient link QR without a persisted patient or token");
                 return;
             }
             Snack.show(R.string.patient_link_success, this, Snackbar.LENGTH_LONG);
