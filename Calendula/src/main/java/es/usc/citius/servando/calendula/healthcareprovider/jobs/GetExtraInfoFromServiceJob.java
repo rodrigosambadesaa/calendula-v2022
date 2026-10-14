@@ -230,7 +230,7 @@ public class GetExtraInfoFromServiceJob extends Job {
         }
         if (authState != null && authState.getNeedsTokenRefresh()) {
             LogUtil.d(TAG, "refreshTokensIfNeeded: refreshing tokens");
-            LogUtil.d(TAG, "AccessTokenExpirationTime: " + new DateTime(authState.getAccessTokenExpirationTime()).toString());
+            // Token expiry is session metadata; keep it out of Logcat.
             // Compare the original persisted auth state *after* the callback.
             // Never re-save credentials from a job whose user signed out or
             // switched sessions while the network request was outstanding.
@@ -296,7 +296,7 @@ public class GetExtraInfoFromServiceJob extends Job {
             }
 
         } else if (authState != null) {
-            LogUtil.d(TAG, "AccessTokenExpirationTime: " + new DateTime(authState.getAccessTokenExpirationTime()).toString());
+            // Token expiry is session metadata; keep it out of Logcat.
         } else {
             LogUtil.d(TAG, "AuthState is null.");
             result.setResult(Status.ERROR_AUTHORIZATION);
