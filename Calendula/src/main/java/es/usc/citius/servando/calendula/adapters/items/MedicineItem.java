@@ -28,6 +28,7 @@ import android.widget.TextView;
 
 import com.mikepenz.fastadapter.items.AbstractItem;
 import com.mikepenz.iconics.IconicsDrawable;
+import com.mikepenz.community_material_typeface_library.CommunityMaterial;
 import com.mikepenz.iconics.view.IconicsImageView;
 
 import java.util.List;
@@ -41,6 +42,7 @@ import es.usc.citius.servando.calendula.modules.modules.StockModule;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.PatientAlert;
 import es.usc.citius.servando.calendula.util.IconUtils;
+import es.usc.citius.servando.calendula.util.LogUtil;
 
 
 public class MedicineItem extends AbstractItem<MedicineItem, MedicineItem.MedicineViewHolder> {
@@ -102,17 +104,37 @@ public class MedicineItem extends AbstractItem<MedicineItem, MedicineItem.Medici
             }
         }
 
-        List<PatientAlert> alerts = DB.alerts().findBy(PatientAlert.COLUMN_MEDICINE, medicine);
-        boolean hasAlerts = !alerts.isEmpty();
-
-        if (hasAlerts) {
-            int level = PatientAlert.Level.LOW;
-            for (PatientAlert a : alerts) {
-                if (a.getLevel() > level) {
-                    level = a.getLevel();
+        // Reset *every* recycled card. A previous medicine's alert icon must
+        // not survive on a newly bound medicine with no clinical warnings.
+        holder.alertIcon.setVisibility(View.GONE);
+        holder.alertIcon.setImageDrawable(null);
+        holder.alertIcon.setContentDescription(null);
+        try {
+            // A medicine ID alone is not authorization to read clinical alerts.
+            // The scoped DAO checks both the persisted medicine owner and
+            // every returned alert's owner before yielding a result.
+            List<PatientAlert> alerts = DB.alerts().findByMedicineSortByLevel(medicine);
+            if (!alerts.isEmpty()) {
+                int level = PatientAlert.Level.LOW;
+                for (PatientAlert a : alerts) {
+                    if (a.getLevel() > level) {
+                        level = a.getLevel();
+                    }
                 }
+                holder.alertIcon.setImageDrawable(IconUtils.alertLevelIcon(level, ctx));
+                holder.alertIcon.setContentDescription(ctx.getString(R.string.label_alerts_short));
+                holder.alertIcon.setVisibility(View.VISIBLE);
             }
-            holder.alertIcon.setImageDrawable(IconUtils.alertLevelIcon(level, ctx));
+        } catch (RuntimeException error) {
+            // A corrupt/misassigned alert is NOT "no alerts". Show a neutral
+            // read-failure warning without assigning an invented severity or
+            // revealing another patient's alert information.
+            LogUtil.e("MedicineItem", "Clinical alerts could not be verified", error);
+            holder.alertIcon.setImageDrawable(new IconicsDrawable(ctx)
+                    .icon(CommunityMaterial.Icon.cmd_alert)
+                    .colorRes(R.color.android_orange_dark).sizeDp(24));
+            holder.alertIcon.setContentDescription(
+                    ctx.getString(R.string.medicine_alerts_unavailable));
             holder.alertIcon.setVisibility(View.VISIBLE);
         }
 
@@ -132,6 +154,8 @@ public class MedicineItem extends AbstractItem<MedicineItem, MedicineItem.Medici
         holder.stockInfo.setText(null);
         holder.stockInfo.setVisibility(View.GONE);
         holder.alertIcon.setVisibility(View.GONE);
+        holder.alertIcon.setImageDrawable(null);
+        holder.alertIcon.setContentDescription(null);
         super.unbindView(holder);
     }
 

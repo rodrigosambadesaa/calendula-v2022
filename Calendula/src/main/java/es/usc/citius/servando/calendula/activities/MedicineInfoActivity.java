@@ -453,11 +453,24 @@ public class MedicineInfoActivity extends CalendulaActivity {
                     pageSet = MedInfoPageAdapter.MedInfoPageSet.NO_ACTIVE_MED;
                 }
             }
-            List<PatientAlert> alerts = DB.alerts().findBy(PatientAlert.COLUMN_MEDICINE, medicine);
-            for (PatientAlert a : alerts) {
-                if (a.getLevel() > alertLevel) {
-                    alertLevel = a.getLevel();
+            try {
+                // The generic query trusts only the medicine ID; use the
+                // patient-scoped DAO that validates each clinical alert owner.
+                List<PatientAlert> alerts = DB.alerts().findByMedicineSortByLevel(medicine);
+                for (PatientAlert a : alerts) {
+                    if (a.getLevel() > alertLevel) {
+                        alertLevel = a.getLevel();
+                    }
                 }
+            } catch (RuntimeException error) {
+                // A corrupt or cross-owner alert must never be displayed as
+                // though it belonged to this patient. Avoid constructing the
+                // detail pager from unverified clinical data.
+                LogUtil.e(TAG, "Unable to verify medicine clinical alerts", error);
+                Toast.makeText(this, R.string.medicine_alerts_unavailable,
+                        Toast.LENGTH_SHORT).show();
+                finish();
+                return;
             }
         }
         LogUtil.d(TAG, "processIntent: pageSet is " + pageSet);
