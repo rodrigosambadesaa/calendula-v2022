@@ -96,7 +96,21 @@ public class UpdateMedicationHelper {
                         if (isNoChanges(responseVO)) {
                             LogUtil.d(TAG, "onRunJob: received unchanged response from server");
                         } else {
-                            final String newHash = responseVO.getHeader().getResponse().getIdentifier() + (BuildConfig.DEBUG ? random.nextInt() : "");
+                            // A provider response without its real revision
+                            // identifier is not a safe import. Concatenating a
+                            // null String to the debug suffix would otherwise
+                            // manufacture "null123" and mark its clinical data
+                            // as a successfully installed update.
+                            final String revision = responseVO.getHeader() == null
+                                    || responseVO.getHeader().getResponse() == null
+                                    ? null : responseVO.getHeader().getResponse().getIdentifier();
+                            if (!isUsableProviderRevision(revision)) {
+                                LogUtil.w(TAG, "Provider medication update has no usable revision");
+                                status = Status.ERROR_GENERIC;
+                                break;
+                            }
+                            final String newHash = revision
+                                    + (BuildConfig.DEBUG ? random.nextInt() : "");
                             if (newHash.equals(lastHash)) {
                                 LogUtil.w(TAG, "onRunJob: Response indicates new data, but hashes are equal! Skipping addition");
                             } else {
@@ -127,6 +141,23 @@ public class UpdateMedicationHelper {
 
         }
         return status;
+    }
+
+    /**
+     * Server revisions are opaque; do not trim or normalize legitimate ones.
+     * Never create a synthetic revision from a null, blank or malformed value.
+     */
+    static boolean isUsableProviderRevision(String revision) {
+        if (revision == null || revision.trim().isEmpty()
+                || "null".equalsIgnoreCase(revision.trim())) {
+            return false;
+        }
+        for (int i = 0; i < revision.length(); i++) {
+            if (Character.isISOControl(revision.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
