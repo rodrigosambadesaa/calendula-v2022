@@ -54,8 +54,8 @@ public class AbsoluteFixedTimeSerializationTest {
         try {
             GsonUtil.get().fromJson(corrupt, RecurringEvent.class);
             org.junit.Assert.fail("A missing historical dose time must be rejected");
-        } catch (com.google.gson.JsonIOException expected) {
-            // Gson wraps the adapter's checked IOException.
+        } catch (com.google.gson.JsonParseException expected) {
+            // Gson wraps the adapter's checked IOException in a parse error.
         }
     }
 
