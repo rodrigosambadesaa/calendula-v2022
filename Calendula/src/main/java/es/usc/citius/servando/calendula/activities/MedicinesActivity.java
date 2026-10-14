@@ -163,6 +163,7 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
     }
 
     private static final String STATE_STARTED_SEARCH = "STATE_STARTED_SEARCH";
+    private static final String STATE_OPENED_PATIENT_ID = "STATE_OPENED_PATIENT_ID";
 
     private Prescription prescriptionToSet = null;
     private String prescriptionNameToSet = null;
@@ -282,7 +283,20 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
             finish();
             return;
         }
-        openedPatientId = opened.getId();
+        // Configuration changes restore the draft editor's form state.
+        // Never let it silently move from the originally opened patient to
+        // whichever patient became active while the activity was paused.
+        if (savedInstanceState != null
+                && savedInstanceState.containsKey(STATE_OPENED_PATIENT_ID)) {
+            long restoredId = savedInstanceState.getLong(STATE_OPENED_PATIENT_ID, -1L);
+            if (!MedicineSaveOwnerGuard.canRestoreEditor(restoredId, opened.getId())) {
+                closeStaleMedicineEditor();
+                return;
+            }
+            openedPatientId = restoredId;
+        } else {
+            openedPatientId = opened.getId();
+        }
         color = opened.getColor();
         setupToolbar(null, color);
         setupStatusBar(color);
@@ -322,6 +336,9 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         outState.putBoolean(STATE_STARTED_SEARCH, startedSearch);
+        if (openedPatientId != null && openedPatientId > 0L) {
+            outState.putLong(STATE_OPENED_PATIENT_ID, openedPatientId);
+        }
         super.onSaveInstanceState(outState);
     }
 

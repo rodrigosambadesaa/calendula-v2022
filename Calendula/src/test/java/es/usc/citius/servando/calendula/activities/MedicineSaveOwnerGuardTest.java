@@ -29,6 +29,16 @@ public class MedicineSaveOwnerGuardTest {
     }
 
     @Test
+    public void activityRecreationCannotMoveDraftToAnotherPatient() {
+        assertTrue(MedicineSaveOwnerGuard.canRestoreEditor(42L, 42L));
+        assertFalse(MedicineSaveOwnerGuard.canRestoreEditor(42L, 43L));
+        assertFalse(MedicineSaveOwnerGuard.canRestoreEditor(null, 42L));
+        assertFalse(MedicineSaveOwnerGuard.canRestoreEditor(42L, null));
+        assertFalse(MedicineSaveOwnerGuard.canRestoreEditor(-1L, -1L));
+        assertFalse(MedicineSaveOwnerGuard.canRestoreEditor(0L, 0L));
+    }
+
+    @Test
     public void onlyOriginalActiveProfileCanCreate() {
         assertTrue(MedicineSaveOwnerGuard.canCreate(13L, 13L, 13L, null));
         assertFalse(MedicineSaveOwnerGuard.canCreate(13L, 14L, 13L, null));

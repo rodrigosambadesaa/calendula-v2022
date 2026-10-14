@@ -23,6 +23,15 @@ final class MedicineSaveOwnerGuard {
                 && openedPatientId.equals(persistedPatientId);
     }
 
+    /**
+     * Activity recreation must preserve its original owner, not silently
+     * adopt a different active profile alongside restored form state.
+     */
+    static boolean canRestoreEditor(Long savedOwnerId, Long currentOwnerId) {
+        return savedOwnerId != null && savedOwnerId > 0L
+                && savedOwnerId.equals(currentOwnerId);
+    }
+
     static boolean canCreate(Long openedPatientId, Long activePatientId,
                              Long candidatePatientId, Long candidateMedicineId) {
         return openedPatientId != null && openedPatientId > 0L
