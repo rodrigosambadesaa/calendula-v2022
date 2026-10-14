@@ -421,11 +421,22 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
             return;
         }
         try {
+            // Evaluate the old prescription BEFORE persisting the new one.
+            boolean oldWarningInvalidated = oldAllergyWarningInvalidated(m);
             if (allergies != null) {
+                // Replace an existing HIGH alert's allergen details in place,
+                // or create the new HIGH alert while the prior prescription is
+                // still stored. Never delete it afterward: the old order
+                // erased the *new* allergy warning on a prescription switch.
                 createAllergyAlerts(m, allergies);
             }
-            removeOldAlerts(m);
             DB.medicines().saveAndFireEvent(m);
+            if (allergies == null && oldWarningInvalidated) {
+                // Only now, after the medicine was successfully persisted, is
+                // it safe to remove the obsolete HIGH warning. A failed save
+                // must never leave the unchanged old prescription unprotected.
+                AllergyAlertUtil.removeAllergyAlerts(m);
+            }
             Toast.makeText(this, getString(R.string.medicine_edited_message), Toast.LENGTH_SHORT).show();
             finish();
         } catch (RuntimeException | SQLException e) {
@@ -434,17 +445,19 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
         }
     }
 
-    /**
-     * Removes obsolete alerts for a medicine that is going to be updated.
-     * This MUST be called before calling the persistence method.
-     *
-     * @param m the medicine
-     */
-    private void removeOldAlerts(final Medicine m) throws SQLException {
+    /** Check whether a *persisted* prescription's allergy warning is stale. */
+    private boolean oldAllergyWarningInvalidated(final Medicine m) {
         Medicine old = DB.medicines().findById(m.getId());
-        if (m.isBoundToPrescription() && !m.getCn().equals(old.getCn())) { // if prescription didn't change, don't check for alerts
-            AllergyAlertUtil.removeAllergyAlerts(m);
+        if (old == null || DB.medicines().refresh(old) != 1
+                || old.getPatient() == null || old.getPatient().getId() == null
+                || m.getPatient() == null || m.getPatient().getId() == null
+                || !old.getPatient().getId().equals(m.getPatient().getId())) {
+            throw new IllegalStateException("Medicine changed owner during allergy cleanup");
         }
+        // Also handle a drug-database switch and removing a prescription.
+        // Whether the *new* medicine is linked must not drive this decision.
+        return MedicineAllergyTransitionGuard.prescriptionChanged(
+                old.getCn(), old.getDatabase(), m.getCn(), m.getDatabase());
     }
 
     private void createMedicine(final Medicine m, final List<AllergenVO> allergies) {
@@ -482,7 +495,8 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
      * @param allergies the allergens
      * @return <code>true</code> if changes have been made, <code>false</code> otherwise (error or no allergy changes)
      */
-    private boolean createAllergyAlerts(final Medicine m, final List<AllergenVO> allergies) {
+    private boolean createAllergyAlerts(final Medicine m, final List<AllergenVO> allergies)
+            throws SQLException {
 
         final List<PatientAlert> allergyAlerts = DB.alerts().findByMedicineAndType(m, new AllergyPatientAlert().getType());
         switch (allergyAlerts.size()) {
@@ -502,17 +516,17 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
                 } else {
                     details.setAllergens(allergies);
                     alert1.setDetails(details);
-                    try {
-                        DB.alerts().update(alert1);
-                        return true;
-                    } catch (SQLException e) {
-                        LogUtil.e(TAG, "createAllergyAlerts: ", e);
-                        return false;
-                    }
+                    // A failed HIGH-alert update must abort the medication
+                    // operation rather than silently reporting a safe save.
+                    DB.alerts().update(alert1);
+                    return true;
                 }
             default:
-                LogUtil.e(TAG, "createAllergyAlerts: more than 1 allergy alert for a medicine!");
-                return false;
+                // Existing duplicates are not evidence that the patient has
+                // no allergy conflict. Refuse to save until clinical data are
+                // reviewed rather than silently ignoring ambiguous warnings.
+                throw new IllegalStateException(
+                        "Duplicate allergy alerts need review for this medicine");
         }
 
     }
