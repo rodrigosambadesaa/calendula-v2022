@@ -417,38 +417,92 @@ public class AllergiesActivity extends CalendulaActivity {
         public AllergiesStore() {
         }
 
-        public int deleteAllergen(PatientAllergen a, boolean notify) {
+        private Long loadedPatientId;
+
+        /**
+         * All database deletes in a group COMMIT together. Clinical alert and
+         * Android alarm cleanup runs only afterward, never inside the outer
+         * SQLite transaction (which could later roll back).
+         */
+        private int deleteVerifiedAllergens(final List<PatientAllergen> candidates,
+                                            boolean notify) {
+            if (candidates == null || candidates.isEmpty() || context == null
+                    || loadedPatientId == null || loadedPatientId <= 0L) {
+                return -2;
+            }
+            final List<PatientAllergen> deleted;
             try {
-                int index = currentAllergies.indexOf(a);
-                DB.patientAllergens().delete(a);
-                AllergyAlertUtil.removeAllergyAlerts(context, a);
-                currentAllergies.remove(a);
-                if (notify) {
-                    CalendulaApp.eventBus().post(PersistenceEvents.MEDICINE_EVENT);
-                }
-                return index;
-            } catch (SQLException e) {
-                LogUtil.e(TAG, "Couldn't delete allergen " + a, e);
+                deleted = (List<PatientAllergen>) DB.transaction(() -> {
+                    Patient active = DB.patients().getActive(context);
+                    Long activeId = active == null ? null : active.getId();
+                    List<PatientAllergen> live = new ArrayList<>(candidates.size());
+                    java.util.Set<Long> seen = new java.util.HashSet<>();
+                    for (PatientAllergen candidate : candidates) {
+                        if (candidate == null || candidate.getId() == null
+                                || candidate.getPatient() == null
+                                || !seen.add(candidate.getId())) {
+                            throw new SQLException("Missing or duplicate allergen ID");
+                        }
+                        PatientAllergen stored = DB.patientAllergens().findById(
+                                candidate.getId());
+                        if (stored == null || DB.patientAllergens().refresh(stored) != 1
+                                || stored.getPatient() == null
+                                || !AllergenDeletionGuard.isSamePersistedOwner(
+                                    loadedPatientId, activeId,
+                                    candidate.getId(), candidate.getPatient().getId(),
+                                    stored.getId(), stored.getPatient().getId(),
+                                    candidate.getType(), stored.getType(),
+                                    candidate.getIdentifier(), stored.getIdentifier())) {
+                            throw new SQLException("Allergen ownership changed before deletion");
+                        }
+                        live.add(stored);
+                    }
+                    // Recheck profile immediately before the first SQL write.
+                    Patient current = DB.patients().getActive(context);
+                    if (current == null || !loadedPatientId.equals(current.getId())) {
+                        throw new SQLException("Active patient changed while deleting allergens");
+                    }
+                    for (PatientAllergen stored : live) {
+                        if (DB.patientAllergens().deleteById(stored.getId()) != 1) {
+                            throw new SQLException("Allergen deletion affected an unexpected number of rows");
+                        }
+                    }
+                    return live;
+                });
+            } catch (RuntimeException failure) {
+                LogUtil.e(TAG, "Unable to delete verified patient allergens", failure);
                 return -2;
             }
 
+            // Never run AlertManager.removeAlert inside the batch transaction.
+            // If a subsequent alert operation fails, conservative HIGH alerts
+            // remain, and the UI reloads SQLite rather than claiming success.
+            try {
+                for (PatientAllergen allergen : deleted) {
+                    AllergyAlertUtil.removeAllergyAlerts(context, allergen);
+                }
+            } catch (SQLException | RuntimeException failure) {
+                LogUtil.e(TAG, "Allergen removed; clinical warning cleanup needs review", failure);
+                return -2;
+            }
+            if (notify) {
+                CalendulaApp.eventBus().post(PersistenceEvents.MEDICINE_EVENT);
+            }
+            return 0;
         }
 
-        public int deleteAllergens(final List<PatientAllergen> a) {
-            final int res = (int) DB.transaction(new Callable<Integer>() {
-                @Override
-                public Integer call() throws Exception {
-                    int res = 0;
-                    for (PatientAllergen patientAllergen : a) {
-                        res = deleteAllergen(patientAllergen, false);
-                        if (res == -2)
-                            break;
-                    }
-                    return res;
-                }
-            });
-            CalendulaApp.eventBus().post(PersistenceEvents.MEDICINE_EVENT);
-            return res;
+        public int deleteAllergen(PatientAllergen allergen, boolean notify) {
+            if (allergen == null || currentAllergies == null) {
+                return -2;
+            }
+            int index = currentAllergies.indexOf(allergen);
+            int result = deleteVerifiedAllergens(
+                    Collections.singletonList(allergen), notify);
+            return result < 0 ? result : index;
+        }
+
+        public int deleteAllergens(final List<PatientAllergen> allergens) {
+            return deleteVerifiedAllergens(allergens, true);
         }
 
         public List<PatientAllergen> getAllergies() {
@@ -465,10 +519,18 @@ public class AllergiesActivity extends CalendulaActivity {
 
         public void load(Context ctx) {
             context = ctx;
+            Patient opened = DB.patients().getActive(ctx);
+            loadedPatientId = opened == null ? null : opened.getId();
             reload();
         }
 
         public void reload() {
+            Patient active = context == null ? null : DB.patients().getActive(context);
+            if (loadedPatientId == null || active == null
+                    || !loadedPatientId.equals(active.getId())) {
+                currentAllergies = new ArrayList<>();
+                return;
+            }
             currentAllergies = DB.patientAllergens().findAllForActivePatient(context);
             Collections.sort(currentAllergies, new Comparator<PatientAllergen>() {
                 @Override
@@ -534,8 +596,8 @@ public class AllergiesActivity extends CalendulaActivity {
                 if (isFinishing() || isDestroyed()) {
                     return;
                 }
+                store.reload();
                 if (resultIndex >= 0) {
-                    store.reload();
                     checkPlaceholder();
                     expandableExtension.collapse(resultIndex);
                     allergiesAdapter.remove(resultIndex);
@@ -555,14 +617,16 @@ public class AllergiesActivity extends CalendulaActivity {
         final PatientAllergen allergen = item.getAllergen();
 
         ALLERGY_EXECUTOR.execute(() -> {
-            store.deleteAllergen(allergen, true);
+            final int deleted = store.deleteAllergen(allergen, true);
 
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed()) {
                     return;
                 }
-                if (index >= 0) {
-                    store.reload();
+                // The DB transaction may have committed while subsequent
+                // clinical warning cleanup failed; always reload from SQLite.
+                store.reload();
+                if (deleted >= 0 && index >= 0) {
                     checkPlaceholder();
                     allergiesAdapter.remove(index);
                 } else {
