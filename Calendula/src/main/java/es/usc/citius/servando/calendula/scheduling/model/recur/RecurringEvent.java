@@ -144,8 +144,11 @@ public class RecurringEvent {
                         continue;
                     }
                     else if (isEqualOrAfter(time, until) || isEqualOrAfterEnd(time)) {
+                        // Fixed times are stored in insertion/routine order,
+                        // not necessarily chronologically. A too-late entry
+                        // must not suppress a later-listed valid earlier dose.
                         LogUtil.d(TAG, "Fixed-time occurrence exceeds the selected window");
-                        break;
+                        continue;
                     }
                     occurrences.add(new EventTimeInfo(time, rep.offset()));
                 }
