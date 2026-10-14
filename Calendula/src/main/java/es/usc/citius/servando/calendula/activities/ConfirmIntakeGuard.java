@@ -31,7 +31,31 @@ public final class ConfirmIntakeGuard {
                 && Objects.equals(selected.getTime(), stored.getTime())
                 && selected.getPatient() != null && stored.getPatient() != null
                 && selected.getPatient().getId() != null
-                && selected.getPatient().getId().equals(stored.getPatient().getId());
+                && selected.getPatient().getId().equals(stored.getPatient().getId())
+                && selected.getType() == stored.getType()
+                && selected.completed() == stored.completed()
+                && selected.cancelled() == stored.cancelled()
+                && samePositiveDose(selected, stored);
+    }
+
+    private static boolean samePositiveDose(EventInstance selected, EventInstance stored) {
+        try {
+            double first = selected.getDoubleParam(EventInstance.PARAM_DOSE);
+            double second = stored.getDoubleParam(EventInstance.PARAM_DOSE);
+            return first > 0.0d && !Double.isNaN(first) && !Double.isInfinite(first)
+                    && Double.compare(first, second) == 0;
+        } catch (RuntimeException malformed) {
+            // An absent or nonnumeric dose cannot authorize a clinical action.
+            return false;
+        }
+    }
+
+    /** Row identity captured on a prior render must still be at this position. */
+    public static boolean matchesVisibleRow(java.util.List<EventInstance> shown,
+                                            int currentPosition, EventInstance selected) {
+        return shown != null && currentPosition >= 0
+                && currentPosition < shown.size()
+                && matchesPersistedEvent(selected, shown.get(currentPosition));
     }
 
     public static boolean verified(EventInstance event, Patient selectedPatient,
