@@ -20,7 +20,7 @@ import static org.junit.Assert.assertEquals;
 @Config(sdk = 28)
 public class UnsortedFixedTimesRecurrenceTest {
     @Test
-    public void laterListedMorningDoseIsNotLostAfterEveningDoseExceedsWindow() {
+    public void laterListedMorningDoseIsNotLostAfterEveningDoseExceedsWindow() throws Exception {
         LocalDate today = new LocalDate(2026, 10, 14);
         RecurringEvent recurrence = new RecurringEvent.Builder()
                 .repeatDaily().from(today)
@@ -36,7 +36,7 @@ public class UnsortedFixedTimesRecurrenceTest {
     }
 
     @Test
-    public void bothUnsortedIntakeTimesStillAppearAcrossCompleteDay() {
+    public void bothUnsortedIntakeTimesStillAppearAcrossCompleteDay() throws Exception {
         LocalDate today = new LocalDate(2026, 10, 14);
         RecurringEvent recurrence = new RecurringEvent.Builder()
                 .repeatDaily().from(today)
