@@ -405,6 +405,11 @@ public class PdfViewActivity extends CalendulaActivity {
 
         @Override
         public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+            // Overriding WebViewClient disables its default SSL-failure
+            // cancellation. Finishing the Activity is NOT equivalent to
+            // rejecting a still-pending TLS challenge.
+            handler.cancel();
+            view.stopLoading();
             LogUtil.e(TAG, "Received SSL Error when trying to load page");
             showErrorToast(request.getConnectionErrorMessage());
             hideLoading();
