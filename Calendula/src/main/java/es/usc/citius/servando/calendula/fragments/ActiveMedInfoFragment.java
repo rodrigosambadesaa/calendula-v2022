@@ -194,6 +194,24 @@ public class ActiveMedInfoFragment extends Fragment {
         if (activeMed == null || getView() == null || getContext() == null) {
             return;
         }
+        Patient currentPatient = DB.patients().getActive(getContext());
+        ActiveMedEntity provider = activeMed.getBackingEntity();
+        if (provider == null || provider.getPatient() == null
+                || currentPatient == null || !ActiveMedOwnerGuard.samePatient(
+                        provider.getPatient().getId(), currentPatient.getId())) {
+            closeUnavailableProviderPage();
+            return;
+        }
+        final Long providerId = provider.getId();
+        final Schedule linkedSchedule = DB.schedules().findOneBy(
+                Schedule.BOUND_TO, providerId);
+        if (linkedSchedule != null && (linkedSchedule.getPatient() == null
+                || !ActiveMedOwnerGuard.samePatient(
+                        linkedSchedule.getPatient().getId(), currentPatient.getId()))) {
+            // An imported cross-owner routine cannot be offered for editing.
+            closeUnavailableProviderPage();
+            return;
+        }
         // validity period
         final DateTime validityStart = activeMed.getValidityStart();
         final DateTime validityEnd = activeMed.getValidityEnd();
@@ -230,8 +248,7 @@ public class ActiveMedInfoFragment extends Fragment {
             intakeInstructions.setVisibility(View.GONE);
         }
 
-        final Schedule schedule = DB.schedules().findOneBy(Schedule.BOUND_TO, activeMed.getBackingEntity().getId());
-        final boolean hasReminders = schedule != null;
+        final boolean hasReminders = linkedSchedule != null;
 
         remindersButton.setCompoundDrawables(null, null, IconUtils.icon(getContext(),
                 hasReminders ? CommunityMaterial.Icon.cmd_bell_ring : CommunityMaterial.Icon.cmd_bell_plus,
@@ -242,12 +259,35 @@ public class ActiveMedInfoFragment extends Fragment {
         remindersButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                if (getContext() == null || activeMed == null
+                        || activeMed.getBackingEntity() == null) {
+                    return;
+                }
+                Patient nowActive = DB.patients().getActive(getContext());
                 Long id = activeMed.getBackingEntity().getId();
+                ActiveMedEntity currentProvider = DB.healthcareProviderDB().activeMeds()
+                        .findByIdForPatient(id, nowActive);
+                if (currentProvider == null) {
+                    closeUnavailableProviderPage();
+                    return;
+                }
+                // The linked schedule may change after this fragment was
+                // rendered. Re-query and revalidate the owner on every click.
+                Schedule currentSchedule = DB.schedules().findOneBy(
+                        Schedule.BOUND_TO, id);
+                if (currentSchedule != null && (currentSchedule.getPatient() == null
+                        || !ActiveMedOwnerGuard.samePatient(
+                                currentSchedule.getPatient().getId(), nowActive.getId()))) {
+                    closeUnavailableProviderPage();
+                    return;
+                }
                 Intent intent = new Intent(getContext(), ScheduleBuildActivity.class);
-                if (hasReminders) {
-                    intent.putExtra(CalendulaApp.INTENT_EXTRA_SCHEDULE_ID, schedule.getId());
+                if (currentSchedule != null) {
+                    intent.putExtra(CalendulaApp.INTENT_EXTRA_SCHEDULE_ID,
+                            currentSchedule.getId());
                 } else {
-                    intent.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_CREATE_REMINDER);
+                    intent.putExtra(IntentParams.EXTRA_ACTION,
+                            IntentParams.ACTION_CREATE_REMINDER);
                     intent.putExtra(IntentParams.EXTRA_ACTIVEMED_ID, id);
                 }
                 getContext().startActivity(intent);
