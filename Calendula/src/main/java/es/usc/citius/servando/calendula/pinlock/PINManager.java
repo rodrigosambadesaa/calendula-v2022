@@ -53,6 +53,9 @@ public class PINManager {
      */
     public static boolean checkPIN(final String pin) throws IllegalStateException {
 
+        if (pin == null || pin.isEmpty()) {
+            return false;
+        }
         final String salt = SecurePrefBundle.INSTANCE.getPinSalt();
         final String storedHash = SecurePrefBundle.INSTANCE.getPinHash();
         if (salt == null || storedHash == null) {
@@ -109,7 +112,9 @@ public class PINManager {
      * @return <code>true</code> if saved correctly, <code>false</code> otherwise.
      */
     public static boolean savePIN(final String pin) {
-
+        if (pin == null || pin.isEmpty()) {
+            return false;
+        }
         byte[] saltBytes = new byte[SALT_LENGTH_BYTES];
         getRandom().nextBytes(saltBytes);
         final String salt = Base64.encodeToString(saltBytes, Base64.NO_WRAP);
@@ -149,6 +154,13 @@ public class PINManager {
                 return false;
             }
 
+            // The current on-disk version uses exactly 20 salt bytes and
+            // 32 derived-key bytes. Reject malformed/oversized strings before
+            // decoding or running 100,000 expensive PBKDF2 iterations.
+            if (encodedSalt == null || encodedSalt.length() > 64
+                    || parts[2].length() > 96) {
+                return false;
+            }
             final int iterations = Integer.parseInt(parts[1]);
             if (iterations != PBKDF2_ITERATIONS) {
                 return false;
@@ -156,6 +168,10 @@ public class PINManager {
 
             final byte[] salt = Base64.decode(encodedSalt, Base64.NO_WRAP);
             final byte[] expected = Base64.decode(parts[2], Base64.NO_WRAP);
+            if (salt.length != SALT_LENGTH_BYTES
+                    || expected.length != PBKDF2_KEY_LENGTH_BITS / 8) {
+                return false;
+            }
             final byte[] actual = derivePbkdf2(pin, salt);
             return MessageDigest.isEqual(expected, actual);
         } catch (IllegalArgumentException | GeneralSecurityException e) {

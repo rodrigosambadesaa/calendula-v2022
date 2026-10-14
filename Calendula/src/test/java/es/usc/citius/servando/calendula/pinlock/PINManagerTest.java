@@ -92,6 +92,41 @@ public class PINManagerTest {
         assertTrue(legacyHash.equals(SecurePrefBundle.INSTANCE.getPinHash()));
     }
 
+    @Test
+    public void missingPinInputIsRejectedWithoutMutatingStoredCredentials() {
+        assertFalse(PINManager.savePIN(null));
+        assertFalse(PINManager.savePIN(""));
+        assertTrue(PINManager.savePIN("2468"));
+        String hash = SecurePrefBundle.INSTANCE.getPinHash();
+        assertFalse(PINManager.checkPIN(null));
+        assertFalse(PINManager.checkPIN(""));
+        assertTrue(hash.equals(SecurePrefBundle.INSTANCE.getPinHash()));
+        assertTrue(PINManager.checkPIN("2468"));
+    }
+
+    @Test
+    public void brokenSaltAndHashCannotTriggerInvalidPinAcceptance() {
+        assertTrue(PINManager.savePIN("1357"));
+        String correctSalt = SecurePrefBundle.INSTANCE.getPinSalt();
+        String correctHash = SecurePrefBundle.INSTANCE.getPinHash();
+
+        for (String invalidSalt : new String[]{"", "not base64!",
+                "AAAA", new String(new char[256]).replace((char) 0, 'A')}) {
+            SecurePrefBundle.INSTANCE.setPinSalt(invalidSalt).apply();
+            assertFalse("Malformed PIN salt was accepted", PINManager.checkPIN("1357"));
+        }
+        SecurePrefBundle.INSTANCE.setPinSalt(correctSalt).apply();
+
+        for (String invalidHash : new String[]{"pbkdf2-sha1$100000$",
+                "pbkdf2-sha1$100000$AAAA", "pbkdf2-sha1$99999$AAAA",
+                "pbkdf2-sha1$100000$" + new String(new char[256]).replace((char) 0, 'A')}) {
+            SecurePrefBundle.INSTANCE.setPinHash(invalidHash).apply();
+            assertFalse("Malformed PIN hash was accepted", PINManager.checkPIN("1357"));
+        }
+        SecurePrefBundle.INSTANCE.setPinHash(correctHash).apply();
+        assertTrue("Valid stored credentials still work", PINManager.checkPIN("1357"));
+    }
+
     private static String legacyHash(String salt, String pin) throws Exception {
         MessageDigest md = MessageDigest.getInstance("SHA-256");
         md.update((salt + pin).getBytes());
