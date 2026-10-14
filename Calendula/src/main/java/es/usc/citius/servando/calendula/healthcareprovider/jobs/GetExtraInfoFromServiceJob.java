@@ -63,7 +63,7 @@ public class GetExtraInfoFromServiceJob extends Job {
     public GetExtraInfoFromServiceJob() {
     }
 
-    public static void scheduleOneShot(final boolean shouldRetry, final long patientId) {
+    public static int scheduleOneShot(final boolean shouldRetry, final long patientId) {
         LogUtil.d(TAG, "scheduleOneShot() called with: shouldRetry = [" + shouldRetry + "]");
 
 
@@ -71,7 +71,7 @@ public class GetExtraInfoFromServiceJob extends Job {
                 .setExecutionWindow(1, ONESHOT_EXECUTION_WINDOW_MS)
                 .setExtras(getExtras(shouldRetry, patientId))
                 .setBackoffCriteria(ONESHOT_BACKOFF_INITIAL_MS, JobRequest.BackoffPolicy.EXPONENTIAL);
-        builder.build().schedule();
+        return builder.build().schedule();
     }
 
     public static void scheduleWhenConnected(final long patientId) {
@@ -178,7 +178,7 @@ public class GetExtraInfoFromServiceJob extends Job {
 
         if (result!=Result.RESCHEDULE) {
             ExtraInfoHelper.notifyStatusUpdate(
-                    new GetExtraInfoEvent(status, url, requestedPatientId));
+                    new GetExtraInfoEvent(status, url, requestedPatientId, params.getId()));
         }
         LogUtil.d(TAG, "onRunJob() returned: " + result);
         return result;
