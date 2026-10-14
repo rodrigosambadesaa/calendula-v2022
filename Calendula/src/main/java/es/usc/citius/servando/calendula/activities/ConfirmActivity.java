@@ -828,8 +828,13 @@ public class ConfirmActivity extends CalendulaActivity {
         }
     }
 
+    private boolean isCurrentVisibleRow(EventInstance selected, int position) {
+        return ConfirmIntakeGuard.matchesVisibleRow(items, position, selected);
+    }
+
     private void confirmSelectedIntake(EventInstance selected, boolean completed, int position) {
-        if (!isVerifiedIntake(selected) || invalidClinicalContext) {
+        if (!isCurrentVisibleRow(selected, position)
+                || !isVerifiedIntake(selected) || invalidClinicalContext) {
             blockUnverifiedConfirmation();
             return;
         }
@@ -850,13 +855,7 @@ public class ConfirmActivity extends CalendulaActivity {
     class ConfirmItemAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
 
-        private ConfirmItemViewHolder h;
-        private EventInstance eventInstance;
-        private Schedule s;
-        private Medicine m;
-        private Presentation p;
-
-        @Override
+         @Override
         public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
             View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.confirm_activity_list_item, parent, false);
             return new ConfirmItemViewHolder(v);
@@ -865,8 +864,8 @@ public class ConfirmActivity extends CalendulaActivity {
         @Override
         public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
 
-            h = (ConfirmItemViewHolder) holder;
-            eventInstance = items.get(position);
+            final ConfirmItemViewHolder h = (ConfirmItemViewHolder) holder;
+            final EventInstance eventInstance = items.get(position);
             if (!isVerifiedIntake(eventInstance)) {
                 invalidClinicalContext = true;
                 fab.setEnabled(false);
@@ -878,13 +877,31 @@ public class ConfirmActivity extends CalendulaActivity {
                 h.offset.setVisibility(View.GONE);
                 h.alert.setVisibility(View.GONE);
                 h.check.setEnabled(false);
+                h.check.setImageDrawable(null);
+                h.icon.setImageDrawable(null);
+                h.alert.setOnClickListener(null);
+                return;
+            }
+            final Schedule s = DB.schedules().findById(eventInstance.getRef());
+            if (s == null || s.getMedicine() == null) {
+                invalidClinicalContext = true;
+                fab.setEnabled(false);
+                h.event = null;
+                h.med.setText(R.string.agenda_medication_review_warning);
+                h.dose.setText("");
+                h.status.setText("");
+                h.info.setVisibility(View.GONE);
+                h.offset.setVisibility(View.GONE);
+                h.alert.setVisibility(View.GONE);
+                h.alert.setOnClickListener(null);
+                h.check.setEnabled(false);
+                h.check.setImageDrawable(null);
                 h.icon.setImageDrawable(null);
                 return;
             }
             h.check.setEnabled(true);
-            s = DB.schedules().findById(eventInstance.getRef());
-            m = s.getMedicine();
-            p = m.getPresentation();
+            final Medicine m = s.getMedicine();
+            final Presentation p = m.getPresentation();
 
             Double dose = eventInstance.getDoubleParam(EventInstance.PARAM_DOSE);
             String status = getString(R.string.med_not_taken);
@@ -936,13 +953,20 @@ public class ConfirmActivity extends CalendulaActivity {
                 SpannableString spannableString = new SpannableString(h.alert.getText());
                 spannableString.setSpan(imageSpan, 0, 1, Spanned.SPAN_INCLUSIVE_EXCLUSIVE);
                 h.alert.setText(spannableString);
-                h.alert.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        Intent i = new Intent(ConfirmActivity.this, ScheduleBuildActivity.class);
-                        i.putExtra(CalendulaApp.INTENT_EXTRA_SCHEDULE_ID, s.getId());
-                        startActivity(i);
+                // Capture this row's schedule rather than the adapter's
+                // last-bound mutable schedule (which could be another medicine).
+                final Long selectedScheduleId = s.getId();
+                h.alert.setOnClickListener(v -> {
+                    if (!isCurrentVisibleRow(eventInstance, h.getAdapterPosition())
+                            || !isVerifiedIntake(eventInstance)
+                            || selectedScheduleId == null
+                            || !selectedScheduleId.equals(eventInstance.getRef())) {
+                        blockUnverifiedConfirmation();
+                        return;
                     }
+                    Intent i = new Intent(ConfirmActivity.this, ScheduleBuildActivity.class);
+                    i.putExtra(CalendulaApp.INTENT_EXTRA_SCHEDULE_ID, selectedScheduleId);
+                    startActivity(i);
                 });
             } else {
                 h.alert.setVisibility(View.GONE);
@@ -954,7 +978,7 @@ public class ConfirmActivity extends CalendulaActivity {
             h.status.setText(status);
             h.event = eventInstance;
             LogUtil.d(TAG, eventInstance.toString());
-            updateCheckedStatus();
+            updateCheckedStatus(h, eventInstance, p);
         }
 
         @Override
@@ -962,7 +986,8 @@ public class ConfirmActivity extends CalendulaActivity {
             return items.size();
         }
 
-        void updateCheckedStatus() {
+        void updateCheckedStatus(ConfirmItemViewHolder h, EventInstance eventInstance,
+                                 Presentation p) {
             Drawable medDrawable = new IconicsDrawable(ConfirmActivity.this)
                     .icon(p.icon())
                     .color(eventInstance.completed() ? Color.parseColor("#81c784") : Color.parseColor("#11000000"))
@@ -1019,16 +1044,20 @@ public class ConfirmActivity extends CalendulaActivity {
                     blockUnverifiedConfirmation();
                     return;
                 }
-                final boolean taken = event.completed();
+                // Keep exactly the tapped event and position while a dialog
+                // is open. A recycled ViewHolder may be rebound before consent.
+                final EventInstance selectedEvent = event;
+                final int selectedPosition = getAdapterPosition();
+                if (!isCurrentVisibleRow(selectedEvent, selectedPosition)) {
+                    blockUnverifiedConfirmation();
+                    return;
+                }
+                final boolean taken = selectedEvent.completed();
                 if (isDistant) {
-                    showEnsureConfirmDialog(new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialogInterface, int i) {
-                            confirmSelectedIntake(event, !taken, getAdapterPosition());
-                        }
-                    }, taken);
+                    showEnsureConfirmDialog((dialogInterface, i) ->
+                            confirmSelectedIntake(selectedEvent, !taken, selectedPosition), taken);
                 } else {
-                    confirmSelectedIntake(event, !taken, getAdapterPosition());
+                    confirmSelectedIntake(selectedEvent, !taken, selectedPosition);
                 }
             }
         }
