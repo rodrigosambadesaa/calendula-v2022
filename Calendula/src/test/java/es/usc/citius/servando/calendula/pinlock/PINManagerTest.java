@@ -111,7 +111,7 @@ public class PINManagerTest {
         String correctHash = SecurePrefBundle.INSTANCE.getPinHash();
 
         for (String invalidSalt : new String[]{"", "not base64!",
-                "AAAA", new String(new char[256]).replace('\\0', 'A')}) {
+                "AAAA", new String(new char[256]).replace((char) 0, 'A')}) {
             SecurePrefBundle.INSTANCE.setPinSalt(invalidSalt).apply();
             assertFalse("Malformed PIN salt was accepted", PINManager.checkPIN("1357"));
         }
@@ -119,7 +119,7 @@ public class PINManagerTest {
 
         for (String invalidHash : new String[]{"pbkdf2-sha1$100000$",
                 "pbkdf2-sha1$100000$AAAA", "pbkdf2-sha1$99999$AAAA",
-                "pbkdf2-sha1$100000$" + new String(new char[256]).replace('\\0', 'A')}) {
+                "pbkdf2-sha1$100000$" + new String(new char[256]).replace((char) 0, 'A')}) {
             SecurePrefBundle.INSTANCE.setPinHash(invalidHash).apply();
             assertFalse("Malformed PIN hash was accepted", PINManager.checkPIN("1357"));
         }
