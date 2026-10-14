@@ -82,16 +82,8 @@ object StockUpdater {
         } catch (malformed: RuntimeException) {
             throw IllegalStateException("Medication stock dosage is missing or malformed", malformed)
         }
-        if (!dose.isFinite() || dose <= 0.0) {
-            throw IllegalStateException("Medication stock dosage must be finite and positive")
-        }
-        val delta = if (intake.completed()) -dose else dose
-        val updated = before.toDouble() + delta
-        if (!updated.isFinite() || updated < 0.0 || updated > Float.MAX_VALUE) {
-            throw IllegalStateException("Medication stock adjustment is outside valid bounds")
-        }
-
-        medicine.stock = updated.toFloat()
+        val updated = checkedAdjustedStock(before, dose, intake.completed())
+        medicine.stock = updated
         // Bypass MedicineDao.save(): it posts alerts before COMMIT.
         // Restore this in-memory object on failed SQL updates; the outer
         // transaction handles persisted rollback.
@@ -104,6 +96,31 @@ object StockUpdater {
             throw failure
         }
         return true
+    }
+
+    /**
+     * Validate the *persisted float*, not only the intermediate Double.
+     * Sub-float-precision doses could previously mark an intake as completed
+     * while leaving inventory bit-for-bit unchanged. Throw so the caller's
+     * SQLite transaction rolls back the dose and inventory together.
+     */
+    internal fun checkedAdjustedStock(before: Float, dose: Double, completed: Boolean): Float {
+        if (!before.isFinite() || before < 0f) {
+            throw IllegalStateException("Tracked medicine stock is invalid")
+        }
+        if (!dose.isFinite() || dose <= 0.0) {
+            throw IllegalStateException("Medication stock dosage must be finite and positive")
+        }
+        val delta = if (completed) -dose else dose
+        val updated = before.toDouble() + delta
+        if (!updated.isFinite() || updated < 0.0 || updated > Float.MAX_VALUE.toDouble()) {
+            throw IllegalStateException("Medication stock adjustment is outside valid bounds")
+        }
+        val saved = updated.toFloat()
+        if (!saved.isFinite() || saved < 0f || saved == before) {
+            throw IllegalStateException("Medication stock adjustment cannot be represented")
+        }
+        return saved
     }
 
     // Intentionally no public stock-only update helpers here. A medication
