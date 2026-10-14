@@ -19,9 +19,10 @@
 package es.usc.citius.servando.calendula.fragments.dosePickers;
 
 
+import android.app.AlertDialog;
+import android.app.Dialog;
 import android.os.Bundle;
 import android.text.Editable;
-import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.view.View;
 import android.widget.EditText;
@@ -58,13 +59,36 @@ public class DefaultDosePickerFragment extends DosePickerFragment {
             }
 
             @Override
-            public void afterTextChanged(Editable s) {
-                if (!TextUtils.isEmpty(s.toString())) {
-                    double value = Double.parseDouble(s.toString().trim());
-                    unitsText.setText(presentation.units(getResources(), value));
-                }
+            public void afterTextChanged(Editable changed) {
+                final Double dose = DoseInputGuard.parsePositive(changed.toString());
+                // TextWatcher runs for intermediate input such as `.` and
+                // empty text. Neither should crash the fragment or leave an
+                // old valid unit summary beside an incomplete number.
+                unitsText.setText(dose == null || presentation == null
+                        ? "" : presentation.units(getResources(), dose));
+                updateDoneEnabled(dose != null);
             }
         });
+    }
+
+    @Override
+    public Dialog onCreateDialog(Bundle savedInstanceState) {
+        AlertDialog dialog = (AlertDialog) super.onCreateDialog(savedInstanceState);
+        dialog.setOnShowListener(shown -> updateDoneEnabled(
+                text != null && DoseInputGuard.parsePositive(
+                        text.getText().toString()) != null));
+        return dialog;
+    }
+
+    private void updateDoneEnabled(boolean valid) {
+        Dialog current = getDialog();
+        if (current instanceof AlertDialog) {
+            android.widget.Button done =
+                    ((AlertDialog) current).getButton(AlertDialog.BUTTON_POSITIVE);
+            if (done != null) {
+                done.setEnabled(valid);
+            }
+        }
     }
 
     @Override
@@ -73,16 +97,21 @@ public class DefaultDosePickerFragment extends DosePickerFragment {
         Presentation p = (Presentation) args.getSerializable("presentation");
         p = p != null ? p : Presentation.UNKNOWN;
         presentation = p;
-        unitsText.setText(p.units(getResources(), initialDose));
         text.setText(String.valueOf(initialDose));
     }
 
 
     @Override
     protected double getSelectedDose() {
-        String t = text.getText().toString();
-        if(t==null || t.isEmpty()) return 0d;
-        return Double.valueOf(t);
+        Double valid = DoseInputGuard.parsePositive(
+                text == null ? null : text.getText().toString());
+        if (valid == null) {
+            // A dose may never silently become zero or non-finite.
+            // The Done button is disabled for invalid input; retain a
+            // fail-closed guard for programmatic calls.
+            throw new IllegalArgumentException("A positive finite dose is required");
+        }
+        return valid;
     }
 
     @Override
