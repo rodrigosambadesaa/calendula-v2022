@@ -9,6 +9,20 @@ final class MedicineSaveOwnerGuard {
     private MedicineSaveOwnerGuard() {
     }
 
+    /**
+     * A medicine editor must authorize its launch ID *before* inflating a
+     * treatment form, not just when the user eventually taps Save.
+     */
+    static boolean canOpenForEdit(Long openedPatientId, Long activePatientId,
+                                  Long selectedMedicineId, Long persistedMedicineId,
+                                  Long persistedPatientId) {
+        return openedPatientId != null && openedPatientId > 0L
+                && openedPatientId.equals(activePatientId)
+                && selectedMedicineId != null && selectedMedicineId > 0L
+                && selectedMedicineId.equals(persistedMedicineId)
+                && openedPatientId.equals(persistedPatientId);
+    }
+
     static boolean canCreate(Long openedPatientId, Long activePatientId,
                              Long candidatePatientId, Long candidateMedicineId) {
         return openedPatientId != null && openedPatientId > 0L
