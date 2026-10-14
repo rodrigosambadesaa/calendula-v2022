@@ -29,6 +29,8 @@ public class HomeAgendaConfirmRoutingTest {
         Patient patient = new Patient();
         patient.setId(owner);
         stub.patient = patient;
+        stub.hasEvents = true;
+        stub.displayable = true;
         DailyAgendaItemStub.DailyAgendaItemStubElement event =
                 new DailyAgendaItemStub.DailyAgendaItemStubElement();
         event.eventId = intakeId;
@@ -67,6 +69,14 @@ public class HomeAgendaConfirmRoutingTest {
         DailyAgendaItemStub missingOwner = row(0L, 2001L, 1d);
         assertFalse(DailyAgendaRecyclerAdapter.isCurrentConfirmRow(
                 Collections.singletonList(missingOwner), missingOwner, 0));
+        DailyAgendaItemStub hidden = row(101L, 2001L, 1d);
+        hidden.displayable = false;
+        assertFalse(DailyAgendaRecyclerAdapter.isCurrentConfirmRow(
+                Collections.singletonList(hidden), hidden, 0));
+        DailyAgendaItemStub placeholder = row(101L, 2001L, 1d);
+        placeholder.hasEvents = false;
+        assertFalse(DailyAgendaRecyclerAdapter.isCurrentConfirmRow(
+                Collections.singletonList(placeholder), placeholder, 0));
         DailyAgendaItemStub missingRows = row(101L, 2001L, 1d);
         missingRows.meds.clear();
         assertFalse(DailyAgendaRecyclerAdapter.isCurrentConfirmRow(
