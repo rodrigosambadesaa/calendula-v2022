@@ -347,9 +347,10 @@ public class ActiveMedicationListFragment extends Fragment {
                 final ActiveMedVO vo = item.getVo();
                 Medicine m = DB.medicines().findOneBy(
                         Medicine.COLUMN_ACTIVE_MED_ID, vo.getBackingEntity().getId());
-                if (m != null && (m.getPatient() == null
+                final Patient activePatient = DB.patients().getActive(getContext());
+                if (m != null && (m.getPatient() == null || activePatient == null
                         || !ActiveMedicationOwnerGuard.matchingPatient(
-                            displayedPatientId, DB.patients().getActive(getContext()).getId(),
+                            displayedPatientId, activePatient.getId(),
                             m.getPatient().getId()))) {
                     m = null;
                 }
