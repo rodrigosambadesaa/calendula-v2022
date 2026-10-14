@@ -31,6 +31,18 @@ public class DoseInputGuardTest {
     }
 
     @Test
+    public void liquidSliderMayOnlySubmitWhatItsVisibleThumbRepresents() {
+        assertEquals(0, DoseInputGuard.liquidSliderValue(0d, 50));
+        assertEquals(0, DoseInputGuard.liquidSliderValue(-10d, 50));
+        assertEquals(0, DoseInputGuard.liquidSliderValue(Double.NaN, 50));
+        assertEquals(0, DoseInputGuard.liquidSliderValue(Double.POSITIVE_INFINITY, 50));
+        assertEquals(0, DoseInputGuard.liquidSliderValue(.75d, 50));
+        assertEquals(1, DoseInputGuard.liquidSliderValue(1.75d, 50));
+        assertEquals(50, DoseInputGuard.liquidSliderValue(999d, 50));
+        assertEquals(0, DoseInputGuard.liquidSliderValue(5d, 0));
+    }
+
+    @Test
     public void partialAndInvalidInputCannotBeSavedAsMedicationDose() {
         for (String value : new String[]{"", " ", ".", ",", "-", "-2",
                 "0", "0.0", "NaN", "Infinity", "1e309", "1,2.3",
