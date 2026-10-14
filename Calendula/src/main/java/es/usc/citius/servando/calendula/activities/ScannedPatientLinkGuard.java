@@ -20,10 +20,14 @@ final class ScannedPatientLinkGuard {
     private ScannedPatientLinkGuard() { }
 
     static boolean isValidRoute(String requestedPackage, String requestedClass,
-                                String appPackage) {
-        return appPackage != null && !appPackage.isEmpty()
-                && appPackage.equals(requestedPackage)
-                && (appPackage + ".activities.PatientDetailActivity").equals(requestedClass);
+                                String installedAppPackage, String internalDetailClass) {
+        // The runtime application ID may include .dev/.alpha flavor suffixes,
+        // whereas Java Activity class names retain the manifest namespace.
+        // Never derive the class name from the installed package name.
+        return installedAppPackage != null && !installedAppPackage.isEmpty()
+                && installedAppPackage.equals(requestedPackage)
+                && internalDetailClass != null && !internalDetailClass.isEmpty()
+                && internalDetailClass.equals(requestedClass);
     }
 
     static boolean isValidPatientId(Long id) {
