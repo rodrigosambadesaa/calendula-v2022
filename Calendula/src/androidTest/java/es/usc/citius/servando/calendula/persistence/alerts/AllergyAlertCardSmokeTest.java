@@ -46,6 +46,15 @@ public class AllergyAlertCardSmokeTest {
         assertTrue("A valid rebinding must show its real allergen details",
                 holder.allergens.getText().toString().contains("Known synthetic allergen"));
 
+        AllergyPatientAlert markupName = new AllergyPatientAlert();
+        markupName.setDetails(new AllergyPatientAlert.AllergyAlertInfo(
+                Collections.singletonList(new AllergenVO(
+                        null, "Synthetic <milk> & nuts", "dummy-escaped"))));
+        provider.onBindViewHolder(holder, markupName);
+        assertTrue("Allergen labels must be literal, not interpreted as HTML",
+                holder.allergens.getText().toString().contains(
+                        "Synthetic <milk> & nuts"));
+
         AllergyPatientAlert partial = new AllergyPatientAlert();
         partial.setDetails(new AllergyPatientAlert.AllergyAlertInfo(
                 Arrays.asList(new AllergenVO(null, "Known synthetic allergen", "dummy"), null)));
