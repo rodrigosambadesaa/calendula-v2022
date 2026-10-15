@@ -54,6 +54,8 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.healthcareprovide
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.alerts.StockWarningPreferenceRestoreSmokeTest"
 # Verify restored remote medication status on Android emulators.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.RemoteMedicationPreferenceRestoreSmokeTest"
+# Prevent malformed medicine selection results from mutating the active editor.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.MedicineSearchResultSafetySmokeTest"
 # Optional manifests let feature PRs add independent emulator tests without
 # editing this shared, historically conflict-prone list. Every file in the
 # directory is scanned in lexical order on API 23/33/36/37.

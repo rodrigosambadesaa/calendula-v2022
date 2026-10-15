@@ -124,6 +124,7 @@ public class LoginReceiveActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        AuthenticationScreenPrivacy.protectIfConfigured(this);
         setContentView(R.layout.activity_login_receive);
         ButterKnife.bind(this);
 
