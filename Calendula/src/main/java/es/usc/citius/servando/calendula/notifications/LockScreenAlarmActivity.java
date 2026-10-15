@@ -119,8 +119,15 @@ public class LockScreenAlarmActivity extends AppCompatActivity {
         anim = (ImageView) findViewById(R.id.anim_image);
 
         if (getIntent() != null) {
-            target = getIntent().getParcelableExtra("target");
-            LogUtil.d(TAG, "Target " + (target != null));
+            try {
+                target = getIntent().getParcelableExtra("target");
+            } catch (android.os.BadParcelableException | ClassCastException invalidTarget) {
+                // An old/corrupt serialized target must not crash a visible
+                // medication alarm or launch an unrelated clinical screen.
+                target = null;
+                LogUtil.w(TAG, "Ignoring invalid alarm review target");
+            }
+            LogUtil.d(TAG, "Review target available: " + (target != null));
         }
 
         registerFinishReceiver();
