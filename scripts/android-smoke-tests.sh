@@ -48,6 +48,8 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.Provid
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.fragments.HomeBackgroundAssetsSmokeTest"
 # Validate malformed catalog preference recovery on each Android emulator API.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.DrugCatalogSelectionSmokeTest"
+# Verify generic public medication notification on the actual Android API matrix.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.healthcareprovider.notifications.ActiveMedLockscreenPrivacySmokeTest"
 exec ./gradlew connectedCiDebugAndroidTest \
   "-Pandroid.testInstrumentationRunnerArguments.class=${TEST_CLASSES}" \
   --stacktrace --no-daemon
