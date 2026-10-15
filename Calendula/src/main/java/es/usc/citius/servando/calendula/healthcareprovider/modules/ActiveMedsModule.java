@@ -106,18 +106,20 @@ public class ActiveMedsModule extends CalendulaModule {
         }
     }
 
-    private void updateMedication() {
-        final String lastGoodUpdate;
+    /** Testable restoration policy that never schedules or starts network I/O. */
+    static boolean needsOneShotFromSavedPreference(DateTime now) {
         try {
-            lastGoodUpdate = PreferenceUtils.getString(
-                    PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_DATE, "");
+            return shouldScheduleOneShot(PreferenceUtils.getString(
+                    PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_DATE, ""), now);
         } catch (ClassCastException restoredWrongType) {
-            // The last successful sync is unknown. Request a safe refresh,
-            // without logging prior medical timestamps or account details.
-            UpdateMedicationFromServiceJob.scheduleOneShot(false);
-            return;
+            // The last successful sync is unknown; allow safe retry without
+            // logging previous timestamps or patient-identifying details.
+            return true;
         }
-        if (shouldScheduleOneShot(lastGoodUpdate, DateTime.now())) {
+    }
+
+    private void updateMedication() {
+        if (needsOneShotFromSavedPreference(DateTime.now())) {
             UpdateMedicationFromServiceJob.scheduleOneShot(false);
         } else {
             LogUtil.d(TAG, "Official medication sync is recent enough");
