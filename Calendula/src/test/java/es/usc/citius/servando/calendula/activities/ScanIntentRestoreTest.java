@@ -36,4 +36,23 @@ public class ScanIntentRestoreTest {
         assertEquals(-1L, ScanActivity.safeLongExtra(null, "patient_id"));
         assertNull(ScanActivity.safeStringExtra(null, "after_scan_pkg"));
     }
+
+    @Test
+    public void receiverRejectsTokenWhenActivePatientSwitchedAfterScan() {
+        Intent handoff = new Intent()
+                .putExtra(ScanActivity.EXTRA_SCAN_ACTIVE_OWNER, 26L)
+                .putExtra("qr_data", "{\\\"token\\\":\\\"synthetic\\\"}");
+        org.junit.Assert.assertTrue(PatientDetailActivity.hasMatchingScanOwner(handoff, 26L));
+        org.junit.Assert.assertFalse(PatientDetailActivity.hasMatchingScanOwner(handoff, 27L));
+        org.junit.Assert.assertFalse(PatientDetailActivity.hasMatchingScanOwner(handoff, null));
+    }
+
+    @Test
+    public void receiverRejectsMissingOrMalformedOriginatingPatient() {
+        org.junit.Assert.assertFalse(PatientDetailActivity.hasMatchingScanOwner(null, 1L));
+        org.junit.Assert.assertFalse(PatientDetailActivity.hasMatchingScanOwner(
+                new Intent().putExtra("qr_data", "synthetic"), 1L));
+        org.junit.Assert.assertFalse(PatientDetailActivity.hasMatchingScanOwner(
+                new Intent().putExtra(ScanActivity.EXTRA_SCAN_ACTIVE_OWNER, "wrong type"), 1L));
+    }
 }
