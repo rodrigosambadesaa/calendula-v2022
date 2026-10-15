@@ -23,7 +23,7 @@ RULES = {
     "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/PdfViewActivity.java": (
         (r"LogUtil\.\w+\s*\([^\n]*\+\s*(?:url|previewUrl)\b", "provider document URL logged"),
         (r"Finished loading URL:", "legacy clinical document URI log reintroduced"),
-        (r"LogUtil\\.e\\s*\\(\\s*TAG\\s*,[^\\n]*,\\s*e\\s*\\)", "sensitive provider document exception trace logged"),
+        (r"LogUtil\.e\s*\(\s*TAG\s*,[^\n]*,\s*e\s*\)", "sensitive provider document exception trace logged"),
     ),
 }
 
