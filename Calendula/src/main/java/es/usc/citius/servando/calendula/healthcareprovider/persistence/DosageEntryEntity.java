@@ -170,12 +170,14 @@ public class DosageEntryEntity {
 
     @Override
     public String toString() {
+        // Dose text, precise intake times and patient instructions are
+        // medical information. Models can be logged implicitly through
+        // diagnostics and exception formatting.
         return "DosageEntryEntity{" +
-                "id=" + id +
-                ", text='" + text + '\'' +
-                ", repeatType=" + repeatType +
-                ", at=" + at +
-                ", patientInstruction='" + patientInstruction + '\'' +
+                "hasText=" + (text != null) +
+                ", hasRepeatType=" + (repeatType != null) +
+                ", hasTime=" + (at != null) +
+                ", hasPatientInstruction=" + (patientInstruction != null) +
                 '}';
     }
 

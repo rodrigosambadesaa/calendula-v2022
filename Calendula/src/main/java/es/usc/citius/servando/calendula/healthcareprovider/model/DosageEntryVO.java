@@ -123,8 +123,10 @@ public class DosageEntryVO {
 
     @Override
     public String toString() {
+        // Do not recursively print provider dosage entities or private
+        // patient instructions via an ORM-backed view model.
         return "DosageEntryVO{" +
-                "backingEntity=" + backingEntity.toString() +
+                "hasBackingEntity=" + (backingEntity != null) +
                 '}';
     }
 
