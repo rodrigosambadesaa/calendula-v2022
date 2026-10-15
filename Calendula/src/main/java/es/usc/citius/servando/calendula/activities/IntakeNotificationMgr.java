@@ -253,7 +253,7 @@ public class IntakeNotificationMgr {
 
     public static void notify(final Context context, EventReminder reminder, boolean lost) {
 
-        if (!PreferenceUtils.getBoolean(PreferenceKeys.SETTINGS_ALARM_NOTIFICATIONS, true)) {
+        if (!NotificationFlagPolicy.configuredOrDefault(PreferenceKeys.SETTINGS_ALARM_NOTIFICATIONS, true)) {
             return;
         }
 
@@ -427,7 +427,7 @@ public class IntakeNotificationMgr {
     }
 
     private static void showInsistentScreen(Context context, Intent i) {
-        boolean insistentNotifications = PreferenceUtils.getBoolean(PreferenceKeys.SETTINGS_ALARM_INSISTENT, false);
+        boolean insistentNotifications = NotificationFlagPolicy.configuredOrDefault(PreferenceKeys.SETTINGS_ALARM_INSISTENT, false);
         if (insistentNotifications) {
             Intent intent = new Intent(context, LockScreenAlarmActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -440,7 +440,7 @@ public class IntakeNotificationMgr {
                                Pair<Intent, Intent> actionIntents, Intent confirmIntent, Intent intent,
                                NotificationOptions options) {
 
-        boolean notifications = PreferenceUtils.getBoolean(PreferenceKeys.SETTINGS_ALARM_NOTIFICATIONS, true);
+        boolean notifications = NotificationFlagPolicy.configuredOrDefault(PreferenceKeys.SETTINGS_ALARM_NOTIFICATIONS, true);
 
 
         // if notifications are disabled, exit
@@ -497,7 +497,7 @@ public class IntakeNotificationMgr {
     private static Notification buildNotification(Context context, NotificationOptions options) {
 
         Resources res = context.getResources();
-        boolean insistentNotifications = PreferenceUtils.getBoolean(PreferenceKeys.SETTINGS_ALARM_INSISTENT, false);
+        boolean insistentNotifications = NotificationFlagPolicy.configuredOrDefault(PreferenceKeys.SETTINGS_ALARM_INSISTENT, false);
 
         final NotificationCompat.Builder builder = new NotificationCompat.Builder(context, NotificationHelper.CHANNEL_MEDS_ID)
 
