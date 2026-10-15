@@ -407,7 +407,7 @@ public class LeftDrawerMgr implements Drawer.OnDrawerItemClickListener, AccountH
         ArrayList<IProfile> profiles = new ArrayList<>();
 
         for (Patient p : DB.patients().findAll()) {
-            LogUtil.d(TAG, "Adding patient to drawer: " + p.getName());
+            // Names are clinical identifiers; they belong in UI, not Logcat.
             profiles.add(genProfile(p));
         }
 
