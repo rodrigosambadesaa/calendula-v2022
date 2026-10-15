@@ -32,7 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           CLASSES="$(CALENDULA_SMOKE_LIST_ONLY=1 bash scripts/android-smoke-tests.sh)"
-          printf '%s\\n' "$CLASSES" | grep -Fx             'es.usc.citius.servando.calendula.activities.PickupNotificationPrivacySmokeTest'
+          grep -Fx 'es.usc.citius.servando.calendula.activities.PickupNotificationPrivacySmokeTest' <<< "$CLASSES"
 
       - name: Set up JDK 17 for Android SDK tools and Gradle
         uses: actions/setup-java@v6
