@@ -50,4 +50,28 @@ public class OfficialMedicationRefreshTimestampTest {
             assertTrue(ActiveMedsModule.shouldScheduleOneShot(invalid, NOW));
         }
     }
+
+    @Test
+    public void incompatibleSavedTimestampRequestsRefreshWithoutActualScheduling() {
+        try (org.mockito.MockedStatic<es.usc.citius.servando.calendula.util.PreferenceUtils> prefs =
+                     org.mockito.Mockito.mockStatic(
+                             es.usc.citius.servando.calendula.util.PreferenceUtils.class)) {
+            prefs.when(() -> es.usc.citius.servando.calendula.util.PreferenceUtils.getString(
+                    es.usc.citius.servando.calendula.util.PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_DATE,
+                    "")).thenThrow(new ClassCastException("Synthetic restored Boolean"));
+            assertTrue(ActiveMedsModule.needsOneShotFromSavedPreference(NOW));
+        }
+    }
+
+    @Test
+    public void validSavedRecentDatePreservesThrottleWithoutNetwork() {
+        try (org.mockito.MockedStatic<es.usc.citius.servando.calendula.util.PreferenceUtils> prefs =
+                     org.mockito.Mockito.mockStatic(
+                             es.usc.citius.servando.calendula.util.PreferenceUtils.class)) {
+            prefs.when(() -> es.usc.citius.servando.calendula.util.PreferenceUtils.getString(
+                    es.usc.citius.servando.calendula.util.PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_DATE,
+                    "")).thenReturn(NOW.minusMinutes(5).toString());
+            assertFalse(ActiveMedsModule.needsOneShotFromSavedPreference(NOW));
+        }
+    }
 }
