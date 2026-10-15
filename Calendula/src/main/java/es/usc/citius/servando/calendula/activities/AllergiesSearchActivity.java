@@ -175,7 +175,10 @@ public class AllergiesSearchActivity extends CalendulaActivity {
     public boolean askForDatabaseIfNeeded() {
 
         SharedPreferences prefs = PreferenceUtils.instance().preferences();
-        boolean validDB = prefs.getString(PreferenceKeys.DRUGDB_CURRENT_DB.key(), getString(R.string.database_none_id)).equals(getString(R.string.database_aemps_id));
+        String selectedCatalog = es.usc.citius.servando.calendula.drugdb.DrugCatalogPreferencePolicy
+                .selectedIdOrFallback(prefs, PreferenceKeys.DRUGDB_CURRENT_DB.key(),
+                        getString(R.string.database_none_id));
+        boolean validDB = getString(R.string.database_aemps_id).equals(selectedCatalog);
 
         if (!validDB) {
             new MaterialStyledDialog.Builder(this)
