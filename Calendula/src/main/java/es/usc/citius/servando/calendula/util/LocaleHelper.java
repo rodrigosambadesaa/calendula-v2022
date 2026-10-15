@@ -41,7 +41,39 @@ public class LocaleHelper {
     }
 
     public static String getLanguage(Context context, String defaultLang) {
-        return PreferenceUtils.getString(PreferenceKeys.SETTINGS_PREFERRED_LANG, defaultLang);
+        String restored = null;
+        try {
+            restored = PreferenceUtils.getString(PreferenceKeys.SETTINGS_PREFERRED_LANG, defaultLang);
+        } catch (ClassCastException incompatible) {
+            // A restored Integer/Boolean is not a valid locale; it must not
+            // crash every Activity during attachBaseContext.
+        }
+        return supportedLanguageOrFallback(restored, defaultLang);
+    }
+
+    /**
+     * The app stores a language, not an arbitrary user-provided locale tag.
+     * Reject empty and malformed restored values before setting the process
+     * default Locale. Preserve standard two/three-letter system languages.
+     */
+    static String supportedLanguageOrFallback(String saved, String systemLanguage) {
+        if (isLanguageCode(saved)) {
+            return saved;
+        }
+        return isLanguageCode(systemLanguage) ? systemLanguage : "en";
+    }
+
+    private static boolean isLanguageCode(String value) {
+        if (value == null || (value.length() != 2 && value.length() != 3)) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c < 'a' || c > 'z') {
+                return false;
+            }
+        }
+        return true;
     }
 
     public static String getLocaleName(Context c, String locale) {
