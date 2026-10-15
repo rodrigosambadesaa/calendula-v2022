@@ -56,7 +56,7 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.Pickup
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.alerts.StockWarningPreferenceRestoreSmokeTest"
 # Verify restored remote medication status on Android emulators.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.RemoteMedicationPreferenceRestoreSmokeTest"
-# Verify 64-bit reminder action tokens are unique for all patient records.
+# Verify 64-bit medication reminder action token identity.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.ReminderNotification64BitIdentitySmokeTest"
 exec ./gradlew connectedCiDebugAndroidTest \
   "-Pandroid.testInstrumentationRunnerArguments.class=${TEST_CLASSES}" \
