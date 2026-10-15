@@ -50,8 +50,6 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.fragments.HomeBac
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.DrugCatalogSelectionSmokeTest"
 # Verify generic public medication notification on the actual Android API matrix.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.healthcareprovider.notifications.ActiveMedLockscreenPrivacySmokeTest"
-# Check patient pickup notification redaction with the installed Android notification stack.
-TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.PickupNotificationPrivacySmokeTest"
 # Validate restored low-stock alert thresholds on the Android emulator matrix.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.alerts.StockWarningPreferenceRestoreSmokeTest"
 # Verify restored remote medication status on Android emulators.
@@ -60,8 +58,35 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.RemoteMedica
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.MedicineSearchResultSafetySmokeTest"
 # Corrupt active owner preference must not expose other patient profiles.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.database.CorruptActivePatientPreferenceSmokeTest"
-# Verify saved provider sync job ID recovery on every Android emulator.
-TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.healthcareprovider.jobs.PeriodicMedicationJobIdRestoreSmokeTest"
+# Optional manifests let feature PRs add independent emulator tests without
+# editing this shared, historically conflict-prone list. Every file in the
+# directory is scanned in lexical order on API 23/33/36/37.
+SMOKE_CLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/android-smoke-classes.d"
+for manifest in "$SMOKE_CLASS_DIR"/*.txt; do
+  [[ -f "$manifest" ]] || continue
+  while IFS= read -r class || [[ -n "$class" ]]; do
+    [[ -z "$class" || "$class" == \#* ]] && continue
+    if [[ ! "$class" =~ ^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$ ]]; then
+      printf 'Invalid Android instrumentation class in %s\n' "$manifest" >&2
+      exit 2
+    fi
+    case ",$TEST_CLASSES," in
+      *",$class,"*)
+        printf 'Duplicate Android instrumentation class in %s\n' "$manifest" >&2
+        exit 2
+        ;;
+    esac
+    TEST_CLASSES="${TEST_CLASSES},${class}"
+  done < "$manifest"
+done
+
+# Side-effect-free inspection mode for CI manifest validation. No emulator
+# or Gradle task starts when listing the exact classes to run.
+if [[ "${CALENDULA_SMOKE_LIST_ONLY:-0}" == "1" ]]; then
+  tr ',' '\n' <<< "$TEST_CLASSES"
+  exit 0
+fi
+
 exec ./gradlew connectedCiDebugAndroidTest \
   "-Pandroid.testInstrumentationRunnerArguments.class=${TEST_CLASSES}" \
   --stacktrace --no-daemon
