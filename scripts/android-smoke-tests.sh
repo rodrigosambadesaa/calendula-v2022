@@ -50,6 +50,12 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.fragments.HomeBac
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.DrugCatalogSelectionSmokeTest"
 # Verify generic public medication notification on the actual Android API matrix.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.healthcareprovider.notifications.ActiveMedLockscreenPrivacySmokeTest"
+# Check patient pickup notification redaction with the installed Android notification stack.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.PickupNotificationPrivacySmokeTest"
+# Validate restored low-stock alert thresholds on the Android emulator matrix.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.alerts.StockWarningPreferenceRestoreSmokeTest"
+# Verify restored remote medication status on Android emulators.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.RemoteMedicationPreferenceRestoreSmokeTest"
 # Reject malformed restored OAuth callback data on actual Android builds.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.login.OAuthCallbackStateSmokeTest"
 exec ./gradlew connectedCiDebugAndroidTest \
