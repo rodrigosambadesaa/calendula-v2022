@@ -52,7 +52,11 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.DrugCatalogS
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.healthcareprovider.notifications.ActiveMedLockscreenPrivacySmokeTest"
 # Check patient pickup notification redaction with the installed Android notification stack.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.PickupNotificationPrivacySmokeTest"
-# Protect patient-link QR results from active-profile changes during scanning.
+# Validate restored low-stock alert thresholds on the Android emulator matrix.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.alerts.StockWarningPreferenceRestoreSmokeTest"
+# Verify restored remote medication status on Android emulators.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.RemoteMedicationPreferenceRestoreSmokeTest"
+# Refuse scanned patient tokens after active-profile switches.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.PatientLinkScanOwnerSmokeTest"
 exec ./gradlew connectedCiDebugAndroidTest \
   "-Pandroid.testInstrumentationRunnerArguments.class=${TEST_CLASSES}" \

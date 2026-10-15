@@ -228,9 +228,8 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
     }
 
     /**
-     * The scanner is an internal Activity, but its result may reach this
-     * screen after a patient switch or a process-state restore. Revalidate
-     * the original active context at the final secure-token write boundary.
+     * Scan tokens cannot be accepted after the active profile changes.
+     * Revalidate at the final secure-token persistence boundary.
      */
     static boolean hasMatchingScanOwner(Intent request, Long activePatientId) {
         if (request == null) {
@@ -644,10 +643,12 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
 
         @Override
         public String toString() {
+            // Patient names, profile IDs and QR link tokens are all private.
+            // Never render them via default diagnostics or exception logging.
             return "PatientLinkWrapper{" +
-                    "name='" + name + '\'' +
-                    ", id='" + id + '\'' +
-                    ", token=<redacted>" +
+                    "hasName=" + (name != null) +
+                    ", hasId=" + (id != null) +
+                    ", hasToken=" + (token != null) +
                     '}';
         }
     }
