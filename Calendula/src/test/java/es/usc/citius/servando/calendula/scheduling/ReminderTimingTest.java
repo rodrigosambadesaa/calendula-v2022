@@ -46,4 +46,46 @@ public class ReminderTimingTest {
         assertEquals(0, ReminderTiming.parseWindowMinutes("0"));
         assertEquals(120, ReminderTiming.parseWindowMinutes(" 120 "));
     }
+
+    @Test
+    public void wrongTypeWindowPreferenceCannotCrashMedicationScheduling() {
+        try (org.mockito.MockedStatic<es.usc.citius.servando.calendula.util.PreferenceUtils> prefs =
+                     org.mockito.Mockito.mockStatic(
+                             es.usc.citius.servando.calendula.util.PreferenceUtils.class)) {
+            prefs.when(() -> es.usc.citius.servando.calendula.util.PreferenceUtils.getString(
+                    es.usc.citius.servando.calendula.util.PreferenceKeys.SETTINGS_ALARM_REMINDER_WINDOW,
+                    "120")).thenThrow(new ClassCastException("Restored integer"));
+            assertEquals(120, ReminderTiming.windowMinutes());
+        }
+    }
+
+    @Test
+    public void wrongTypeRepeatPreferenceCannotCrashMedicationNotifications() {
+        try (org.mockito.MockedStatic<es.usc.citius.servando.calendula.util.PreferenceUtils> prefs =
+                     org.mockito.Mockito.mockStatic(
+                             es.usc.citius.servando.calendula.util.PreferenceUtils.class)) {
+            prefs.when(() -> es.usc.citius.servando.calendula.util.PreferenceUtils.getString(
+                    es.usc.citius.servando.calendula.util.PreferenceKeys.SETTINGS_ALARM_REPEAT_FREQUENCY,
+                    "15")).thenThrow(new ClassCastException("Restored boolean"));
+            assertEquals(15, ReminderTiming.repeatMinutes());
+            assertEquals(900, ReminderTiming.repeatSeconds());
+        }
+    }
+
+    @Test
+    public void correctlyTypedSavedReminderSettingsKeepTheirUserSpecifiedValues() {
+        try (org.mockito.MockedStatic<es.usc.citius.servando.calendula.util.PreferenceUtils> prefs =
+                     org.mockito.Mockito.mockStatic(
+                             es.usc.citius.servando.calendula.util.PreferenceUtils.class)) {
+            prefs.when(() -> es.usc.citius.servando.calendula.util.PreferenceUtils.getString(
+                    es.usc.citius.servando.calendula.util.PreferenceKeys.SETTINGS_ALARM_REMINDER_WINDOW,
+                    "120")).thenReturn("60");
+            prefs.when(() -> es.usc.citius.servando.calendula.util.PreferenceUtils.getString(
+                    es.usc.citius.servando.calendula.util.PreferenceKeys.SETTINGS_ALARM_REPEAT_FREQUENCY,
+                    "15")).thenReturn("30");
+            assertEquals(60, ReminderTiming.windowMinutes());
+            assertEquals(30, ReminderTiming.repeatMinutes());
+            assertEquals(1800, ReminderTiming.repeatSeconds());
+        }
+    }
 }
