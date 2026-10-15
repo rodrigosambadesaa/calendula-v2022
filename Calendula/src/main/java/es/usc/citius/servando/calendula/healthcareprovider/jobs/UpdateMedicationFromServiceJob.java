@@ -254,6 +254,11 @@ public class UpdateMedicationFromServiceJob extends Job {
                         LogUtil.d(TAG, "Access token refreshed successfully");
                         LogUtil.d(TAG, "AccessTokenExpirationTime: " + new DateTime(authState.getAccessTokenExpirationTime()).toString());
                     }
+                    } catch (RuntimeException failedRefreshState) {
+                        // A callback that cannot persist its new auth state
+                        // must not be reported as a successful sync.
+                        LogUtil.w(TAG, "OAuth callback state update failed");
+                        result.setResult(Status.ERROR_GENERIC);
                     } finally {
                         countDownLatch.countDown();
                     }
