@@ -18,6 +18,7 @@
 
 package es.usc.citius.servando.calendula.settings.notifications
 
+import android.app.Activity
 import android.content.Intent
 import android.media.RingtoneManager
 import android.net.Uri
@@ -54,7 +55,8 @@ class NotificationPrefsPresenter(
 
     override fun onResult(reqCode: Int, result: Int, data: Intent?) {
         LogUtil.d(TAG, "Ringtone picker result received")
-        if ((reqCode == REQ_CODE_INSIST_RINGTONE || reqCode == REQ_CODE_NOTIF_RINGTONE) && data != null) {
+        if ((reqCode == REQ_CODE_INSIST_RINGTONE || reqCode == REQ_CODE_NOTIF_RINGTONE)
+            && result == Activity.RESULT_OK && data != null) {
             val ringtone: Uri? = if (Build.VERSION.SDK_INT >= 33) {
                 data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
             } else {

@@ -183,4 +183,44 @@ class NotificationPrefsPresenterTest {
                     INITIAL_RINGTONE_URI).commit()
         }
     }
+
+    @Test
+    fun cancelWithNonNullPickerIntentMustNotReplaceSavedRingtone() {
+        presenter.onResult(
+            NotificationPrefsPresenter.REQ_CODE_INSIST_RINGTONE,
+            Activity.RESULT_CANCELED,
+            Intent().putExtra(
+                RingtoneManager.EXTRA_RINGTONE_PICKED_URI,
+                Uri.parse(TEST_RINGTONE_URI)
+            )
+        )
+
+        Assert.assertEquals(
+            INITIAL_RINGTONE_URI,
+            PreferenceUtils.getString(
+                PreferenceKeys.SETTINGS_INSISTENT_NOTIFICATION_TONE, ""
+            )
+        )
+        verify(view, never()).setInsistentRingtoneText(kotlinAny<String>())
+    }
+
+    @Test
+    fun unexpectedResultCodeCannotPersistNewRingtone() {
+        presenter.onResult(
+            NotificationPrefsPresenter.REQ_CODE_INSIST_RINGTONE,
+            777,
+            Intent().putExtra(
+                RingtoneManager.EXTRA_RINGTONE_PICKED_URI,
+                Uri.parse(TEST_RINGTONE_URI)
+            )
+        )
+
+        Assert.assertEquals(
+            INITIAL_RINGTONE_URI,
+            PreferenceUtils.getString(
+                PreferenceKeys.SETTINGS_INSISTENT_NOTIFICATION_TONE, ""
+            )
+        )
+        verify(view, never()).setInsistentRingtoneText(kotlinAny<String>())
+    }
 }
