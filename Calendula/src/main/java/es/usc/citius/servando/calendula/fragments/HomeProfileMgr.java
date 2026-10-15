@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Locale;
+import java.util.Random;
 
 import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.R;
@@ -65,6 +66,7 @@ public class HomeProfileMgr {
     public static final String BG_IMAGE_PATTERN = "home_bg_%d.webp";
 
     private static HashMap<String, Integer> cache = new HashMap<>();
+    private static final Random BACKGROUND_RANDOM = new Random();
     int[] moodRes = new int[]{
 //            R.drawable.mood_1,
 //            R.drawable.mood_2,
@@ -90,7 +92,6 @@ public class HomeProfileMgr {
     ListAdapter moodsAdapter;
     ImageView bottomShadow;
     String[] moods;
-    int currentBgFileIdx = 0;
     View profileInfo;
     private Activity context;
     private View rootView;
@@ -126,13 +127,17 @@ public class HomeProfileMgr {
     }
 
     static String getBackgroundPath() {
+        return String.format(Locale.ROOT, BG_IMAGE_PATTERN, savedBackgroundIndex());
+    }
+
+    private static int savedBackgroundIndex() {
         int chosen = 1;
         try {
             chosen = PreferenceUtils.getInt(PreferenceKeys.HOME_PROFILE_BACKGROUND_INDEX, 1);
         } catch (ClassCastException wrongType) {
             // Corrupt restored preference is not a reason to crash the home.
         }
-        return String.format(Locale.ROOT, BG_IMAGE_PATTERN, validBackgroundIndex(chosen));
+        return validBackgroundIndex(chosen);
     }
 
     static int validBackgroundIndex(int candidate) {
@@ -231,15 +236,27 @@ public class HomeProfileMgr {
         monthTv.setText(monthStr);
     }
 
-    public String getRandomBackgroundPath() {
-        int rand = (((int) (Math.random() * 1000)) % BG_COUNT) + 1;
-        if (rand == currentBgFileIdx) {
-            rand = ((rand + 1) % BG_COUNT) + 1;
+    /**
+     * Map one of the seven equally likely choices to all valid backgrounds
+     * except the one currently stored. Never repeat the visible background,
+     * even after an activity/process restart.
+     */
+    static int selectNextBackgroundIndex(int previous, int choice) {
+        if (previous < 1 || previous > BG_COUNT
+                || choice < 0 || choice >= BG_COUNT - 1) {
+            throw new IllegalArgumentException("Invalid background choice");
         }
-        currentBgFileIdx = rand;
-        PreferenceUtils.edit().putInt(PreferenceKeys.HOME_PROFILE_BACKGROUND_INDEX.key(), rand).apply();
-        return String.format(Locale.ROOT, BG_IMAGE_PATTERN, rand);
+        int selected = choice + 1;
+        return selected >= previous ? selected + 1 : selected;
+    }
 
+    public String getRandomBackgroundPath() {
+        int previous = savedBackgroundIndex();
+        int selected = selectNextBackgroundIndex(
+                previous, BACKGROUND_RANDOM.nextInt(BG_COUNT - 1));
+        PreferenceUtils.edit().putInt(
+                PreferenceKeys.HOME_PROFILE_BACKGROUND_INDEX.key(), selected).apply();
+        return String.format(Locale.ROOT, BG_IMAGE_PATTERN, selected);
     }
 
     public void onCollapse() {
