@@ -9,13 +9,13 @@ import android.net.Uri;
 import java.util.Locale;
 
 /** Recover valid local Android ringtone URIs without loading remote content. */
-final class NotificationSoundPolicy {
+public final class NotificationSoundPolicy {
     private static final int MAX_SAVED_TONE_LENGTH = 2048;
 
     private NotificationSoundPolicy() {
     }
 
-    static Uri safeNotificationTone(String stored, Uri fallback) {
+    public static Uri safeNotificationTone(String stored, Uri fallback) {
         if (stored == null || stored.isEmpty()
                 || stored.length() > MAX_SAVED_TONE_LENGTH) {
             return fallback;
