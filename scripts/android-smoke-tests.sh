@@ -44,7 +44,9 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.scheduling.Curren
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.fragments.DailyAgendaPatientIsolationSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.persistence.ScheduleReconciliationSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.ProviderDocumentOwnerSmokeTest"
-# Exercise alarm settings and private broadcast registration on supported Android APIs.
+# Verify every selectable appearance asset really decodes on every supported API.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.fragments.HomeBackgroundAssetsSmokeTest"
+# Preserve baseline instrumented regressions and this branch's safety gate.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.notifications.InsistentAlarmRecoverySmokeTest"
 exec ./gradlew connectedCiDebugAndroidTest \
   "-Pandroid.testInstrumentationRunnerArguments.class=${TEST_CLASSES}" \
