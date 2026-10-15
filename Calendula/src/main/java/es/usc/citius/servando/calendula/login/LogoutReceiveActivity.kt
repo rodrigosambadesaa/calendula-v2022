@@ -37,6 +37,7 @@ class LogoutReceiveActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AuthenticationScreenPrivacy.protectIfConfigured(this)
 
         if (!isExpectedLogoutRedirect(intent)) {
             LogUtil.w(TAG, "Ignoring unexpected external logout redirect")
