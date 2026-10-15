@@ -56,7 +56,7 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.Pickup
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.alerts.StockWarningPreferenceRestoreSmokeTest"
 # Verify restored remote medication status on Android emulators.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.RemoteMedicationPreferenceRestoreSmokeTest"
-# Verify all document viewers disallow private file/content and mixed HTTP access.
+# Ensure medical WebViews cannot access device files or mixed content.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.WebViewAccessPolicySmokeTest"
 exec ./gradlew connectedCiDebugAndroidTest \
   "-Pandroid.testInstrumentationRunnerArguments.class=${TEST_CLASSES}" \
