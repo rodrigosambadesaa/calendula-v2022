@@ -275,6 +275,27 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
         animateAvatarSelectorShow(300);
     }
 
+    /**
+     * Absent patient_id means the existing new-profile flow. A present, wrong-
+     * typed or unparcelable ID is not permission to create or edit a profile.
+     * Only persisted Long route IDs are accepted from the app navigation.
+     */
+    static Long requestedPatientIdOrNull(Intent request) {
+        if (request == null) {
+            return -1L;
+        }
+        try {
+            if (!request.hasExtra("patient_id")) {
+                return -1L;
+            }
+            Bundle extras = request.getExtras();
+            Object raw = extras == null ? null : extras.get("patient_id");
+            return raw instanceof Long ? (Long) raw : null;
+        } catch (RuntimeException malformedRoute) {
+            return null;
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -289,8 +310,14 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
         avatarGrid.setVisibility(View.VISIBLE);
         gridContainer.setVisibility(View.GONE);
 
-        Intent request = getIntent();
-        patientId = request == null ? -1L : request.getLongExtra("patient_id", -1L);
+        // Reject incompatible restored/external IDs before reading any profile.
+        Long requestedPatientId = requestedPatientIdOrNull(getIntent());
+        if (requestedPatientId == null) {
+            LogUtil.w(TAG, "Rejecting invalid patient detail route");
+            finish();
+            return;
+        }
+        patientId = requestedPatientId;
 
         if (patientId != -1) {
             patient = patientId > 0L ? DB.patients().findById(patientId) : null;
