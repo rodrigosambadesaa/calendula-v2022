@@ -235,6 +235,22 @@ public class IntakeNotificationMgr {
                 buildUnverifiedMedicationNotification(context, reminder));
     }
 
+    /**
+     * A legacy or corrupt reminder must never become a notification with
+     * actionable "Taken", "Cancel" or "Delay" controls. In particular, an
+     * unrelated STOCK/PHARMACY event is not a medication intake, and a
+     * nonpersisted patient must not query another patient's clinical rows.
+     */
+    static boolean isVerifiedMedicationReminderIdentity(EventReminder reminder) {
+        return reminder != null && reminder.getId() != null
+                && reminder.getId() > 0L
+                && reminder.getEventType() == EventType.MEDICATION_INTAKE
+                && reminder.getDateTime() != null
+                && reminder.getPatient() != null
+                && reminder.getPatient().getId() != null
+                && reminder.getPatient().getId() > 0L;
+    }
+
     public static void notify(final Context context, EventReminder reminder, boolean lost) {
 
         if (!PreferenceUtils.getBoolean(PreferenceKeys.SETTINGS_ALARM_NOTIFICATIONS, true)) {
@@ -257,8 +273,9 @@ public class IntakeNotificationMgr {
         Patient patient = reminder.getPatient();
         // An unassigned patient cannot be used in ConfirmActivity; do not
         // make it possible to acknowledge an intake from invalid identity.
-        if (patient == null || patient.getId() == null || reminder.getId() == null
-                || dateTime == null) {
+        if (!isVerifiedMedicationReminderIdentity(reminder)) {
+            // Show only the existing generic review notice; never perform a
+            // null/foreign type SQLite lookup or create dose-action buttons.
             alertUnverifiedMedicationData(context, reminder);
             return;
         }
