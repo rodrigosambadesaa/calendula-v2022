@@ -109,15 +109,30 @@ public class LoginReceiveActivity extends AppCompatActivity {
     }
 
 
+    private static final int MAX_SERIALIZED_AUTH_STATE_CHARS = 262144;
+
     static AuthState getAuthStateFromIntent(Intent intent) {
-        if (!intent.hasExtra(EXTRA_AUTH_STATE)) {
-            throw new IllegalArgumentException("The AuthState instance is missing in the intent.");
+        try {
+            if (intent == null || !intent.hasExtra(EXTRA_AUTH_STATE)) {
+                throw new IllegalArgumentException("Missing authorization state");
+            }
+            return parseSavedAuthState(intent.getStringExtra(EXTRA_AUTH_STATE));
+        } catch (RuntimeException invalidExtras) {
+            // Never dump malformed serialized OAuth tokens/extras to Logcat.
+            throw new IllegalArgumentException("Invalid authorization state");
+        }
+    }
+
+    /** Validation common to process recreation and OAuth callback delivery. */
+    static AuthState parseSavedAuthState(String serialized) {
+        if (serialized == null || serialized.isEmpty()
+                || serialized.length() > MAX_SERIALIZED_AUTH_STATE_CHARS) {
+            throw new IllegalArgumentException("Authorization state is missing or oversized");
         }
         try {
-            return AuthState.jsonDeserialize(intent.getStringExtra(EXTRA_AUTH_STATE));
-        } catch (JSONException ex) {
-            AuthLogPolicy.logFailure(TAG, AuthLogPolicy.Failure.STATE_PARSING, ex);
-            throw new IllegalArgumentException("The AuthState instance is missing in the intent.");
+            return AuthState.jsonDeserialize(serialized);
+        } catch (JSONException | RuntimeException invalidJson) {
+            throw new IllegalArgumentException("Malformed authorization state");
         }
     }
 
@@ -138,19 +153,31 @@ public class LoginReceiveActivity extends AppCompatActivity {
         if (savedInstanceState != null) {
             if (savedInstanceState.containsKey(KEY_AUTH_STATE)) {
                 try {
-                    mAuthState = AuthState.jsonDeserialize(
+                    mAuthState = parseSavedAuthState(
                             savedInstanceState.getString(KEY_AUTH_STATE));
-                } catch (JSONException ex) {
-                    AuthLogPolicy.logFailure(TAG, AuthLogPolicy.Failure.STATE_PARSING, ex);
+                } catch (RuntimeException malformedSavedState) {
+                    // Saved process-state is not a credential or a trusted
+                    // session. Fall back to validating the callback Intent.
+                    LogUtil.w(TAG, "Discarding invalid restored OAuth state");
                 }
             }
         }
 
         if (mAuthState == null) {
-            mAuthState = getAuthStateFromIntent(getIntent());
-            AuthorizationResponse response = AuthorizationResponse.fromIntent(getIntent());
-            AuthorizationException ex = AuthorizationException.fromIntent(getIntent());
-            mAuthState.update(response, ex);
+            final AuthorizationResponse response;
+            final AuthorizationException ex;
+            try {
+                mAuthState = getAuthStateFromIntent(getIntent());
+                response = AuthorizationResponse.fromIntent(getIntent());
+                ex = AuthorizationException.fromIntent(getIntent());
+                mAuthState.update(response, ex);
+            } catch (RuntimeException malformedCallback) {
+                // A malformed or stale OAuth redirect must never crash the
+                // app or create a partially authenticated patient session.
+                LogUtil.w(TAG, "Rejecting invalid OAuth callback");
+                onLoginFailed("AUTH_FAILED");
+                return;
+            }
 
             if (response != null) {
                 LogUtil.d(TAG, "Received AuthorizationResponse.");
