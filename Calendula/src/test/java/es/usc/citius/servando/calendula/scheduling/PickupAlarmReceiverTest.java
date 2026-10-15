@@ -40,6 +40,13 @@ public class PickupAlarmReceiverTest {
         assertFalse(PickupAlarmReceiver.isPickupCheck(new Intent()));
         assertFalse(PickupAlarmReceiver.isPickupCheck(new Intent().putExtra(
                 CalendulaApp.INTENT_EXTRA_ACTION, -1)));
+        assertFalse(PickupAlarmReceiver.isPickupCheck(new Intent().putExtra(
+                CalendulaApp.INTENT_EXTRA_ACTION, "corrupt action type")));
+        Intent corruptBundle = org.mockito.Mockito.mock(Intent.class);
+        org.mockito.Mockito.when(corruptBundle.getIntExtra(
+                CalendulaApp.INTENT_EXTRA_ACTION, -1))
+                .thenThrow(new IllegalStateException("Corrupt synthetic extras"));
+        assertFalse(PickupAlarmReceiver.isPickupCheck(corruptBundle));
         assertTrue(PickupAlarmReceiver.isPickupCheck(pickupAction()));
 
         Context context = RuntimeEnvironment.getApplication();
