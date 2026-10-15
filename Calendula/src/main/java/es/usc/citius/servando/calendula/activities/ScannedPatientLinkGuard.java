@@ -34,6 +34,17 @@ final class ScannedPatientLinkGuard {
         return id != null && id > 0L;
     }
 
+    /**
+     * A scanner launched for one active patient must not redirect its QR
+     * result after the user switches profiles while the camera is open.
+     * The target profile can legitimately be different from the active one
+     * when the user is editing another profile's settings.
+     */
+    static boolean isSameActiveContext(Long openedActiveId, Long currentActiveId) {
+        return isValidPatientId(openedActiveId)
+                && openedActiveId.equals(currentActiveId);
+    }
+
     static boolean canDecode(String original) {
         return original != null && !original.isEmpty()
                 && original.length() <= MAX_ENCODED_CHARS;
