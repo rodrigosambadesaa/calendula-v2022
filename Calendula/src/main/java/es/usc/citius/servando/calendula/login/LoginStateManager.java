@@ -116,7 +116,16 @@ public class LoginStateManager {
 
 
             // check if user is the same as last logged in user
-            final String lastUser = PreferenceUtils.getString(PreferenceKeys.LOGIN_LAST_LOGGEDIN_USER, null);
+            final String lastUser;
+            try {
+                lastUser = PreferenceUtils.getString(PreferenceKeys.LOGIN_LAST_LOGGEDIN_USER, null);
+            } catch (ClassCastException invalidLastIdentity) {
+                // An incompatible restored owner is NOT permission to change
+                // remote accounts or erase the old patient's clinical data.
+                // Fail before setActive(), logoutAndClearData() or token writes.
+                LogUtil.w(TAG, "Saved prior login identity has an incompatible type");
+                return LoginResult.FAILURE_EXCEPTION;
+            }
             if (lastUser != null && !lastUser.equals(sub)) {
                 if (force) {
                     logoutAndClearData(ctx);
@@ -255,7 +264,16 @@ public class LoginStateManager {
      * @return <code>true</code> if the login was skipped, <code>false</code> otherwise
      */
     public boolean isLoginSkipped() {
-        return prefs.getBoolean(PreferenceKeys.LOGIN_SKIP_LOGIN.key(), false);
+        return explicitLoginSkipAccepted(prefs);
+    }
+
+    /** A restored wrong-type value never grants permission to skip authentication. */
+    static boolean explicitLoginSkipAccepted(SharedPreferences settings) {
+        try {
+            return settings.getBoolean(PreferenceKeys.LOGIN_SKIP_LOGIN.key(), false);
+        } catch (ClassCastException incompatible) {
+            return false;
+        }
     }
 
     /**
@@ -286,7 +304,12 @@ public class LoginStateManager {
     }
 
     public String getUserId() {
-        return prefs.getString(PreferenceKeys.LOGIN_ID.key(), null);
+        try {
+            return prefs.getString(PreferenceKeys.LOGIN_ID.key(), null);
+        } catch (ClassCastException incompatible) {
+            // Never guess or substitute a different authenticated identity.
+            return null;
+        }
     }
 
     /**
