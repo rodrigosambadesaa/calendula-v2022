@@ -51,7 +51,8 @@ public class PreferenceUtils {
                 appContext = context;
             }
             instance = new PreferenceUtils(PreferenceManager.getDefaultSharedPreferences(appContext));
-            if (!getBoolean(PreferenceKeys.SETTINGS_DEFAULTS_LOADED, false)) {
+            if (needsDefaultInitialization(instance.preferences(),
+                    PreferenceKeys.SETTINGS_DEFAULTS_LOADED.key())) {
                 PreferenceManager.setDefaultValues(appContext, R.xml.pref_main, true);
                 PreferenceManager.setDefaultValues(appContext, R.xml.pref_privacy, true);
                 PreferenceManager.setDefaultValues(appContext, R.xml.pref_database, true);
@@ -69,6 +70,21 @@ public class PreferenceUtils {
         if (instance == null)
             throw new IllegalStateException("PreferenceUtils must be initialized before use!");
         return instance;
+    }
+
+    /**
+     * Imported legacy settings can store the initialization marker as a String
+     * or Integer. This must not crash process startup and prevent medication
+     * alarm recovery. An incompatible marker is equivalent to "not loaded":
+     * Android's default-value installation preserves existing user-set keys.
+     * Only the marker is repaired after the default XML files are processed.
+     */
+    static boolean needsDefaultInitialization(SharedPreferences preferences, String key) {
+        try {
+            return !preferences.getBoolean(key, false);
+        } catch (ClassCastException malformed) {
+            return true;
+        }
     }
 
     public static boolean getBoolean(PreferenceKeys key, boolean defVal) {
