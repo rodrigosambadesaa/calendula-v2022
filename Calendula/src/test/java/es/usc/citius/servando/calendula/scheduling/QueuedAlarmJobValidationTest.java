@@ -18,7 +18,9 @@ import org.robolectric.annotation.Config;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.util.IntentParams;
 
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 
 /** Corrupt queued jobs must not query SQLite or update any clinical data. */
 @RunWith(RobolectricTestRunner.class)
@@ -59,6 +61,50 @@ public class QueuedAlarmJobValidationTest {
             service.onHandleWork(incompatibleAction);
             db.verifyNoInteractions();
             agenda.verifyNoInteractions();
+        }
+    }
+
+    @Test
+    public void validQueuedReminderStillReachesAgendaAfterValidation() {
+        Context context = RuntimeEnvironment.getApplication();
+        AlarmIntentService service = Robolectric.buildService(
+                AlarmIntentService.class).create().get();
+        Agenda agenda = mock(Agenda.class);
+        try (MockedStatic<Agenda> agendaSingleton = mockStatic(Agenda.class)) {
+            agendaSingleton.when(Agenda::instance).thenReturn(agenda);
+            service.onHandleWork(work(context, IntentParams.ACTION_ALARM_REMINDER, 99L));
+            verify(agenda).onReceiveAlarm(service, 99L);
+        }
+    }
+
+    @Test
+    public void validDailyRefreshStillReachesAgendaAfterValidation() {
+        Context context = RuntimeEnvironment.getApplication();
+        AlarmIntentService service = Robolectric.buildService(
+                AlarmIntentService.class).create().get();
+        Agenda agenda = mock(Agenda.class);
+        try (MockedStatic<Agenda> agendaSingleton = mockStatic(Agenda.class)) {
+            agendaSingleton.when(Agenda::instance).thenReturn(agenda);
+            service.onHandleWork(new Intent(context, AlarmIntentService.class)
+                    .putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_DAILY_UPDATE));
+            verify(agenda).onDailyUpdate(service);
+        }
+    }
+
+    @Test
+    public void validQueuedSnoozeKeepsExactlyTheRecordedDoseSnapshot() {
+        Context context = RuntimeEnvironment.getApplication();
+        AlarmIntentService service = Robolectric.buildService(
+                AlarmIntentService.class).create().get();
+        Agenda agenda = mock(Agenda.class);
+        String consent = new String(new char[64]).replace((char) 0, 'b');
+        try (MockedStatic<Agenda> agendaSingleton = mockStatic(Agenda.class)) {
+            agendaSingleton.when(Agenda::instance).thenReturn(agenda);
+            service.onHandleWork(work(context, IntentParams.ACTION_ALARM_DELAY, 123L)
+                    .putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, consent));
+            // Mockito defaults Boolean return values to false, so the
+            // synthetic test does not post a toast or mutate SQLite.
+            verify(agenda).delayReminderWithSnapshot(service, 123L, consent);
         }
     }
 }
