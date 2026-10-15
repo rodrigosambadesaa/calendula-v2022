@@ -32,6 +32,7 @@ import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.drugdb.DBRegistry;
 import es.usc.citius.servando.calendula.drugdb.model.persistence.HomogeneousGroup;
 import es.usc.citius.servando.calendula.drugdb.model.persistence.Prescription;
+import es.usc.citius.servando.calendula.util.DrugCatalogSelection;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
@@ -217,7 +218,7 @@ public class Medicine implements Comparable<Medicine> {
     }
 
     public boolean isBoundToPrescription() {
-        return cn != null && database != null && database.equals(PreferenceUtils.getString(PreferenceKeys.DRUGDB_CURRENT_DB, null));
+        return cn != null && DrugCatalogSelection.isSelected(database);
     }
 
     public Float getStock() {
