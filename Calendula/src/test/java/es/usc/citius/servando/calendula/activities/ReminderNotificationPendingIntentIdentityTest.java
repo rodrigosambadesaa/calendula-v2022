@@ -88,6 +88,11 @@ public class ReminderNotificationPendingIntentIdentityTest {
         IntakeNotificationMgr.identifyNotificationAction(new Intent(), "CONFIRM", 0L);
     }
 
+    @Test(expected = IllegalArgumentException.class)
+    public void unexpectedNotificationButtonKindIsRejected() {
+        IntakeNotificationMgr.identifyNotificationAction(new Intent(), "UNKNOWN", 10L);
+    }
+
     @Test
     public void actionIdentityDoesNotChangeClinicalDispatchExtras() {
         Context context = RuntimeEnvironment.getApplication();
