@@ -34,6 +34,7 @@ import org.joda.time.DateTime;
 import java.io.File;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Patient;
@@ -228,31 +229,56 @@ public class GetExtraInfoFromServiceJob extends Job {
             LogUtil.d(TAG, "refreshTokensIfNeeded: authentication state available");
         }
         if (authState != null && authState.getNeedsTokenRefresh()) {
-            LogUtil.d(TAG, "refreshTokensIfNeeded: refreshing tokens");
-            LogUtil.d(TAG, "AccessTokenExpirationTime: " + new DateTime(authState.getAccessTokenExpirationTime()).toString());
-            final CountDownLatch countDownLatch = new CountDownLatch(1);
-            final AuthorizationService authService = AuthorizationServiceHelper.createAuthorizationService(getContext());
-            authState.performActionWithFreshTokens(authService, additionalParams, new AuthState.AuthStateAction() {
-                @Override
-                public void execute(@Nullable String accessToken, @Nullable String idToken, @Nullable AuthorizationException ex) {
-                    if (ex != null) {
-                        LogUtil.d(TAG, "refreshTokensIfNeeded: refresh failed. Exception: ", ex);
-                        if (ex.code == AuthorizationException.GeneralErrors.NETWORK_ERROR.code)
-                            result.setResult(Status.ERROR_NO_CONNECTION);
-                        else result.setResult(Status.ERROR_AUTHORIZATION);
-                    } else {
-                        LoginStateManager.getInstance().updateAuthState(authState);
-                    }
-                    countDownLatch.countDown();
-                }
-            });
-
-            authService.dispose();
+            LogUtil.d(TAG, "Refreshing authorization before provider document request");
+            final CountDownLatch completion = new CountDownLatch(1);
+            final AtomicBoolean acceptingCallback = new AtomicBoolean(true);
+            final AuthorizationService authService =
+                    AuthorizationServiceHelper.createAuthorizationService(getContext());
             try {
-                countDownLatch.await();
-            } catch (InterruptedException e) {
-                LogUtil.w(TAG, "onRunJob: ", e);
+                authState.performActionWithFreshTokens(
+                        authService, additionalParams, new AuthState.AuthStateAction() {
+                    @Override
+                    public void execute(@Nullable String accessToken, @Nullable String idToken,
+                                        @Nullable AuthorizationException ex) {
+                        if (!acceptingCallback.compareAndSet(true, false)) {
+                            // Late callback from a timed-out or cancelled job.
+                            return;
+                        }
+                        try {
+                            if (ex != null) {
+                                result.setResult(
+                                        ex.code == AuthorizationException.GeneralErrors.NETWORK_ERROR.code
+                                                ? Status.ERROR_NO_CONNECTION
+                                                : Status.ERROR_AUTHORIZATION);
+                            } else if (accessToken == null || accessToken.isEmpty()) {
+                                result.setResult(Status.ERROR_AUTHORIZATION);
+                            } else {
+                                LoginStateManager.getInstance().updateAuthState(authState);
+                            }
+                        } catch (RuntimeException persistenceFailure) {
+                            result.setResult(Status.ERROR_GENERIC);
+                        } finally {
+                            completion.countDown();
+                        }
+                    }
+                });
+                if (!TokenRefreshWaitPolicy.awaitCompletion(
+                        completion, TokenRefreshWaitPolicy.TIMEOUT_SECONDS)) {
+                    acceptingCallback.set(false);
+                    LogUtil.w(TAG, "Provider document token refresh timed out");
+                    result.setResult(Status.ERROR_NO_CONNECTION);
+                }
+            } catch (RuntimeException cannotRefresh) {
+                acceptingCallback.set(false);
+                LogUtil.w(TAG, "Provider document token refresh could not start");
                 result.setResult(Status.ERROR_GENERIC);
+            } finally {
+                acceptingCallback.set(false);
+                try {
+                    authService.dispose();
+                } catch (IllegalArgumentException cleanupFailure) {
+                    LogUtil.w(TAG, "Provider authorization service cleanup failed");
+                }
             }
         } else if (authState != null) {
             LogUtil.d(TAG, "AccessTokenExpirationTime: " + new DateTime(authState.getAccessTokenExpirationTime()).toString());
