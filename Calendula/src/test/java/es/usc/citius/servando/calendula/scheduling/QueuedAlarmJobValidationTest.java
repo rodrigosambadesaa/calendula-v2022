@@ -41,7 +41,7 @@ public class QueuedAlarmJobValidationTest {
         Intent malformedSnapshot = work(context, IntentParams.ACTION_ALARM_CANCEL, 101L)
                 .putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, "not a digest");
         Intent invalidReminder = work(context, IntentParams.ACTION_ALARM_DELAY, -1L)
-                .putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, new String(new char[64]).replace('\u0000', 'a'));
+                .putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, new String(new char[64]).replace((char) 0, 'a'));
         Intent invalidType = work(context, IntentParams.ACTION_ALARM_CONFIRM, 102L)
                 .putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, 7);
         Intent unknown = work(context, "unsupported legacy action", 103L);
