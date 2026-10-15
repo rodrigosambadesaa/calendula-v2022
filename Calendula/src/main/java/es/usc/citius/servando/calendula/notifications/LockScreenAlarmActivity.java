@@ -49,6 +49,7 @@ import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
+import es.usc.citius.servando.calendula.util.SecureWindowPolicy;
 import pl.droidsonroids.gif.GifDrawable;
 
 /**
@@ -108,6 +109,12 @@ public class LockScreenAlarmActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // This activity intentionally extends AppCompatActivity rather than
+        // CalendulaActivity, so it must opt in to the same privacy policy
+        // before its medication reminder view is inflated.
+        if (SecureWindowPolicy.isProtected()) {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        }
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
