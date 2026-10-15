@@ -13,6 +13,12 @@ import es.usc.citius.servando.calendula.notifications.NotificationHelper;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mockStatic;
+import org.mockito.MockedStatic;
+import es.usc.citius.servando.calendula.util.PreferenceUtils;
+import es.usc.citius.servando.calendula.util.PreferenceKeys;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 28)
@@ -34,5 +40,25 @@ public class ActiveMedNotificationPrivacyTest {
                 notification.publicVersion.extras.getString(Notification.EXTRA_TEXT));
         assertEquals(app.getString(R.string.app_name),
                 notification.tickerText.toString());
+    }
+
+    @Test
+    public void wrongTypeSavedInsistentSwitchDefaultsSafely() {
+        try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
+            prefs.when(() -> PreferenceUtils.getBoolean(
+                    PreferenceKeys.SETTINGS_ALARM_INSISTENT, false))
+                    .thenThrow(new ClassCastException("legacy setting"));
+            assertFalse(ActiveMedNotification.configuredInsistentNotifications());
+        }
+    }
+
+    @Test
+    public void validInsistentSwitchRemainsEnabled() {
+        try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
+            prefs.when(() -> PreferenceUtils.getBoolean(
+                    PreferenceKeys.SETTINGS_ALARM_INSISTENT, false))
+                    .thenReturn(true);
+            assertTrue(ActiveMedNotification.configuredInsistentNotifications());
+        }
     }
 }
