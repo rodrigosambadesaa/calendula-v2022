@@ -52,6 +52,22 @@ object StockAlertHandler {
     internal fun parseStockAlertDays(raw: String?): Int = stockWarningDays(raw)
 
     /**
+     * SharedPreferences may restore the threshold as an Integer/Boolean,
+     * throwing before the parser sees the value. A broken setting must not
+     * abort medication persistence or accidentally suppress stock warnings.
+     * An explicit well-typed "-1" remains the only opt-out.
+     */
+    @JvmStatic
+    fun configuredStockWarningDays(): Int = try {
+        stockWarningDays(
+            PreferenceUtils.getString(PreferenceKeys.SETTINGS_STOCK_ALERT_DAYS, "7")
+        )
+    } catch (wrongType: ClassCastException) {
+        7
+    }
+
+
+    /**
      * Do not calculate or clear clinical stock alerts from malformed values.
      * A negative quantity (other than the distinct -1 disabled sentinel),
      * NaN or infinity cannot produce a meaningful stock depletion date.
@@ -92,9 +108,7 @@ object StockAlertHandler {
             return
         }
 
-        val stockAlertPref = stockWarningDays(
-            PreferenceUtils.getString(PreferenceKeys.SETTINGS_STOCK_ALERT_DAYS, "7")
-        )
+        val stockAlertPref = configuredStockWarningDays()
         // Query by persisted owner, not by a caller-supplied medicine with a
         // potentially forged patient. Never delete a cross-patient legacy row.
         val alerts = DB.alerts().findByMedicineAndType(
