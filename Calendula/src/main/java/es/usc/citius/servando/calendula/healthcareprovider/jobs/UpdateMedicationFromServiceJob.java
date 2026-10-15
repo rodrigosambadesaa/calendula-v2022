@@ -36,6 +36,8 @@ import org.joda.time.Duration;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.events.ActiveMedUpdateEvent.Status;
@@ -212,6 +214,21 @@ public class UpdateMedicationFromServiceJob extends Job {
         }
     }
 
+    private static final long TOKEN_REFRESH_TIMEOUT_SECONDS = 90L;
+
+    /**
+     * Bounded, interruptible wait: a stalled OAuth provider must never leave
+     * the medication background job blocked indefinitely.
+     */
+    static boolean awaitTokenRefresh(CountDownLatch completion, long timeoutSeconds) {
+        try {
+            return completion.await(timeoutSeconds, TimeUnit.SECONDS);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
     private Status refreshTokensIfNeeded() {
 
         final RefreshTokensResult result = new RefreshTokensResult();
@@ -230,42 +247,62 @@ public class UpdateMedicationFromServiceJob extends Job {
             LogUtil.d(TAG, "refreshTokensIfNeeded: authentication state available");
         }
         if (authState != null && authState.getNeedsTokenRefresh()) {
-            LogUtil.d(TAG, "refreshTokensIfNeeded: refreshing tokens");
-            LogUtil.d(TAG, "AccessTokenExpirationTime: " + new DateTime(authState.getAccessTokenExpirationTime()).toString());
-            final CountDownLatch countDownLatch = new CountDownLatch(1);
-            final AuthorizationService authService = AuthorizationServiceHelper.createAuthorizationService(getContext());
-            authState.performActionWithFreshTokens(authService, additionalParams, new AuthState.AuthStateAction() {
-                @Override
-                public void execute(@Nullable String accessToken, @Nullable String idToken, @Nullable AuthorizationException ex) {
-                    if (ex != null) {
-                        LogUtil.e(TAG, "refreshTokensIfNeeded: refresh failed. Exception: ", ex);
-                        if(ex.code == AuthorizationException.GeneralErrors.NETWORK_ERROR.code)
-                            result.setResult(Status.ERROR_NO_CONNECTION);
-                        else result.setResult(Status.ERROR_AUTHORIZATION);
-                    } else {
-                        LoginStateManager.getInstance().updateAuthState(authState);
-                        LogUtil.d(TAG, "Access token refreshed successfully");
-                        LogUtil.d(TAG, "AccessTokenExpirationTime: " + new DateTime(authState.getAccessTokenExpirationTime()).toString());
-                    }
-                    countDownLatch.countDown();
-                }
-            });
-
+            LogUtil.d(TAG, "Refreshing expired authorization before remote medication sync");
+            final CountDownLatch completion = new CountDownLatch(1);
+            final AtomicBoolean acceptingCallback = new AtomicBoolean(true);
+            final AuthorizationService authService =
+                    AuthorizationServiceHelper.createAuthorizationService(getContext());
             try {
-                authService.dispose();
-            }
-            catch (IllegalArgumentException ex) {
-                LogUtil.e(TAG, "refreshTokensIfNeeded: failed to dispose authService: ", ex);
-            }
-
-            try{
-                LogUtil.d(TAG, "refreshToken: Blocking JOB.");
-                countDownLatch.await();
-            } catch (InterruptedException e) {
-                LogUtil.w(TAG, "onRunJob: ", e);
+                authState.performActionWithFreshTokens(
+                        authService, additionalParams, new AuthState.AuthStateAction() {
+                    @Override
+                    public void execute(@Nullable String accessToken, @Nullable String idToken,
+                                        @Nullable AuthorizationException ex) {
+                        // A timed-out callback may arrive after logout or a
+                        // patient switch. It must not overwrite newer auth state.
+                        if (!acceptingCallback.compareAndSet(true, false)) {
+                            return;
+                        }
+                        try {
+                            if (ex != null) {
+                                result.setResult(
+                                        ex.code == AuthorizationException.GeneralErrors.NETWORK_ERROR.code
+                                                ? Status.ERROR_NO_CONNECTION
+                                                : Status.ERROR_AUTHORIZATION);
+                            } else if (accessToken == null || accessToken.isEmpty()) {
+                                result.setResult(Status.ERROR_AUTHORIZATION);
+                            } else {
+                                LoginStateManager.getInstance().updateAuthState(authState);
+                                LogUtil.d(TAG, "Access token refresh completed");
+                            }
+                        } catch (RuntimeException failedPersistence) {
+                            // Never claim successful renewal if the secure
+                            // state could not be persisted.
+                            result.setResult(Status.ERROR_GENERIC);
+                        } finally {
+                            completion.countDown();
+                        }
+                    }
+                });
+                if (!awaitTokenRefresh(completion, TOKEN_REFRESH_TIMEOUT_SECONDS)) {
+                    acceptingCallback.set(false);
+                    LogUtil.w(TAG, "Token refresh timed out or was interrupted");
+                    result.setResult(Status.ERROR_NO_CONNECTION);
+                }
+            } catch (RuntimeException cannotRefresh) {
+                acceptingCallback.set(false);
+                LogUtil.w(TAG, "Authorization refresh could not be started");
                 result.setResult(Status.ERROR_GENERIC);
+            } finally {
+                acceptingCallback.set(false);
+                // Do not dispose the service before the asynchronous refresh
+                // has completed or timed out.
+                try {
+                    authService.dispose();
+                } catch (IllegalArgumentException failedDispose) {
+                    LogUtil.w(TAG, "Authorization service cleanup failed");
+                }
             }
-            LogUtil.d(TAG, "refreshToken: JOB unblocked.");
 
         } else if (authState != null) {
             LogUtil.d(TAG, "AccessTokenExpirationTime: " + new DateTime(authState.getAccessTokenExpirationTime()).toString());
