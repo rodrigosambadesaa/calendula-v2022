@@ -444,7 +444,9 @@ public class PdfViewActivity extends CalendulaActivity {
                     hideLoading();
                 }
             }, 200);
-            LogUtil.d(TAG, "Finished loading URL: " + url);
+            // A local PDF preview URL can contain the patient's rendered
+            // document as an encoded data URI. Do not put it in Logcat.
+            LogUtil.d(TAG, "Provider document preview loaded");
         }
 
         @Override
