@@ -37,9 +37,17 @@ public class PickupAlarmReceiver extends BroadcastReceiver {
      * upgrade. Only the explicit pickup-check action may post a notification.
      */
     static boolean isPickupCheck(Intent intent) {
-        return intent != null
-                && intent.getIntExtra(CalendulaApp.INTENT_EXTRA_ACTION, -1)
-                        == CalendulaApp.ACTION_CHECK_PICKUPS_ALARM;
+        if (intent == null) {
+            return false;
+        }
+        try {
+            return intent.getIntExtra(CalendulaApp.INTENT_EXTRA_ACTION, -1)
+                    == CalendulaApp.ACTION_CHECK_PICKUPS_ALARM;
+        } catch (RuntimeException malformed) {
+            // Restored/corrupt extras must never crash an alarm receiver.
+            // Do not log raw Intent data, which could contain private extras.
+            return false;
+        }
     }
 
     @Override
