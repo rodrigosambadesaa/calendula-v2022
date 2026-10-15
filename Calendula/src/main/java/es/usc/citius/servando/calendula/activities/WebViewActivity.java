@@ -316,6 +316,8 @@ public class WebViewActivity extends CalendulaActivity {
     }
 
     private void setupWebView(final WebViewRequest request) {
+        // Apply local-resource restrictions before executing JavaScript or loading a URL.
+        WebViewAccessPolicy.harden(webView.getSettings());
 
         //enable JavaScript if it is explicitly enabled or custom css sheet must be injected
         if (request.isJavaScriptEnabled() || request.getCustomCss() != null) {
@@ -520,11 +522,6 @@ public class WebViewActivity extends CalendulaActivity {
 
     private void enableAppCache() {
         webView.getSettings().setDomStorageEnabled(true);
-        // Remote/cached content does not require direct access to app/device files or
-        // content providers. Keep these capabilities disabled to reduce WebView attack surface.
-        webView.getSettings().setAllowFileAccess(false);
-        webView.getSettings().setAllowContentAccess(false);
-        webView.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         webView.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT);
     }
 
