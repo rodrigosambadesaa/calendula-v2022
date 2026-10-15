@@ -19,6 +19,17 @@ public class PatientLinkScanOwnerSmokeTest {
     }
 
     @Test
+    public void finalPatientDetailScreenRejectsOldScanContext() {
+        Intent result = new Intent()
+                .putExtra(ScanActivity.EXTRA_SCAN_ACTIVE_OWNER, 13L)
+                .putExtra("qr_data", "synthetic");
+        assertTrue(PatientDetailActivity.hasMatchingScanOwner(result, 13L));
+        assertFalse(PatientDetailActivity.hasMatchingScanOwner(result, 14L));
+        assertFalse(PatientDetailActivity.hasMatchingScanOwner(
+                new Intent().putExtra(ScanActivity.EXTRA_SCAN_ACTIVE_OWNER, "13"), 13L));
+    }
+
+    @Test
     public void wrongTypeSavedScanOwnerIsInvalidOnAndroid() {
         Intent wrong = new Intent().putExtra("patient_id", "105");
         assertEquals(-1L, ScanActivity.safeLongExtra(wrong, "patient_id"));
