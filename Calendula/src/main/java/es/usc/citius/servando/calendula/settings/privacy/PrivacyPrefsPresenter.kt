@@ -51,10 +51,9 @@ class PrivacyPrefsPresenter(val fpHelper: FingerprintHelper) :
     }
 
     override fun onResult(request: Int, result: Int, data: Intent?) {
-        LogUtil.d(
-            TAG,
-            "onResult() called with requestCode=$request, result=$result, data=$data"
-        )
+        // This Intent can contain EXTRA_NEW_PIN. Never stringify it, even
+        // in debug builds or exception diagnostics.
+        LogUtil.d(TAG, "PIN settings result received")
 
         if (result == Activity.RESULT_OK && data != null) {
             when (request) {
