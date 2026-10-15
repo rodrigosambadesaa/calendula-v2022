@@ -111,9 +111,15 @@ public class DBRegistry {
     }
 
     public PrescriptionDBMgr current() {
-        String key = settings.getString(PreferenceKeys.DRUGDB_CURRENT_DB.key(), none);
-        LogUtil.d(TAG, "Key: " + key);
-        return (key != null && !key.equals(none) && !key.equals(settingUp)) ? databases.get(key) : defaultDBMgr;
+        String key = DrugCatalogPreferencePolicy.selectedIdOrFallback(
+                settings, PreferenceKeys.DRUGDB_CURRENT_DB.key(), none);
+        // An unknown or discontinued provider is not an initialized catalog.
+        // Do not return null or dump the saved setting to Logcat.
+        if (none.equals(key) || settingUp.equals(key)) {
+            return defaultDBMgr;
+        }
+        return DrugCatalogPreferencePolicy.knownCatalogOrDefault(
+                databases, key, defaultDBMgr);
     }
 
     public PrescriptionDBMgr defaultDBMgr() {
