@@ -217,7 +217,13 @@ public class Medicine implements Comparable<Medicine> {
     }
 
     public boolean isBoundToPrescription() {
-        return cn != null && database != null && database.equals(PreferenceUtils.getString(PreferenceKeys.DRUGDB_CURRENT_DB, null));
+        if (cn == null || database == null) {
+            return false;
+        }
+        String selected = es.usc.citius.servando.calendula.drugdb.DrugCatalogPreferencePolicy
+                .selectedIdOrFallback(PreferenceUtils.instance().preferences(),
+                        PreferenceKeys.DRUGDB_CURRENT_DB.key(), null);
+        return selected != null && database.equals(selected);
     }
 
     public Float getStock() {
