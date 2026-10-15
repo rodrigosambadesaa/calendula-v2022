@@ -92,16 +92,17 @@ public class LockScreenAlarmActivity extends AppCompatActivity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if ((keyCode == KeyEvent.KEYCODE_VOLUME_DOWN)) {
-            // stop sound and vibration if the user
-            // press volume down button
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
             stopPlayingAlarm();
-        } else if ((keyCode == KeyEvent.KEYCODE_VOLUME_UP)) {
-            // restart sound and vibration if the user
-            // press volume down up
-            startPlayingAlarm();
+            return true;
         }
-        return true;
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+            startPlayingAlarm();
+            return true;
+        }
+        // Do not consume Back, keyboard navigation or accessibility input.
+        // Only the two intended volume shortcuts belong to this alarm.
+        return super.onKeyDown(keyCode, event);
     }
 
     @Override
