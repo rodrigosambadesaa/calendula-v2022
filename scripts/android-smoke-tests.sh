@@ -58,7 +58,9 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.alerts.Stock
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.RemoteMedicationPreferenceRestoreSmokeTest"
 # Prevent malformed medicine selection results from mutating the active editor.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.MedicineSearchResultSafetySmokeTest"
-# Verify medication lockscreen alarm recovery with corrupt tone settings.
+# Corrupt active owner preference must not expose other patient profiles.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.database.CorruptActivePatientPreferenceSmokeTest"
+# Verify visible medication reminder survives failed alarm audio and vibration.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.notifications.InsistentAlarmRecoverySmokeTest"
 exec ./gradlew connectedCiDebugAndroidTest \
   "-Pandroid.testInstrumentationRunnerArguments.class=${TEST_CLASSES}" \
