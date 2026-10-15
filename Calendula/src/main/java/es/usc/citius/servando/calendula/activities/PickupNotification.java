@@ -57,7 +57,9 @@ public class PickupNotification {
         style.setBigContentTitle(description);
         //style.setSummaryText("Notification Summary");
 
-        final String ticker = title;
+        // The full details belong to an unlocked, user-approved surface only.
+        // A public lockscreen preview must not contain patient or pickup data.
+        final String ticker = context.getString(R.string.app_name);
 
         PendingIntent defaultIntent = PendingIntent.getActivity(
                 context,
@@ -81,12 +83,28 @@ public class PickupNotification {
                 .setStyle(style)
                 .setVibrate(new long[]{1000, 200, 500, 200, 100, 200, 1000});
 
+        applyLockscreenPrivacy(context, builder);
         Notification n = builder.build();
         n.defaults = 0;
         n.ledARGB = 0x00ffa500;
         n.ledOnMS = 1000;
         n.ledOffMS = 2000;
         notify(context, n);
+    }
+
+    /** App-only lockscreen preview without pickup times, patient or medicine names. */
+    static void applyLockscreenPrivacy(Context context, NotificationCompat.Builder builder) {
+        final String label = context.getString(R.string.app_name);
+        Notification publicVersion = new NotificationCompat.Builder(
+                context, NotificationHelper.CHANNEL_DEFAULT_ID)
+                .setSmallIcon(R.drawable.ic_event_available_white_48dp)
+                .setContentTitle(label)
+                .setContentText(label)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .build();
+        builder.setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+                .setPublicVersion(publicVersion)
+                .setTicker(label);
     }
 
     /**

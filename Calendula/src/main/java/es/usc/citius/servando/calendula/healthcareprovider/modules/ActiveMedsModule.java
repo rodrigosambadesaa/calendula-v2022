@@ -87,23 +87,42 @@ public class ActiveMedsModule extends CalendulaModule {
         }
     }
 
-    private void updateMedication() {
-        final String lastGoodUpdate = PreferenceUtils.getString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_DATE, "");
+    /**
+     * A restored/legacy timestamp must never suppress official treatment
+     * refreshes indefinitely. Future dates (for example after a wall clock
+     * rollback), missing dates and malformed values all require a retry.
+     * The normal 30-minute throttling remains unchanged.
+     */
+    static boolean shouldScheduleOneShot(String savedDate, DateTime now) {
+        if (TextUtils.isEmpty(savedDate)) {
+            return true;
+        }
         try {
-            if (!TextUtils.isEmpty(lastGoodUpdate)) {
-                final DateTime lastGoodUpdateTime = DateTime.parse(lastGoodUpdate);
-                Duration diff = new Duration(lastGoodUpdateTime, DateTime.now());
-                if (diff.isLongerThan(MIN_UPDATE_INTERVAL)) {
-                    UpdateMedicationFromServiceJob.scheduleOneShot(false);
-                } else {
-                    LogUtil.d(TAG, "updateMedication: update date is recent enough to not update again yet");
-                }
-            } else {
-                UpdateMedicationFromServiceJob.scheduleOneShot(false);
-            }
-        } catch (Exception e) {
-            LogUtil.e(TAG, "updateMedication: ", e);
+            DateTime lastSuccess = DateTime.parse(savedDate);
+            return lastSuccess.isAfter(now)
+                    || new Duration(lastSuccess, now).isLongerThan(MIN_UPDATE_INTERVAL);
+        } catch (IllegalArgumentException invalidDate) {
+            return true;
+        }
+    }
+
+    /** Testable restoration policy that never schedules or starts network I/O. */
+    static boolean needsOneShotFromSavedPreference(DateTime now) {
+        try {
+            return shouldScheduleOneShot(PreferenceUtils.getString(
+                    PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_DATE, ""), now);
+        } catch (ClassCastException restoredWrongType) {
+            // The last successful sync is unknown; allow safe retry without
+            // logging previous timestamps or patient-identifying details.
+            return true;
+        }
+    }
+
+    private void updateMedication() {
+        if (needsOneShotFromSavedPreference(DateTime.now())) {
             UpdateMedicationFromServiceJob.scheduleOneShot(false);
+        } else {
+            LogUtil.d(TAG, "Official medication sync is recent enough");
         }
     }
 }

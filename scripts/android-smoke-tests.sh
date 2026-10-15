@@ -46,7 +46,17 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.persistence.Sched
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.ProviderDocumentOwnerSmokeTest"
 # Verify every selectable appearance asset really decodes on every supported API.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.fragments.HomeBackgroundAssetsSmokeTest"
-# Preserve baseline instrumented regressions and this branch's safety gate.
+# Validate malformed catalog preference recovery on each Android emulator API.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.DrugCatalogSelectionSmokeTest"
+# Verify generic public medication notification on the actual Android API matrix.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.healthcareprovider.notifications.ActiveMedLockscreenPrivacySmokeTest"
+# Check patient pickup notification redaction with the installed Android notification stack.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.PickupNotificationPrivacySmokeTest"
+# Validate restored low-stock alert thresholds on the Android emulator matrix.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.alerts.StockWarningPreferenceRestoreSmokeTest"
+# Verify restored remote medication status on Android emulators.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.RemoteMedicationPreferenceRestoreSmokeTest"
+# Verify insistent alarm resilience and receiver isolation on real Android.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.notifications.InsistentAlarmRecoverySmokeTest"
 exec ./gradlew connectedCiDebugAndroidTest \
   "-Pandroid.testInstrumentationRunnerArguments.class=${TEST_CLASSES}" \
