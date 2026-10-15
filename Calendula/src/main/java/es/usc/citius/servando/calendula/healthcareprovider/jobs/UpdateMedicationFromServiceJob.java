@@ -36,7 +36,6 @@ import org.joda.time.Duration;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import es.usc.citius.servando.calendula.database.DB;
@@ -214,21 +213,6 @@ public class UpdateMedicationFromServiceJob extends Job {
         }
     }
 
-    private static final long TOKEN_REFRESH_TIMEOUT_SECONDS = 90L;
-
-    /**
-     * Bounded, interruptible wait: a stalled OAuth provider must never leave
-     * the medication background job blocked indefinitely.
-     */
-    static boolean awaitTokenRefresh(CountDownLatch completion, long timeoutSeconds) {
-        try {
-            return completion.await(timeoutSeconds, TimeUnit.SECONDS);
-        } catch (InterruptedException interrupted) {
-            Thread.currentThread().interrupt();
-            return false;
-        }
-    }
-
     private Status refreshTokensIfNeeded() {
 
         final RefreshTokensResult result = new RefreshTokensResult();
@@ -284,7 +268,7 @@ public class UpdateMedicationFromServiceJob extends Job {
                         }
                     }
                 });
-                if (!awaitTokenRefresh(completion, TOKEN_REFRESH_TIMEOUT_SECONDS)) {
+                if (!TokenRefreshWaitPolicy.awaitCompletion(completion, TokenRefreshWaitPolicy.TIMEOUT_SECONDS)) {
                     acceptingCallback.set(false);
                     LogUtil.w(TAG, "Token refresh timed out or was interrupted");
                     result.setResult(Status.ERROR_NO_CONNECTION);
