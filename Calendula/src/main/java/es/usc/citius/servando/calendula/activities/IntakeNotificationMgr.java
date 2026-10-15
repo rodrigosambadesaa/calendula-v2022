@@ -82,8 +82,11 @@ public class IntakeNotificationMgr {
      * the snapshot instead of leaking fresh random PendingIntents.
      */
     static Intent identifyNotificationAction(Intent intent, String buttonKind, long reminderId) {
-        if (intent == null || reminderId <= 0L || buttonKind == null || buttonKind.isEmpty()) {
-            throw new IllegalArgumentException("A distinct notification action is required");
+        if (intent == null || reminderId <= 0L
+                || !("OPEN".equals(buttonKind) || "DELAY".equals(buttonKind)
+                || "CANCEL".equals(buttonKind) || "CONFIRM".equals(buttonKind)
+                || "REVIEW".equals(buttonKind))) {
+            throw new IllegalArgumentException("A valid reminder action identity is required");
         }
         intent.setAction(PENDING_ACTION_PREFIX + buttonKind);
         intent.setData(Uri.parse("calendula-reminder://notification/"
