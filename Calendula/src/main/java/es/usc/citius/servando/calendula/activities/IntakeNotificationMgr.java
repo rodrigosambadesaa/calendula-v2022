@@ -81,11 +81,13 @@ public class IntakeNotificationMgr {
      * ID as the request code, so updating an existing notification refreshes
      * the snapshot instead of leaking fresh random PendingIntents.
      */
-    static Intent identifyNotificationAction(Intent intent, String buttonKind) {
-        if (intent == null || buttonKind == null || buttonKind.isEmpty()) {
+    static Intent identifyNotificationAction(Intent intent, String buttonKind, long reminderId) {
+        if (intent == null || reminderId <= 0L || buttonKind == null || buttonKind.isEmpty()) {
             throw new IllegalArgumentException("A distinct notification action is required");
         }
         intent.setAction(PENDING_ACTION_PREFIX + buttonKind);
+        intent.setData(Uri.parse("calendula-reminder://notification/"
+                + reminderId + "/" + buttonKind));
         return intent;
     }
 
