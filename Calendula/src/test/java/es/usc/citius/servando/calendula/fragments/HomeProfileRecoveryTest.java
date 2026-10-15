@@ -60,4 +60,37 @@ public class HomeProfileRecoveryTest {
         assertEquals("My profile", HomeProfileMgr.validDisplayName(
                 "My profile", "Calendula"));
     }
+
+    @Test
+    public void everyBackgroundCanFollowAnyOtherWithoutRepetitionOrBias() {
+        for (int previous = 1; previous <= HomeProfileMgr.BG_COUNT; previous++) {
+            boolean[] visited = new boolean[HomeProfileMgr.BG_COUNT + 1];
+            for (int choice = 0; choice < HomeProfileMgr.BG_COUNT - 1; choice++) {
+                int selected = HomeProfileMgr.selectNextBackgroundIndex(previous, choice);
+                org.junit.Assert.assertNotEquals(previous, selected);
+                org.junit.Assert.assertTrue(selected >= 1
+                        && selected <= HomeProfileMgr.BG_COUNT);
+                org.junit.Assert.assertFalse("Each alternative must be selected once",
+                        visited[selected]);
+                visited[selected] = true;
+            }
+            for (int alternate = 1; alternate <= HomeProfileMgr.BG_COUNT; alternate++) {
+                if (alternate != previous) {
+                    org.junit.Assert.assertTrue(
+                            "Every alternative must be reachable: " + alternate,
+                            visited[alternate]);
+                }
+            }
+        }
+    }
+
+    @Test
+    public void outOfRangeRandomChoiceCannotSelectNonexistentAsset() {
+        org.junit.Assert.assertThrows(IllegalArgumentException.class,
+                () -> HomeProfileMgr.selectNextBackgroundIndex(1, -1));
+        org.junit.Assert.assertThrows(IllegalArgumentException.class,
+                () -> HomeProfileMgr.selectNextBackgroundIndex(1, HomeProfileMgr.BG_COUNT - 1));
+        org.junit.Assert.assertThrows(IllegalArgumentException.class,
+                () -> HomeProfileMgr.selectNextBackgroundIndex(0, 0));
+    }
 }
