@@ -74,6 +74,26 @@ public class NetworkUtilsTest {
     }
 
     @Test
+    public void unexpectedActiveProbeFailureFailsClosedWithoutStartingDns() throws Exception {
+        NetworkFixture fixture = connectedWifi();
+        NetworkUtils.ActiveInternetProbe activeProbe =
+                mock(NetworkUtils.ActiveInternetProbe.class);
+        NetworkUtils.BackendHostResolver resolver =
+                mock(NetworkUtils.BackendHostResolver.class);
+
+        // Real device connectivity may change between the route snapshot and
+        // the active probe, including throwing from a vendor network stack.
+        when(activeProbe.isReachable(fixture.context))
+                .thenThrow(new IllegalStateException("transient network state"));
+
+        assertFalse(NetworkUtils.isBackendAvailable(
+                fixture.context, BACKEND_URL, activeProbe, resolver));
+
+        verify(activeProbe).isReachable(fixture.context);
+        verifyNoMoreInteractions(resolver);
+    }
+
+    @Test
     public void backendDnsFailurePreventsGateFromOpening() throws Exception {
         NetworkFixture fixture = connectedWifi();
         NetworkUtils.ActiveInternetProbe activeProbe =
