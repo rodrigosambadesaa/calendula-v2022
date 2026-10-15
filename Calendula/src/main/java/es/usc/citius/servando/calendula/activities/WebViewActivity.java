@@ -100,6 +100,66 @@ public class WebViewActivity extends CalendulaActivity {
     private String originalUrl;
     private String url;
     private String preflightApprovedUrl;
+    private Long openedPatientId;
+
+    /** Prevent a document opened by one patient from outliving their session. */
+    private boolean sameOpeningPatient() {
+        if (openedPatientId == null || openedPatientId <= 0L) {
+            return false;
+        }
+        try {
+            Patient active = DB.patients().getActive(this);
+            return ProviderDocumentGuard.samePatient(openedPatientId,
+                    active == null ? null : active.getId());
+        } catch (RuntimeException unavailableDatabase) {
+            return false;
+        }
+    }
+
+    private boolean rejectChangedPatient() {
+        if (sameOpeningPatient()) {
+            return false;
+        }
+        if (webView != null) {
+            webView.setVisibility(View.INVISIBLE);
+            webView.stopLoading();
+            webView.removeJavascriptInterface("HtmlCache");
+        }
+        finish();
+        return true;
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (openedPatientId != null) {
+            rejectChangedPatient();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        // A finished leaflet viewer must not retain an Activity through its
+        // JS bridge, WebView callbacks or delayed patient-specific rendering.
+        if (handler != null) {
+            handler.removeCallbacksAndMessages(null);
+        }
+        if (webView != null) {
+            webView.stopLoading();
+            webView.removeJavascriptInterface("HtmlCache");
+            webView.setWebViewClient(null);
+            if (webView.getParent() instanceof android.view.ViewGroup) {
+                ((android.view.ViewGroup) webView.getParent()).removeView(webView);
+            }
+            webView.destroy();
+            webView = null;
+        }
+        if (loadingDialog != null) {
+            loadingDialog.dismiss();
+            loadingDialog = null;
+        }
+        super.onDestroy();
+    }
 
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -138,6 +198,7 @@ public class WebViewActivity extends CalendulaActivity {
                 finish();
                 return;
             }
+            openedPatientId = active.getId();
             color = active.getColor();
             String title = request.getTitle();
             setupToolbar(title, color);
@@ -285,7 +346,7 @@ public class WebViewActivity extends CalendulaActivity {
         if (needsHtmlAccess(request)) {
             webView.addJavascriptInterface(new SimpleJSCacheInterface(this), "HtmlCache");
         } else {
-            cachedData = HtmlCacheManager.getInstance().get(originalUrl);
+            cachedData = HtmlCacheManager.getInstance().getForPatient(openedPatientId, originalUrl);
         }
 
         LogUtil.d(TAG, "setupWebView: Setting WebViewClient");
@@ -325,6 +386,9 @@ public class WebViewActivity extends CalendulaActivity {
             String targetUrl,
             WebViewRequest webRequest,
             boolean available) {
+        if (rejectChangedPatient()) {
+            return;
+        }
         if (available) {
             // The approval only exists while this programmatic loadUrl call is
             // executing. If WebView does not synchronously invoke the navigation
@@ -391,7 +455,7 @@ public class WebViewActivity extends CalendulaActivity {
     }
 
     private boolean isCached() {
-        return HtmlCacheManager.getInstance().isCached(url);
+        return HtmlCacheManager.getInstance().isCachedForPatient(openedPatientId, url);
     }
 
     static byte[] readFully(InputStream inputStream) throws IOException {
@@ -505,6 +569,9 @@ public class WebViewActivity extends CalendulaActivity {
         }
 
         private boolean handleTopLevelNavigation(String targetUrl, Uri targetUri) {
+            if (rejectChangedPatient()) {
+                return true;
+            }
             if (WebViewNavigationPolicy.isWebViewLocalUrl(targetUrl)) {
                 return false;
             }
@@ -572,7 +639,9 @@ public class WebViewActivity extends CalendulaActivity {
 
         @Override
         public void onPageFinished(WebView view, String url) {
-
+            if (rejectChangedPatient()) {
+                return;
+            }
             pageLoaded = true;
             final String pageTitle = view.getTitle();
             if (loadError || (pageTitle != null && pageTitle.matches(HTTP_ERROR_REGEXP))) {
@@ -596,6 +665,9 @@ public class WebViewActivity extends CalendulaActivity {
                     handler.postDelayed(new Runnable() {
                         @Override
                         public void run() {
+                            if (rejectChangedPatient()) {
+                                return;
+                            }
                             webView.setVisibility(View.VISIBLE);
                             hideLoading();
                         }
@@ -634,6 +706,28 @@ public class WebViewActivity extends CalendulaActivity {
         }
     }
 
+    /**
+     * The provider HTML bridge runs off the UI thread. On processing failure,
+     * never fall back to loading the raw provider page as trusted local HTML:
+     * the sanitation stage must complete successfully before rendering.
+     */
+    private void rejectUnsafeLeafletHtml() {
+        handler.post(() -> {
+            if (isFinishing() || isDestroyed() || rejectChangedPatient()) {
+                return;
+            }
+            LogUtil.w(TAG, "Embedded leaflet HTML validation failed");
+            if (webView != null) {
+                webView.stopLoading();
+                webView.removeJavascriptInterface("HtmlCache");
+                webView.setVisibility(View.INVISIBLE);
+            }
+            hideLoading();
+            showErrorToast(null);
+            finish();
+        });
+    }
+
     private class SimpleJSCacheInterface {
         private Context ctx;
 
@@ -643,38 +737,56 @@ public class WebViewActivity extends CalendulaActivity {
 
         @JavascriptInterface
         public void writeToCache(String html) {
-
-            final Duration ttl = request.getCacheTTL(); //can  be null
-            String processed = null;
-            // if there is a postprocessor enabled
-            if (request.needsPostprocessing()) {
-                // instantiate postprocessor
-                try {
-                    HtmlPostprocessor processor = (HtmlPostprocessor) Class.forName(request.getPostProcessorClassname()).newInstance();
-                    // get processed html
-                    processed = processor.process(html);
-                    // save it to cache if needed
-                    if (request.getCacheType().equals(WebViewRequest.CacheType.DOWNLOAD_CACHE)) {
-                        HtmlCacheManager.getInstance().put(originalUrl, processed, ttl);
-                    }
-
-                } catch (Exception e) {
-                    LogUtil.e(TAG, "Embedded web document postprocessing failed");
-                }
+            // JavascriptInterface callbacks run on a worker, not the UI thread.
+            // Never persist HTML from a previous patient after account switch.
+            if (isFinishing() || isDestroyed() || !sameOpeningPatient()) {
+                return;
             }
-            // in other case, simply write html content to cache
-            else if (request.getCacheType().equals(WebViewRequest.CacheType.DOWNLOAD_CACHE)) {
-                HtmlCacheManager.getInstance().put(url, html, ttl);
+            // Check before parsing: Jsoup's DOM can multiply memory usage
+            // several-fold. Invalid pages must never reach a local WebView.
+            if (!ProviderHtmlGuard.isBoundedHtml(html)) {
+                rejectUnsafeLeafletHtml();
+                return;
+            }
+            final Duration ttl = request.getCacheTTL(); // may be null
+            String processed = null;
+            if (request.needsPostprocessing()) {
+                try {
+                    HtmlPostprocessor processor = (HtmlPostprocessor) Class
+                            .forName(request.getPostProcessorClassname()).newInstance();
+                    processed = ProviderHtmlGuard.processOrNull(html, processor::process);
+                } catch (ReflectiveOperationException | ClassCastException invalidProcessor) {
+                    LogUtil.w(TAG, "Unable to initialize leaflet HTML sanitizer");
+                }
+                if (processed == null) {
+                    // NEVER display raw input when the requested sanitizer
+                    // cannot produce a bounded, valid sanitized document.
+                    rejectUnsafeLeafletHtml();
+                    return;
+                }
+                if (request.getCacheType().equals(WebViewRequest.CacheType.DOWNLOAD_CACHE)
+                        && !isFinishing() && !isDestroyed() && sameOpeningPatient()) {
+                    HtmlCacheManager.getInstance().putForPatient(openedPatientId, originalUrl, processed, ttl);
+                }
+            } else if (request.getCacheType().equals(WebViewRequest.CacheType.DOWNLOAD_CACHE)
+                    && !isFinishing() && !isDestroyed() && sameOpeningPatient()) {
+                HtmlCacheManager.getInstance().putForPatient(openedPatientId, url, html, ttl);
             }
 
             final String finalHtml = processed != null ? processed : html;
             handler.post(new Runnable() {
                 @Override
                 public void run() {
+                    if (rejectChangedPatient()) {
+                        return;
+                    }
                     webView.removeJavascriptInterface("HtmlCache");
                     webView.setWebViewClient(new CustomWebViewClient(request) {
                                                  @Override
                                                  public void onPageFinished(WebView view, String url) {
+                                                     if (rejectChangedPatient()) {
+                                                         return;
+                                                     }
                                                      pageLoaded = true;
                                                      if (customCssSheets != null) {
                                                          injectCSS(customCssSheets, request.getCustomCssOverrides());
@@ -684,6 +796,9 @@ public class WebViewActivity extends CalendulaActivity {
                                                      handler.postDelayed(new Runnable() {
                                                          @Override
                                                          public void run() {
+                                                             if (rejectChangedPatient()) {
+                                                                 return;
+                                                             }
                                                              webView.setVisibility(View.VISIBLE);
                                                              webView.getSettings().setJavaScriptEnabled(request.isJavaScriptEnabled());
                                                              hideLoading();

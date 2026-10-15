@@ -30,6 +30,7 @@ import com.github.javiersantos.materialstyleddialogs.MaterialStyledDialog
 import com.mikepenz.community_material_typeface_library.CommunityMaterial
 import com.mikepenz.iconics.IconicsDrawable
 import es.usc.citius.servando.calendula.R
+import es.usc.citius.servando.calendula.login.AuthenticationScreenPrivacy
 import es.usc.citius.servando.calendula.login.LoginActivity
 import es.usc.citius.servando.calendula.pinlock.PINManager
 import es.usc.citius.servando.calendula.pinlock.PinLockActivity
@@ -50,6 +51,7 @@ class StartActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AuthenticationScreenPrivacy.protectIfConfigured(this)
         alertIcon = IconicsDrawable(this)
             .icon(CommunityMaterial.Icon2.cmd_security)
             .colorRes(R.color.white)
@@ -69,9 +71,9 @@ class StartActivity : Activity() {
                 return false
             }
             VerificationResult.Level.SECURITY_WARNING -> {
-                if (!PreferenceUtils.instance().preferences().getBoolean(
-                        PREF_VULNERABILITY_WARNING_ACCEPTED,
-                        false
+                if (!StartupSecurityWarningPolicy.wasAccepted(
+                        PreferenceUtils.instance().preferences(),
+                        PREF_VULNERABILITY_WARNING_ACCEPTED
                     )) {
                     showWarningEnvironmentMsg(result)
                     return false

@@ -48,4 +48,17 @@ class RingtoneNameResolverTest {
             resolver.resolveRingtoneName(null)
         )
     }
+
+    @Test
+    fun removedOrInaccessibleRingtoneFallsBackToGenericName() {
+        val unavailable = ApplicationProvider.getApplicationContext<Context>()
+            .getString(R.string.ringtone_none)
+        Assert.assertEquals(unavailable, resolver.resolvedTitleSafely { null })
+        Assert.assertEquals(unavailable, resolver.resolvedTitleSafely { "" })
+        Assert.assertEquals(unavailable, resolver.resolvedTitleSafely { "   " })
+        Assert.assertEquals(unavailable, resolver.resolvedTitleSafely {
+            throw SecurityException("Synthetic media permission denial")
+        })
+        Assert.assertEquals("Existing tone", resolver.resolvedTitleSafely { "Existing tone" })
+    }
 }

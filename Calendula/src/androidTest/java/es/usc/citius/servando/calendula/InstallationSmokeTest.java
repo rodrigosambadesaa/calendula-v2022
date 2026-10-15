@@ -259,13 +259,16 @@ public class InstallationSmokeTest {
     }
 
     @Test
-    public void onlyTheLegacyDatabaseDomainCanUseCleartext() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
-            return; // Host-specific network security policies are not supported.
-        }
+    public void retiredDatabaseOriginAndAllOtherHostsRejectCleartext() {
         NetworkSecurityPolicy policy = NetworkSecurityPolicy.getInstance();
-        assertTrue(policy.isCleartextTrafficPermitted("tec.citius.usc.es"));
-        assertFalse(policy.isCleartextTrafficPermitted("example.org"));
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+            // Android 6 honors android:usesCleartextTraffic; per-host
+            // network-security-config enforcement only starts in Android 7.
+            assertFalse(policy.isCleartextTrafficPermitted());
+        } else {
+            assertFalse(policy.isCleartextTrafficPermitted("tec.citius.usc.es"));
+            assertFalse(policy.isCleartextTrafficPermitted("example.org"));
+        }
     }
 
     @Test

@@ -614,10 +614,12 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
 
         @Override
         public String toString() {
+            // Patient names, profile IDs and QR link tokens are all private.
+            // Never render them via default diagnostics or exception logging.
             return "PatientLinkWrapper{" +
-                    "name='" + name + '\'' +
-                    ", id='" + id + '\'' +
-                    ", token=<redacted>" +
+                    "hasName=" + (name != null) +
+                    ", hasId=" + (id != null) +
+                    ", hasToken=" + (token != null) +
                     '}';
         }
     }

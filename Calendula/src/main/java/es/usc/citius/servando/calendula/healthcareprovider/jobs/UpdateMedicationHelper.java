@@ -12,6 +12,7 @@ import androidx.core.app.TaskStackBuilder;
 import org.hl7.fhir.dstu3.model.MessageHeader;
 import org.hl7.fhir.dstu3.model.OperationOutcome;
 import org.joda.time.DateTime;
+import net.openid.appauth.AuthState;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -42,6 +43,7 @@ import es.usc.citius.servando.calendula.util.GsonUtil;
 import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.NetworkUtils;
 import es.usc.citius.servando.calendula.util.PendingIntentFlags;
+import es.usc.citius.servando.calendula.util.RemoteMedicationPreferenceReader;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
@@ -51,6 +53,17 @@ public class UpdateMedicationHelper {
     private static final String TAG = "UpdateMedicationHelper";
 
     private static Random random = new Random();
+
+    /**
+     * The logged-in preference and the persisted OAuth state are independent.
+     * After logout, restore or a torn preference update, a logged-in flag may
+     * briefly coexist with absent or corrupt credentials. Never dereference
+     * that absent AuthState or make a provider call with an empty access token.
+     */
+    static boolean hasUsableAccessToken(AuthState state) {
+        return state != null && state.getAccessToken() != null
+                && !state.getAccessToken().trim().isEmpty();
+    }
 
     @NonNull
     public static Status checkForUpdates(final Context ctx) {
@@ -62,7 +75,7 @@ public class UpdateMedicationHelper {
             return Status.ERROR_NO_USER_OR_DB;
         } else if (!NetworkUtils.isNetworkAvailable(ctx)) {
             return Status.ERROR_NO_CONNECTION;
-        } else if (LoginStateManager.getInstance().getCurrentAuthState().getAccessToken() == null) {
+        } else if (!hasUsableAccessToken(LoginStateManager.getInstance().getCurrentAuthState())) {
             // user is logged in but has not an access token
             // force login next time the user opens the app
             return Status.ERROR_AUTHORIZATION;
@@ -70,7 +83,7 @@ public class UpdateMedicationHelper {
 
             notifyStatusUpdate(Status.UPDATE_START);
 
-            final String lastHash = PreferenceUtils.getString(PreferenceKeys.REMOTE_LAST_HASH, null);
+            final String lastHash = RemoteMedicationPreferenceReader.lastRevisionOrNull();
             try {
                 // do call and parse active meds
                 final ResponseVO responseVO = RemoteQueryManager.instance().checkForActiveMeds(lastHash);
@@ -84,7 +97,21 @@ public class UpdateMedicationHelper {
                         if (isNoChanges(responseVO)) {
                             LogUtil.d(TAG, "onRunJob: received unchanged response from server");
                         } else {
-                            final String newHash = responseVO.getHeader().getResponse().getIdentifier() + (BuildConfig.DEBUG ? random.nextInt() : "");
+                            // A provider response without its real revision
+                            // identifier is not a safe import. Concatenating a
+                            // null String to the debug suffix would otherwise
+                            // manufacture "null123" and mark its clinical data
+                            // as a successfully installed update.
+                            final String revision = responseVO.getHeader() == null
+                                    || responseVO.getHeader().getResponse() == null
+                                    ? null : responseVO.getHeader().getResponse().getIdentifier();
+                            if (!isUsableProviderRevision(revision)) {
+                                LogUtil.w(TAG, "Provider medication update has no usable revision");
+                                status = Status.ERROR_GENERIC;
+                                break;
+                            }
+                            final String newHash = revision
+                                    + (BuildConfig.DEBUG ? random.nextInt() : "");
                             if (newHash.equals(lastHash)) {
                                 LogUtil.w(TAG, "onRunJob: Response indicates new data, but hashes are equal! Skipping addition");
                             } else {
@@ -118,6 +145,23 @@ public class UpdateMedicationHelper {
     }
 
     /**
+     * Server revisions are opaque; do not trim or normalize legitimate ones.
+     * Never create a synthetic revision from a null, blank or malformed value.
+     */
+    static boolean isUsableProviderRevision(String revision) {
+        if (revision == null || revision.trim().isEmpty()
+                || "null".equalsIgnoreCase(revision.trim())) {
+            return false;
+        }
+        for (int i = 0; i < revision.length(); i++) {
+            if (Character.isISOControl(revision.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Sets preferences and events to notify other parts of the app of a failure
      *
      * @param status
@@ -127,7 +171,34 @@ public class UpdateMedicationHelper {
         CalendulaApp.eventBus().post(new ActiveMedUpdateEvent(status));
     }
 
+    /**
+     * The provider treatment and the local medicine-kit owner must agree
+     * before a record is inserted or a previous medicine's activeMedId is
+     * reassigned. A corrupt imported patient link is not consent to migrate
+     * treatment into another patient's local kit.
+     */
+    static boolean isValidImportedMedicineOwner(
+            ActiveMedEntity entity, es.usc.citius.servando.calendula.persistence.Patient patient) {
+        if (entity == null || patient == null || patient.getId() == null
+                || patient.getId() <= 0L || entity.getId() == null
+                || entity.getId() <= 0L || entity.getPatient() == null
+                || entity.getPatient().getId() == null
+                || !patient.getId().equals(entity.getPatient().getId())
+                || entity.getType() == null || entity.getCode() == null
+                || entity.getCode().trim().isEmpty()) {
+            return false;
+        }
+        return entity.getType() == ActiveMedType.DCPF
+                || entity.getType() == ActiveMedType.NATIONAL_CODE;
+    }
+
     public static Medicine addMedicineToMedKit(ActiveMedEntity entity, es.usc.citius.servando.calendula.persistence.Patient p) {
+        if (!isValidImportedMedicineOwner(entity, p)) {
+            // ScheduleCreator wraps the whole provider mapping in a SQLite
+            // transaction. Throwing here rolls back all earlier local writes
+            // rather than returning a potentially wrong-owner medicine.
+            throw new IllegalArgumentException("Provider medicine ownership is inconsistent");
+        }
         Medicine m = null;
         LogUtil.d(TAG, "Adding provider medication to local medicine kit");
         if (entity.getType().equals(ActiveMedType.DCPF)) {
@@ -183,13 +254,16 @@ public class UpdateMedicationHelper {
      *
      * @param responseVO the {@link ResponseVO} received from the service
      */
-    private static Status onAuthorizationError(final ResponseVO responseVO, final Context ctx) {
+    static Status onAuthorizationError(final ResponseVO responseVO, final Context ctx) {
         LogUtil.d(TAG, "onAuthorizationError() called; response code = " + responseVO.getCode());
         Status status = Status.ERROR_AUTHORIZATION;
         if (responseVO.getCode() != HttpURLConnection.HTTP_UNAUTHORIZED) {
             LogUtil.e(TAG, "onAuthorizationError called with wrong code! code: " + responseVO.getCode());
         }
-        final MessageHeader.MessageHeaderResponseComponent response = responseVO.getHeader().getResponse();
+        // A 401 may legitimately arrive without a FHIR MessageHeader.
+        // It remains an authorization failure, not an unexpected parse crash.
+        final MessageHeader.MessageHeaderResponseComponent response =
+                responseVO.getHeader() == null ? null : responseVO.getHeader().getResponse();
         if (response != null && response.getDetailsTarget() != null && response.getDetailsTarget().getIssueFirstRep() != null) {
             final OperationOutcome.IssueType code = response.getDetailsTarget().getIssueFirstRep().getCode();
             if (code != null) {

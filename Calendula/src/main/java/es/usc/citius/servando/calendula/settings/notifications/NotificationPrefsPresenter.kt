@@ -18,6 +18,7 @@
 
 package es.usc.citius.servando.calendula.settings.notifications
 
+import android.app.Activity
 import android.content.Intent
 import android.media.RingtoneManager
 import android.net.Uri
@@ -53,8 +54,9 @@ class NotificationPrefsPresenter(
 
 
     override fun onResult(reqCode: Int, result: Int, data: Intent?) {
-        LogUtil.d(TAG, "onResult() called with reqCode=$reqCode, result=$result, data=$data")
-        if ((reqCode == REQ_CODE_INSIST_RINGTONE || reqCode == REQ_CODE_NOTIF_RINGTONE) && data != null) {
+        LogUtil.d(TAG, "Ringtone picker result received")
+        if ((reqCode == REQ_CODE_INSIST_RINGTONE || reqCode == REQ_CODE_NOTIF_RINGTONE)
+            && result == Activity.RESULT_OK && data != null) {
             val ringtone: Uri? = if (Build.VERSION.SDK_INT >= 33) {
                 data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
             } else {
@@ -69,7 +71,7 @@ class NotificationPrefsPresenter(
                     throw IllegalArgumentException("Invalid request code $reqCode")
                 }
             }
-            LogUtil.d(TAG, "onResult: key=$prefKey, selected tone=$ringtone")
+            LogUtil.d(TAG, "Ringtone picker preference updated")
             PreferenceUtils.edit().putString(prefKey.key(), ringtone?.toString() ?: "").apply()
             updateRingtoneSummaries()
         } else {
@@ -97,17 +99,19 @@ class NotificationPrefsPresenter(
 
     private fun doRequestRingtone(pref: PreferenceKeys, requestCode: Int, ringtoneType: Int) {
         val currentUri: Uri? = findRingtoneUri(pref)
-        LogUtil.d(
-            TAG,
-            "callSelectRingtone: currentUri=$currentUri, pref=$pref, requestCode=$requestCode"
-        )
+        LogUtil.d(TAG, "Launching ringtone picker")
 
         view.requestRingtone(requestCode, ringtoneType, currentUri)
     }
 
     private fun findRingtoneUri(key: PreferenceKeys): Uri? {
-        val currentTone =
+        val currentTone = try {
             PreferenceUtils.getString(key, "default")
+        } catch (malformed: ClassCastException) {
+            // Restored preference type is incompatible: keep the ringtone
+            // settings accessible without rewriting stored user data.
+            "default"
+        }
         return when (currentTone) {
             "" -> null
             "default" -> Settings.System.DEFAULT_NOTIFICATION_URI

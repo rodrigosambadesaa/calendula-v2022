@@ -56,7 +56,10 @@ public class LeafletHtmlPostProcessor implements WebViewActivity.HtmlPostprocess
 
         // Remove empty elements
         Set<String> removable = new HashSet<>(Arrays.asList("div", "span", "strong", "p", "h1", "h2", "h3", "ul", "ol", "li", "a"));
-        cleaned.select("p:matchesOwn((?is) )").remove();
+        // Do not remove every paragraph containing a space: the previous
+        // matchesOwn regex treated normal multiword instructions as empty
+        // and silently deleted medically relevant leaflet text. Empty
+        // elements are already removed by the explicit loop below.
         // For each element in the cleaned document
         for (Element el : cleaned.getAllElements()) {
             if (el.children().isEmpty() && (!el.hasText() || el.text().replaceAll("\u00a0", "").trim().equals(""))) {

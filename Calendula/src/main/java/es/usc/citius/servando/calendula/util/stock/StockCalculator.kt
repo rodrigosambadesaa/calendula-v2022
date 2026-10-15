@@ -59,7 +59,14 @@ object StockCalculator {
 
         // simulate daily intakes until the stock runs out (or we reach the max duration)
         do {
-            val stockForDay = stockProvider.stockNeededForDay(virtualDate)
+            val stockForDay = try {
+                stockProvider.stockNeededForDay(virtualDate)
+            } catch (invalidClinicalSource: RuntimeException) {
+                // An imported or deleted recurrence can fail while calculating
+                // the next daily dose. Stock sufficiency must not be inferred
+                // from incomplete clinical data, and the UI must not crash.
+                return StockEnd.Unavailable
+            }
             if (!stockForDay.isFinite() || stockForDay < 0f) {
                 // Invalid recurrence/dosage data cannot be used to reassure a
                 // patient that they have enough medication.

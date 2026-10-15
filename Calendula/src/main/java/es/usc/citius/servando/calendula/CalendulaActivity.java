@@ -52,8 +52,7 @@ import es.usc.citius.servando.calendula.pinlock.UnlockStateManager;
 import es.usc.citius.servando.calendula.util.LocaleHelper;
 import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.PermissionUtils;
-import es.usc.citius.servando.calendula.util.PreferenceKeys;
-import es.usc.citius.servando.calendula.util.PreferenceUtils;
+import es.usc.citius.servando.calendula.util.SecureWindowPolicy;
 import es.usc.citius.servando.calendula.util.ScreenUtils;
 
 
@@ -141,8 +140,10 @@ public abstract class CalendulaActivity extends AppCompatActivity {
             }
         });
 
-        // set FLAG secure if the secure_window preference is enabled
-        if (PreferenceUtils.getBoolean(PreferenceKeys.SECURE_WINDOW, false)) {
+        // Secure by default, matching pref_privacy.xml. A missing or
+        // wrong-type restored preference must not expose clinical screens in
+        // screenshots or Recents. Respect an explicit Boolean false.
+        if (SecureWindowPolicy.isProtected()) {
             getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE,
                     WindowManager.LayoutParams.FLAG_SECURE);
         }

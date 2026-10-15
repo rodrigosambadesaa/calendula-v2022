@@ -40,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Locale;
-import java.util.Random;
 
 import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.database.DB;
@@ -73,7 +72,22 @@ import es.usc.citius.servando.calendula.util.PreferenceUtils;
 public class IntakeNotificationMgr {
 
     private static final String TAG = "IntakeNotificationMgr";
-    private static Random random = new Random();
+    private static final String PENDING_ACTION_PREFIX =
+            "es.usc.citius.servando.calendula.notification.";
+
+    /**
+     * PendingIntent identity excludes extras. Use distinct stable Android
+     * intent actions per notification button and use the reminder's persisted
+     * ID as the request code, so updating an existing notification refreshes
+     * the snapshot instead of leaking fresh random PendingIntents.
+     */
+    static Intent identifyNotificationAction(Intent intent, String buttonKind) {
+        if (intent == null || buttonKind == null || buttonKind.isEmpty()) {
+            throw new IllegalArgumentException("A distinct notification action is required");
+        }
+        intent.setAction(PENDING_ACTION_PREFIX + buttonKind);
+        return intent;
+    }
 
     /**
      * Official prescription notification lines contain no numeric dose.
@@ -221,9 +235,25 @@ public class IntakeNotificationMgr {
                 buildUnverifiedMedicationNotification(context, reminder));
     }
 
+    /**
+     * A legacy or corrupt reminder must never become a notification with
+     * actionable "Taken", "Cancel" or "Delay" controls. In particular, an
+     * unrelated STOCK/PHARMACY event is not a medication intake, and a
+     * nonpersisted patient must not query another patient's clinical rows.
+     */
+    static boolean isVerifiedMedicationReminderIdentity(EventReminder reminder) {
+        return reminder != null && reminder.getId() != null
+                && reminder.getId() > 0L
+                && reminder.getEventType() == EventType.MEDICATION_INTAKE
+                && reminder.getDateTime() != null
+                && reminder.getPatient() != null
+                && reminder.getPatient().getId() != null
+                && reminder.getPatient().getId() > 0L;
+    }
+
     public static void notify(final Context context, EventReminder reminder, boolean lost) {
 
-        if (!PreferenceUtils.getBoolean(PreferenceKeys.SETTINGS_ALARM_NOTIFICATIONS, true)) {
+        if (!NotificationFlagPolicy.configuredOrDefault(PreferenceKeys.SETTINGS_ALARM_NOTIFICATIONS, true)) {
             return;
         }
 
@@ -243,8 +273,9 @@ public class IntakeNotificationMgr {
         Patient patient = reminder.getPatient();
         // An unassigned patient cannot be used in ConfirmActivity; do not
         // make it possible to acknowledge an intake from invalid identity.
-        if (patient == null || patient.getId() == null || reminder.getId() == null
-                || dateTime == null) {
+        if (!isVerifiedMedicationReminderIdentity(reminder)) {
+            // Show only the existing generic review notice; never perform a
+            // null/foreign type SQLite lookup or create dose-action buttons.
             alertUnverifiedMedicationData(context, reminder);
             return;
         }
@@ -396,7 +427,7 @@ public class IntakeNotificationMgr {
     }
 
     private static void showInsistentScreen(Context context, Intent i) {
-        boolean insistentNotifications = PreferenceUtils.getBoolean(PreferenceKeys.SETTINGS_ALARM_INSISTENT, false);
+        boolean insistentNotifications = NotificationFlagPolicy.configuredOrDefault(PreferenceKeys.SETTINGS_ALARM_INSISTENT, false);
         if (insistentNotifications) {
             Intent intent = new Intent(context, LockScreenAlarmActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -409,7 +440,7 @@ public class IntakeNotificationMgr {
                                Pair<Intent, Intent> actionIntents, Intent confirmIntent, Intent intent,
                                NotificationOptions options) {
 
-        boolean notifications = PreferenceUtils.getBoolean(PreferenceKeys.SETTINGS_ALARM_NOTIFICATIONS, true);
+        boolean notifications = NotificationFlagPolicy.configuredOrDefault(PreferenceKeys.SETTINGS_ALARM_NOTIFICATIONS, true);
 
 
         // if notifications are disabled, exit
@@ -421,8 +452,8 @@ public class IntakeNotificationMgr {
         // prepare notification intents
         PendingIntent defaultIntent = PendingIntent.getActivity(
                 context,
-                random.nextInt(),
-                intent,
+                id,
+                identifyNotificationAction(intent, "OPEN"),
                 PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
         PendingIntent delayIntent = null;
         PendingIntent cancelIntent = null;
@@ -431,18 +462,18 @@ public class IntakeNotificationMgr {
         if (!options.lost) {
             delayIntent = PendingIntent.getBroadcast(
                     context,
-                    random.nextInt(),
-                    actionIntents.first,
+                    id,
+                    identifyNotificationAction(actionIntents.first, "DELAY"),
                     PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
             cancelIntent = PendingIntent.getBroadcast(
                     context,
-                    random.nextInt(),
-                    actionIntents.second,
+                    id,
+                    identifyNotificationAction(actionIntents.second, "CANCEL"),
                     PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
             confirmAllIntent = PendingIntent.getBroadcast(
                     context,
-                    random.nextInt(),
-                    confirmIntent,
+                    id,
+                    identifyNotificationAction(confirmIntent, "CONFIRM"),
                     PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
         }
 
@@ -466,7 +497,7 @@ public class IntakeNotificationMgr {
     private static Notification buildNotification(Context context, NotificationOptions options) {
 
         Resources res = context.getResources();
-        boolean insistentNotifications = PreferenceUtils.getBoolean(PreferenceKeys.SETTINGS_ALARM_INSISTENT, false);
+        boolean insistentNotifications = NotificationFlagPolicy.configuredOrDefault(PreferenceKeys.SETTINGS_ALARM_INSISTENT, false);
 
         final NotificationCompat.Builder builder = new NotificationCompat.Builder(context, NotificationHelper.CHANNEL_MEDS_ID)
 
@@ -527,9 +558,18 @@ public class IntakeNotificationMgr {
 
 
     private static Uri getRingtoneUri() {
-        String r = PreferenceUtils.getString(PreferenceKeys.SETTINGS_NOTIFICATION_TONE, null);
-        Uri sound = r != null ? Uri.parse(r) : RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-        return sound != null ? sound : Settings.System.DEFAULT_NOTIFICATION_URI;
+        // Historic/restored preferences sometimes contain a non-string
+        // notification tone. Never let one malformed preference suppress a
+        // time-critical medication reminder.
+        String stored = null;
+        try {
+            stored = PreferenceUtils.getString(PreferenceKeys.SETTINGS_NOTIFICATION_TONE, null);
+        } catch (ClassCastException malformed) {
+            LogUtil.w(TAG, "Ignoring incompatible notification sound preference");
+        }
+        Uri systemTone = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+        Uri fallback = systemTone != null ? systemTone : Settings.System.DEFAULT_NOTIFICATION_URI;
+        return NotificationSoundPolicy.safeNotificationTone(stored, fallback);
     }
 
     private static Bitmap getLargeIcon(Resources r, Patient p) {

@@ -18,8 +18,6 @@
 
 package es.usc.citius.servando.calendula;
 
-import android.animation.Animator;
-import android.animation.AnimatorListenerAdapter;
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.Point;
@@ -413,6 +411,33 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
         }
     }
 
+    /** Reject stale recycled-row clicks before navigating to the verified flow. */
+    static boolean isCurrentConfirmRow(List<DailyAgendaItemStub> rows,
+                                       DailyAgendaItemStub selected, int position) {
+        if (rows == null || selected == null || position < 0
+                || position >= rows.size() || rows.get(position) != selected
+                || !selected.hasEvents || !selected.displayable
+                || selected.patient == null || selected.patient.getId() == null
+                || selected.patient.getId() <= 0L
+                || selected.date == null || selected.time == null
+                || selected.meds == null || selected.meds.isEmpty()) {
+            return false;
+        }
+        java.util.HashSet<Long> shownIds = new java.util.HashSet<>();
+        for (DailyAgendaItemStub.DailyAgendaItemStubElement medicine : selected.meds) {
+            if (medicine == null || medicine.eventId == null
+                    || medicine.eventId <= 0L
+                    || !shownIds.add(medicine.eventId)
+                    || !(medicine.dose > 0d) || Double.isNaN(medicine.dose)
+                    || Double.isInfinite(medicine.dose)) {
+                // One displayed dose must have exactly one event identity.
+                // Duplicate cards are not informed consent for two intakes.
+                return false;
+            }
+        }
+        return true;
+    }
+
     private void updateItem(int position) {
         if (position < items.size() && position > -1) {
             DailyAgendaItemStub stub = items.get(position);
@@ -522,22 +547,24 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
 
         @Override
         public void onClick(View view) {
-            LogUtil.d(TAG, "Click row, listener is null? " + (listener == null));
-            if (view.getId() == R.id.check_all_button || view.getId() == R.id.action_container) {
-                hideCheckAllButton();
-            } else if (listener != null) {
-                listener.onItemClick(view, stub, getAdapterPosition());
+            int position = getAdapterPosition();
+            if (listener == null || !isCurrentConfirmRow(items, stub, position)) {
+                return;
             }
-        }
-
-        public void hideCheckAllButton() {
-            ScheduleUtils.instance().checkIntakeEvents(context, stub.patient, stub.dateTime());
-            actionsView.animate().setDuration(100).alpha(0).scaleY(0.5f).setListener(new AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(Animator animation) {
-                    updateItem(getAdapterPosition());
+            if (view.getId() == R.id.check_all_button
+                    || view.getId() == R.id.action_container) {
+                if (!isAvailable(stub)) {
+                    return;
                 }
-            });
+                // Never use the old unsnapshotted batch-commit path from the
+                // home screen. It could silently confirm additional/changed
+                // intakes which were not visible when this row was drawn.
+                // The existing ConfirmActivity checks each current medicine,
+                // its owner, dose and completion snapshot inside SQLite.
+                listener.onItemClick(view, stub, position);
+            } else {
+                listener.onItemClick(view, stub, position);
+            }
         }
     }
 }

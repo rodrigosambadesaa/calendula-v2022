@@ -173,6 +173,37 @@ public class HtmlCacheManagerTest {
     }
 
     @Test
+    public void identicalLeafletUrlIsolatedForTwoPatientsAndNeverReusesLegacyCache() {
+        HtmlCacheManager cache = HtmlCacheManager.getInstance();
+        String url = "https://example.test/same-leaflet-for-two-patients";
+        org.joda.time.Duration ttl = org.joda.time.Duration.standardMinutes(10);
+        assertTrue(cache.put(url, "Legacy unscoped leaflet", ttl));
+        assertNull("Historical entries have no trusted patient owner",
+                cache.getForPatient(20011L, url));
+        assertFalse(cache.isCachedForPatient(20011L, url));
+
+        assertTrue(cache.putForPatient(20011L, url, "Patient one leaflet", ttl));
+        assertTrue(cache.putForPatient(20012L, url, "Patient two leaflet", ttl));
+        assertEquals("Patient one leaflet", cache.getForPatient(20011L, url));
+        assertEquals("Patient two leaflet", cache.getForPatient(20012L, url));
+        assertEquals("Legacy unscoped leaflet", cache.get(url));
+
+        assertNull(cache.getForPatient(20013L, url));
+        assertFalse(cache.isCachedForPatient(-1L, url));
+        assertNull(cache.getForPatient(null, url));
+        assertFalse(cache.putForPatient(null, url, "Unowned clinical content", ttl));
+    }
+
+    @Test
+    public void malformedScopedPatientKeysAreRejectedBeforeSql() {
+        assertNull(HtmlCacheManager.patientCacheKey(null, "https://example.test/leaflet"));
+        assertNull(HtmlCacheManager.patientCacheKey(0L, "https://example.test/leaflet"));
+        assertNull(HtmlCacheManager.patientCacheKey(-5L, "https://example.test/leaflet"));
+        assertNull(HtmlCacheManager.patientCacheKey(7L, null));
+        assertNull(HtmlCacheManager.patientCacheKey(7L, ""));
+    }
+
+    @Test
     public void missingUrlCannotCreateCacheRow() {
         assertFalse(HtmlCacheManager.getInstance().put(
                 null, "Unkeyed synthetic content", Duration.standardMinutes(5)));

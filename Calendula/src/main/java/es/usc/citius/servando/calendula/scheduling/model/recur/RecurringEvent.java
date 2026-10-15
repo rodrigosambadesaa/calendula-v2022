@@ -116,7 +116,8 @@ public class RecurringEvent {
 
         while (iterator.hasNext()) {
             DateTime next = dtc.convert(iterator.nextDateTime());
-            LogUtil.d(TAG, "Next: " + next.toString(f));
+            // Medicine administration times are patient clinical metadata.
+            // Never emit exact recurrence dates or times to Android Logcat.
 
             // stop when we reach the end of the requested period
             // or if the next occurrence is after end
@@ -139,12 +140,15 @@ public class RecurringEvent {
 
                     // ensure daily times are before #until and before #endDateTime
                     if (time.isBefore(from)) {
-                        LogUtil.d(TAG, "Next fixedTime is out of range, continue. [" + time.toString(f) + "]");
+                        LogUtil.d(TAG, "Fixed-time occurrence is before the selected window");
                         continue;
                     }
                     else if (isEqualOrAfter(time, until) || isEqualOrAfterEnd(time)) {
-                        LogUtil.d(TAG, "Next fixedTime is out of range, stop. [" + time.toString(f) + "]");
-                        break;
+                        // Fixed times are stored in insertion/routine order,
+                        // not necessarily chronologically. A too-late entry
+                        // must not suppress a later-listed valid earlier dose.
+                        LogUtil.d(TAG, "Fixed-time occurrence exceeds the selected window");
+                        continue;
                     }
                     occurrences.add(new EventTimeInfo(time, rep.offset()));
                 }
@@ -194,7 +198,25 @@ public class RecurringEvent {
     public boolean hasOccurrencesAt(LocalDate when) {
         DateTime t = when.toDateTimeAtStartOfDay();
         if (isCyclic()) {
-            return isCycleActiveAt(t);
+            // This method asks whether a LOCAL DATE has an intake, not
+            // whether midnight precedes the exact start instant. If the
+            // cycle starts today at 08:00, midnight must not hide its first
+            // valid day from the calendar.
+            if (startDateTime == null) {
+                throw new IllegalStateException("Cyclic medication has no start date");
+            }
+            DateTime cycleDay = when.toDateTimeAtStartOfDay(startDateTime.getZone());
+            // A day strictly after the stored end date cannot contain any
+            // medication occurrence, even if cycle arithmetic says active.
+            if (hasEnd() && when.isAfter(
+                    endDateTime.withZone(startDateTime.getZone()).toLocalDate())) {
+                return false;
+            }
+            if (when.equals(startDateTime.toLocalDate())
+                    && cycleDay.isBefore(startDateTime)) {
+                cycleDay = startDateTime;
+            }
+            return isCycleActiveAt(cycleDay);
         }
         // iterator start is not synchronized to avoid starting always
         // on a valid date. Due to this, we have to manually check the
@@ -370,15 +392,15 @@ public class RecurringEvent {
                 ruleWeekDay = byDay.get(i).weekday.ordinal();
                 if (ruleWeekDay == 0) ruleWeekDay = 7; // byDay start on SU (0 to 6)
 
-                LogUtil.d(TAG, "RWD: " + ruleWeekDay + ", SWD: " + startWeekDay);
+
                 // stop if there is a match, rule and dtStart are in sync
                 if (ruleWeekDay == startWeekDay) {
-                    LogUtil.d(TAG, "SameDay");
+
                     return;
                 }
                 // if the first weekday of the rule is after #dtStart, advance to it
                 else if (ruleWeekDay > startWeekDay) {
-                    LogUtil.d(TAG, ruleWeekDay - startWeekDay + " days after ");
+
                     iterator.fastForward(dtc.convert(dtStart.plusDays(ruleWeekDay - startWeekDay)));
                     return;
                 }
@@ -388,7 +410,7 @@ public class RecurringEvent {
             ruleWeekDay = byDay.get(0).weekday.ordinal();
             if (ruleWeekDay == 0) ruleWeekDay = 7; // byDay start on SU (0 to 6)
             int gap = startWeekDay - ruleWeekDay; // rule week day is before
-            LogUtil.d(TAG, 7 - gap + " days after (on the next week)");
+
             iterator.fastForward(dtc.convert(dtStart.plusDays(7 - gap)));
         }
     }
@@ -397,15 +419,32 @@ public class RecurringEvent {
         recurrence = new RecurrenceRule(freq, RFC_MODE);
     }
 
+    /**
+     * Days of a medication cycle are LOCAL CALENDAR DAYS, not blocks of
+     * 86,400 seconds. At daylight-saving changes a calendar day may contain
+     * 23 or 25 hours. Using Interval.getStandardDays() can shift rest days
+     * into active days, accidentally generating a patient's extra intake.
+     */
+    static boolean isActiveOnCycleDay(DateTime start, DateTime occurrence,
+                                      Integer active, Integer inactive) {
+        if (start == null || occurrence == null || active == null || inactive == null
+                || active < 1 || inactive < 1
+                || (long) active + inactive > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Invalid medication cycle configuration");
+        }
+        if (occurrence.isBefore(start)) {
+            return false;
+        }
+        // Use the schedule start's time zone to interpret both dates, even
+        // when a caller supplies an equivalent UTC instant.
+        int days = org.joda.time.Days.daysBetween(
+                start.toLocalDate(),
+                occurrence.withZone(start.getZone()).toLocalDate()).getDays();
+        return days % (active + inactive) < active;
+    }
+
     private boolean isCycleActiveAt(DateTime date) {
-        if (date.isBefore(startDateTime)) return false;
-        int cycleLength = cycleActiveDays + cycleInactiveDays;
-        Interval interval = new Interval(startDateTime, date);
-        int days = (int) interval.toDuration().getStandardDays();
-        int cyclesUntilNow = days / cycleLength;
-        DateTime currentCycleStart = startDateTime.plusDays(cyclesUntilNow * cycleLength);
-        interval = new Interval(currentCycleStart, currentCycleStart.plusDays(cycleActiveDays));
-        return interval.contains(date);
+        return isActiveOnCycleDay(startDateTime, date, cycleActiveDays, cycleInactiveDays);
     }
 
     private void addDailyFixedTimes(List<DailyFixedTime> dailyFixedTimes) {
@@ -617,6 +656,10 @@ public class RecurringEvent {
                         "ActiveDays can not be null on cyclic events");
                 fail(event.cycleInactiveDays == null || event.cycleInactiveDays < 1,
                         "InactiveDays can not be null on cyclic events");
+                fail(event.cycleActiveDays != null && event.cycleInactiveDays != null
+                                && (long) event.cycleActiveDays + event.cycleInactiveDays
+                                        > Integer.MAX_VALUE,
+                        "Medication cycle length must not overflow");
             }
 
             if (event.recurrence.getInterval() > 0) {

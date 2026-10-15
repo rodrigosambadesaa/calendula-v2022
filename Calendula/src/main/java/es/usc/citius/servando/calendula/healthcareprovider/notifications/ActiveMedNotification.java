@@ -57,7 +57,7 @@ public class ActiveMedNotification {
 
     public static void show(Context context, Patient p, UpdateSummary summary) {
 
-        boolean insistentNotifications = PreferenceUtils.getBoolean(PreferenceKeys.SETTINGS_ALARM_INSISTENT, false);
+        boolean insistentNotifications = configuredInsistentNotifications();
 
         Intent intent = new Intent(context, HomePagerActivity.class);
         intent.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_SHOW_ACTIVE_MEDS);
@@ -128,7 +128,6 @@ public class ActiveMedNotification {
                 .setContentText(context.getString(R.string.aml_updated_notification_text))
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setLargeIcon(getLargeIcon(context.getResources(), p))
-                .setTicker(summaryText)
                 .setNumber(summary.changesCount())
                 .setContentIntent(pendingIntent)
                 .setStyle(inboxStyle)
@@ -141,6 +140,9 @@ public class ActiveMedNotification {
             builder.setVibrate(new long[]{1000, 200, 100, 300, 200, 200, 100, 300, 200, 200, 100, 300, 1000}).setSound(Settings.System.DEFAULT_NOTIFICATION_URI);
         }
 
+        // On API 23+, lockscreen/ambient previews must not list patient
+        // prescriptions, dosage changes, or the profile's avatar.
+        applyLockscreenPrivacy(context, builder);
         Notification n = builder.build();
         n.defaults = 0;
         n.ledARGB = 0x00ffa500;
@@ -148,6 +150,35 @@ public class ActiveMedNotification {
         n.ledOffMS = 2000;
 
         notify(context, n);
+    }
+
+    /** A damaged restored Boolean preference must not abort notification delivery. */
+    static boolean configuredInsistentNotifications() {
+        try {
+            return PreferenceUtils.getBoolean(
+                    PreferenceKeys.SETTINGS_ALARM_INSISTENT, false);
+        } catch (ClassCastException malformedSetting) {
+            return false;
+        }
+    }
+
+    /**
+     * Public notification surfaces contain only the app name. The full
+     * private notification retains the user's existing medicine-change
+     * summary after the device's lockscreen privacy rules allow it.
+     */
+    static void applyLockscreenPrivacy(Context context, NotificationCompat.Builder builder) {
+        final String genericTitle = context.getString(R.string.app_name);
+        Notification publicNotification =
+                new NotificationCompat.Builder(context, NotificationHelper.CHANNEL_MEDS_ID)
+                        .setSmallIcon(R.drawable.ic_active_med_update_w)
+                        .setContentTitle(genericTitle)
+                        .setContentText(genericTitle)
+                        .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                        .build();
+        builder.setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+                .setPublicVersion(publicNotification)
+                .setTicker(genericTitle);
     }
 
     /**

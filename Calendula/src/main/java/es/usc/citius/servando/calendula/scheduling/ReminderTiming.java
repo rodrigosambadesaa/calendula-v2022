@@ -23,16 +23,32 @@ public final class ReminderTiming {
     }
 
     public static int windowMinutes() {
-        return parseWindowMinutes(PreferenceUtils.getString(
+        return parseWindowMinutes(readSavedMinutes(
                 PreferenceKeys.SETTINGS_ALARM_REMINDER_WINDOW,
-                Integer.toString(DEFAULT_WINDOW_MINUTES)));
+                DEFAULT_WINDOW_MINUTES));
     }
 
     /** Repeat interval shared by AlarmManager and notification text. */
     public static int repeatMinutes() {
-        return parseRepeatMinutes(PreferenceUtils.getString(
+        return parseRepeatMinutes(readSavedMinutes(
                 PreferenceKeys.SETTINGS_ALARM_REPEAT_FREQUENCY,
-                Integer.toString(DEFAULT_REPEAT_MINUTES)));
+                DEFAULT_REPEAT_MINUTES));
+    }
+
+    /**
+     * A restored preference may contain a Boolean or Integer where Android
+     * expects a String. In that case SharedPreferences#getString throws before
+     * our numeric validation runs; failing here drops real medication alarms.
+     * Retain the configured value if correctly typed and fall back to the
+     * existing bounded default otherwise. Do not overwrite the user's data.
+     */
+    private static String readSavedMinutes(PreferenceKeys key, int fallback) {
+        String defaultValue = Integer.toString(fallback);
+        try {
+            return PreferenceUtils.getString(key, defaultValue);
+        } catch (ClassCastException incompatible) {
+            return defaultValue;
+        }
     }
 
     static int repeatSeconds() {

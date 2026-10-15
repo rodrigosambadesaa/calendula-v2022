@@ -11,6 +11,7 @@ import java.io.IOException;
 import es.usc.citius.servando.calendula.BuildConfig;
 import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.login.LoginStateManager;
+import es.usc.citius.servando.calendula.healthcareprovider.remote.ProviderTokenGuard;
 import es.usc.citius.servando.calendula.login.TestingConnectionBuilder;
 import es.usc.citius.servando.calendula.healthcareprovider.fhir.ResponseVO;
 import es.usc.citius.servando.calendula.healthcareprovider.fhir.FHIRUtil;
@@ -45,7 +46,7 @@ public class RemoteQueryManager {
                     public okhttp3.Response intercept(@NonNull Chain chain) throws IOException {
                         final AuthState state = LoginStateManager.getInstance().getCurrentAuthState();
                         final String currentAccessToken = state != null ? state.getAccessToken() : null;
-                        if (currentAccessToken == null) {
+                        if (!ProviderTokenGuard.isUsable(currentAccessToken)) {
                             throw new IOException("Access token is unavailable");
                         }
                         final Request request = chain.request().newBuilder()

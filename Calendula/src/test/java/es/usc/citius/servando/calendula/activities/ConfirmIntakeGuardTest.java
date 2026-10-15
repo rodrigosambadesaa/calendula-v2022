@@ -106,6 +106,27 @@ public class ConfirmIntakeGuardTest {
     }
 
     @Test
+    public void officialPrescriptionWithoutLiveSourceCannotBeConfirmedAsManualDose() {
+        Patient patient = owner(800100L);
+        DateTime when = DateTime.now();
+        EventInstance event = intake(patient, when);
+        Schedule schedule = schedule(patient);
+
+        // A historical imported schedule might have lost its ActiveMed link
+        // while retaining the "created from official" flag. Without the
+        // guard, this identical dose was incorrectly treated as manual.
+        schedule.addState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL);
+        assertFalse(ConfirmIntakeGuard.verified(event, patient, when, schedule, null));
+
+        schedule.setActiveMedId(820003L);
+        assertFalse(ConfirmIntakeGuard.verified(event, patient, when, schedule, null));
+        assertFalse(ConfirmIntakeGuard.verified(event, patient, when, schedule,
+                imported(owner(800101L))));
+        assertTrue(ConfirmIntakeGuard.verified(event, patient, when, schedule,
+                imported(owner(800100L))));
+    }
+
+    @Test
     public void recycledOrDelayedRowActionsMustKeepTheirOriginalClinicalSnapshot() {
         Patient p = owner(800100L);
         DateTime date = DateTime.now();
