@@ -199,4 +199,30 @@ class PrivacyPrefsPresenterTest {
         verify(view).verifyPIN(ArgumentMatchers.anyInt())
     }
 
+
+    @Test
+    fun cancelledPinResultNeverStringifiesSensitiveIntent() {
+        val privateIntent = object : Intent() {
+            override fun toString(): String {
+                throw AssertionError("Authentication Intent must never be sent to Logcat")
+            }
+        }.putExtra(PinLockActivity.EXTRA_NEW_PIN, FAKE_PIN)
+
+        presenter.onResult(PinLockActivity.REQUEST_PIN, Activity.RESULT_CANCELED, privateIntent)
+
+        verify(view, never()).setPINPrefText(Mockito.anyInt())
+        verify(view, never()).showEnableFingerprintDialog()
+    }
+
+    @Test
+    fun successfulPinResultDoesNotLogInputPayload() {
+        val privateIntent = object : Intent() {
+            override fun toString(): String {
+                throw AssertionError("Authentication Intent must never be formatted")
+            }
+        }.putExtra(PinLockActivity.EXTRA_NEW_PIN, FAKE_PIN)
+
+        presenter.onResult(PinLockActivity.REQUEST_PIN, Activity.RESULT_OK, privateIntent)
+        verify(view).setPINPrefText(kotlinEq(R.string.pref_summary_pin_lock_set))
+    }
 }

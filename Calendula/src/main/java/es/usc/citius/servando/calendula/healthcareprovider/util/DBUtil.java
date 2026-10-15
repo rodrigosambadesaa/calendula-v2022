@@ -11,6 +11,7 @@ import es.usc.citius.servando.calendula.healthcareprovider.model.DispensationInf
 import es.usc.citius.servando.calendula.healthcareprovider.model.DosageEntryVO;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DispensationInfoEntity;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageEntryEntity;
+import es.usc.citius.servando.calendula.util.DrugCatalogSelection;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
@@ -20,11 +21,8 @@ public class DBUtil {
     private static final String TAG = "DBUtil";
 
     public static boolean isValidDB() {
-        String selected = es.usc.citius.servando.calendula.drugdb.DrugCatalogPreferencePolicy
-                .selectedIdOrFallback(PreferenceUtils.instance().preferences(),
-                        PreferenceKeys.DRUGDB_CURRENT_DB.key(),
-                        CalendulaApp.getContext().getString(R.string.database_none_id));
-        return CalendulaApp.getContext().getString(R.string.database_aemps_id).equals(selected);
+        return DrugCatalogSelection.isSelected(
+                CalendulaApp.getContext().getString(R.string.database_aemps_id));
     }
 
     public static List<DispensationInfoVO> toDispensationVoList(Collection<DispensationInfoEntity> entities) {

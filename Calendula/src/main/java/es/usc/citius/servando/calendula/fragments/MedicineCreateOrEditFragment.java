@@ -84,6 +84,7 @@ import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.DrugCatalogSelection;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 import es.usc.citius.servando.calendula.util.Snack;
@@ -206,8 +207,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
 
         String none = getString(R.string.database_none_id);
         String settingUp = getString(R.string.database_setting_up);
-        String value = PreferenceUtils.getString(PreferenceKeys.DRUGDB_CURRENT_DB, none);
-        enableSearch = !value.equals(none) && !value.equals(settingUp);
+        enableSearch = DrugCatalogSelection.isReady(none, settingUp);
 
         LogUtil.d(TAG, "Arguments:  " + (getArguments() != null) + ", savedState: " + (savedInstanceState != null));
         if (getArguments() != null) {

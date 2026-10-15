@@ -96,6 +96,7 @@ import es.usc.citius.servando.calendula.util.FragmentUtils;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.IntentParams;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.RemoteMedicationPreferenceReader;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 import es.usc.citius.servando.calendula.util.HealthcareProviderTypeface;
@@ -588,7 +589,8 @@ public class HomePagerActivity extends CalendulaActivity implements
     }
 
     private void showLastUpdatedMsg() {
-        String msg = PreferenceUtils.getString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY, "");
+        String msg = RemoteMedicationPreferenceReader.readOrDefault(
+                PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY, "");
         DateTime lastUpdated = DB.healthcareProviderDB().activeMeds().findLastUpdateDate(activePatient);
         if (lastUpdated != null) {
             new MaterialStyledDialog.Builder(this)
@@ -626,7 +628,8 @@ public class HomePagerActivity extends CalendulaActivity implements
      * Check update status and make relevant display changes
      */
     private void checkUpdateStatus() {
-        final String updateStatus = PreferenceUtils.getString(PreferenceKeys.REMOTE_UPDATE_STATUS, null);
+        final String updateStatus = RemoteMedicationPreferenceReader.readOrDefault(
+                PreferenceKeys.REMOTE_UPDATE_STATUS, null);
         if (!TextUtils.isEmpty(updateStatus)) {
             try {
                 ActiveMedUpdateEvent.Status status = ActiveMedUpdateEvent.Status.valueOf(updateStatus);

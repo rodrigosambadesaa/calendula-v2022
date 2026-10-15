@@ -69,8 +69,16 @@ class AlarmIntentService : JobIntentService() {
     internal var handler: Handler = Handler(Looper.getMainLooper())
 
     override fun onHandleWork(intent: Intent) {
+        // Jobs can survive process death or originate from an older app
+        // version. Revalidate on consumption, not only in AlarmReceiver,
+        // before touching any persisted dose, stock or reminder.
+        val verified = AlarmReceiver.validatedServiceIntent(this, intent)
+        if (verified == null) {
+            LogUtil.w(TAG, "Ignoring malformed or obsolete queued alarm job")
+            return
+        }
 
-        val action = intent.getStringExtra(IntentParams.EXTRA_ACTION)
+        val action = verified.getStringExtra(IntentParams.EXTRA_ACTION)
         LogUtil.d(TAG, "AlarmIntentService request with action '$action'")
 
         when (action) {
@@ -81,14 +89,14 @@ class AlarmIntentService : JobIntentService() {
             }
             IntentParams.ACTION_ALARM_REMINDER -> {
                 // send reminder to agenda
-                val reminderId = intent.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1)
+                val reminderId = verified.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1)
                 Agenda.instance().onReceiveAlarm(this, reminderId)
                 LogUtil.d(TAG, "Send reminder to agenda")
             }
             IntentParams.ACTION_ALARM_CANCEL -> {
                 // Tell agenda to cancel the reminder
-                val reminderId = intent.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1)
-                val snapshot = intent.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT)
+                val reminderId = verified.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1)
+                val snapshot = verified.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT)
                 if (Agenda.instance().cancelReminderWithSnapshot(this, reminderId, snapshot)) {
                     LogUtil.d(TAG, "Medication reminder cancelled after persisted change")
                     showToast(getString(R.string.reminder_cancelled_message))
@@ -98,8 +106,8 @@ class AlarmIntentService : JobIntentService() {
             }
             IntentParams.ACTION_ALARM_DELAY -> {
                 // Tell agenda to delay the reminder
-                val reminderId = intent.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1)
-                val snapshot = intent.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT)
+                val reminderId = verified.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1)
+                val snapshot = verified.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT)
                 if (Agenda.instance().delayReminderWithSnapshot(this, reminderId, snapshot)) {
                     showToast(getString(R.string.alarm_delayed_notification_message))
                 } else {
@@ -108,12 +116,12 @@ class AlarmIntentService : JobIntentService() {
             }
             IntentParams.ACTION_ALARM_CONFIRM -> {
                 // Tell agenda to confirm the reminder
-                val reminderId = intent.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1)
+                val reminderId = verified.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1)
                 if (reminderId <= 0L) {
                     LogUtil.w(TAG, "Ignoring confirmation without valid reminder ID")
                     return
                 }
-                val fingerprint = intent.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT)
+                val fingerprint = verified.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT)
                 if (fingerprint == null) {
                     // Old one-tap notifications have no recorded selection.
                     // Do not silently approve a dose the user never saw.
