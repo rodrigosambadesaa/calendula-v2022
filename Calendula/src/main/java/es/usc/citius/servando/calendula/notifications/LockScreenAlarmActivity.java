@@ -18,7 +18,6 @@
 
 package es.usc.citius.servando.calendula.notifications;
 
-import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -27,7 +26,6 @@ import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.RingtoneManager;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.provider.Settings;
@@ -166,19 +164,12 @@ public class LockScreenAlarmActivity extends AppCompatActivity {
             }
         };
         IntentFilter filter = new IntentFilter(STOP_SIGNAL);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(finishReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            registerFinishReceiverPreTiramisu(filter);
-        }
-    }
-
-    @SuppressLint("UnspecifiedRegisterReceiverFlag")
-    private void registerFinishReceiverPreTiramisu(IntentFilter filter) {
-        // The exported/not-exported overload does not exist before API 33. This helper is only
-        // reached on those older releases; API 33+ always registers the app-private signal as
-        // RECEIVER_NOT_EXPORTED above.
-        registerReceiver(finishReceiver, filter);
+        // The platform-only not-exported flag is unavailable before API 33.
+        // AndroidX enforces the equivalent restriction on Android 6-12, so
+        // another app cannot broadcast a fake STOP_SIGNAL to dismiss a
+        // medication alarm on legacy devices.
+        ContextCompat.registerReceiver(this, finishReceiver, filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     private void unregisterFinishReceiver() {
