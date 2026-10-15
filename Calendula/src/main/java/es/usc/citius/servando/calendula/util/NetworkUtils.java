@@ -137,8 +137,16 @@ public final class NetworkUtils {
         }
 
         // Gate 2: the complete gist probe pipeline is mandatory before every real request.
-        if (!activeInternetProbe.isReachable(ctx)) {
-            LogUtil.w(TAG, "Backend preflight rejected: active Internet probes failed");
+        try {
+            if (!activeInternetProbe.isReachable(ctx)) {
+                LogUtil.w(TAG, "Backend preflight rejected: active Internet probes failed");
+                return false;
+            }
+        } catch (RuntimeException unexpectedProbeFailure) {
+            // Connectivity callbacks and vendor network APIs may fail while the
+            // route changes. Treat that as unavailable, never as permission
+            // to launch a clinical backend request or crash the caller.
+            LogUtil.w(TAG, "Backend preflight rejected: active Internet probe unavailable");
             return false;
         }
 
