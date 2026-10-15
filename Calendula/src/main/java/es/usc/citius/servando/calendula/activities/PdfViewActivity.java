@@ -506,7 +506,9 @@ public class PdfViewActivity extends CalendulaActivity {
                     }
 
                 } catch (Exception e) {
-                    LogUtil.e(TAG, "Error trying to post process content", e);
+                    // The postprocessor exception may embed patient HTML or
+                    // a private provider URL. Retain only a fixed diagnostic.
+                    LogUtil.e(TAG, "Could not postprocess provider document");
                 }
             }
             // in other case, simply write html content to cache
