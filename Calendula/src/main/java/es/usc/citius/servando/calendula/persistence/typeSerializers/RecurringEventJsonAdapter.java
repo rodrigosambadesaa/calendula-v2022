@@ -56,7 +56,17 @@ public class RecurringEventJsonAdapter extends TypeAdapter<RecurringEvent> {
         if (evt.hasEnd()) {
             out.name("end").value(evt.getEndDateTime().toString(dateFormat));
         }
-        if (evt.isCyclic()) {
+        // A partially restored 3-on/2-off schedule must not silently become
+        // an everyday schedule when only one duration remains in SQLite.
+        boolean anyCycle = evt.getCycleActiveDays() != null
+                || evt.getCycleInactiveDays() != null;
+        if (anyCycle) {
+            if (evt.getCycleActiveDays() == null || evt.getCycleInactiveDays() == null
+                    || evt.getCycleActiveDays() <= 0 || evt.getCycleInactiveDays() <= 0
+                    || (long) evt.getCycleActiveDays() + evt.getCycleInactiveDays()
+                            > Integer.MAX_VALUE || !evt.hasStart()) {
+                throw new IOException("Stored medication cycle is incomplete");
+            }
             out.name("cycleActive").value(evt.getCycleActiveDays());
             out.name("cycleInactive").value(evt.getCycleInactiveDays());
         }
@@ -66,10 +76,20 @@ public class RecurringEventJsonAdapter extends TypeAdapter<RecurringEvent> {
             for (DailyFixedTime d : evt.getDailyFixedTimes()) {
                 out.beginObject();
                 out.name("refType").value(d.getReferenceType().toString());
+                // Ref is a stable dosage-map key, not a replacement for an
+                // absolute clock time. A reference-bearing ABSOLUTE slot
+                // previously serialized only "ref"; on restart getTime()
+                // returned null and occurrence generation crashed.
                 if (d.getReference() != null) {
                     out.name("ref").value(d.getReference());
-                } else {
+                }
+                if (d.getReferenceType() == DailyFixedTime.ReferenceType.ABSOLUTE) {
+                    if (d.getTime() == null) {
+                        throw new IOException("Absolute medication time is missing");
+                    }
                     out.name("time").value(d.getTime().toString(timeFormat));
+                } else if (d.getReference() == null) {
+                    throw new IOException("Routine-linked medication time has no routine ID");
                 }
                 if (d.offset() != null) {
                     out.name("offset").value(d.offset().name());
@@ -84,6 +104,7 @@ public class RecurringEventJsonAdapter extends TypeAdapter<RecurringEvent> {
     @Override
     public RecurringEvent read(JsonReader in) throws IOException {
         RecurringEvent event = null;
+        boolean hasRule = false;
         try {
             event = new RecurringEvent();
             in.beginObject();
@@ -91,6 +112,7 @@ public class RecurringEventJsonAdapter extends TypeAdapter<RecurringEvent> {
                 switch (in.nextName()) {
                     case "rule":
                         event.setRecurrence(new RecurrenceRule(in.nextString()));
+                        hasRule = true;
                         break;
                     case "start":
                         event.setStartDateTime(dateFormat.parseDateTime(in.nextString()));
@@ -129,6 +151,19 @@ public class RecurringEventJsonAdapter extends TypeAdapter<RecurringEvent> {
                                 }
                             }
                             in.endObject();
+                            // Never return an unusable recurrence and let a
+                            // later medication alarm dereference a null time.
+                            // Historic ABSOLUTE rows which contained only a
+                            // reference lost the clock time and cannot be
+                            // reconstructed without patient confirmation.
+                            if (t.getReferenceType() == null
+                                    || (t.getReferenceType() == DailyFixedTime.ReferenceType.ABSOLUTE
+                                            && t.getTime() == null)
+                                    || (t.getReferenceType() == DailyFixedTime.ReferenceType.ROUTINE
+                                            && (t.getReference() == null
+                                                    || t.getReference() <= 0L))) {
+                                throw new IOException("Incomplete stored medication recurrence");
+                            }
                             event.addDailyFixedTime(t);
                         }
                         in.endArray();
@@ -139,8 +174,28 @@ public class RecurringEventJsonAdapter extends TypeAdapter<RecurringEvent> {
                 }
             }
             in.endObject();
+            if (!hasRule) {
+                // The no-arg constructor initializes DAILY for new objects.
+                // A corrupt database record without an actual rule must
+                // never silently inherit this default daily treatment.
+                throw new IOException("Stored medication recurrence has no rule");
+            }
+            if (event.getCycleActiveDays() != null || event.getCycleInactiveDays() != null) {
+                if (event.getCycleActiveDays() == null
+                        || event.getCycleInactiveDays() == null
+                        || event.getCycleActiveDays() <= 0
+                        || event.getCycleInactiveDays() <= 0
+                        || (long) event.getCycleActiveDays()
+                                + event.getCycleInactiveDays() > Integer.MAX_VALUE
+                        || !event.hasStart()) {
+                    throw new IOException("Stored medication cycle is incomplete");
+                }
+            }
         } catch (InvalidRecurrenceRuleException e) {
-            LogUtil.e(TAG, "Invalid recurrence rule while deserializing event", e);
+            // Returning the default DAILY recurrence would silently invent a
+            // different clinical schedule when the persisted rule is corrupt.
+            // Fail closed and leave the original database row untouched.
+            throw new IOException("Persisted medication recurrence rule is invalid", e);
         }
         return event;
     }

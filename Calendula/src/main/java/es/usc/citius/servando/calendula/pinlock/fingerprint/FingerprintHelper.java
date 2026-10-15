@@ -75,7 +75,7 @@ public class FingerprintHelper {
     }
 
     public void startAuthentication(FingerprintCallbackAdapter adapter) {
-        LogUtil.d(TAG, "startAuthentication() called with: adapter = [" + adapter + "]");
+        LogUtil.d(TAG, "Starting local fingerprint authentication");
         if (!canUseFingerPrint()) {
             LogUtil.e(TAG, "Cannot use fingerprint on this device");
             throw new IllegalStateException("Can't use fingerprint on this device!");
@@ -106,11 +106,33 @@ public class FingerprintHelper {
     }
 
     public boolean canUseFingerPrint() {
-        return hasPermissions() && checkKeyguard() && fingerprintManager.hasEnrolledFingerprints();
+        // FingerprintManager may be absent on emulators, tablets and some
+        // Android 17 devices. A null or unavailable security service must
+        // never allow biometric unlock or crash the PIN fallback screen.
+        if (fingerprintManager == null || keyguardManager == null) {
+            return false;
+        }
+        try {
+            return hasPermissions() && checkKeyguard()
+                    && fingerprintManager.isHardwareDetected()
+                    && fingerprintManager.hasEnrolledFingerprints();
+        } catch (SecurityException unavailableBiometrics) {
+            // Permissions or enrolled prints can change between checks.
+            return false;
+        }
     }
 
     public boolean fingerPrintEnabled() {
-        return PreferenceUtils.getBoolean(PreferenceKeys.FINGERPRINT_ENABLED, false);
+        return safelyConfiguredFingerprintEnabled();
+    }
+
+    static boolean safelyConfiguredFingerprintEnabled() {
+        try {
+            return PreferenceUtils.getBoolean(PreferenceKeys.FINGERPRINT_ENABLED, false);
+        } catch (ClassCastException incompatibleSetting) {
+            // A corrupt restored switch cannot enable biometric PIN bypass.
+            return false;
+        }
     }
 
     private boolean checkKeyguard() {

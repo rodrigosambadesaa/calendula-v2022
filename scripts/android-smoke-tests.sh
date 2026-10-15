@@ -44,6 +44,20 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.scheduling.Curren
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.fragments.DailyAgendaPatientIsolationSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.persistence.ScheduleReconciliationSmokeTest"
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.ProviderDocumentOwnerSmokeTest"
+# Verify every selectable appearance asset really decodes on every supported API.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.fragments.HomeBackgroundAssetsSmokeTest"
+# Validate malformed catalog preference recovery on each Android emulator API.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.DrugCatalogSelectionSmokeTest"
+# Verify generic public medication notification on the actual Android API matrix.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.healthcareprovider.notifications.ActiveMedLockscreenPrivacySmokeTest"
+# Check patient pickup notification redaction with the installed Android notification stack.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.PickupNotificationPrivacySmokeTest"
+# Validate restored low-stock alert thresholds on the Android emulator matrix.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.alerts.StockWarningPreferenceRestoreSmokeTest"
+# Verify restored remote medication status on Android emulators.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.RemoteMedicationPreferenceRestoreSmokeTest"
+# Prevent malformed medicine selection results from mutating the active editor.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.MedicineSearchResultSafetySmokeTest"
 exec ./gradlew connectedCiDebugAndroidTest \
   "-Pandroid.testInstrumentationRunnerArguments.class=${TEST_CLASSES}" \
   --stacktrace --no-daemon
