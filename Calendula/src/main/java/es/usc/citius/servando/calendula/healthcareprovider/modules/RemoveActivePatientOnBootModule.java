@@ -39,10 +39,23 @@ public class RemoveActivePatientOnBootModule extends CalendulaModule {
         return ID;
     }
 
+    /**
+     * An incompatible restored deferred-logout marker must not retain the
+     * previously active patient. Treat corruption as a pending logout, never
+     * as a reason to bypass it or abort the entire app's initialization.
+     */
+    static boolean shouldRemoveActivePatient() {
+        try {
+            return PreferenceUtils.getBoolean(
+                    PreferenceKeys.PATIENTS_REMOVE_ACTIVE_ON_BOOT, false);
+        } catch (ClassCastException incompatible) {
+            return true;
+        }
+    }
+
     @Override
     protected void onApplicationStartup(Context ctx) {
-        final boolean removePatient = PreferenceUtils.getBoolean(PreferenceKeys.PATIENTS_REMOVE_ACTIVE_ON_BOOT, false);
-        if (removePatient) {
+        if (shouldRemoveActivePatient()) {
             LogUtil.d(TAG, "onApplicationStartup: Key is set, removing active patient");
             PreferenceUtils.edit()
                     .remove(PreferenceKeys.PATIENTS_ACTIVE.key())
