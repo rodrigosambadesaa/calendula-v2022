@@ -46,6 +46,8 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.persistence.Sched
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.ProviderDocumentOwnerSmokeTest"
 # Verify every selectable appearance asset really decodes on every supported API.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.fragments.HomeBackgroundAssetsSmokeTest"
+# Validate malformed catalog preference recovery on each Android emulator API.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.DrugCatalogSelectionSmokeTest"
 exec ./gradlew connectedCiDebugAndroidTest \
   "-Pandroid.testInstrumentationRunnerArguments.class=${TEST_CLASSES}" \
   --stacktrace --no-daemon
