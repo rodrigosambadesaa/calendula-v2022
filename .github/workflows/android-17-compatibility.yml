@@ -9,6 +9,7 @@ on:
       - '.github/workflows/android-17-compatibility.yml'
       - 'Calendula/**'
       - 'scripts/android-smoke-tests.sh'
+      - 'scripts/android-smoke-classes.d/**'
       - 'build.gradle'
       - 'settings.gradle'
       - 'gradle.properties'
