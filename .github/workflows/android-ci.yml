@@ -34,6 +34,11 @@ jobs:
           CLASSES="$(CALENDULA_SMOKE_LIST_ONLY=1 bash scripts/android-smoke-tests.sh)"
           grep -Fx 'es.usc.citius.servando.calendula.activities.PickupNotificationPrivacySmokeTest' <<< "$CLASSES"
 
+      - name: Reject known sensitive Logcat regressions
+        run: |
+          python3 scripts/check_sensitive_log_regressions.py --self-test
+          python3 scripts/check_sensitive_log_regressions.py
+
       - name: Set up JDK 17 for Android SDK tools and Gradle
         uses: actions/setup-java@v6
         with:
