@@ -152,4 +152,32 @@ public class PatientActiveSelectionSafetyTest {
     }
 
 
+
+    @Test
+    public void corruptedActivePatientPreferenceCannotImpersonateAnOwner() throws Exception {
+        PatientDao subject = createSubject(rawDao());
+        Patient previouslySelected = new Patient();
+        previouslySelected.setId(98436L);
+        try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
+            prefs.when(() -> PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1))
+                    .thenThrow(new ClassCastException("Synthetic restored String"));
+            assertFalse("A broken patient selection is never authorization",
+                    subject.isActive(previouslySelected, null));
+        }
+    }
+
+    @Test
+    public void corruptSelectionDoesNotImplicitlySwitchToAnotherPatient()
+            throws Exception {
+        PatientDao subject = spy(createSubject(rawDao()));
+        Context context = ApplicationProvider.getApplicationContext();
+        try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
+            prefs.when(() -> PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1))
+                    .thenThrow(new ClassCastException("Synthetic restored Boolean"));
+            assertNull("Unknown selected owner must not expose a default patient",
+                    subject.getActive(context));
+            org.mockito.Mockito.verify(subject, org.mockito.Mockito.never()).getDefault();
+            prefs.verify(PreferenceUtils::edit, org.mockito.Mockito.never());
+        }
+    }
 }
