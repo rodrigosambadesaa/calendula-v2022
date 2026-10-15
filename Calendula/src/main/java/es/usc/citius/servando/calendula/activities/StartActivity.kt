@@ -69,9 +69,9 @@ class StartActivity : Activity() {
                 return false
             }
             VerificationResult.Level.SECURITY_WARNING -> {
-                if (!PreferenceUtils.instance().preferences().getBoolean(
-                        PREF_VULNERABILITY_WARNING_ACCEPTED,
-                        false
+                if (!StartupSecurityWarningPolicy.wasAccepted(
+                        PreferenceUtils.instance().preferences(),
+                        PREF_VULNERABILITY_WARNING_ACCEPTED
                     )) {
                     showWarningEnvironmentMsg(result)
                     return false
