@@ -58,7 +58,7 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.alerts.Stock
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.RemoteMedicationPreferenceRestoreSmokeTest"
 # Prevent malformed medicine selection results from mutating the active editor.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.MedicineSearchResultSafetySmokeTest"
-# Refuse patient QR tokens after active profile changes.
+# Protect patient QR links after the active profile changes.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.PatientLinkScanOwnerSmokeTest"
 exec ./gradlew connectedCiDebugAndroidTest \
   "-Pandroid.testInstrumentationRunnerArguments.class=${TEST_CLASSES}" \
