@@ -126,11 +126,12 @@ public class PrescriptionAllergen {
 
     @Override
     public String toString() {
+        // Never include an allergen name, external clinical identifier or
+        // an ORM prescription object's recursively formatted details in logs.
         return "PrescriptionAllergen{" +
-                "name='" + name + '\'' +
-                ", type=" + type +
-                ", realId=" + realId +
-                ", prescription=" + prescription +
+                "hasName=" + (name != null) +
+                ", hasType=" + (type != null) +
+                ", hasPrescription=" + (prescription != null) +
                 '}';
     }
 }
