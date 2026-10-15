@@ -64,15 +64,30 @@ public class PatientDao extends GenericDao<Patient, Long> {
     // Manage active patient through preferences
 
     public boolean isActive(Patient p, Context ctx) {
-
-        // An unsaved/null patient cannot match an active persisted record.
-        return p != null && p.getId() != null
-                && PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1)
-                        == p.getId().longValue();
+        // An invalid saved owner must never authorize clinical UI actions
+        // using a stale caller-supplied Patient object.
+        if (p == null || p.getId() == null || p.getId() <= 0L) {
+            return false;
+        }
+        try {
+            return PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1)
+                    == p.getId().longValue();
+        } catch (ClassCastException malformedSelection) {
+            return false;
+        }
     }
 
+    @Nullable
     public Patient getActive(Context ctx) {
-        long id = PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1);
+        final long id;
+        try {
+            id = PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1);
+        } catch (ClassCastException malformedSelection) {
+            // A restored String/Boolean is not an active patient identity.
+            // Do not silently select a different default profile, persist a
+            // replacement or expose its clinical records in this session.
+            return null;
+        }
         Patient p;
         if (id != -1) {
             p = findById(id);
