@@ -227,8 +227,38 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
 
     }
 
+    /**
+     * The scanner is an internal Activity, but its result may reach this
+     * screen after a patient switch or a process-state restore. Revalidate
+     * the original active context at the final secure-token write boundary.
+     */
+    static boolean hasMatchingScanOwner(Intent request, Long activePatientId) {
+        if (request == null) {
+            return false;
+        }
+        try {
+            long originatingOwner = request.getLongExtra(
+                    ScanActivity.EXTRA_SCAN_ACTIVE_OWNER, -1L);
+            return ScannedPatientLinkGuard.isSameActiveContext(
+                    originatingOwner, activePatientId);
+        } catch (RuntimeException malformed) {
+            return false;
+        }
+    }
+
     void lookForQrData(Intent i) {
-        String qrData = i.getStringExtra("qr_data");
+        final es.usc.citius.servando.calendula.persistence.Patient active;
+        try {
+            active = DB.patients().getActive(this);
+        } catch (RuntimeException unavailableSelection) {
+            LogUtil.w(TAG, "Patient link rejected: active selection unavailable");
+            return;
+        }
+        if (!hasMatchingScanOwner(i, active == null ? null : active.getId())) {
+            LogUtil.w(TAG, "Patient link rejected after profile change");
+            return;
+        }
+        String qrData = ScanActivity.safeStringExtra(i, "qr_data");
         if (qrData != null) {
             final PatientLinkWrapper p;
             try {
