@@ -558,9 +558,18 @@ public class IntakeNotificationMgr {
 
 
     private static Uri getRingtoneUri() {
-        String r = PreferenceUtils.getString(PreferenceKeys.SETTINGS_NOTIFICATION_TONE, null);
-        Uri sound = r != null ? Uri.parse(r) : RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-        return sound != null ? sound : Settings.System.DEFAULT_NOTIFICATION_URI;
+        // Historic/restored preferences sometimes contain a non-string
+        // notification tone. Never let one malformed preference suppress a
+        // time-critical medication reminder.
+        String stored = null;
+        try {
+            stored = PreferenceUtils.getString(PreferenceKeys.SETTINGS_NOTIFICATION_TONE, null);
+        } catch (ClassCastException malformed) {
+            LogUtil.w(TAG, "Ignoring incompatible notification sound preference");
+        }
+        Uri systemTone = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+        Uri fallback = systemTone != null ? systemTone : Settings.System.DEFAULT_NOTIFICATION_URI;
+        return NotificationSoundPolicy.safeNotificationTone(stored, fallback);
     }
 
     private static Bitmap getLargeIcon(Resources r, Patient p) {
