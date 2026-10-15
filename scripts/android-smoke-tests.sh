@@ -58,6 +58,8 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.alerts.Stock
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.RemoteMedicationPreferenceRestoreSmokeTest"
 # Prevent malformed medicine selection results from mutating the active editor.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.MedicineSearchResultSafetySmokeTest"
+# Corrupt active owner preference must not expose other patient profiles.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.database.CorruptActivePatientPreferenceSmokeTest"
 # Reject malformed OAuth callback and restored state on actual Android.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.login.OAuthCallbackStateSmokeTest"
 exec ./gradlew connectedCiDebugAndroidTest \
