@@ -50,6 +50,8 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.fragments.HomeBac
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.DrugCatalogSelectionSmokeTest"
 # Verify generic public medication notification on the actual Android API matrix.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.healthcareprovider.notifications.ActiveMedLockscreenPrivacySmokeTest"
+# Reject malformed restored OAuth callback data on actual Android builds.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.login.OAuthCallbackStateSmokeTest"
 exec ./gradlew connectedCiDebugAndroidTest \
   "-Pandroid.testInstrumentationRunnerArguments.class=${TEST_CLASSES}" \
   --stacktrace --no-daemon
