@@ -107,8 +107,14 @@ public class HomeProfileMgr {
         if (!cache.containsKey(path)) {
             Bitmap bm = getBitmapFromAsset(ctx, path);
             if (bm != null) {
-                Palette p = Palette.generate(bm);
-                color = p.getVibrantColor(color);
+                try {
+                    Palette p = Palette.generate(bm);
+                    color = p.getVibrantColor(color);
+                } finally {
+                    // Only a palette integer is cached. The temporary decoded
+                    // WebP image is not a UI-owned drawable and can be freed.
+                    bm.recycle();
+                }
             }
             cache.put(path, color);
         }
