@@ -95,8 +95,18 @@ public final class UnlockStateManager {
         if (start < 0L) {
             return false;
         }
-        final String stored = PreferenceUtils.getString(
-                PreferenceKeys.UNLOCK_PIN_TIMEOUT, DEFAULT_UNLOCK_DURATION_SECONDS);
+        final String stored;
+        try {
+            stored = PreferenceUtils.getString(
+                    PreferenceKeys.UNLOCK_PIN_TIMEOUT, DEFAULT_UNLOCK_DURATION_SECONDS);
+        } catch (ClassCastException incompatible) {
+            // An old/foreign backup may have put an Integer or Boolean where
+            // the PIN selector stores a String. Never crash or keep a prior
+            // authenticated session unlocked after this validation failure.
+            unlockedAtElapsedMs = -1L;
+            LogUtil.w(TAG, "PIN unlock invalidated by incompatible timeout setting");
+            return false;
+        }
         final int seconds = parseAllowedTimeoutSeconds(stored);
         final long now = SystemClock.elapsedRealtime();
         if (withinUnlockWindow(start, now, seconds)) {
