@@ -91,14 +91,28 @@ public class InstanceIDHelper {
             }
         });
 
-        try {
-            lock.await();
-            newToken = newTokenBuilder.toString();
-            LogUtil.d(TAG, "New InstanceId token retrieved");
-        } catch (InterruptedException e) {
-            LogUtil.w(TAG, "An error occurred while retrieving InstanceID: ", e);
+        if (!awaitInstanceId(lock, 15L)) {
+            // Firebase can stall before OAuth refresh even begins. A bounded
+            // refresh callback is not sufficient if its prerequisite hangs.
+            LogUtil.w(TAG, "Instance ID request timed out or was interrupted");
+            return null;
         }
+        newToken = newTokenBuilder.toString();
+        if (newToken == null || newToken.trim().isEmpty()) {
+            return null;
+        }
+        LogUtil.d(TAG, "New InstanceId token retrieved");
         return newToken;
+    }
+
+    /** Never block a provider background job forever waiting for Firebase. */
+    static boolean awaitInstanceId(CountDownLatch completion, long timeoutSeconds) {
+        try {
+            return completion.await(timeoutSeconds, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 
 
