@@ -115,23 +115,33 @@ public class HomeProfileMgr {
     }
 
     public static Bitmap getBitmapFromAsset(Context context, String filePath) {
+        // Repeated home/background updates must not leak open asset file
+        // descriptors or retain decoder input streams after decoding.
         AssetManager assetManager = context.getAssets();
-
-        InputStream istr;
-        Bitmap bitmap = null;
-        try {
-            istr = assetManager.open(filePath);
-            bitmap = BitmapFactory.decodeStream(istr);
-        } catch (IOException e) {
-            // handle exception
+        try (InputStream stream = assetManager.open(filePath)) {
+            return BitmapFactory.decodeStream(stream);
+        } catch (IOException missingAsset) {
+            return null;
         }
-
-        return bitmap;
     }
 
     static String getBackgroundPath() {
-        Integer idx = PreferenceUtils.getInt(PreferenceKeys.HOME_PROFILE_BACKGROUND_INDEX, 1);
-        return String.format(Locale.ROOT, BG_IMAGE_PATTERN, idx);
+        int chosen = 1;
+        try {
+            chosen = PreferenceUtils.getInt(PreferenceKeys.HOME_PROFILE_BACKGROUND_INDEX, 1);
+        } catch (ClassCastException wrongType) {
+            // Corrupt restored preference is not a reason to crash the home.
+        }
+        return String.format(Locale.ROOT, BG_IMAGE_PATTERN, validBackgroundIndex(chosen));
+    }
+
+    static int validBackgroundIndex(int candidate) {
+        return candidate >= 1 && candidate <= BG_COUNT ? candidate : 1;
+    }
+
+    static String validDisplayName(String configured, String fallback) {
+        return configured == null || configured.trim().isEmpty()
+                || configured.length() > 256 ? fallback : configured;
     }
 
     public void init(View view, final Activity ctx) {
@@ -241,8 +251,14 @@ public class HomeProfileMgr {
     }
 
     void updateProfileInfo() {
-        String displayName = PreferenceUtils.getString(PreferenceKeys.HOME_DISPLAY_NAME, context.getString(R.string.app_name));
-        profileUsername.setText(displayName);
+        String fallback = context.getString(R.string.app_name);
+        String displayName;
+        try {
+            displayName = PreferenceUtils.getString(PreferenceKeys.HOME_DISPLAY_NAME, fallback);
+        } catch (ClassCastException malformedName) {
+            displayName = fallback;
+        }
+        profileUsername.setText(validDisplayName(displayName, fallback));
         updateDate();
     }
 
