@@ -43,6 +43,7 @@ public class ScanActivity extends CalendulaActivity {
     String afterScanCls;
     Long patientId;
     private static final String STATE_SCAN_ACTIVE_OWNER = "scan_active_patient_owner";
+    static final String EXTRA_SCAN_ACTIVE_OWNER = "scan_active_patient_owner_for_link";
     private Long activePatientOnOpen;
 
     /** Wrong-type restored/external extras never supply a valid scan route. */
@@ -193,6 +194,7 @@ public class ScanActivity extends CalendulaActivity {
         }
         Intent internal = new Intent(this, PatientDetailActivity.class);
         internal.putExtra("qr_data", payload);
+        internal.putExtra(EXTRA_SCAN_ACTIVE_OWNER, activePatientOnOpen);
         internal.putExtra("patient_id", patientId);
         startActivity(internal);
         finish();
