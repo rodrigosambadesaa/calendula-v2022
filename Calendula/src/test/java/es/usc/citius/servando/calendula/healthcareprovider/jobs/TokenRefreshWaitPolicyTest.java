@@ -17,13 +17,13 @@ public class TokenRefreshWaitPolicyTest {
     public void successfullyCompletedRefreshIsImmediatelyRecognized() {
         CountDownLatch completed = new CountDownLatch(1);
         completed.countDown();
-        assertTrue(UpdateMedicationFromServiceJob.awaitTokenRefresh(completed, 0));
+        assertTrue(TokenRefreshWaitPolicy.awaitCompletion(completed, 0));
     }
 
     @Test
     public void stalledProviderCannotBlockForever() {
         CountDownLatch stalled = new CountDownLatch(1);
-        assertFalse(UpdateMedicationFromServiceJob.awaitTokenRefresh(stalled, 0));
+        assertFalse(TokenRefreshWaitPolicy.awaitCompletion(stalled, 0));
         assertTrue("Timeout must not mark a refresh complete",
                 stalled.getCount() == 1L);
     }
@@ -33,7 +33,7 @@ public class TokenRefreshWaitPolicyTest {
         CountDownLatch pending = new CountDownLatch(1);
         Thread.currentThread().interrupt();
         try {
-            assertFalse(UpdateMedicationFromServiceJob.awaitTokenRefresh(pending, 90));
+            assertFalse(TokenRefreshWaitPolicy.awaitCompletion(pending, 90));
             assertTrue("Job cancellation must not lose interrupt state",
                     Thread.currentThread().isInterrupted());
         } finally {
