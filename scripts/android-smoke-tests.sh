@@ -46,6 +46,8 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.persistence.Sched
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.ProviderDocumentOwnerSmokeTest"
 # Verify every selectable appearance asset really decodes on every supported API.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.fragments.HomeBackgroundAssetsSmokeTest"
+# Validate restored periodic-job identifiers on actual Android SharedPreferences.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.healthcareprovider.jobs.PeriodicMedicationJobIdRestoreSmokeTest"
 exec ./gradlew connectedCiDebugAndroidTest \
   "-Pandroid.testInstrumentationRunnerArguments.class=${TEST_CLASSES}" \
   --stacktrace --no-daemon
