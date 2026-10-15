@@ -56,6 +56,8 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.alerts.Stock
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.RemoteMedicationPreferenceRestoreSmokeTest"
 # Prevent malformed medicine selection results from mutating the active editor.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.MedicineSearchResultSafetySmokeTest"
+# Corrupt active owner preference must not expose other patient profiles.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.database.CorruptActivePatientPreferenceSmokeTest"
 # Optional manifests let feature PRs add independent emulator tests without
 # editing this shared, historically conflict-prone list. Every file in the
 # directory is scanned in lexical order on API 23/33/36/37.
