@@ -153,4 +153,34 @@ class NotificationPrefsPresenterTest {
         )
     }
 
+
+    @Test
+    fun wronglyTypedRestoredRingtonePreferencesKeepSettingsUsable() {
+        PreferenceUtils.edit()
+            .putInt(PreferenceKeys.SETTINGS_NOTIFICATION_TONE.key(), 123)
+            .putBoolean(PreferenceKeys.SETTINGS_INSISTENT_NOTIFICATION_TONE.key(), true)
+            .commit()
+        try {
+            // Both labels and the picker must remain available; valid user
+            // preferences and medication records are never overwritten.
+            presenter.start()
+            presenter.selectNotificationRingtone()
+            presenter.selectInsistentRingtone()
+            verify(view).setInsistentRingtoneText(kotlinAny<String>())
+            verify(view).setNotificationRingtoneText(kotlinAny<String>())
+            verify(view).requestRingtone(
+                ArgumentMatchers.anyInt(), kotlinEq(RingtoneManager.TYPE_NOTIFICATION),
+                kotlinAny<Uri?>()
+            )
+            verify(view).requestRingtone(
+                ArgumentMatchers.anyInt(), kotlinEq(RingtoneManager.TYPE_ALARM),
+                kotlinAny<Uri?>()
+            )
+        } finally {
+            PreferenceUtils.edit()
+                .putString(PreferenceKeys.SETTINGS_NOTIFICATION_TONE.key(), "default")
+                .putString(PreferenceKeys.SETTINGS_INSISTENT_NOTIFICATION_TONE.key(),
+                    INITIAL_RINGTONE_URI).commit()
+        }
+    }
 }
