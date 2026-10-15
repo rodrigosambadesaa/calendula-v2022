@@ -370,7 +370,7 @@ public class HomePagerActivity extends CalendulaActivity implements
      * If the app has been updated from an old Drug DB model, we need to re-install it and re-link the meds to their prescription.
      */
     public void checkDatabaseUpdateNeeded() {
-        final boolean needPrompt = PreferenceUtils.getBoolean(PreferenceKeys.DRUGDB_DB_PROMPT, false);
+        final boolean needPrompt = es.usc.citius.servando.calendula.util.RestoredUiBoolean.read(PreferenceKeys.DRUGDB_DB_PROMPT, false);
         if (needPrompt) {
             new MaterialStyledDialog.Builder(this)
                     .setStyle(Style.HEADER_WITH_ICON)
@@ -524,7 +524,7 @@ public class HomePagerActivity extends CalendulaActivity implements
                 .color(Color.WHITE)
                 .sizeDp(24);
 
-        if (!PreferenceUtils.getBoolean(PreferenceKeys.HOME_INTRO_SHOWN, false)) {
+        if (!es.usc.citius.servando.calendula.util.RestoredUiBoolean.read(PreferenceKeys.HOME_INTRO_SHOWN, false)) {
             launchActivityForResult(new Intent(HomePagerActivity.this, MaterialIntroActivity.class),MaterialIntroActivity.MATERIAL_INTRO_ACTIVITY);
         }
 

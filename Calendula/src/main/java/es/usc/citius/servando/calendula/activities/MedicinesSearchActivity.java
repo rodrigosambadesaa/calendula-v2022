@@ -364,7 +364,7 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
         if (!PreferenceUtils.getString(PreferenceKeys.DRUGDB_CURRENT_DB, CalendulaApp.getContext().getString(R.string.database_none_id))
                 .equals(CalendulaApp.getContext().getString(R.string.database_none_id))) {
             enableBarcodeScan();
-        } else if (!PreferenceUtils.getBoolean(PreferenceKeys.MEDICINES_USE_PRESCRIPTIONS_SHOWN, false)) {
+        } else if (!es.usc.citius.servando.calendula.util.RestoredUiBoolean.read(PreferenceKeys.MEDICINES_USE_PRESCRIPTIONS_SHOWN, false)) {
             askForDatabase();
         }
 

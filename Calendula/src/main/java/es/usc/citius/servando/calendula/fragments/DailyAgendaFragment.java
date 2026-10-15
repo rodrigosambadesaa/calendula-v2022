@@ -116,7 +116,7 @@ public class DailyAgendaFragment extends Fragment {
         setupRecyclerView();
         setupEmptyView();
 
-        boolean expanded = PreferenceUtils.getBoolean(PreferenceKeys.HOME_DAILYAGENDA_EXPANDED, false);
+        boolean expanded = es.usc.citius.servando.calendula.util.RestoredUiBoolean.read(PreferenceKeys.HOME_DAILYAGENDA_EXPANDED, false);
         if (expanded != isExpanded()) {
             toggleViewMode();
             ((HomePagerActivity) getActivity()).appBarLayout.setExpanded(!expanded);
