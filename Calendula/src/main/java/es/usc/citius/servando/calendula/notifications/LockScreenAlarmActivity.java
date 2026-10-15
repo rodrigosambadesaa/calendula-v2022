@@ -33,6 +33,7 @@ import android.os.Vibrator;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.Window;
+import android.view.Window;
 import android.view.WindowManager;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -106,15 +107,20 @@ public class LockScreenAlarmActivity extends AppCompatActivity {
         return super.onKeyDown(keyCode, event);
     }
 
+    /** Consistent with CalendulaActivity, including an explicit opt-out. */
+    static void applyScreenshotProtection(Window window, boolean protect) {
+        if (protect && window != null) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         // This activity intentionally extends AppCompatActivity rather than
         // CalendulaActivity, so it must opt in to the same privacy policy
         // before its medication reminder view is inflated.
-        if (SecureWindowPolicy.isProtected()) {
-            getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
-        }
+        applyScreenshotProtection(getWindow(), SecureWindowPolicy.isProtected());
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
