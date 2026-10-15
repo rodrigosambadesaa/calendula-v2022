@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pickup_alarm_title">Recordatorio de recogida de medicamentos</string>
+    <string name="pickup_alarm_description">Consulta el calendario de recogida de tus medicamentos.</string>
+</resources>
