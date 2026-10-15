@@ -22,15 +22,28 @@ import android.content.Context
 import android.media.RingtoneManager
 import android.net.Uri
 import es.usc.citius.servando.calendula.R
-import java.lang.ref.WeakReference
-
-
 class RingtoneNameResolver(context: Context) {
 
-    private val contextRef = WeakReference(context)
+    // Keep only the application Context, never a strong Activity reference.
+    // A weak Activity Context may vanish before async ringtone UI refreshes.
+    private val appContext = context.applicationContext ?: context
 
-    fun resolveRingtoneName(uri: Uri?): String = when (uri) {
-        null -> contextRef.get()!!.getString(R.string.ringtone_none)
-        else -> RingtoneManager.getRingtone(contextRef.get(), uri).getTitle(contextRef.get())
+    fun resolveRingtoneName(uri: Uri?): String {
+        if (uri == null) return appContext.getString(R.string.ringtone_none)
+        // A ringtone can disappear from MediaStore, become inaccessible or
+        // fail to resolve after a backup. The settings screen must stay usable.
+        return resolvedTitleSafely {
+            RingtoneManager.getRingtone(appContext, uri)?.getTitle(appContext)
+        }
+    }
+
+    internal fun resolvedTitleSafely(loadTitle: () -> String?): String {
+        val fallback = appContext.getString(R.string.ringtone_none)
+        return try {
+            loadTitle()?.takeIf { it.isNotBlank() } ?: fallback
+        } catch (unavailable: RuntimeException) {
+            // No exception text or ringtone URI in Logcat.
+            fallback
+        }
     }
 }
