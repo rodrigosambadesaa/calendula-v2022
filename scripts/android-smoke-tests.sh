@@ -54,6 +54,8 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.healthcareprovide
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.activities.PickupNotificationPrivacySmokeTest"
 # Validate restored low-stock alert thresholds on the Android emulator matrix.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.alerts.StockWarningPreferenceRestoreSmokeTest"
+# Verify restored remote medication status on Android emulators.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.RemoteMedicationPreferenceRestoreSmokeTest"
 exec ./gradlew connectedCiDebugAndroidTest \
   "-Pandroid.testInstrumentationRunnerArguments.class=${TEST_CLASSES}" \
   --stacktrace --no-daemon
