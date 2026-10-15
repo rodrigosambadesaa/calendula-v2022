@@ -20,8 +20,11 @@ public class DBUtil {
     private static final String TAG = "DBUtil";
 
     public static boolean isValidDB() {
-        return PreferenceUtils.getString(PreferenceKeys.DRUGDB_CURRENT_DB, CalendulaApp.getContext().getString(R.string.database_none_id))
-                .equals(CalendulaApp.getContext().getString(R.string.database_aemps_id));
+        String selected = es.usc.citius.servando.calendula.drugdb.DrugCatalogPreferencePolicy
+                .selectedIdOrFallback(PreferenceUtils.instance().preferences(),
+                        PreferenceKeys.DRUGDB_CURRENT_DB.key(),
+                        CalendulaApp.getContext().getString(R.string.database_none_id));
+        return CalendulaApp.getContext().getString(R.string.database_aemps_id).equals(selected);
     }
 
     public static List<DispensationInfoVO> toDispensationVoList(Collection<DispensationInfoEntity> entities) {
