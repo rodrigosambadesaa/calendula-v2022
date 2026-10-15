@@ -232,10 +232,17 @@ public class GetExtraInfoFromServiceJob extends Job {
             LogUtil.d(TAG, "AccessTokenExpirationTime: " + new DateTime(authState.getAccessTokenExpirationTime()).toString());
             final CountDownLatch countDownLatch = new CountDownLatch(1);
             final AuthorizationService authService = AuthorizationServiceHelper.createAuthorizationService(getContext());
-            authState.performActionWithFreshTokens(authService, additionalParams, new AuthState.AuthStateAction() {
+            final java.util.concurrent.atomic.AtomicBoolean acceptingCallbacks =
+                    new java.util.concurrent.atomic.AtomicBoolean(true);
+            try {
+                authState.performActionWithFreshTokens(authService, additionalParams, new AuthState.AuthStateAction() {
                 @Override
                 public void execute(@Nullable String accessToken, @Nullable String idToken, @Nullable AuthorizationException ex) {
-                    if (ex != null) {
+                    try {
+                        if (!acceptingCallbacks.get()) {
+                            return;
+                        }
+                        if (ex != null) {
                         LogUtil.d(TAG, "refreshTokensIfNeeded: refresh failed. Exception: ", ex);
                         if (ex.code == AuthorizationException.GeneralErrors.NETWORK_ERROR.code)
                             result.setResult(Status.ERROR_NO_CONNECTION);
@@ -243,16 +250,29 @@ public class GetExtraInfoFromServiceJob extends Job {
                     } else {
                         LoginStateManager.getInstance().updateAuthState(authState);
                     }
-                    countDownLatch.countDown();
+                    } finally {
+                        countDownLatch.countDown();
+                    }
                 }
             });
-
-            authService.dispose();
-            try {
-                countDownLatch.await();
-            } catch (InterruptedException e) {
-                LogUtil.w(TAG, "onRunJob: ", e);
+                if (!AuthRefreshWait.await(countDownLatch)) {
+                    // Network timeout or cancelled worker is retryable; it is
+                    // NOT proof the patient has revoked login authorization.
+                    result.setResult(Status.ERROR_NO_CONNECTION);
+                    LogUtil.w(TAG, "OAuth refresh timed out or was interrupted");
+                }
+            } catch (RuntimeException dispatchFailed) {
+                LogUtil.w(TAG, "OAuth refresh could not be dispatched");
                 result.setResult(Status.ERROR_GENERIC);
+            } finally {
+                acceptingCallbacks.set(false);
+                // Do not dispose before the asynchronous callback has run:
+                // that can prevent the latch from ever being counted down.
+                try {
+                    authService.dispose();
+                } catch (RuntimeException closingFailed) {
+                    LogUtil.w(TAG, "OAuth refresh service cleanup failed");
+                }
             }
         } else if (authState != null) {
             LogUtil.d(TAG, "AccessTokenExpirationTime: " + new DateTime(authState.getAccessTokenExpirationTime()).toString());
