@@ -41,7 +41,7 @@ public class ScanIntentRestoreTest {
     public void receiverRejectsTokenWhenActivePatientSwitchedAfterScan() {
         Intent handoff = new Intent()
                 .putExtra(ScanActivity.EXTRA_SCAN_ACTIVE_OWNER, 26L)
-                .putExtra("qr_data", "{\\\"token\\\":\\\"synthetic\\\"}");
+                .putExtra("qr_data", "synthetic test payload");
         org.junit.Assert.assertTrue(PatientDetailActivity.hasMatchingScanOwner(handoff, 26L));
         org.junit.Assert.assertFalse(PatientDetailActivity.hasMatchingScanOwner(handoff, 27L));
         org.junit.Assert.assertFalse(PatientDetailActivity.hasMatchingScanOwner(handoff, null));
