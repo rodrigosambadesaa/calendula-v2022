@@ -25,7 +25,7 @@ public class PeriodicMedicationJobIdRestoreTest {
         try (MockedStatic<PreferenceUtils> preferences = mockStatic(PreferenceUtils.class)) {
             preferences.when(() -> PreferenceUtils.getInt(
                     PreferenceKeys.REMOTE_PERIODIC_JOB_ID, -1)).thenReturn(4242);
-            assertEquals(4242, UpdateMedicationFromServiceJob.storedPeriodicJobId());
+            assertEquals(4242, UpdateMedicationFromServiceJob.savedPeriodicJobIdOrMissing());
         }
     }
 
@@ -35,7 +35,7 @@ public class PeriodicMedicationJobIdRestoreTest {
             try (MockedStatic<PreferenceUtils> preferences = mockStatic(PreferenceUtils.class)) {
                 preferences.when(() -> PreferenceUtils.getInt(
                         PreferenceKeys.REMOTE_PERIODIC_JOB_ID, -1)).thenReturn(invalid);
-                assertEquals(-1, UpdateMedicationFromServiceJob.storedPeriodicJobId());
+                assertEquals(-1, UpdateMedicationFromServiceJob.savedPeriodicJobIdOrMissing());
             }
         }
     }
@@ -46,7 +46,7 @@ public class PeriodicMedicationJobIdRestoreTest {
             preferences.when(() -> PreferenceUtils.getInt(
                     PreferenceKeys.REMOTE_PERIODIC_JOB_ID, -1))
                     .thenThrow(new ClassCastException("Synthetic restored String"));
-            assertEquals(-1, UpdateMedicationFromServiceJob.storedPeriodicJobId());
+            assertEquals(-1, UpdateMedicationFromServiceJob.savedPeriodicJobIdOrMissing());
         }
     }
 }

@@ -28,13 +28,13 @@ public class PeriodicMedicationJobIdRestoreSmokeTest {
         final Object previous = prefs.getAll().get(key);
         try {
             assertTrue(prefs.edit().putString(key, "legacy job").commit());
-            assertEquals(-1, UpdateMedicationFromServiceJob.storedPeriodicJobId());
+            assertEquals(-1, UpdateMedicationFromServiceJob.savedPeriodicJobIdOrMissing());
             assertTrue(prefs.edit().putBoolean(key, true).commit());
-            assertEquals(-1, UpdateMedicationFromServiceJob.storedPeriodicJobId());
+            assertEquals(-1, UpdateMedicationFromServiceJob.savedPeriodicJobIdOrMissing());
             assertTrue(prefs.edit().putInt(key, 13).commit());
-            assertEquals(13, UpdateMedicationFromServiceJob.storedPeriodicJobId());
+            assertEquals(13, UpdateMedicationFromServiceJob.savedPeriodicJobIdOrMissing());
             assertTrue(prefs.edit().putInt(key, 0).commit());
-            assertEquals(-1, UpdateMedicationFromServiceJob.storedPeriodicJobId());
+            assertEquals(-1, UpdateMedicationFromServiceJob.savedPeriodicJobIdOrMissing());
         } finally {
             SharedPreferences.Editor restore = prefs.edit();
             if (!hadValue || previous == null) {

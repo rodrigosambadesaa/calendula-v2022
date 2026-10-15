@@ -371,11 +371,17 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
             closeStaleMedicineEditor();
             return;
         }
-        LogUtil.d(TAG, "onActivityResult() called with: requestCode = [" + requestCode + "], resultCode = [" + resultCode + "], data = [" + data + "]");
+        // Never stringify Intent extras that may include confidential prescriptions.
+        LogUtil.d(TAG, "Medicine search result received");
         if (requestCode == REQUEST_CODE_GET_MED) {
             if (resultCode == RESULT_OK && data != null) {
-                final String prescriptionName = data.getStringExtra(
-                        MedicinesSearchActivity.RETURN_EXTRA_PRESCRIPTION_NAME);
+                final String prescriptionName = MedicineSearchResultPolicy.nameOrNull(data);
+                final Prescription prescription = prescriptionName == null
+                        ? MedicineSearchResultPolicy.prescriptionOrNull(data) : null;
+                if (prescriptionName == null && prescription == null) {
+                    LogUtil.w(TAG, "Medicine search returned an invalid result");
+                    return;
+                }
                 mViewPager.post(new Runnable() {
                     @Override
                     public void run() {
@@ -398,8 +404,6 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
                         if (prescriptionName != null) {
                             editor.setMedicineName(prescriptionName);
                         } else {
-                            final Prescription prescription = data.getParcelableExtra(
-                                    MedicinesSearchActivity.RETURN_EXTRA_PRESCRIPTION);
                             if (prescription != null) {
                                 editor.setPrescription(prescription);
                             } else {

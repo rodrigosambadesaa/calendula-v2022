@@ -111,21 +111,20 @@ public class UpdateMedicationFromServiceJob extends Job {
     }
 
     /**
-     * Job IDs may be saved as String/Boolean by a legacy restore, but only
-     * positive Integer IDs can identify an Android JobManager request.
-     * A bad setting must trigger the regular unique-job reconstruction.
+     * A wrong-type restored job ID is not evidence of a registered periodic
+     * job. Let the normal unique scheduler recover instead of aborting startup.
      */
-    static int storedPeriodicJobId() {
+    static int savedPeriodicJobIdOrMissing() {
         try {
-            int saved = PreferenceUtils.getInt(PreferenceKeys.REMOTE_PERIODIC_JOB_ID, -1);
-            return saved > 0 ? saved : -1;
-        } catch (ClassCastException incompatible) {
+            int id = PreferenceUtils.getInt(PreferenceKeys.REMOTE_PERIODIC_JOB_ID, -1);
+            return id > 0 ? id : -1;
+        } catch (ClassCastException restoredWrongType) {
             return -1;
         }
     }
 
     private static boolean isPeriodicScheduled() {
-        final int periodicJobId = storedPeriodicJobId();
+        final int periodicJobId = savedPeriodicJobIdOrMissing();
         if (periodicJobId != -1) {
             // the periodic job doesn't get rescheduled so it's fine to use always the same ID
             final JobManager jobManager = JobManager.instance();
