@@ -50,6 +50,10 @@ TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.fragments.HomeBac
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.DrugCatalogSelectionSmokeTest"
 # Verify generic public medication notification on the actual Android API matrix.
 TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.healthcareprovider.notifications.ActiveMedLockscreenPrivacySmokeTest"
+# Validate restored low-stock alert thresholds on the Android emulator matrix.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.alerts.StockWarningPreferenceRestoreSmokeTest"
+# Verify restored remote medication status on Android emulators.
+TEST_CLASSES="${TEST_CLASSES},es.usc.citius.servando.calendula.util.RemoteMedicationPreferenceRestoreSmokeTest"
 # Optional manifests let feature PRs add independent emulator tests without
 # editing this shared, historically conflict-prone list. Every file in the
 # directory is scanned in lexical order on API 23/33/36/37.
