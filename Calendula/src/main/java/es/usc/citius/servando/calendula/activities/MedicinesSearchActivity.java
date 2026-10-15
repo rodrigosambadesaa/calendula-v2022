@@ -65,6 +65,7 @@ import es.usc.citius.servando.calendula.settings.CalendulaSettingsActivity;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.KeyboardUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.DrugCatalogSelection;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
@@ -217,8 +218,8 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
 
     private void refreshViews() {
         // TODO: 23/02/18 the current DBVersionMgr should tell us if the DB can handle barcodes
-        if (!PreferenceUtils.getString(PreferenceKeys.DRUGDB_CURRENT_DB, CalendulaApp.getContext().getString(R.string.database_none_id))
-                .equals(CalendulaApp.getContext().getString(R.string.database_none_id))) {
+        if (DrugCatalogSelection.isReady(
+                getString(R.string.database_none_id), getString(R.string.database_setting_up))) {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
