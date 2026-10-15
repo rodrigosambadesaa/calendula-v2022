@@ -250,6 +250,11 @@ public class GetExtraInfoFromServiceJob extends Job {
                     } else {
                         LoginStateManager.getInstance().updateAuthState(authState);
                     }
+                    } catch (RuntimeException failedRefreshState) {
+                        // A callback that cannot persist its new auth state
+                        // must not be reported as a successful sync.
+                        LogUtil.w(TAG, "OAuth callback state update failed");
+                        result.setResult(Status.ERROR_GENERIC);
                     } finally {
                         countDownLatch.countDown();
                     }
