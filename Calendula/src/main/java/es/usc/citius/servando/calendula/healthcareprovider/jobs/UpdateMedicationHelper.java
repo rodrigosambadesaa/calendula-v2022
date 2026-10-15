@@ -43,6 +43,7 @@ import es.usc.citius.servando.calendula.util.GsonUtil;
 import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.NetworkUtils;
 import es.usc.citius.servando.calendula.util.PendingIntentFlags;
+import es.usc.citius.servando.calendula.util.RemoteMedicationPreferenceReader;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
@@ -82,7 +83,7 @@ public class UpdateMedicationHelper {
 
             notifyStatusUpdate(Status.UPDATE_START);
 
-            final String lastHash = PreferenceUtils.getString(PreferenceKeys.REMOTE_LAST_HASH, null);
+            final String lastHash = RemoteMedicationPreferenceReader.lastRevisionOrNull();
             try {
                 // do call and parse active meds
                 final ResponseVO responseVO = RemoteQueryManager.instance().checkForActiveMeds(lastHash);
