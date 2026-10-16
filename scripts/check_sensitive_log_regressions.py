@@ -65,7 +65,10 @@ def violations(relative_path: str, source: str) -> list[str]:
 
 
 def self_test() -> None:
-    pin, drawer, pdf = tuple(RULES)
+    # Resolve by explicit path: adding clinical guards must never break self-test.
+    pin = "Calendula/src/main/java/es/usc/citius/servando/calendula/settings/privacy/PrivacyPrefsPresenter.kt"
+    drawer = "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/LeftDrawerMgr.java"
+    pdf = "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/PdfViewActivity.java"
     assert violations(pin, 'LogUtil.d(TAG, "data=$data")')
     assert violations(pin, 'LogUtil.d(TAG, EXTRA_NEW_PIN)')
     assert violations(drawer, 'LogUtil.d(TAG, "Name: " + p.getName())')
