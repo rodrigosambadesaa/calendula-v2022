@@ -275,7 +275,7 @@ public class CalendarActivity extends CalendulaActivity {
             }
         }
 
-        LogUtil.d(TAG, msg.toString());
+        // msg is the patient-facing medication pickup list; do not log it.
         return msg;
     }
 
