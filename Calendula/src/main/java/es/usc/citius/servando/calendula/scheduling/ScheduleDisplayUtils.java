@@ -25,7 +25,6 @@ import java.util.ArrayList;
 
 import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.persistence.Presentation;
-import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.Strings;
 
 
@@ -106,7 +105,7 @@ public class ScheduleDisplayUtils {
             } else if (decimalPart == 0.75) {
                 fractionString = "3/4";
             } else {
-                LogUtil.d(TAG, "displayDose: invalid decimalPart value! value = " + decimalPart);
+                // Never disclose a patient's raw medicine dose in diagnostics.
             }
 
             if (integerPart > 0) {
