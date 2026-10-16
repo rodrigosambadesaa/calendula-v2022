@@ -140,7 +140,7 @@ public class DispensationInfoStore {
             Collections.sort(sorted);
             for (LocalDate day : sorted) {
                 List<DispensationInfoEntity> pks = bestDays.get(day);
-                LogUtil.d(TAG, day.toString("dd/MM/YYYY") + ": " + pks.size());
+                // Dispensation timestamps must not be disclosed via debug output.
                 if (pks.size() >= bestDayCount) {
                     bestDayCount = pks.size();
                     bestOption = day;

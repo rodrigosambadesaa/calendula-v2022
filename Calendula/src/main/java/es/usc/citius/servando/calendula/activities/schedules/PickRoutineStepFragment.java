@@ -80,7 +80,6 @@ import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime;
 import es.usc.citius.servando.calendula.util.Comparators;
-import es.usc.citius.servando.calendula.util.LogUtil;
 
 /**
  *
@@ -126,7 +125,7 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
         hoursRv.setOnValueChangedListener(new NumberPicker.OnValueChangeListener() {
             @Override
             public void onValueChange(NumberPicker numberPicker, int prev, int current) {
-                LogUtil.d(TAG, "ValueChange: " + current + ", selected: " + hours.get(current - 1));
+                // Selected medication routine hours are private.
                 setSelectedHours(hours.get(current - 1));
             }
         });
@@ -376,7 +375,7 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
     @Override
     public void onDialogNumberSet(int reference, BigInteger number, double decimal, boolean isNegative, BigDecimal fullNumber) {
         int amount = fullNumber.intValue();
-        LogUtil.d(TAG, "Amount: " + amount);
+        // Do not log configured routine intervals.
         hoursRv.setValue(amount);
         setSelectedHours(amount);
     }

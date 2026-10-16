@@ -245,7 +245,7 @@ public class ActiveMedicationListFragment extends Fragment {
     @SuppressWarnings("unused")
     @Subscribe
     public void handleActiveMedUpdate(final ActiveMedUpdateEvent event) {
-        LogUtil.v(TAG, "Received active med event: " + event.toString());
+        LogUtil.v(TAG, "Received provider medication update");
         final FragmentActivity activity = getActivity();
         if (activity != null) {
             activity.runOnUiThread(() -> {

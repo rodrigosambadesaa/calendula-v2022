@@ -678,7 +678,7 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
 
     private void showChanges(Collection<ScheduleComparator.Change> changes) {
 
-        LogUtil.d(TAG, tmpSchedule.toString());
+        // Never stringify a clinical treatment schedule into Logcat.
 
         if (activeMed != null) {
             StringBuilder text = new StringBuilder();

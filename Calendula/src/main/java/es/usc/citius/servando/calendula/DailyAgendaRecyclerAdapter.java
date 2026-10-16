@@ -264,7 +264,7 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
         boolean result = false;
         for (DailyAgendaItemStub item : items) {
             if (isDisplayable(item)) {
-                LogUtil.d(TAG, "Item is displayable: " + item.toString());
+                // Agenda item snapshots may contain private medication details.
                 result = true;
             }
         }

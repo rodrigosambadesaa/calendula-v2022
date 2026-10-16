@@ -20,6 +20,33 @@ RULES = {
         (r"LogUtil\.\w+\s*\([^\n]*p\.getName\s*\(", "patient name directly logged"),
         (r"Adding patient to drawer:\s*", "legacy patient-name log reintroduced"),
     ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/ConfirmActivity.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*eventInstance\.toString\s*\(", "confirmation intake event serialized to log"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/schedules/ScheduleBuildActivity.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*tmpSchedule\.toString\s*\(", "medication schedule serialized to log"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/DailyAgendaRecyclerAdapter.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*item\.toString\s*\(", "agenda row serialized to log"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/ActiveMedicationListFragment.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*event\.toString\s*\(", "provider medication update event serialized to log"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/CalendarActivity.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*msg\.toString\s*\(", "patient medication calendar rendered text logged"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/util/stock/StockDisplayUtils.kt": (
+        (r"updateStockText: estimated end date is", "stock depletion date logged"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/util/DispensationInfoStore.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*day\.toString\s*\(", "dispensation dates logged"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/scheduling/ScheduleDisplayUtils.java": (
+        (r"displayDose: invalid decimalPart value! value =", "raw medication dose logged"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/schedules/PickRoutineStepFragment.java": (
+        (r"ValueChange:[^\n]*selected:", "selected medication routine hour logged"),
+    ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/RoutineCreateOrEditFragment.java": (
         (r"LogUtil\.\w+\s*\([^\n]*r\.getName\s*\(", "routine name printed in clinical logs"),
         (r"Routine set:\s*", "legacy patient routine name diagnostics reintroduced"),
@@ -46,14 +73,26 @@ def violations(relative_path: str, source: str) -> list[str]:
 
 
 def self_test() -> None:
-    pin, drawer, routine, routine_list, pdf = tuple(RULES)
+    # Resolve by explicit path: adding clinical guards must never break self-test.
+    pin = "Calendula/src/main/java/es/usc/citius/servando/calendula/settings/privacy/PrivacyPrefsPresenter.kt"
+    drawer = "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/LeftDrawerMgr.java"
+    pdf = "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/PdfViewActivity.java"
     assert violations(pin, 'LogUtil.d(TAG, "data=$data")')
     assert violations(pin, 'LogUtil.d(TAG, EXTRA_NEW_PIN)')
     assert violations(drawer, 'LogUtil.d(TAG, "Name: " + p.getName())')
-    assert violations(routine, 'LogUtil.d(TAG, "Routine set: " + r.getName())')
-    assert violations(routine_list, 'LogUtil.d(TAG, "Click at " + r.getName())')
     assert violations(pdf, 'LogUtil.d(TAG, "Document: " + previewUrl)')
     assert violations(pdf, 'LogUtil.d(TAG, "Document: " + url)')
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/activities/ConfirmActivity.java", 'LogUtil.d(TAG, eventInstance.toString())')
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/activities/schedules/ScheduleBuildActivity.java", 'LogUtil.d(TAG, tmpSchedule.toString())')
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/DailyAgendaRecyclerAdapter.java", 'LogUtil.d(TAG, item.toString())')
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/ActiveMedicationListFragment.java", 'LogUtil.d(TAG, event.toString())')
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/activities/CalendarActivity.java", 'LogUtil.d(TAG, msg.toString())')
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/util/stock/StockDisplayUtils.kt", "LogUtil.d(TAG, \"updateStockText: estimated end date is \" + privateDate)")
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/util/DispensationInfoStore.java", "LogUtil.d(TAG, day.toString(\"dd/MM/YYYY\"))")
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/scheduling/ScheduleDisplayUtils.java", "LogUtil.d(TAG, \"displayDose: invalid decimalPart value! value = \" + decimalPart)")
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/activities/schedules/PickRoutineStepFragment.java", "LogUtil.d(TAG, \"ValueChange: \" + current + \", selected: \" + hours.get(current - 1))")
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/RoutineCreateOrEditFragment.java", 'LogUtil.d(TAG, "Routine set: " + r.getName())')
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/RoutinesListFragment.java", 'LogUtil.d(TAG, "Click at " + r.getName())')
     for name in RULES:
         assert not violations(name, 'LogUtil.d(TAG, "Operation completed")')
     print("Sensitive log regression guard self-test passed")
@@ -77,7 +116,7 @@ def main() -> int:
             print(f"Sensitive Logcat regression: {path}: {reason}", file=sys.stderr)
             failed = True
     if not failed:
-        print("Known PIN, patient, routine and clinical document Logcat sites are sanitized")
+        print("Known PIN, patient, routine, medication and clinical document Logcat sites are sanitized")
     return 1 if failed else 0
 
 
