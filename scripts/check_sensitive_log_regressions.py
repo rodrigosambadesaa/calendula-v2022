@@ -21,8 +21,8 @@ RULES = {
         (r"Adding patient to drawer:\s*", "legacy patient-name log reintroduced"),
     ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/RoutineCreateOrEditFragment.java": (
-        (r"LogUtil\\.\\w+\\s*\\([^\\n]*r\\.getName\\s*\\(", "routine name printed in clinical logs"),
-        (r"Routine set:\\s*", "legacy patient routine name diagnostics reintroduced"),
+        (r"LogUtil\.\w+\s*\([^\n]*r\.getName\s*\(", "routine name printed in clinical logs"),
+        (r"Routine set:\s*", "legacy patient routine name diagnostics reintroduced"),
     ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/PdfViewActivity.java": (
         (r"LogUtil\.\w+\s*\([^\n]*\+\s*(?:url|previewUrl)\b", "provider document URL logged"),
