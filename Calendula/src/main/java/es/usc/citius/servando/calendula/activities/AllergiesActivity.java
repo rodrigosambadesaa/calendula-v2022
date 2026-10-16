@@ -213,7 +213,9 @@ public class AllergiesActivity extends CalendulaActivity {
 
     private void showWarningIfNeeded() {
         final SharedPreferences prefs = PreferenceUtils.instance().preferences();
-        if (!prefs.getBoolean(PreferenceKeys.ALLERGIES_WARNING_SHOWN.key(), false)) {
+        // A legacy/restored wrong-type value is never consent to skip the
+        // experimental-allergies warning. Keep the persisted data untouched.
+        if (AllergiesWarningPreferencePolicy.shouldShowWarning(prefs)) {
             new MaterialStyledDialog.Builder(this)
                     .setStyle(Style.HEADER_WITH_ICON)
                     .setIcon(IconUtils.icon(this, GoogleMaterial.Icon.gmd_alert_circle, R.color.white, 100))
