@@ -349,7 +349,9 @@ public class RoutineCreateOrEditFragment extends DialogFragment implements Radia
     }
 
     private void setRoutine(Routine r) {
-        LogUtil.d(TAG, "Routine set: " + r.getName());
+        // Routine names can disclose a patient's daily treatment schedule.
+        // Do not include them in Logcat, even on debug builds.
+        LogUtil.d(TAG, "Routine loaded for editing");
         mRoutine = r;
         mNameTextView.setText(mRoutine.getName());
         updateTime();

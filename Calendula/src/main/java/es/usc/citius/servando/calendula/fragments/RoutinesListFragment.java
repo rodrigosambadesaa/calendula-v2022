@@ -219,7 +219,8 @@ public class RoutinesListFragment extends Fragment {
             public void onClick(View view) {
                 Routine r = (Routine) view.getTag();
                 if (mRoutineSelectedCallback != null && r != null) {
-                    LogUtil.d(TAG, "Click at " + r.getName());
+                    // User-defined routine labels may disclose treatment context.
+                    LogUtil.d(TAG, "Routine selected");
                     mRoutineSelectedCallback.onRoutineSelected(r);
                 } else {
                     LogUtil.d(TAG, "No callback set");
