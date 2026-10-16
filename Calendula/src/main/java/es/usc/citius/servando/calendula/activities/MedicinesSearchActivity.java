@@ -361,8 +361,11 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
                 .colorRes(R.color.white)
                 .actionBar();
 
-        if (!PreferenceUtils.getString(PreferenceKeys.DRUGDB_CURRENT_DB, CalendulaApp.getContext().getString(R.string.database_none_id))
-                .equals(CalendulaApp.getContext().getString(R.string.database_none_id))) {
+        // A restored legacy preference can be the wrong type or indicate a
+        // catalog still being installed. Reuse the same tested guard as
+        // refreshViews() rather than treating every non-"none" value as ready.
+        if (DrugCatalogSelection.isReady(
+                getString(R.string.database_none_id), getString(R.string.database_setting_up))) {
             enableBarcodeScan();
         } else if (!es.usc.citius.servando.calendula.util.RestoredUiBoolean.read(PreferenceKeys.MEDICINES_USE_PRESCRIPTIONS_SHOWN, false)) {
             askForDatabase();
