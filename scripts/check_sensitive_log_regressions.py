@@ -26,7 +26,7 @@ RULES = {
     ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/RoutinesListFragment.java": (
         (r"LogUtil\.\w+\s*\([^\n]*r\.getName\s*\(", "selected routine name printed in clinical logs"),
-        (r"Click at:\s*", "legacy clicked routine name diagnostic reintroduced"),
+        (r"Click at\s*", "legacy clicked routine name diagnostic reintroduced"),
     ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/PdfViewActivity.java": (
         (r"LogUtil\.\w+\s*\([^\n]*\+\s*(?:url|previewUrl)\b", "provider document URL logged"),
