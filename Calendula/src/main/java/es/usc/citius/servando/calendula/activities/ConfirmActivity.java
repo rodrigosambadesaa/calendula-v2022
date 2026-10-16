@@ -977,7 +977,7 @@ public class ConfirmActivity extends CalendulaActivity {
             h.dose.setText(ScheduleDisplayUtils.displayDose(dose, m.getPresentation(), getResources()));
             h.status.setText(status);
             h.event = eventInstance;
-            LogUtil.d(TAG, eventInstance.toString());
+            // A dose event can contain confidential medication and patient details.
             updateCheckedStatus(h, eventInstance, p);
         }
 
