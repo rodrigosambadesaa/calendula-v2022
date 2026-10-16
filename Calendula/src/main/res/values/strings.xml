@@ -136,4 +136,5 @@
         <item>300</item>
     </string-array>
 
+    <string name="schedule_invalid_hourly_interval">Enter a whole number of hours from 1 to 72.</string>
 </resources>
