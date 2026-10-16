@@ -20,6 +20,21 @@ RULES = {
         (r"LogUtil\.\w+\s*\([^\n]*p\.getName\s*\(", "patient name directly logged"),
         (r"Adding patient to drawer:\s*", "legacy patient-name log reintroduced"),
     ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/ConfirmActivity.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*eventInstance\.toString\s*\(", "confirmation intake event serialized to log"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/schedules/ScheduleBuildActivity.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*tmpSchedule\.toString\s*\(", "medication schedule serialized to log"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/DailyAgendaRecyclerAdapter.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*item\.toString\s*\(", "agenda row serialized to log"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/ActiveMedicationListFragment.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*event\.toString\s*\(", "provider medication update event serialized to log"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/CalendarActivity.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*msg\.toString\s*\(", "patient medication calendar rendered text logged"),
+    ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/PdfViewActivity.java": (
         (r"LogUtil\.\w+\s*\([^\n]*\+\s*(?:url|previewUrl)\b", "provider document URL logged"),
         (r"Finished loading URL:", "legacy clinical document URI log reintroduced"),
@@ -44,6 +59,11 @@ def self_test() -> None:
     assert violations(drawer, 'LogUtil.d(TAG, "Name: " + p.getName())')
     assert violations(pdf, 'LogUtil.d(TAG, "Document: " + previewUrl)')
     assert violations(pdf, 'LogUtil.d(TAG, "Document: " + url)')
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/activities/ConfirmActivity.java", 'LogUtil.d(TAG, eventInstance.toString())')
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/activities/schedules/ScheduleBuildActivity.java", 'LogUtil.d(TAG, tmpSchedule.toString())')
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/DailyAgendaRecyclerAdapter.java", 'LogUtil.d(TAG, item.toString())')
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/ActiveMedicationListFragment.java", 'LogUtil.d(TAG, event.toString())')
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/activities/CalendarActivity.java", 'LogUtil.d(TAG, msg.toString())')
     for name in RULES:
         assert not violations(name, 'LogUtil.d(TAG, "Operation completed")')
     print("Sensitive log regression guard self-test passed")
@@ -67,7 +87,7 @@ def main() -> int:
             print(f"Sensitive Logcat regression: {path}: {reason}", file=sys.stderr)
             failed = True
     if not failed:
-        print("Known PIN, patient and clinical document Logcat sites are sanitized")
+        print("Known PIN, patient, medication and clinical document Logcat sites are sanitized")
     return 1 if failed else 0
 
 
