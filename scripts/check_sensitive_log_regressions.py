@@ -24,6 +24,10 @@ RULES = {
         (r"LogUtil\.\w+\s*\([^\n]*r\.getName\s*\(", "routine name printed in clinical logs"),
         (r"Routine set:\s*", "legacy patient routine name diagnostics reintroduced"),
     ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/RoutinesListFragment.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*r\.getName\s*\(", "selected routine name printed in clinical logs"),
+        (r"Click at:\s*", "legacy clicked routine name diagnostic reintroduced"),
+    ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/PdfViewActivity.java": (
         (r"LogUtil\.\w+\s*\([^\n]*\+\s*(?:url|previewUrl)\b", "provider document URL logged"),
         (r"Finished loading URL:", "legacy clinical document URI log reintroduced"),
@@ -42,11 +46,12 @@ def violations(relative_path: str, source: str) -> list[str]:
 
 
 def self_test() -> None:
-    pin, drawer, routine, pdf = tuple(RULES)
+    pin, drawer, routine, routine_list, pdf = tuple(RULES)
     assert violations(pin, 'LogUtil.d(TAG, "data=$data")')
     assert violations(pin, 'LogUtil.d(TAG, EXTRA_NEW_PIN)')
     assert violations(drawer, 'LogUtil.d(TAG, "Name: " + p.getName())')
     assert violations(routine, 'LogUtil.d(TAG, "Routine set: " + r.getName())')
+    assert violations(routine_list, 'LogUtil.d(TAG, "Click at " + r.getName())')
     assert violations(pdf, 'LogUtil.d(TAG, "Document: " + previewUrl)')
     assert violations(pdf, 'LogUtil.d(TAG, "Document: " + url)')
     for name in RULES:
