@@ -26,6 +26,7 @@ import androidx.annotation.StringRes
 import androidx.preference.ListPreference
 import androidx.preference.Preference
 import es.usc.citius.servando.calendula.R
+import es.usc.citius.servando.calendula.drugdb.DrugCatalogPreferencePolicy
 import es.usc.citius.servando.calendula.drugdb.download.DownloadDatabaseHelper
 import es.usc.citius.servando.calendula.settings.CalendulaPrefsFragment
 import es.usc.citius.servando.calendula.util.LogUtil
@@ -47,8 +48,9 @@ class DatabasePrefsFragment :
     override val fragmentTitle: Int = R.string.pref_header_prescriptions
     override val presenter: DatabasePrefsContract.Presenter by lazy {
         DatabasePrefsPresenter(
-                PreferenceUtils.getString(
-                        PreferenceKeys.DRUGDB_CURRENT_DB,
+                DrugCatalogPreferencePolicy.selectedIdOrFallback(
+                        PreferenceUtils.instance().preferences(),
+                        PreferenceKeys.DRUGDB_CURRENT_DB.key(),
                         getString(R.string.database_none_id)
                 )
         )
@@ -82,8 +84,9 @@ class DatabasePrefsFragment :
         dbPref?.let {
             if (key == dbPref!!.key) {
                 presenter.currentDbUpdated(
-                        PreferenceUtils.getString(
-                                PreferenceKeys.DRUGDB_CURRENT_DB,
+                        DrugCatalogPreferencePolicy.selectedIdOrFallback(
+                                PreferenceUtils.instance().preferences(),
+                                PreferenceKeys.DRUGDB_CURRENT_DB.key(),
                                 noneId
                         )
                 )
