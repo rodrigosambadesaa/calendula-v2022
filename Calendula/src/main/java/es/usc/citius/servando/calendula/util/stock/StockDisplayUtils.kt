@@ -28,22 +28,17 @@ import es.usc.citius.servando.calendula.R
 import es.usc.citius.servando.calendula.activities.MedicinesActivity
 import es.usc.citius.servando.calendula.persistence.Medicine
 import es.usc.citius.servando.calendula.util.IconUtils
-import es.usc.citius.servando.calendula.util.LogUtil
 
 object StockDisplayUtils {
 
 
-    private const val TAG = "StockDisplayUtils"
     private const val MAX_DAYS = 21
 
     @JvmStatic
     fun getReadableStockDuration(estimatedEnd: StockCalculator.StockEnd, ctx: Context): String =
         when (estimatedEnd) {
             is StockCalculator.StockEnd.OnDate -> {
-                LogUtil.d(
-                    TAG,
-                    "updateStockText: estimated end date is " + estimatedEnd.date.toString("dd/MM")
-                )
+                // Medication depletion dates are clinical data: never log them.
                 if (estimatedEnd.days < MAX_DAYS) {
                     ctx.resources.getQuantityString(
                         R.plurals.stock_enough_for_days, estimatedEnd.days.toInt(), estimatedEnd.days
