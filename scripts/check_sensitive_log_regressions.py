@@ -47,6 +47,14 @@ RULES = {
     "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/schedules/PickRoutineStepFragment.java": (
         (r"ValueChange:[^\n]*selected:", "selected medication routine hour logged"),
     ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/RoutineCreateOrEditFragment.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*r\.getName\s*\(", "routine name printed in clinical logs"),
+        (r"Routine set:\s*", "legacy patient routine name diagnostics reintroduced"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/RoutinesListFragment.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*r\.getName\s*\(", "selected routine name printed in clinical logs"),
+        (r"Click at\s*", "legacy clicked routine name diagnostic reintroduced"),
+    ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/PdfViewActivity.java": (
         (r"LogUtil\.\w+\s*\([^\n]*\+\s*(?:url|previewUrl)\b", "provider document URL logged"),
         (r"Finished loading URL:", "legacy clinical document URI log reintroduced"),
@@ -83,6 +91,8 @@ def self_test() -> None:
     assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/util/DispensationInfoStore.java", "LogUtil.d(TAG, day.toString(\"dd/MM/YYYY\"))")
     assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/scheduling/ScheduleDisplayUtils.java", "LogUtil.d(TAG, \"displayDose: invalid decimalPart value! value = \" + decimalPart)")
     assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/activities/schedules/PickRoutineStepFragment.java", "LogUtil.d(TAG, \"ValueChange: \" + current + \", selected: \" + hours.get(current - 1))")
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/RoutineCreateOrEditFragment.java", 'LogUtil.d(TAG, "Routine set: " + r.getName())')
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/RoutinesListFragment.java", 'LogUtil.d(TAG, "Click at " + r.getName())')
     for name in RULES:
         assert not violations(name, 'LogUtil.d(TAG, "Operation completed")')
     print("Sensitive log regression guard self-test passed")
@@ -106,7 +116,7 @@ def main() -> int:
             print(f"Sensitive Logcat regression: {path}: {reason}", file=sys.stderr)
             failed = True
     if not failed:
-        print("Known PIN, patient, medication and clinical document Logcat sites are sanitized")
+        print("Known PIN, patient, routine, medication and clinical document Logcat sites are sanitized")
     return 1 if failed else 0
 
 

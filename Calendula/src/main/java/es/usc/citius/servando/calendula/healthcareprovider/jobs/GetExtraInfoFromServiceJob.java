@@ -33,7 +33,8 @@ import org.joda.time.DateTime;
 
 import java.io.File;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Patient;
@@ -229,33 +230,73 @@ public class GetExtraInfoFromServiceJob extends Job {
         }
         if (authState != null && authState.getNeedsTokenRefresh()) {
             LogUtil.d(TAG, "refreshTokensIfNeeded: refreshing tokens");
-            LogUtil.d(TAG, "AccessTokenExpirationTime: " + new DateTime(authState.getAccessTokenExpirationTime()).toString());
-            final CountDownLatch countDownLatch = new CountDownLatch(1);
-            final AuthorizationService authService = AuthorizationServiceHelper.createAuthorizationService(getContext());
-            authState.performActionWithFreshTokens(authService, additionalParams, new AuthState.AuthStateAction() {
-                @Override
-                public void execute(@Nullable String accessToken, @Nullable String idToken, @Nullable AuthorizationException ex) {
-                    if (ex != null) {
-                        LogUtil.d(TAG, "refreshTokensIfNeeded: refresh failed. Exception: ", ex);
-                        if (ex.code == AuthorizationException.GeneralErrors.NETWORK_ERROR.code)
-                            result.setResult(Status.ERROR_NO_CONNECTION);
-                        else result.setResult(Status.ERROR_AUTHORIZATION);
-                    } else {
-                        LoginStateManager.getInstance().updateAuthState(authState);
-                    }
-                    countDownLatch.countDown();
-                }
-            });
-
-            authService.dispose();
+            // Token expiry is session metadata; keep it out of Logcat.
+            // Compare the original persisted auth state *after* the callback.
+            // Never re-save credentials from a job whose user signed out or
+            // switched sessions while the network request was outstanding.
+            final String originalCredentials = authState.jsonSerializeString();
+            final AtomicBoolean usableTokenReturned = new AtomicBoolean(false);
+            final TokenRefreshGate gate = new TokenRefreshGate();
+            final AuthorizationService authService =
+                    AuthorizationServiceHelper.createAuthorizationService(getContext());
             try {
-                countDownLatch.await();
-            } catch (InterruptedException e) {
-                LogUtil.w(TAG, "onRunJob: ", e);
-                result.setResult(Status.ERROR_GENERIC);
+                // Keep AppAuth alive until its asynchronous callback completes.
+                authState.performActionWithFreshTokens(
+                        authService, additionalParams, (accessToken, idToken, ex) ->
+                        gate.complete(() -> {
+                            try {
+                                if (ex != null) {
+                                    LogUtil.w(TAG, "Token renewal failed (sensitive response omitted)");
+                                    result.setResult(
+                                            ex.code == AuthorizationException.GeneralErrors.NETWORK_ERROR.code
+                                                    ? Status.ERROR_NO_CONNECTION
+                                                    : Status.ERROR_AUTHORIZATION);
+                                } else if (accessToken == null || accessToken.isEmpty()) {
+                                    result.setResult(Status.ERROR_AUTHORIZATION);
+                                } else {
+                                    // Only capture the callback outcome here.
+                                    // Persist credentials on the waiting job thread
+                                    // after we know its wait has succeeded.
+                                    usableTokenReturned.set(true);
+                                }
+                            } catch (RuntimeException invalidRefresh) {
+                                LogUtil.w(TAG, "Could not finish token renewal safely");
+                                result.setResult(Status.ERROR_GENERIC);
+                            }
+                        }));
+                // Return a fixed timeout result. A callback which began just
+                // before the deadline can still finish after the gate closes;
+                // it must not overwrite the worker's failure outcome.
+                if (!gate.await(45, TimeUnit.SECONDS)) {
+                    LogUtil.w(TAG, "Token renewal timed out");
+                    return Status.ERROR_NO_CONNECTION;
+                } else if (usableTokenReturned.get()) {
+                    if (!LoginStateManager.getInstance()
+                            .updateAuthStateIfUnchanged(originalCredentials, authState)) {
+                        // Another login/logout or token refresh won the race.
+                        // Treat a changed session as a harmless stale job.
+                        // ERROR_AUTHORIZATION logs out the current user and
+                        // must never be used for this race.
+                        result.setResult(Status.ERROR_GENERIC);
+                    }
+                }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return Status.ERROR_GENERIC;
+            } catch (RuntimeException startFailure) {
+                LogUtil.w(TAG, "Could not start token renewal");
+                return Status.ERROR_GENERIC;
+            } finally {
+                gate.close();
+                try {
+                    authService.dispose();
+                } catch (IllegalArgumentException disposeFailure) {
+                    LogUtil.w(TAG, "Unable to dispose authorization service");
+                }
             }
+
         } else if (authState != null) {
-            LogUtil.d(TAG, "AccessTokenExpirationTime: " + new DateTime(authState.getAccessTokenExpirationTime()).toString());
+            // Token expiry is session metadata; keep it out of Logcat.
         } else {
             LogUtil.d(TAG, "AuthState is null.");
             result.setResult(Status.ERROR_AUTHORIZATION);

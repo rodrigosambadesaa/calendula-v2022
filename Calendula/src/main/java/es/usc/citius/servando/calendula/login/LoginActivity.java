@@ -201,7 +201,10 @@ public class LoginActivity extends AppCompatActivity {
 
     private void showInvalidAuthLevelDialogIfNeeded(){
 
-        final boolean authLevelFailed = PreferenceUtils.getBoolean(PreferenceKeys.LAST_LOGIN_FAILED_AUTH_LEVEL, false);
+        // The previous auth-level failure *notice* is not an authorization
+        // decision. A wrong-type restored value must not crash the login UI.
+        final boolean authLevelFailed = AuthLevelNoticePreferencePolicy.isPending(
+                PreferenceUtils.instance().preferences());
         LogUtil.d(TAG, "showInvalidAuthLevelDialogIfNeeded: " + authLevelFailed);
 
         new Handler().post(new Runnable() {

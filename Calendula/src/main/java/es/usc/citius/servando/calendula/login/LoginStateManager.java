@@ -166,9 +166,11 @@ public class LoginStateManager {
                     .putString(PreferenceKeys.LOGIN_LAST_LOGGEDIN_USER.key(), sub)
                     .apply();
 
-            SecurePrefBundle.INSTANCE
-                    .setAuthState(authState.jsonSerializeString())
-                    .apply();
+            synchronized (this) {
+                SecurePrefBundle.INSTANCE
+                        .setAuthState(authState.jsonSerializeString())
+                        .apply();
+            }
 
             UpdateMedicationFromServiceJob.scheduleUniquePeriodic();
 
@@ -213,9 +215,11 @@ public class LoginStateManager {
 
         LogUtil.d(TAG, "logout() called with: defer = [" + defer + "]");
         UpdateMedicationFromServiceJob.cancelAll();
-        SecurePrefBundle.INSTANCE
-                .clearAuthState()
-                .apply();
+        synchronized (this) {
+            SecurePrefBundle.INSTANCE
+                    .clearAuthState()
+                    .apply();
+        }
         final SharedPreferences.Editor editor = prefs.edit();
         if (defer) {
             editor.putBoolean(PreferenceKeys.PATIENTS_REMOVE_ACTIVE_ON_BOOT.key(), true);
@@ -228,7 +232,9 @@ public class LoginStateManager {
 
     public void logoutAndClearData(final Context ctx) {
         LogUtil.d(TAG, "logoutAndClearData() called with: ctx = [" + ctx + "]");
-        LogoutHelper.clearData(ctx);
+        synchronized (this) {
+            LogoutHelper.clearData(ctx);
+        }
     }
 
     /**
@@ -299,8 +305,24 @@ public class LoginStateManager {
         }
     }
 
-    public void updateAuthState(final AuthState newAuthState) {
+    public synchronized void updateAuthState(final AuthState newAuthState) {
         SecurePrefBundle.INSTANCE.setAuthState(newAuthState.jsonSerializeString()).apply();
+    }
+
+    /**
+     * A late refresh must never restore an authenticated session after logout
+     * or overwrite a more recent identity. Publish only against the same
+     * serialized state read before the asynchronous operation.
+     */
+    public synchronized boolean updateAuthStateIfUnchanged(
+            final String expectedSerializedState, final AuthState refreshed) {
+        if (expectedSerializedState == null || refreshed == null
+                || !expectedSerializedState.equals(
+                        SecurePrefBundle.INSTANCE.getAuthState())) {
+            return false;
+        }
+        SecurePrefBundle.INSTANCE.setAuthState(refreshed.jsonSerializeString()).apply();
+        return true;
     }
 
     public String getUserId() {
