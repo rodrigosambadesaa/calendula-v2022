@@ -374,8 +374,18 @@ public class PickRoutineStepFragment extends ScheduleBuildStepFragment implement
 
     @Override
     public void onDialogNumberSet(int reference, BigInteger number, double decimal, boolean isNegative, BigDecimal fullNumber) {
-        int amount = fullNumber.intValue();
-        // Do not log configured routine intervals.
+        // A stale dialog cannot alter a different patient's schedule.
+        if (!editorOwnerAvailable()) {
+            return;
+        }
+        Integer amount = HourlyIntervalInputPolicy.validWholeHoursOrNull(fullNumber);
+        if (amount == null) {
+            // Keep the existing verified interval instead of truncating decimal
+            // hours or wrapping a very large BigDecimal into an unrelated int.
+            Toast.makeText(buildActivity, R.string.schedule_invalid_hourly_interval,
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
         hoursRv.setValue(amount);
         setSelectedHours(amount);
     }
