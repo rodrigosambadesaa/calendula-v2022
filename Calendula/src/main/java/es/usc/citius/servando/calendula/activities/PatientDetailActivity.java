@@ -311,7 +311,8 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
         gridContainer.setVisibility(View.GONE);
 
         // Reject incompatible restored/external IDs before reading any profile.
-        Long requestedPatientId = requestedPatientIdOrNull(getIntent());
+        Intent request = getIntent();
+        Long requestedPatientId = requestedPatientIdOrNull(request);
         if (requestedPatientId == null) {
             LogUtil.w(TAG, "Rejecting invalid patient detail route");
             finish();
