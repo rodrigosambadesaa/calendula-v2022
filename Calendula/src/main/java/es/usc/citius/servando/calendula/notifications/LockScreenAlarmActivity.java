@@ -28,8 +28,8 @@ import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
+import android.provider.Settings;
 import android.os.Vibrator;
-import android.text.TextUtils;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.Window;
@@ -44,6 +44,7 @@ import androidx.core.content.ContextCompat;
 import com.mikepenz.community_material_typeface_library.CommunityMaterial;
 
 import es.usc.citius.servando.calendula.R;
+import es.usc.citius.servando.calendula.activities.NotificationSoundPolicy;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
@@ -92,33 +93,38 @@ public class LockScreenAlarmActivity extends AppCompatActivity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if ((keyCode == KeyEvent.KEYCODE_VOLUME_DOWN)) {
-            // stop sound and vibration if the user
-            // press volume down button
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
             stopPlayingAlarm();
-        } else if ((keyCode == KeyEvent.KEYCODE_VOLUME_UP)) {
-            // restart sound and vibration if the user
-            // press volume down up
-            startPlayingAlarm();
+            return true;
         }
-        return true;
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+            startPlayingAlarm();
+            return true;
+        }
+        // Do not consume Back, keyboard navigation or accessibility input.
+        // Only the two intended volume shortcuts belong to this alarm.
+        return super.onKeyDown(keyCode, event);
     }
 
-    /**
-     * Lock-screen medication details must inherit the same screenshot and
-     * Recents privacy setting as the main patient screens. An explicit user
-     * opt-out is respected by SecureWindowPolicy.
-     */
-    static void protectAlarmWindow(Window window, boolean enabled) {
-        if (enabled && window != null) {
+    /** Consistent with CalendulaActivity, including an explicit opt-out. */
+    static void applyScreenshotProtection(Window window, boolean protect) {
+        if (protect && window != null) {
             window.addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         }
+    }
+
+    /** Compatibility with the protected-alarm window contract tests. */
+    static void protectAlarmWindow(Window window, boolean enabled) {
+        applyScreenshotProtection(window, enabled);
     }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        protectAlarmWindow(getWindow(), SecureWindowPolicy.isProtected());
+        // This activity intentionally extends AppCompatActivity rather than
+        // CalendulaActivity, so it must opt in to the same privacy policy
+        // before its medication reminder view is inflated.
+        applyScreenshotProtection(getWindow(), SecureWindowPolicy.isProtected());
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
@@ -131,8 +137,15 @@ public class LockScreenAlarmActivity extends AppCompatActivity {
         anim = (ImageView) findViewById(R.id.anim_image);
 
         if (getIntent() != null) {
-            target = getIntent().getParcelableExtra("target");
-            LogUtil.d(TAG, "Target " + (target != null));
+            try {
+                target = getIntent().getParcelableExtra("target");
+            } catch (android.os.BadParcelableException | ClassCastException invalidTarget) {
+                // An old/corrupt serialized target must not crash a visible
+                // medication alarm or launch an unrelated clinical screen.
+                target = null;
+                LogUtil.w(TAG, "Ignoring invalid alarm review target");
+            }
+            LogUtil.d(TAG, "Review target available: " + (target != null));
         }
 
         registerFinishReceiver();
@@ -152,6 +165,9 @@ public class LockScreenAlarmActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        // Scheduled animations must not launch a stale clinical Intent after
+        // the activity has already been dismissed or the patient has changed.
+        h.removeCallbacksAndMessages(null);
         stopPlayingAlarm();
         unregisterFinishReceiver();
         super.onDestroy();
@@ -172,11 +188,13 @@ public class LockScreenAlarmActivity extends AppCompatActivity {
                 }
             }
         };
-        // STOP_SIGNAL dismisses a clinical reminder. In particular on API 23-32,
-        // plain registerReceiver() would leave this dynamic receiver exported.
-        // AndroidX applies an equivalent not-exported restriction on all APIs.
-        ContextCompat.registerReceiver(this, finishReceiver,
-                new IntentFilter(STOP_SIGNAL), ContextCompat.RECEIVER_NOT_EXPORTED);
+        IntentFilter filter = new IntentFilter(STOP_SIGNAL);
+        // The platform-only not-exported flag is unavailable before API 33.
+        // AndroidX enforces the equivalent restriction on Android 6-12, so
+        // another app cannot broadcast a fake STOP_SIGNAL to dismiss a
+        // medication alarm on legacy devices.
+        ContextCompat.registerReceiver(this, finishReceiver, filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     private void unregisterFinishReceiver() {
@@ -200,20 +218,32 @@ public class LockScreenAlarmActivity extends AppCompatActivity {
      * Configure media player and vibration service
      */
     private void setupMediaPlayer() {
+        vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
         Uri uri = getAlarmUri();
+        if (uri == null) {
+            return;
+        }
+        MediaPlayer candidate = null;
         try {
-            vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
-            if (!TextUtils.isEmpty(uri.toString())) {
-                mediaPlayer = new MediaPlayer();
-                mediaPlayer.setAudioStreamType(AudioManager.STREAM_ALARM);
-                mediaPlayer.setVolume(1, 1);
-                mediaPlayer.setScreenOnWhilePlaying(true);
-                mediaPlayer.setDataSource(this, uri);
-                mediaPlayer.prepare();
+            candidate = new MediaPlayer();
+            candidate.setAudioStreamType(AudioManager.STREAM_ALARM);
+            candidate.setVolume(1, 1);
+            candidate.setScreenOnWhilePlaying(true);
+            candidate.setDataSource(this, uri);
+            candidate.prepare();
+            mediaPlayer = candidate;
+        } catch (Exception unavailableSound) {
+            // A removed media file or permission-revoked ringtone must not
+            // discard the on-screen alarm and its independent vibration.
+            LogUtil.w(TAG, "Alarm sound unavailable; retaining visible reminder");
+            if (candidate != null) {
+                try {
+                    candidate.release();
+                } catch (RuntimeException ignored) {
+                    // This player has already failed to initialize.
+                }
             }
-        } catch (Exception e) {
-            LogUtil.e(TAG, "An error occurred while preparing media player", e);
-            finish();
+            mediaPlayer = null;
         }
     }
 
@@ -222,11 +252,26 @@ public class LockScreenAlarmActivity extends AppCompatActivity {
      */
     private void startPlayingAlarm() {
         LogUtil.d(TAG, "startPlayingAlarm() called");
-        setupMediaPlayer();
-        if (mediaPlayer != null && !mediaPlayer.isPlaying()) {
-            mediaPlayer.start();
+        if (mediaPlayer == null) {
+            setupMediaPlayer();
         }
-        vibrator.vibrate(VIB_PATTERN, 0);
+        if (mediaPlayer != null) {
+            try {
+                if (!mediaPlayer.isPlaying()) {
+                    mediaPlayer.start();
+                }
+            } catch (RuntimeException failedPlayer) {
+                LogUtil.w(TAG, "Cannot start alarm sound; retaining visible reminder");
+                releaseMediaPlayer();
+            }
+        }
+        if (vibrator != null) {
+            try {
+                vibrator.vibrate(VIB_PATTERN, 0);
+            } catch (RuntimeException unavailableVibration) {
+                LogUtil.w(TAG, "Alarm vibration unavailable; retaining visible reminder");
+            }
+        }
     }
 
     /**
@@ -234,11 +279,33 @@ public class LockScreenAlarmActivity extends AppCompatActivity {
      */
     private void stopPlayingAlarm() {
         LogUtil.d(TAG, "stopPlayingAlarm() called");
-        vibrator.cancel();
-        if (mediaPlayer != null) {
-            mediaPlayer.stop();
-            mediaPlayer.release();
-            mediaPlayer = null;
+        if (vibrator != null) {
+            try {
+                vibrator.cancel();
+            } catch (RuntimeException ignored) {
+                // A removed or unavailable service must not crash cleanup.
+            }
+        }
+        releaseMediaPlayer();
+    }
+
+    private void releaseMediaPlayer() {
+        MediaPlayer playing = mediaPlayer;
+        mediaPlayer = null;
+        if (playing != null) {
+            try {
+                if (playing.isPlaying()) {
+                    playing.stop();
+                }
+            } catch (RuntimeException invalidState) {
+                // It may never have entered a playable state.
+            } finally {
+                try {
+                    playing.release();
+                } catch (RuntimeException ignored) {
+                    // Already failed or released.
+                }
+            }
         }
     }
 
@@ -248,8 +315,20 @@ public class LockScreenAlarmActivity extends AppCompatActivity {
      * @return A ringtone for intake insistent alarms
      */
     private Uri getAlarmUri() {
-        String ringtonePref = PreferenceUtils.getString(PreferenceKeys.SETTINGS_INSISTENT_NOTIFICATION_TONE, null);
-        return ringtonePref != null ? Uri.parse(ringtonePref) : RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+        return configuredAlarmTone();
+    }
+
+    /** The alarm tone is a local resource or a previously selected media URI. */
+    static Uri configuredAlarmTone() {
+        String saved = null;
+        try {
+            saved = PreferenceUtils.getString(PreferenceKeys.SETTINGS_INSISTENT_NOTIFICATION_TONE, null);
+        } catch (ClassCastException malformed) {
+            // A mismatched legacy preference cannot cancel a medication alarm.
+        }
+        Uri system = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+        Uri fallback = system != null ? system : Settings.System.DEFAULT_ALARM_ALERT_URI;
+        return NotificationSoundPolicy.safeNotificationTone(saved, fallback);
     }
 
     /**
