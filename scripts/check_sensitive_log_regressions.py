@@ -80,6 +80,13 @@ RULES = {
         (r"LogUtil\.\w+\s*\([^\n]*\+\s*coding\b", "unknown provider medication system leaked to Logcat"),
         (r"forCoding:\s*unknown coding", "legacy coding system diagnostic reintroduced"),
     ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/database/DatabaseHelper.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "database creation/migration exception exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/login/LogoutHelper.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*\+\s*ctx\b", "logout Context details serialized to Logcat"),
+        (r"clearData\(\) called with:\s*ctx", "legacy logout context diagnostic reintroduced"),
+    ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/database/PatientAlertDao.java": (
         (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "patient alert SQL exception exposed to Logcat"),
     ),
@@ -180,6 +187,11 @@ def self_test() -> None:
     assert violations(allergy_dao, 'LogUtil.e(TAG, "findAllOrderByPrecedence: ", e)')
     assert violations(closeable, 'LogUtil.e(TAG, "close: ", e)')
     assert violations(db_export, 'LogUtil.e(TAG, "Failed to export database", e)')
+    schema_db = "Calendula/src/main/java/es/usc/citius/servando/calendula/database/DatabaseHelper.java"
+    logout_ctx = "Calendula/src/main/java/es/usc/citius/servando/calendula/login/LogoutHelper.java"
+    assert violations(schema_db, 'LogUtil.e(TAG, "Cannot create database", e)')
+    assert violations(schema_db, 'LogUtil.e(TAG, "Database upgrade failed", e)')
+    assert violations(logout_ctx, 'LogUtil.d(TAG, "clearData() called with: ctx = [" + ctx + "]")')
     for name in RULES:
         assert not violations(name, 'LogUtil.d(TAG, "Operation completed")')
     print("Sensitive log regression guard self-test passed")

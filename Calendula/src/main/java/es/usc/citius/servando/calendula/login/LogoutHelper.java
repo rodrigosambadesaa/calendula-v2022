@@ -17,7 +17,7 @@ public class LogoutHelper {
     private static final String TAG = "LogoutHelper";
 
     public static void clearData(final Context ctx) {
-        LogUtil.d(TAG, "clearData() called with: ctx = [" + ctx + "]");
+        LogUtil.d(TAG, "Clearing application data");
         // remove shared prefs
         PreferenceUtils.edit().clear().apply();
         LogUtil.d(TAG, "clearData: cleared prefs");

@@ -132,7 +132,7 @@ public class DatabaseHelper extends OrmLiteSqliteOpenHelper {
             }
 
         } catch (SQLException e) {
-            LogUtil.e(TAG, "Can't create database", e);
+            LogUtil.e(TAG, "Database creation failed");
             throw new RuntimeException(e);
         }
     }
@@ -165,7 +165,7 @@ public class DatabaseHelper extends OrmLiteSqliteOpenHelper {
             // SQLiteOpenHelper invokes onUpgrade inside a database transaction:
             // propagating the error prevents the schema-version bump and allows
             // Android to roll back partial ALTER TABLE operations.
-            LogUtil.e(TAG, "Database upgrade failed; preserving all existing data", e);
+            LogUtil.e(TAG, "Database upgrade failed; preserving all existing data");
             throw new IllegalStateException(
                     "Cannot safely upgrade Calendula database from version "
                             + oldVersion + " to " + newVersion, e);
@@ -274,7 +274,7 @@ public class DatabaseHelper extends OrmLiteSqliteOpenHelper {
             }
 
         } catch (SQLException e) {
-            LogUtil.e(TAG, "Can't recreate database", e);
+            LogUtil.e(TAG, "Database recreation failed");
             throw new RuntimeException(e);
         }
     }
