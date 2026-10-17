@@ -48,6 +48,7 @@ import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
+import es.usc.citius.servando.calendula.util.SecureWindowPolicy;
 import pl.droidsonroids.gif.GifDrawable;
 
 /**
@@ -103,9 +104,21 @@ public class LockScreenAlarmActivity extends AppCompatActivity {
         return true;
     }
 
+    /**
+     * Lock-screen medication details must inherit the same screenshot and
+     * Recents privacy setting as the main patient screens. An explicit user
+     * opt-out is respected by SecureWindowPolicy.
+     */
+    static void protectAlarmWindow(Window window, boolean enabled) {
+        if (enabled && window != null) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        protectAlarmWindow(getWindow(), SecureWindowPolicy.isProtected());
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
