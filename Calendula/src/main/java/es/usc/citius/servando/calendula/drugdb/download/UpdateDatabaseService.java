@@ -22,9 +22,9 @@ import android.app.IntentService;
 import android.content.Context;
 import android.content.Intent;
 
+import es.usc.citius.servando.calendula.R;
+import es.usc.citius.servando.calendula.util.DrugCatalogSelection;
 import es.usc.citius.servando.calendula.util.LogUtil;
-import es.usc.citius.servando.calendula.util.PreferenceKeys;
-import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
 
 public class UpdateDatabaseService extends IntentService {
@@ -36,15 +36,46 @@ public class UpdateDatabaseService extends IntentService {
         super(TAG);
     }
 
+    /**
+     * A restored legacy update notification can carry a null, wrong-type or
+     * unparcelable extra. Never stringify an Intent or log the raw catalog ID.
+     * Reads only the requested ID; no network, preferences or DB side effects.
+     */
+    static String requestedCatalogOrNull(Intent intent) {
+        if (intent == null) {
+            return null;
+        }
+        try {
+            String id = intent.getStringExtra(EXTRA_DATABASE_ID);
+            return id == null || id.trim().isEmpty() ? null : id;
+        } catch (RuntimeException malformedExtra) {
+            return null;
+        }
+    }
+
+    static boolean isSameSelectedCatalog(String requested, String selected) {
+        return requested != null && selected != null
+                && !requested.trim().isEmpty() && requested.equals(selected);
+    }
+
     @Override
     protected void onHandleIntent(Intent intent) {
-        LogUtil.d(TAG, "onHandleIntent() called with: intent = [" + intent + "]");
+        // The saved catalog preference may have an incompatible restored type.
+        // Never authorize an update using fallback data from another catalog.
+        final String database = requestedCatalogOrNull(intent);
+        final String selected = DrugCatalogSelection.selectedOrNull();
         final Context ctx = getApplicationContext();
-        final String database = intent.getStringExtra(EXTRA_DATABASE_ID);
-        if (database != null && database.equals(PreferenceUtils.getString(PreferenceKeys.DRUGDB_CURRENT_DB, null)) && DBVersionManager.checkForUpdate(ctx) != null) {
+        if (!isSameSelectedCatalog(database, selected)
+                || !DrugCatalogSelection.isReady(
+                        ctx.getString(R.string.database_none_id),
+                        ctx.getString(R.string.database_setting_up_id))) {
+            LogUtil.w(TAG, "Skipping missing, malformed or inactive database update request");
+            return;
+        }
+        if (DBVersionManager.checkForUpdate(ctx) != null) {
             DownloadDatabaseHelper.instance().downloadDatabase(ctx, database, DBInstallType.UPDATE);
         } else {
-            LogUtil.e(TAG, "onHandleIntent: no database id provided or database has changed since update notification");
+            LogUtil.d(TAG, "No eligible catalog update available");
         }
     }
 
