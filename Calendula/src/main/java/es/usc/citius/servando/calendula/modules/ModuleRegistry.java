@@ -53,7 +53,7 @@ public class ModuleRegistry {
             try {
                 modules.add((CalendulaModule) moduleClass.getDeclaredConstructor().newInstance());
             } catch (Exception e) {
-                LogUtil.e(TAG, "getModulesForConfig: An error occurred when trying to instantiate module", e);
+                LogUtil.e(TAG, "Unable to instantiate configured module");
                 throw new RuntimeException(e);
             }
         }
