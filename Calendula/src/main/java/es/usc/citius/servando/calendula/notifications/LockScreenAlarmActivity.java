@@ -18,7 +18,6 @@
 
 package es.usc.citius.servando.calendula.notifications;
 
-import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -27,7 +26,6 @@ import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.RingtoneManager;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Vibrator;
@@ -50,6 +48,7 @@ import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
+import es.usc.citius.servando.calendula.util.SecureWindowPolicy;
 import pl.droidsonroids.gif.GifDrawable;
 
 /**
@@ -105,9 +104,21 @@ public class LockScreenAlarmActivity extends AppCompatActivity {
         return true;
     }
 
+    /**
+     * Lock-screen medication details must inherit the same screenshot and
+     * Recents privacy setting as the main patient screens. An explicit user
+     * opt-out is respected by SecureWindowPolicy.
+     */
+    static void protectAlarmWindow(Window window, boolean enabled) {
+        if (enabled && window != null) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        protectAlarmWindow(getWindow(), SecureWindowPolicy.isProtected());
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
@@ -156,25 +167,16 @@ public class LockScreenAlarmActivity extends AppCompatActivity {
             @Override
             public void onReceive(Context arg0, Intent intent) {
                 String action = intent.getAction();
-                if (action.equals(STOP_SIGNAL)) {
+                if (STOP_SIGNAL.equals(action)) {
                     finish();
                 }
             }
         };
-        IntentFilter filter = new IntentFilter(STOP_SIGNAL);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(finishReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            registerFinishReceiverPreTiramisu(filter);
-        }
-    }
-
-    @SuppressLint("UnspecifiedRegisterReceiverFlag")
-    private void registerFinishReceiverPreTiramisu(IntentFilter filter) {
-        // The exported/not-exported overload does not exist before API 33. This helper is only
-        // reached on those older releases; API 33+ always registers the app-private signal as
-        // RECEIVER_NOT_EXPORTED above.
-        registerReceiver(finishReceiver, filter);
+        // STOP_SIGNAL dismisses a clinical reminder. In particular on API 23-32,
+        // plain registerReceiver() would leave this dynamic receiver exported.
+        // AndroidX applies an equivalent not-exported restriction on all APIs.
+        ContextCompat.registerReceiver(this, finishReceiver,
+                new IntentFilter(STOP_SIGNAL), ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     private void unregisterFinishReceiver() {
