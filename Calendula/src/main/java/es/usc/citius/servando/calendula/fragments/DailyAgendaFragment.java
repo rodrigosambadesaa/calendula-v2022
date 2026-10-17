@@ -351,6 +351,29 @@ public class DailyAgendaFragment extends Fragment {
         }
     }
 
+    /**
+     * On any agenda query/adapter failure, previously rendered rows may belong
+     * to a patient that is no longer selected. Fail closed at the view level:
+     * hide those rows immediately and keep a generic, accessible warning.
+     * Never mutate the persisted event history or silently confirm a dose.
+     */
+    static void hideStaleAgendaOnRefreshError(
+            List<DailyAgendaItemStub> visibleItems, View agenda,
+            View emptyPlaceholder, TextView reviewBanner) {
+        if (agenda != null) {
+            agenda.setVisibility(View.GONE);
+        }
+        if (visibleItems != null) {
+            visibleItems.clear();
+        }
+        if (emptyPlaceholder != null) {
+            emptyPlaceholder.setVisibility(View.GONE);
+        }
+        if (reviewBanner != null) {
+            reviewBanner.setVisibility(View.VISIBLE);
+        }
+    }
+
     public void notifyDataChange() {
         try {
             LogUtil.d(TAG, "AgendaView NotifyDataChange");
@@ -365,6 +388,8 @@ public class DailyAgendaFragment extends Fragment {
             if (!newItems.isEmpty()) {
                 rvAdapter.notifyItemRangeInserted(0, newItems.size());
             }
+            // Only a successful rebuild may re-expose the RecyclerView.
+            rv.setVisibility(View.VISIBLE);
             LogUtil.d(TAG, "Items after rebuild " + items.size());
             // show empty list view if there are no items
             rv.postDelayed(new Runnable() {
@@ -374,7 +399,20 @@ public class DailyAgendaFragment extends Fragment {
                 }
             }, 100);
         } catch (Exception e) {
-            LogUtil.e(TAG, "Error onPostExecute", e);
+            // Never retain a prior patient's rendered medication items after
+            // an inaccessible DB, malformed event, or partial adapter rebuild.
+            // The throwable itself may carry raw SQL or treatment metadata.
+            LogUtil.e(TAG, "Agenda refresh unavailable; manual review needed");
+            needsMedicationReview = true;
+            hideStaleAgendaOnRefreshError(items, rv, emptyView, medicationReviewWarning);
+            try {
+                if (rvAdapter != null) {
+                    rvAdapter.notifyDataSetChanged();
+                }
+            } catch (RuntimeException unavailableAdapter) {
+                // The old RecyclerView is already hidden. Do not surface stale
+                // patient items or hide the generic clinical review warning.
+            }
         }
     }
 
