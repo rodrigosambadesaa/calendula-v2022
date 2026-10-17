@@ -4,6 +4,10 @@
  */
 package es.usc.citius.servando.calendula.drugdb.download;
 
+import android.content.Context;
+
+import androidx.test.core.app.ApplicationProvider;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.MockedStatic;
@@ -27,6 +31,9 @@ public class RetiredCatalogVersionCheckTest {
     public void noLegacyBackendMeansNoUpdateOrRestoredPreferencesRead() {
         assertFalse(LegacyRemoteArchivePolicy.permitsRemoteSqlInstallation());
         try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
+            Context context = ApplicationProvider.getApplicationContext();
+            assertNull(DBVersionManager.checkForUpdate(context));
+            // Even an absent Context must never attempt to inspect settings.
             assertNull(DBVersionManager.checkForUpdate(null));
             prefs.verifyNoInteractions();
         }
