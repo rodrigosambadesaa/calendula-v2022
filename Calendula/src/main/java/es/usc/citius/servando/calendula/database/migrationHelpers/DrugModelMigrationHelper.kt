@@ -88,7 +88,8 @@ object DrugModelMigrationHelper {
                         med.name = linkablePrescription.shortName()
                         med.presentation = DBRegistry.instance().current().expectedPresentation(linkablePrescription)
                         DB.medicines().saveAndFireEvent(med)
-                        LogUtil.d(TAG, "linkMedsAfterUpdate: linked med $med to prescription $linkablePrescription")
+                        // Never log medicine or prescription objects: their strings can
+                        // include patient medication history and private treatments.
                     }
                 }
             }

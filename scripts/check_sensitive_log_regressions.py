@@ -55,6 +55,10 @@ RULES = {
         (r"LogUtil\.\w+\s*\([^\n]*r\.getName\s*\(", "selected routine name printed in clinical logs"),
         (r"Click at\s*", "legacy clicked routine name diagnostic reintroduced"),
     ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/database/migrationHelpers/DrugModelMigrationHelper.kt": (
+        (r"linkMedsAfterUpdate: linked med", "medication and prescription object logged during relink"),
+        (r"LogUtil\.\w+\s*\([^\n]*linkablePrescription\b", "prescription model interpolated into Logcat"),
+    ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/PdfViewActivity.java": (
         (r"LogUtil\.\w+\s*\([^\n]*\+\s*(?:url|previewUrl)\b", "provider document URL logged"),
         (r"Finished loading URL:", "legacy clinical document URI log reintroduced"),
@@ -93,6 +97,9 @@ def self_test() -> None:
     assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/activities/schedules/PickRoutineStepFragment.java", "LogUtil.d(TAG, \"ValueChange: \" + current + \", selected: \" + hours.get(current - 1))")
     assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/RoutineCreateOrEditFragment.java", 'LogUtil.d(TAG, "Routine set: " + r.getName())')
     assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/RoutinesListFragment.java", 'LogUtil.d(TAG, "Click at " + r.getName())')
+    migration = "Calendula/src/main/java/es/usc/citius/servando/calendula/database/migrationHelpers/DrugModelMigrationHelper.kt"
+    assert violations(migration, 'LogUtil.d(TAG, "linkMedsAfterUpdate: linked med $med to prescription $linkablePrescription")')
+    assert violations(migration, 'LogUtil.d(TAG, "Re-linked " + linkablePrescription)')
     for name in RULES:
         assert not violations(name, 'LogUtil.d(TAG, "Operation completed")')
     print("Sensitive log regression guard self-test passed")
