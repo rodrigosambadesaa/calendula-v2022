@@ -54,7 +54,7 @@ public class AllergyGroupDao extends GenericDao<AllergyGroup, Long> {
         try {
             return dao.query(qb.prepare());
         } catch (SQLException e) {
-            LogUtil.e(TAG, "findAllOrderByPrecedence: ", e);
+            LogUtil.e(TAG, "Allergy group lookup failed");
             throw new RuntimeException("Error finding groups", e);
         }
     }

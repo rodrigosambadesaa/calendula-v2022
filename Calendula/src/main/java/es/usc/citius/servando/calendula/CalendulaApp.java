@@ -124,7 +124,7 @@ public class CalendulaApp extends Application {
 
             output.flush();
         } catch (IOException e) {
-            LogUtil.e(TAG, "Failed to export database", e);
+            LogUtil.e(TAG, "Failed to export database");
         } finally {
             CloseableUtil.closeQuietly(inputStream, output);
         }

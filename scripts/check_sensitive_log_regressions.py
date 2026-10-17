@@ -80,6 +80,18 @@ RULES = {
         (r"LogUtil\.\w+\s*\([^\n]*\+\s*coding\b", "unknown provider medication system leaked to Logcat"),
         (r"forCoding:\s*unknown coding", "legacy coding system diagnostic reintroduced"),
     ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/database/PatientAlertDao.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "patient alert SQL exception exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/database/AllergyGroupDao.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "allergy group SQL exception exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/util/CloseableUtil.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "closing a medical file exposed stream exception details"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/CalendulaApp.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*Failed to export database[^\n]*,\s*e\s*\)", "medical database export path exposed to Logcat"),
+    ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/pinlock/PINManager.java": (
         (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "PIN hash or salt error stack logged"),
     ),
@@ -160,6 +172,14 @@ def self_test() -> None:
     assert violations(cache, 'LogUtil.e(TAG, "retrieveByHash", e)')
     assert violations(fhir, 'LogUtil.e(TAG, "Unexpected FHIR type " + type.toString())')
     assert violations(fhir, 'LogUtil.e(TAG, "genVOsFromResponse: ", e)')
+    alert_dao = "Calendula/src/main/java/es/usc/citius/servando/calendula/database/PatientAlertDao.java"
+    allergy_dao = "Calendula/src/main/java/es/usc/citius/servando/calendula/database/AllergyGroupDao.java"
+    closeable = "Calendula/src/main/java/es/usc/citius/servando/calendula/util/CloseableUtil.java"
+    db_export = "Calendula/src/main/java/es/usc/citius/servando/calendula/CalendulaApp.java"
+    assert violations(alert_dao, 'LogUtil.e(TAG, "findByMedicineAndLevel: ", e)')
+    assert violations(allergy_dao, 'LogUtil.e(TAG, "findAllOrderByPrecedence: ", e)')
+    assert violations(closeable, 'LogUtil.e(TAG, "close: ", e)')
+    assert violations(db_export, 'LogUtil.e(TAG, "Failed to export database", e)')
     for name in RULES:
         assert not violations(name, 'LogUtil.d(TAG, "Operation completed")')
     print("Sensitive log regression guard self-test passed")

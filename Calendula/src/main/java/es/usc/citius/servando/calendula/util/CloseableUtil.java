@@ -40,7 +40,7 @@ public class CloseableUtil {
                 if (throwRuntime) {
                     throw new RuntimeException(e);
                 } else {
-                    LogUtil.e(TAG, "close: ", e);
+                    LogUtil.e(TAG, "Unable to close stream");
                 }
             }
         }
