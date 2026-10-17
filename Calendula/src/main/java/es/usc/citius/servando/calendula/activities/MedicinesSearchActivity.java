@@ -209,7 +209,7 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
 
     @Subscribe
     public void handleDbInstalled(PersistenceEvents.DatabaseInstalledEvent event) {
-        LogUtil.d(TAG, "handleDbInstalled() called with: event = [" + event + "]");
+        LogUtil.d(TAG, "Medicine catalog installation event received");
         // enable barcode scan
 
         refreshViews();

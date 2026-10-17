@@ -84,7 +84,7 @@ public class AvatarMgr {
                 R.color.android_blue_light};
 
         if (!avatars.containsKey(avatar)) {
-            LogUtil.w(TAG, "colorsFor: Invalid avatar ID \"" + avatar + "\". Returning default colors.");
+            LogUtil.w(TAG, "Invalid avatar ID; using default colors");
             return colors;
         }
 
@@ -106,7 +106,7 @@ public class AvatarMgr {
         if (avatars.containsKey(avatar)) {
             return avatars.get(avatar);
         }
-        LogUtil.w(TAG, "res: Invalid avatar ID \"" + avatar + "\". Returning default avatar.");
+        LogUtil.w(TAG, "Invalid avatar ID; using default avatar");
         return avatars.get(DEFAULT_AVATAR);
     }
 
