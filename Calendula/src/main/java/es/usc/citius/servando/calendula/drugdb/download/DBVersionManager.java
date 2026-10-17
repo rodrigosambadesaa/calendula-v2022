@@ -36,6 +36,7 @@ import java.util.Map;
 import es.usc.citius.servando.calendula.BuildConfig;
 import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.R;
+import es.usc.citius.servando.calendula.drugdb.DrugCatalogPreferencePolicy;
 import es.usc.citius.servando.calendula.database.DatabaseHelper;
 import es.usc.citius.servando.calendula.util.HttpDownloadUtil;
 import es.usc.citius.servando.calendula.util.LogUtil;
@@ -144,12 +145,20 @@ public class DBVersionManager {
      * @return the version code of the update if there is one available, <code>null</code> otherwise
      */
     public static String checkForUpdate(Context ctx) {
+        // The legacy unsigned SQL archive source has been permanently retired.
+        // Do not even read restored preferences or contact its obsolete endpoint.
+        if (!LegacyRemoteArchivePolicy.permitsRemoteSqlInstallation() || ctx == null) {
+            return null;
+        }
         final SharedPreferences prefs = PreferenceUtils.instance().preferences();
         final String noneId = ctx.getString(R.string.database_none_id);
-        final String database = prefs.getString(PreferenceKeys.DRUGDB_CURRENT_DB.key(), noneId);
-        final String currentVersion = prefs.getString(PreferenceKeys.DRUGDB_VERSION.key(), null);
+        final String database = DrugCatalogPreferencePolicy.selectedIdOrFallback(
+                prefs, PreferenceKeys.DRUGDB_CURRENT_DB.key(), noneId);
+        final String currentVersion = DrugCatalogPreferencePolicy.selectedIdOrFallback(
+                prefs, PreferenceKeys.DRUGDB_VERSION.key(), null);
 
-        if (!database.equals(noneId) && !database.equals(ctx.getString(R.string.database_setting_up))) {
+        if (!noneId.equals(database)
+                && !ctx.getString(R.string.database_setting_up_id).equals(database)) {
             if (currentVersion != null) {
                 if (!isValidDatabaseVersion(currentVersion)) {
                     LogUtil.w(TAG, "checkForUpdate: invalid locally stored database version");
