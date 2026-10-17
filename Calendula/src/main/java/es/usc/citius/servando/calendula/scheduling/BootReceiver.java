@@ -40,7 +40,7 @@ public class BootReceiver extends BroadcastReceiver {
         }
 
         final String action = intent.getAction();
-        LogUtil.d(TAG, "onReceive: " + action);
+        LogUtil.d(TAG, "Received system scheduling broadcast");
 
         if (Intent.ACTION_BOOT_COMPLETED.equals(action)) {
             LogUtil.d(TAG, "Boot completed intent received");
@@ -66,7 +66,7 @@ public class BootReceiver extends BroadcastReceiver {
             LogUtil.d(TAG, "Exact alarm access granted; rescheduling reminders");
             Agenda.instance().updateAllAlarms(context);
         } else {
-            LogUtil.w(TAG, "Ignoring unexpected broadcast action: " + action);
+            LogUtil.w(TAG, "Ignoring unexpected scheduling broadcast");
         }
     }
 }

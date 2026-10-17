@@ -106,6 +106,15 @@ RULES = {
     "Calendula/src/main/java/es/usc/citius/servando/calendula/jobs/CheckDatabaseUpdatesJob.java": (
         (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "catalog update request exception exposed to Logcat"),
     ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/MedicinesSearchActivity.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*\+\s*event\b", "medical database installed event serialized into logs"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/util/AvatarMgr.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*\+\s*avatar\b", "potentially untrusted avatar identifier logged"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/scheduling/BootReceiver.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*\+\s*action\b", "untrusted broadcast action logged"),
+    ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/database/PatientAlertDao.java": (
         (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "patient alert SQL exception exposed to Logcat"),
     ),
@@ -225,6 +234,12 @@ def self_test() -> None:
     assert violations(routine_dao, 'LogUtil.e(TAG, "Error in findInHour", e)')
     assert violations(download_util, 'LogUtil.e(TAG, "downloadFile", e)')
     assert violations(update_job, 'LogUtil.e(TAG, "onRunJob", e)')
+    med_search = "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/MedicinesSearchActivity.java"
+    avatar_mgr = "Calendula/src/main/java/es/usc/citius/servando/calendula/util/AvatarMgr.java"
+    boot_receiver = "Calendula/src/main/java/es/usc/citius/servando/calendula/scheduling/BootReceiver.java"
+    assert violations(med_search, 'LogUtil.d(TAG, "Database event: " + event)')
+    assert violations(avatar_mgr, 'LogUtil.w(TAG, "Invalid avatar " + avatar)')
+    assert violations(boot_receiver, 'LogUtil.w(TAG, "Unexpected action " + action)')
     for name in RULES:
         assert not violations(name, 'LogUtil.d(TAG, "Operation completed")')
     print("Sensitive log regression guard self-test passed")
