@@ -40,6 +40,18 @@ public class ScannedPatientLinkGuardTest {
     }
 
     @Test
+    public void staleScanCannotApplyTokenAfterSwitchingActivePatient() {
+        assertTrue(ScannedPatientLinkGuard.isSameActiveContext(21L, 21L));
+        assertFalse(ScannedPatientLinkGuard.isSameActiveContext(21L, 22L));
+        assertFalse(ScannedPatientLinkGuard.isSameActiveContext(21L, null));
+        assertFalse(ScannedPatientLinkGuard.isSameActiveContext(null, 21L));
+        assertFalse(ScannedPatientLinkGuard.isSameActiveContext(-1L, -1L));
+        // The requested patient being edited can differ from the active owner:
+        // it is the user context at scan launch that must remain stable.
+        assertTrue(ScannedPatientLinkGuard.isSameActiveContext(10L, 10L));
+    }
+
+    @Test
     public void validCompressedPatientTokenDecodesUsingUtf8() throws Exception {
         String json = "{\"token\":\"enlace-ñ-á-é\"}";
         byte[] gzip = gzip(json);

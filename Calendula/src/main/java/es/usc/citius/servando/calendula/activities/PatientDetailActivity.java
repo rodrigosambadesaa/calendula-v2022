@@ -227,8 +227,39 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
 
     }
 
+    /** The scanner's originating active patient must still be selected at token storage. */
+    static boolean hasMatchingScanOwner(Intent request, Long activePatientId) {
+        if (request == null) {
+            return false;
+        }
+        try {
+            long originatingOwner = request.getLongExtra(
+                    ScanActivity.EXTRA_SCAN_ACTIVE_OWNER, -1L);
+            return ScannedPatientLinkGuard.isSameActiveContext(
+                    originatingOwner, activePatientId);
+        } catch (RuntimeException malformed) {
+            return false;
+        }
+    }
+
     void lookForQrData(Intent i) {
-        String qrData = i.getStringExtra("qr_data");
+        String qrData = ScanActivity.safeStringExtra(i, "qr_data");
+        // Normal profile editing has no scanned token. Do not report a false
+        // security rejection or require a scanner origin for ordinary edits.
+        if (qrData == null) {
+            return;
+        }
+        final Patient active;
+        try {
+            active = DB.patients().getActive(this);
+        } catch (RuntimeException unavailableSelection) {
+            LogUtil.w(TAG, "Patient link rejected: active selection unavailable");
+            return;
+        }
+        if (!hasMatchingScanOwner(i, active == null ? null : active.getId())) {
+            LogUtil.w(TAG, "Patient link rejected after profile change");
+            return;
+        }
         if (qrData != null) {
             final PatientLinkWrapper p;
             try {
