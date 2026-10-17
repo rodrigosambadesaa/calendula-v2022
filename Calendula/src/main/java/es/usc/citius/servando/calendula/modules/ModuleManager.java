@@ -57,11 +57,28 @@ public class ModuleManager {
     }
 
     public void run(CalendulaModule module, Context ctx) {
+        // An incomplete module must never appear enabled to downstream UI,
+        // reminder or clinical-alert paths. Keep it visible during its own
+        // initialization for legacy modules that query their registration,
+        // but restore the prior registration if startup fails.
+        String moduleId = null;
+        CalendulaModule previous = null;
+        boolean registered = false;
         try {
-            modules.put(module.getId(), module);
+            moduleId = module.getId();
+            previous = modules.put(moduleId, module);
+            registered = true;
             module.onApplicationStartup(ctx);
-            LogUtil.v(TAG, "Module ran: " + module.getId());
+            LogUtil.v(TAG, "Module ran: " + moduleId);
         } catch (Exception e) {
+            if (registered) {
+                if (previous == null) {
+                    modules.remove(moduleId);
+                } else {
+                    modules.put(moduleId, previous);
+                }
+            }
+            // Exception details may contain database or authentication data.
             LogUtil.e(TAG, "Module startup failed");
         }
     }
