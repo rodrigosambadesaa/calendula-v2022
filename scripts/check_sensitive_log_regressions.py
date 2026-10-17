@@ -80,6 +80,15 @@ RULES = {
         (r"LogUtil\.\w+\s*\([^\n]*\+\s*coding\b", "unknown provider medication system leaked to Logcat"),
         (r"forCoding:\s*unknown coding", "legacy coding system diagnostic reintroduced"),
     ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/pinlock/PINManager.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "PIN hash or salt error stack logged"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/util/security/SecurePrefBundle.kt": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "encrypted credentials bundle error stack logged"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/util/security/LibraryEncryptionProvider.kt": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "encrypted preference error stack logged"),
+    ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/PdfViewActivity.java": (
         (r"LogUtil\.\w+\s*\([^\n]*\+\s*(?:url|previewUrl)\b", "provider document URL logged"),
         (r"Finished loading URL:", "legacy clinical document URI log reintroduced"),
@@ -131,6 +140,12 @@ def self_test() -> None:
     coding_system = "Calendula/src/main/java/es/usc/citius/servando/calendula/healthcareprovider/model/ActiveMedCodingSystemType.java"
     assert violations(med_type, 'LogUtil.e(TAG, "forCoding: unknown coding " + coding)')
     assert violations(coding_system, 'LogUtil.d(TAG, "Coding " + coding)')
+    pin_crypto = "Calendula/src/main/java/es/usc/citius/servando/calendula/pinlock/PINManager.java"
+    secret_bundle = "Calendula/src/main/java/es/usc/citius/servando/calendula/util/security/SecurePrefBundle.kt"
+    encryption = "Calendula/src/main/java/es/usc/citius/servando/calendula/util/security/LibraryEncryptionProvider.kt"
+    assert violations(pin_crypto, 'LogUtil.e(TAG, "checkPIN: malformed hash", e)')
+    assert violations(secret_bundle, 'LogUtil.e(TAG, "serialize failed", e)')
+    assert violations(encryption, 'LogUtil.d(TAG, "Error decrypting property", e)')
     for name in RULES:
         assert not violations(name, 'LogUtil.d(TAG, "Operation completed")')
     print("Sensitive log regression guard self-test passed")

@@ -30,7 +30,7 @@ class LibraryEncryptionProvider(private val encryptionManager: EncryptionManager
             val data = encryptionManager.decrypt(secret)
             return data.toString(charset("UTF-8"))
         } catch (e: Exception) {
-            LogUtil.d(TAG, "Error decrypting property", e)
+            LogUtil.d(TAG, "Encrypted preference decryption failed")
             throw e
         }
     }

@@ -132,7 +132,7 @@ public class PINManager {
                     .apply();
             return true;
         } catch (GeneralSecurityException e) {
-            LogUtil.e(TAG, "savePIN: failed to derive PIN hash", e);
+            LogUtil.e(TAG, "PIN hash derivation failed");
             return false;
         }
     }
@@ -175,7 +175,7 @@ public class PINManager {
             final byte[] actual = derivePbkdf2(pin, salt);
             return MessageDigest.isEqual(expected, actual);
         } catch (IllegalArgumentException | GeneralSecurityException e) {
-            LogUtil.e(TAG, "checkPIN: malformed or unsupported PIN hash", e);
+            LogUtil.e(TAG, "Malformed or unsupported PIN hash");
             return false;
         }
     }
@@ -205,7 +205,7 @@ public class PINManager {
             byte byteData[] = md.digest();
             return new String(byteData);
         } catch (NoSuchAlgorithmException e) {
-            LogUtil.e(TAG, "calculateLegacyHash: ", e);
+            LogUtil.e(TAG, "Legacy PIN hash calculation failed");
             return null;
         }
     }
