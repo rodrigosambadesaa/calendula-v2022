@@ -59,6 +59,15 @@ RULES = {
         (r"linkMedsAfterUpdate: linked med", "medication and prescription object logged during relink"),
         (r"LogUtil\.\w+\s*\([^\n]*linkablePrescription\b", "prescription model interpolated into Logcat"),
     ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/scheduling/Agenda.java": (
+        (r"LogUtil\.e\s*\(\s*TAG\s*,[^\n]*,\s*(?:e|error)\s*\)", "daily agenda or clinical reminder throwable exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/persistence/ScheduleUtils.java": (
+        (r"LogUtil\.e\s*\(\s*TAG\s*,[^\n]*,\s*(?:alertError|schedulingError|listenerError)\s*\)", "post-commit medication/stock throwable exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/AlertListFragment.java": (
+        (r"LogUtil\.e\s*\(\s*TAG\s*,[^\n]*,\s*e\s*\)", "patient clinical alert exception exposed to Logcat"),
+    ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/PdfViewActivity.java": (
         (r"LogUtil\.\w+\s*\([^\n]*\+\s*(?:url|previewUrl)\b", "provider document URL logged"),
         (r"Finished loading URL:", "legacy clinical document URI log reintroduced"),
@@ -100,6 +109,9 @@ def self_test() -> None:
     migration = "Calendula/src/main/java/es/usc/citius/servando/calendula/database/migrationHelpers/DrugModelMigrationHelper.kt"
     assert violations(migration, 'LogUtil.d(TAG, "linkMedsAfterUpdate: linked med $med to prescription $linkablePrescription")')
     assert violations(migration, 'LogUtil.d(TAG, "Re-linked " + linkablePrescription)')
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/scheduling/Agenda.java", 'LogUtil.e(TAG, "Error updating agenda", e)')
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/persistence/ScheduleUtils.java", 'LogUtil.e(TAG, "Post-commit reminder error", schedulingError)')
+    assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/AlertListFragment.java", 'LogUtil.e(TAG, "Unable to load patient clinical alerts", e)')
     for name in RULES:
         assert not violations(name, 'LogUtil.d(TAG, "Operation completed")')
     print("Sensitive log regression guard self-test passed")
