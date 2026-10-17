@@ -132,7 +132,7 @@ object SecurePrefBundle {
         try {
             return GsonUtil.get().toJson(bundle)
         } catch (e: Exception) {
-            LogUtil.e(TAG, "serialize: failed to serialize bundle", e)
+            LogUtil.e(TAG, "Secure preferences serialization failed")
             throw e
         }
     }
