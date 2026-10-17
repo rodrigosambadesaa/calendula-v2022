@@ -16,6 +16,10 @@ RULES = {
         (r"data=\$data\b", "raw PIN settings Intent interpolated into diagnostics"),
         (r"LogUtil\.\w+\s*\([^\n]*EXTRA_NEW_PIN", "PIN extra directly logged"),
     ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/pinlock/view/NumberPadView.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*numberValue\b", "PIN keypad digit logged"),
+        (r"Number clicked:\s*", "legacy numeric PIN keypress diagnostic reintroduced"),
+    ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/LeftDrawerMgr.java": (
         (r"LogUtil\.\w+\s*\([^\n]*p\.getName\s*\(", "patient name directly logged"),
         (r"Adding patient to drawer:\s*", "legacy patient-name log reintroduced"),
@@ -101,6 +105,9 @@ def self_test() -> None:
     assert violations(pin, 'LogUtil.d(TAG, "data=$data")')
     assert violations(pin, 'LogUtil.d(TAG, EXTRA_NEW_PIN)')
     assert violations(drawer, 'LogUtil.d(TAG, "Name: " + p.getName())')
+    pin_pad = "Calendula/src/main/java/es/usc/citius/servando/calendula/pinlock/view/NumberPadView.java"
+    assert violations(pin_pad, 'LogUtil.v(TAG, "Number clicked: " + numberValue)')
+    assert violations(pin_pad, 'LogUtil.d(TAG, "PIN digit " + numberValue)')
     assert violations(pdf, 'LogUtil.d(TAG, "Document: " + previewUrl)')
     assert violations(pdf, 'LogUtil.d(TAG, "Document: " + url)')
     assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/activities/ConfirmActivity.java", 'LogUtil.d(TAG, eventInstance.toString())')
