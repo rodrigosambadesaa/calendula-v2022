@@ -338,7 +338,7 @@ public class AllergiesActivity extends CalendulaActivity {
 
             @Override
             public void onClick(View view, int i, FastAdapter fastAdapter, AbstractItem item) {
-                LogUtil.d(TAG, "onClick() called with: view = [" + view + ", i = [" + i + "], fastAdapter = [" + fastAdapter + "], item = [" + item + "]");
+                LogUtil.d(TAG, "Allergy row action received");
                 switch (view.getId()) {
                     case R.id.delete_button:
                         // check if group or item
@@ -350,7 +350,7 @@ public class AllergiesActivity extends CalendulaActivity {
                                 showDeleteConfirmationDialog((AllergyItem) item);
                                 break;
                             default:
-                                LogUtil.w(TAG, "onClick: Unexpected item type: " + item);
+                                LogUtil.w(TAG, "Unexpected allergy row type");
                                 break;
                         }
                         break;
@@ -367,7 +367,7 @@ public class AllergiesActivity extends CalendulaActivity {
                                 expand ? R.string.accessibility_collapse : R.string.accessibility_expand));
                         break;
                     default:
-                        LogUtil.w(TAG, "onClick: Unexpected view type on click hook: " + view);
+                        LogUtil.w(TAG, "Unexpected allergy row action");
                         break;
                 }
             }
@@ -521,7 +521,7 @@ public class AllergiesActivity extends CalendulaActivity {
                     return live;
                 });
             } catch (RuntimeException failure) {
-                LogUtil.e(TAG, "Unable to delete verified patient allergens", failure);
+                LogUtil.e(TAG, "Unable to delete verified patient allergens");
                 return -2;
             }
 
@@ -533,7 +533,7 @@ public class AllergiesActivity extends CalendulaActivity {
                     AllergyAlertUtil.removeAllergyAlerts(context, allergen);
                 }
             } catch (SQLException | RuntimeException failure) {
-                LogUtil.e(TAG, "Allergen removed; clinical warning cleanup needs review", failure);
+                LogUtil.e(TAG, "Allergen removed; clinical warning cleanup needs review");
                 return -2;
             }
             if (notify) {
@@ -596,10 +596,10 @@ public class AllergiesActivity extends CalendulaActivity {
             try {
                 rows = DB.patientAllergens().create(allergen);
             } catch (SQLException e) {
-                LogUtil.e(TAG, "storeAllergen: couldn't create allergy", e);
+                LogUtil.e(TAG, "Could not create patient allergy record");
                 return SaveResult.ERROR;
             }
-            LogUtil.d(TAG, "storeAllergen: inserted allergen into database: " + allergen);
+            LogUtil.d(TAG, "Patient allergy insertion completed");
             if (rows == 1) {
                 final boolean r = checkConflictsAndCreateAlerts(new AllergenVO(allergen));
                 currentAllergies.add(allergen);
@@ -754,7 +754,7 @@ public class AllergiesActivity extends CalendulaActivity {
             try {
                 result = store.storeAllergens(patientAllergens);
             } catch (RuntimeException error) {
-                LogUtil.e(TAG, "Unable to save patient allergens safely", error);
+                LogUtil.e(TAG, "Unable to save patient allergens safely");
                 result = SaveResult.ERROR;
             }
             final boolean saved = result == SaveResult.OK || result == SaveResult.ALLERGY;
