@@ -30,6 +30,11 @@ class InstallerVerification : Verification {
 
     companion object {
         private const val TAG = "IntegrityVerification"
+        private const val GOOGLE_PLAY_INSTALLER = "com.android.vending"
+
+        /** A package-name prefix is not evidence of a trusted installer. */
+        internal fun isTrustedInstaller(installer: String?): Boolean =
+            installer == GOOGLE_PLAY_INSTALLER
     }
 
     override fun run(c: Context): VerificationResult {
@@ -47,23 +52,25 @@ class InstallerVerification : Verification {
      */
     private fun verifyInstaller(c: Context): Boolean {
         val installer = installerPackageName(c)
-        if (BuildConfig.DEBUG || (installer != null && installer.startsWith("com.android.vending"))) {
+        if (BuildConfig.DEBUG || isTrustedInstaller(installer)) {
             return true
         }
-        LogUtil.w(TAG, "Invalid app installer '$installer'")
+        LogUtil.w(TAG, "Invalid app installer")
         return false
     }
 
     private fun installerPackageName(c: Context): String? {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            try {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 c.packageManager.getInstallSourceInfo(c.packageName).installingPackageName
-            } catch (e: Exception) {
-                LogUtil.w(TAG, "Could not resolve app install source", e)
-                null
+            } else {
+                legacyInstallerPackageName(c)
             }
-        } else {
-            legacyInstallerPackageName(c)
+        } catch (e: RuntimeException) {
+            // Exception messages may include private package/file information.
+            // Unknown install provenance is never trusted by the policy.
+            LogUtil.w(TAG, "Could not resolve app install source")
+            null
         }
     }
 
