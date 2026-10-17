@@ -114,7 +114,7 @@ public class PatientAlertDao extends GenericDao<PatientAlert, Long> {
                     .prepare();
             return requireSameOwner(stored, dao.query(q));
         } catch (SQLException e) {
-            LogUtil.e(TAG, "findByMedicineAndLevel: ", e);
+            LogUtil.e(TAG, "Clinical alert lookup failed");
             throw new RuntimeException("Cannot retrieve alerts", e);
         }
     }
@@ -127,7 +127,7 @@ public class PatientAlertDao extends GenericDao<PatientAlert, Long> {
             qb.orderBy(PatientAlert.COLUMN_LEVEL, false);
             return requireSameOwner(stored, dao.query(qb.prepare()));
         } catch (SQLException e) {
-            LogUtil.e(TAG, "findByMedicineSortByLevel: ", e);
+            LogUtil.e(TAG, "Clinical alert lookup failed");
             throw new RuntimeException("Cannot retrieve alerts", e);
         }
     }
@@ -147,7 +147,7 @@ public class PatientAlertDao extends GenericDao<PatientAlert, Long> {
             // An SQLite failure must never masquerade as 'no clinical alert'.
             return requireSameOwner(stored, dao.query(query));
         } catch (SQLException e) {
-            LogUtil.e(TAG, "findByPatientMedicineAndType: ", e);
+            LogUtil.e(TAG, "Clinical alert lookup failed");
             throw new RuntimeException("Cannot retrieve patient alerts", e);
         }
     }
@@ -164,7 +164,7 @@ public class PatientAlertDao extends GenericDao<PatientAlert, Long> {
                     .prepare();
             return requireSameOwner(stored, dao.query(q));
         } catch (SQLException e) {
-            LogUtil.e(TAG, "findByMedicineAndType: ", e);
+            LogUtil.e(TAG, "Clinical alert lookup failed");
             throw new RuntimeException("Cannot retrieve alerts", e);
         }
     }
