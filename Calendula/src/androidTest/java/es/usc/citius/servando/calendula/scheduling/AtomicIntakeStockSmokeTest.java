@@ -479,6 +479,66 @@ public class AtomicIntakeStockSmokeTest {
     }
 
     @Test
+    public void failedMedicineStockRefundRollsBackIntakeUndo() throws Exception {
+        assertUndoRollbackOnInjectedFailure("Medicines", "undo_medicine_update", true);
+    }
+
+    @Test
+    public void failedIntakeUndoRollsBackMedicineStockRefund() throws Exception {
+        assertUndoRollbackOnInjectedFailure("EventInstances", "undo_event_update", false);
+    }
+
+    /**
+     * The inverse transition is just as important as first confirmation:
+     * stock must not be refunded if the persisted dose remains completed, and
+     * a failed stock refund cannot unmark a completed medication intake.
+     * All fixtures are disposable; triggers are dropped even on assertion
+     * failures and no existing patient data is referenced.
+     */
+    private void assertUndoRollbackOnInjectedFailure(
+            String table, String suffix, boolean stockWrite) throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        final String trigger = "ci_test_atomic_" + suffix;
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            assertTrue("Synthetic intake is initially confirmable",
+                    ScheduleUtils.instance().setIntakeCompleted(x.context, x.event, true));
+            assertTrue(x.persistedIntake().completed());
+            assertEquals(INITIAL_STOCK - DOSE, x.persistedStock(), 0.001f);
+            assertTrue(x.event.completed());
+
+            long pk = stockWrite ? x.medicine.getId() : x.event.getId();
+            sqlite.execSQL("CREATE TRIGGER " + trigger + " BEFORE UPDATE ON " + table
+                    + " WHEN OLD._id = " + pk
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic undo transaction failure'); END;");
+            try {
+                ScheduleUtils.instance().setIntakeCompleted(x.context, x.event, false);
+                fail("A failed undo must atomically reject the stock refund and intake update");
+            } catch (RuntimeException expected) {
+                // Both authoritative rows must stay in the pre-undo state.
+            }
+            assertTrue("Failed undo cannot clear the persisted intake flag",
+                    x.persistedIntake().completed());
+            assertEquals("Failed undo cannot refund medicine inventory",
+                    INITIAL_STOCK - DOSE, x.persistedStock(), 0.001f);
+            assertTrue("Failed undo must leave the UI's accepted event untouched",
+                    x.event.completed());
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            assertTrue("After clearing the injected failure, undo must be retryable",
+                    ScheduleUtils.instance().setIntakeCompleted(x.context, x.event, false));
+            assertFalse(x.persistedIntake().completed());
+            assertEquals(INITIAL_STOCK, x.persistedStock(), 0.001f);
+            assertFalse(x.event.completed());
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            x.cleanup();
+        }
+    }
+
+    @Test
     public void stalePatientSelectionCannotConfirmAReassignedIntake() throws Exception {
         assertTrue(DB.initialized);
         Fixture x = new Fixture();
