@@ -42,6 +42,39 @@ public class ScanActivity extends CalendulaActivity {
     String afterScanPkg;
     String afterScanCls;
     Long patientId;
+    private static final String STATE_SCAN_ACTIVE_OWNER = "scan_active_patient_owner";
+    static final String EXTRA_SCAN_ACTIVE_OWNER = "scan_active_patient_owner_for_link";
+    private Long activePatientOnOpen;
+
+    /** Wrong-type restored/external extras never supply a valid scan route. */
+    static String safeStringExtra(Intent source, String key) {
+        try {
+            return source == null ? null : source.getStringExtra(key);
+        } catch (RuntimeException invalid) {
+            return null;
+        }
+    }
+
+    static long safeLongExtra(Intent source, String key) {
+        try {
+            return source == null ? -1L : source.getLongExtra(key, -1L);
+        } catch (RuntimeException invalid) {
+            return -1L;
+        }
+    }
+
+    private boolean isSameActivePatient() {
+        try {
+            es.usc.citius.servando.calendula.persistence.Patient current =
+                    DB.patients().getActive(this);
+            return ScannedPatientLinkGuard.isSameActiveContext(
+                    activePatientOnOpen, current == null ? null : current.getId());
+        } catch (RuntimeException unavailableOwner) {
+            // A deleted, corrupt or inaccessible active profile is never
+            // permission to use a scanned link token.
+            return false;
+        }
+    }
 
     public void doScan() {
         IntentIntegrator integrator = new IntentIntegrator(this);
@@ -58,13 +91,13 @@ public class ScanActivity extends CalendulaActivity {
         // The scanned token is patient-private. Do not trust redirect package
         // and class supplied in the launching intent, even inside the app.
         if (source == null || !ScannedPatientLinkGuard.isValidRoute(
-                source.getStringExtra("after_scan_pkg"),
-                source.getStringExtra("after_scan_cls"), getPackageName(),
+                safeStringExtra(source, "after_scan_pkg"),
+                safeStringExtra(source, "after_scan_cls"), getPackageName(),
                 PatientDetailActivity.class.getName())) {
             finish();
             return;
         }
-        patientId = source.getLongExtra("patient_id", -1L);
+        patientId = safeLongExtra(source, "patient_id");
         if (!ScannedPatientLinkGuard.isValidPatientId(patientId)
                 || DB.patients().findById(patientId) == null) {
             finish();
@@ -76,11 +109,33 @@ public class ScanActivity extends CalendulaActivity {
             finish();
             return;
         }
+        if (savedInstanceState == null) {
+            activePatientOnOpen = active.getId();
+        } else {
+            try {
+                activePatientOnOpen = savedInstanceState.getLong(
+                        STATE_SCAN_ACTIVE_OWNER, -1L);
+            } catch (RuntimeException malformedRestore) {
+                activePatientOnOpen = null;
+            }
+        }
+        if (!isSameActivePatient()) {
+            finish();
+            return;
+        }
         setContentView(R.layout.activity_scan);
         int color = active.getColor();
         setupStatusBar(color);
         findViewById(R.id.container).setBackgroundColor(color);
         findViewById(R.id.button).setOnClickListener(v -> doScan());
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        if (ScannedPatientLinkGuard.isValidPatientId(activePatientOnOpen)) {
+            outState.putLong(STATE_SCAN_ACTIVE_OWNER, activePatientOnOpen);
+        }
+        super.onSaveInstanceState(outState);
     }
 
     @Override
@@ -97,9 +152,20 @@ public class ScanActivity extends CalendulaActivity {
                 || DB.patients().findById(patientId) == null) {
             return;
         }
+        if (!isSameActivePatient()) {
+            finish();
+            return;
+        }
 
-        IntentResult result = IntentIntegrator.parseActivityResult(
-                requestCode, resultCode, data);
+        final IntentResult result;
+        try {
+            result = IntentIntegrator.parseActivityResult(
+                    requestCode, resultCode, data);
+        } catch (RuntimeException malformedCameraResult) {
+            LogUtil.w(TAG, "Rejected malformed QR scanner result");
+            Toast.makeText(this, R.string.patient_qr_invalid, Toast.LENGTH_SHORT).show();
+            return;
+        }
         String contents = result == null ? null : result.getContents();
         if (!ScannedPatientLinkGuard.canDecode(contents)) {
             Toast.makeText(this, R.string.patient_qr_invalid, Toast.LENGTH_SHORT).show();
@@ -120,8 +186,15 @@ public class ScanActivity extends CalendulaActivity {
 
         // Only the internal patient-detail screen may receive a patient-link
         // token. Never use arbitrary class/package values from the caller.
+        // The camera can be slow. Do not forward a token into a patient
+        // context that changed during scanning or decoding.
+        if (!isSameActivePatient() || DB.patients().findById(patientId) == null) {
+            finish();
+            return;
+        }
         Intent internal = new Intent(this, PatientDetailActivity.class);
         internal.putExtra("qr_data", payload);
+        internal.putExtra(EXTRA_SCAN_ACTIVE_OWNER, activePatientOnOpen);
         internal.putExtra("patient_id", patientId);
         startActivity(internal);
         finish();
