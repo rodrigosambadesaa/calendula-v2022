@@ -89,6 +89,14 @@ RULES = {
     "Calendula/src/main/java/es/usc/citius/servando/calendula/util/security/LibraryEncryptionProvider.kt": (
         (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "encrypted preference error stack logged"),
     ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/util/HtmlCacheManager.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*\+\s*(?:entry|hashCode)\b", "patient medical HTML cache object/hash logged"),
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "medical cache SQL throwable logged"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/healthcareprovider/fhir/FHIRUtil.kt": (
+        (r"LogUtil\.\w+\s*\([^\n]*\+\s*type\.toString\s*\(", "imported FHIR resource type serialized to diagnostics"),
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "imported FHIR clinical exception logged"),
+    ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/PdfViewActivity.java": (
         (r"LogUtil\.\w+\s*\([^\n]*\+\s*(?:url|previewUrl)\b", "provider document URL logged"),
         (r"Finished loading URL:", "legacy clinical document URI log reintroduced"),
@@ -146,6 +154,12 @@ def self_test() -> None:
     assert violations(pin_crypto, 'LogUtil.e(TAG, "checkPIN: malformed hash", e)')
     assert violations(secret_bundle, 'LogUtil.e(TAG, "serialize failed", e)')
     assert violations(encryption, 'LogUtil.d(TAG, "Error decrypting property", e)')
+    cache = "Calendula/src/main/java/es/usc/citius/servando/calendula/util/HtmlCacheManager.java"
+    fhir = "Calendula/src/main/java/es/usc/citius/servando/calendula/healthcareprovider/fhir/FHIRUtil.kt"
+    assert violations(cache, 'LogUtil.d(TAG, "remove: removing entry: " + entry)')
+    assert violations(cache, 'LogUtil.e(TAG, "retrieveByHash", e)')
+    assert violations(fhir, 'LogUtil.e(TAG, "Unexpected FHIR type " + type.toString())')
+    assert violations(fhir, 'LogUtil.e(TAG, "genVOsFromResponse: ", e)')
     for name in RULES:
         assert not violations(name, 'LogUtil.d(TAG, "Operation completed")')
     print("Sensitive log regression guard self-test passed")

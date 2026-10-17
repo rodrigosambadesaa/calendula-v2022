@@ -92,7 +92,7 @@ object FHIRUtil {
                         LogUtil.w(TAG, "parseResponse: More than one Organization in response entries!")
                     }
                 }
-                else -> LogUtil.e(TAG, "parseResponse: Unexpected resource type " + type.toString() + "in response, ignoring")
+                else -> LogUtil.e(TAG, "Unexpected FHIR resource type; ignoring entry")
             }
         }
 
@@ -239,7 +239,7 @@ object FHIRUtil {
                 ret.add(medVO)
 
             } catch (e: Exception) {
-                LogUtil.e(TAG, "genVOsFromResponse: ", e)
+                LogUtil.e(TAG, "Could not parse imported medication record")
             }
 
         }
@@ -358,7 +358,7 @@ object FHIRUtil {
 
         } catch (e: Exception) {
             LogUtil.d(TAG, "Error while reading dosage information from FHIR request")
-            LogUtil.e(TAG, "An error occurred while reading dosage information", e)
+            LogUtil.e(TAG, "Unable to read imported medication dosage")
             throw RuntimeException(e)
         }
 
