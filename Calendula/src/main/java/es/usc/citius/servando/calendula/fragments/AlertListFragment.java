@@ -159,7 +159,7 @@ public class AlertListFragment extends Fragment {
         } catch (RuntimeException e) {
             // Do not leave the preceding patient's clinical warnings visible
             // when SQLite fails or rejects a corrupt/cross-owner alert.
-            LogUtil.e(TAG, "Unable to load patient clinical alerts", e);
+            LogUtil.e(TAG, "Unable to load patient clinical alerts");
             int previousCount = items.size();
             items.clear();
             if (rvAdapter != null && previousCount > 0) {
@@ -188,7 +188,7 @@ public class AlertListFragment extends Fragment {
             try {
                 rvAdapter.registerViewProvider((AlertViewRecyclerAdapter.AlertViewProvider) vp.getDeclaredConstructor().newInstance(), vp);
             } catch (Exception e) {
-                LogUtil.e(TAG, "setupRecyclerView: ", e);
+                LogUtil.e(TAG, "Could not configure patient clinical alerts view");
                 throw new RuntimeException(e);
             }
         }
