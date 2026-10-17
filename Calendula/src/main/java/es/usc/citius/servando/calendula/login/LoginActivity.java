@@ -93,7 +93,7 @@ public class LoginActivity extends AppCompatActivity {
                 try {
                     DB.patients().create(patient);
                 } catch (SQLException e) {
-                    LogUtil.e(TAG, "continueWithoutLogin: ", e);
+                    LogUtil.e(TAG, "Local patient setup failed");
                 }
                 DB.patients().setActive(patient);
             }
@@ -263,7 +263,7 @@ public class LoginActivity extends AppCompatActivity {
 
             AuthorizationRequest authRequest = builder.build();
 
-            LogUtil.d(TAG, "Making auth request to " + serviceConfig.authorizationEndpoint);
+            LogUtil.d(TAG, "Starting authorization request");
             mAuthService.performAuthorizationRequest(
                     authRequest,
                     LoginReceiveActivity.createPostAuthorizationIntent(
@@ -283,7 +283,7 @@ public class LoginActivity extends AppCompatActivity {
 
 
     private void onInstanceIDError(final InstanceIDHelper.NoInstanceIDException exception) {
-        LogUtil.e(TAG, "onInstanceIDError: ", exception);
+        LogUtil.e(TAG, "Push registration unavailable during login");
         switch (exception.getReason()) {
             case NO_CONNECTION:
                 Snack.showIfUnobstructed(R.string.login_no_internet, this, Snackbar.LENGTH_LONG);

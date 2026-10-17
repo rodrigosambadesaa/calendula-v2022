@@ -72,7 +72,7 @@ public class HttpDownloadUtil {
             writeCompleteDownload(inputStream, file, contentLength);
             return true;
         } catch (IOException e) {
-            LogUtil.e(TAG, "downloadFile: ", e);
+            LogUtil.e(TAG, "Database download failed");
             return false;
         } finally {
             CloseableUtil.closeQuietly(inputStream);
@@ -151,7 +151,7 @@ public class HttpDownloadUtil {
             in = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8"));
             return readLimitedText(in, MAX_TEXT_DOWNLOAD_CHARS);
         } catch (IOException e) {
-            LogUtil.e(TAG, "downloadFileToText: ", e);
+            LogUtil.e(TAG, "Database metadata download failed");
             return null;
         } finally {
             CloseableUtil.closeQuietly(in);
