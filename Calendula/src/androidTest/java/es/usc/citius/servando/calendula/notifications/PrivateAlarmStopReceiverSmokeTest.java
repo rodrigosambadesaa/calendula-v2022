@@ -16,32 +16,44 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 import static org.junit.Assert.assertTrue;
 
-/** Disposable framework registration only; never starts or stops a real alarm. */
+/**
+ * Validate registration and same-app delivery on every supported Android API.
+ * Uses a unique test-only action; never starts, dismisses or updates an alarm.
+ */
 @RunWith(AndroidJUnit4.class)
 public class PrivateAlarmStopReceiverSmokeTest {
     @Test
-    public void notExportedAlarmReceiverCanRegisterOnEverySupportedAndroidApi() {
-        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+    public void notExportedAlarmReceiverCanReceiveSameAppSignalsOnSupportedApis()
+            throws Exception {
+        final Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        final String action = "es.usc.citius.calendula.TEST_NON_EXPORTED_ALARM_RECEIVER";
+        final CountDownLatch received = new CountDownLatch(1);
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context receivingContext, Intent intent) {
-                // No patient data and no actual alarm side effects.
+                if (action.equals(intent.getAction())) {
+                    received.countDown();
+                }
             }
         };
-        IntentFilter filter = new IntentFilter(
-                "es.usc.citius.calendula.TEST_NON_EXPORTED_ALARM_RECEIVER");
-        BroadcastReceiver registered = receiver;
-        boolean installed = false;
+        boolean registered = false;
         try {
-            ContextCompat.registerReceiver(context, registered, filter,
+            ContextCompat.registerReceiver(context, receiver, new IntentFilter(action),
                     ContextCompat.RECEIVER_NOT_EXPORTED);
-            installed = true;
-            assertTrue("Receiver registration must complete on this platform", installed);
+            registered = true;
+            // Matching app package + UID. An unrelated package cannot use this
+            // test to interact with the real medication STOP_SIGNAL receiver.
+            context.sendBroadcast(new Intent(action).setPackage(context.getPackageName()));
+            assertTrue("App-private signal must remain deliverable on this Android version",
+                    received.await(10, TimeUnit.SECONDS));
         } finally {
-            if (installed) {
-                context.unregisterReceiver(registered);
+            if (registered) {
+                context.unregisterReceiver(receiver);
             }
         }
     }
