@@ -151,7 +151,7 @@ public class CalendulaApp extends Application {
             final String flavor = BuildConfig.FLAVOR.toUpperCase(Locale.ROOT);
             ModuleManager.getInstance().runModules(flavor, applicationContext);
         } catch (IllegalArgumentException | IllegalStateException e) {
-            LogUtil.e(TAG, "onCreate: Error loading module configuration", e);
+            LogUtil.e(TAG, "Unable to load module configuration");
             LogUtil.w(TAG, "onCreate: Loading default module configuration instead");
             ModuleManager.getInstance().runDefaultModules(applicationContext);
         }

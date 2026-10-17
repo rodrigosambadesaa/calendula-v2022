@@ -118,7 +118,7 @@ public class RemoteQueryManager {
             try {
                 vo = FHIRUtil.parseResponse(response.errorBody().charStream());
             } catch (Exception e) {
-                LogUtil.e(TAG, "Can not parse response error body", e);
+                LogUtil.e(TAG, "Remote medication error response could not be parsed");
                 // there is no error body, nothing to do
             }
         }

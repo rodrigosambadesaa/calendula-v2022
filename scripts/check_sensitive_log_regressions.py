@@ -115,6 +115,15 @@ RULES = {
     "Calendula/src/main/java/es/usc/citius/servando/calendula/scheduling/BootReceiver.java": (
         (r"LogUtil\.\w+\s*\([^\n]*\+\s*action\b", "untrusted broadcast action logged"),
     ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/healthcareprovider/remote/RemoteQueryManager.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "remote clinical/FHIR parsing exception exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/modules/ModuleManager.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "application module startup exception exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/modules/ModuleRegistry.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "module reflection exception exposed to Logcat"),
+    ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/database/PatientAlertDao.java": (
         (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "patient alert SQL exception exposed to Logcat"),
     ),
@@ -126,6 +135,7 @@ RULES = {
     ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/CalendulaApp.java": (
         (r"LogUtil\.\w+\s*\([^\n]*Failed to export database[^\n]*,\s*e\s*\)", "medical database export path exposed to Logcat"),
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "application module startup exception exposed to Logcat"),
     ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/pinlock/PINManager.java": (
         (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "PIN hash or salt error stack logged"),
@@ -240,6 +250,14 @@ def self_test() -> None:
     assert violations(med_search, 'LogUtil.d(TAG, "Database event: " + event)')
     assert violations(avatar_mgr, 'LogUtil.w(TAG, "Invalid avatar " + avatar)')
     assert violations(boot_receiver, 'LogUtil.w(TAG, "Unexpected action " + action)')
+    clinical_remote = "Calendula/src/main/java/es/usc/citius/servando/calendula/healthcareprovider/remote/RemoteQueryManager.java"
+    mod_manager = "Calendula/src/main/java/es/usc/citius/servando/calendula/modules/ModuleManager.java"
+    mod_registry = "Calendula/src/main/java/es/usc/citius/servando/calendula/modules/ModuleRegistry.java"
+    app_lifecycle = "Calendula/src/main/java/es/usc/citius/servando/calendula/CalendulaApp.java"
+    assert violations(clinical_remote, 'LogUtil.e(TAG, "Parsing remote response", e)')
+    assert violations(mod_manager, 'LogUtil.e(TAG, "Module failed", e)')
+    assert violations(mod_registry, 'LogUtil.e(TAG, "Failed to load module", e)')
+    assert violations(app_lifecycle, 'LogUtil.e(TAG, "Module startup failed", e)')
     for name in RULES:
         assert not violations(name, 'LogUtil.d(TAG, "Operation completed")')
     print("Sensitive log regression guard self-test passed")

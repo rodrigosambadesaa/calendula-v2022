@@ -62,7 +62,7 @@ public class ModuleManager {
             module.onApplicationStartup(ctx);
             LogUtil.v(TAG, "Module ran: " + module.getId());
         } catch (Exception e) {
-            LogUtil.e(TAG, "run: Error when enabling module \"" + module.getId() + "\": ", e);
+            LogUtil.e(TAG, "Module startup failed");
         }
     }
 
