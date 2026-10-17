@@ -22,6 +22,7 @@ import android.app.IntentService;
 import android.content.Context;
 import android.content.Intent;
 
+import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.util.DrugCatalogSelection;
 import es.usc.citius.servando.calendula.util.LogUtil;
 
@@ -63,11 +64,14 @@ public class UpdateDatabaseService extends IntentService {
         // Never authorize an update using fallback data from another catalog.
         final String database = requestedCatalogOrNull(intent);
         final String selected = DrugCatalogSelection.selectedOrNull();
-        if (!isSameSelectedCatalog(database, selected)) {
-            LogUtil.w(TAG, "Skipping missing, malformed or outdated database update request");
+        final Context ctx = getApplicationContext();
+        if (!isSameSelectedCatalog(database, selected)
+                || !DrugCatalogSelection.isReady(
+                        ctx.getString(R.string.database_none_id),
+                        ctx.getString(R.string.database_setting_up_id))) {
+            LogUtil.w(TAG, "Skipping missing, malformed or inactive database update request");
             return;
         }
-        final Context ctx = getApplicationContext();
         if (DBVersionManager.checkForUpdate(ctx) != null) {
             DownloadDatabaseHelper.instance().downloadDatabase(ctx, database, DBInstallType.UPDATE);
         } else {
