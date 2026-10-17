@@ -81,11 +81,16 @@ public class IntakeNotificationMgr {
      * ID as the request code, so updating an existing notification refreshes
      * the snapshot instead of leaking fresh random PendingIntents.
      */
-    static Intent identifyNotificationAction(Intent intent, String buttonKind) {
-        if (intent == null || buttonKind == null || buttonKind.isEmpty()) {
-            throw new IllegalArgumentException("A distinct notification action is required");
+    static Intent identifyNotificationAction(Intent intent, String buttonKind, long reminderId) {
+        if (intent == null || reminderId <= 0L
+                || !("OPEN".equals(buttonKind) || "DELAY".equals(buttonKind)
+                || "CANCEL".equals(buttonKind) || "CONFIRM".equals(buttonKind)
+                || "REVIEW".equals(buttonKind))) {
+            throw new IllegalArgumentException("A valid reminder action identity is required");
         }
         intent.setAction(PENDING_ACTION_PREFIX + buttonKind);
+        intent.setData(Uri.parse("calendula-reminder://notification/"
+                + reminderId + "/" + buttonKind));
         return intent;
     }
 
@@ -208,7 +213,8 @@ public class IntakeNotificationMgr {
         final Intent openApp = new Intent(context, StartActivity.class);
         openApp.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         final PendingIntent openPendingIntent = PendingIntent.getActivity(
-                context, reminder.getId().intValue(), openApp,
+                context, reminder.getId().intValue(),
+                identifyNotificationAction(openApp, "REVIEW", reminder.getId()),
                 PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
         return new NotificationCompat.Builder(context, NotificationHelper.CHANNEL_MEDS_ID)
                 .setSmallIcon(R.drawable.ic_pill_small_lost)
@@ -405,7 +411,7 @@ public class IntakeNotificationMgr {
         defaultIntent.putExtra(IntentParams.EXTRA_PATIENT_ID, patient.getId());
         defaultIntent.putExtra(IntentParams.EXTRA_DATETIME, dateTime.toString(ISODateTimeFormat.dateTimeNoMillis()));
 
-        notify(context, reminder.getId().intValue(), title, intents, confirmAll, defaultIntent, options);
+        notify(context, reminder.getId(), title, intents, confirmAll, defaultIntent, options);
         showInsistentScreen(context, defaultIntent);
     }
 
@@ -436,9 +442,10 @@ public class IntakeNotificationMgr {
         }
     }
 
-    private static void notify(final Context context, int id, final String title,
+    private static void notify(final Context context, long reminderId, final String title,
                                Pair<Intent, Intent> actionIntents, Intent confirmIntent, Intent intent,
                                NotificationOptions options) {
+        int id = (int) reminderId;
 
         boolean notifications = NotificationFlagPolicy.configuredOrDefault(PreferenceKeys.SETTINGS_ALARM_NOTIFICATIONS, true);
 
@@ -453,7 +460,7 @@ public class IntakeNotificationMgr {
         PendingIntent defaultIntent = PendingIntent.getActivity(
                 context,
                 id,
-                identifyNotificationAction(intent, "OPEN"),
+                identifyNotificationAction(intent, "OPEN", reminderId),
                 PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
         PendingIntent delayIntent = null;
         PendingIntent cancelIntent = null;
@@ -463,17 +470,17 @@ public class IntakeNotificationMgr {
             delayIntent = PendingIntent.getBroadcast(
                     context,
                     id,
-                    identifyNotificationAction(actionIntents.first, "DELAY"),
+                    identifyNotificationAction(actionIntents.first, "DELAY", reminderId),
                     PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
             cancelIntent = PendingIntent.getBroadcast(
                     context,
                     id,
-                    identifyNotificationAction(actionIntents.second, "CANCEL"),
+                    identifyNotificationAction(actionIntents.second, "CANCEL", reminderId),
                     PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
             confirmAllIntent = PendingIntent.getBroadcast(
                     context,
                     id,
-                    identifyNotificationAction(confirmIntent, "CONFIRM"),
+                    identifyNotificationAction(confirmIntent, "CONFIRM", reminderId),
                     PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
         }
 
