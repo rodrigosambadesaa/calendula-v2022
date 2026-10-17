@@ -510,4 +510,5 @@ Queres instalar a nova base de datos agora?"</string>
     <string name="medicine_allergy_catalog_unavailable">Non se pode comprobar a seguridade fronte ás alerxias porque faltan datos de ingredientes ou excipientes no catálogo. Revisa o catálogo antes de gardar.</string>
     <string name="patient_qr_invalid">O código de vinculación do paciente non é válido ou é demasiado grande.</string>
     <string name="active_med_details_unavailable">Os datos deste medicamento non están dispoñibles. Revisa o rexistro do provedor sanitario.</string>
+    <string name="schedule_invalid_hourly_interval">Introduce un número enteiro de horas entre 1 e 72.</string>
 </resources>
