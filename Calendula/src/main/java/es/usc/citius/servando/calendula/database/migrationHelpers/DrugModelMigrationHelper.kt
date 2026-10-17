@@ -24,6 +24,7 @@ import com.j256.ormlite.table.TableUtils
 import es.usc.citius.servando.calendula.CalendulaApp
 import es.usc.citius.servando.calendula.database.DB
 import es.usc.citius.servando.calendula.drugdb.DBRegistry
+import es.usc.citius.servando.calendula.util.DrugCatalogSelection
 import es.usc.citius.servando.calendula.drugdb.model.persistence.*
 import es.usc.citius.servando.calendula.events.PersistenceEvents
 import es.usc.citius.servando.calendula.persistence.alerts.DrivingCautionAlert
@@ -75,7 +76,11 @@ object DrugModelMigrationHelper {
 
     @JvmStatic
     fun linkMedsAfterUpdate() {
-        val currentDB = PreferenceUtils.getString(PreferenceKeys.DRUGDB_CURRENT_DB, null)
+        // Only a well-typed and registered provider may rewrite medicine metadata.
+        // Corrupt/removed catalog selections leave all patient medication rows unchanged.
+        val selected = DrugCatalogSelection.selectedOrNull() ?: return
+        val currentDB = MedicineRelinkCatalogPolicy.registeredIdOrNull(
+                selected, DBRegistry.instance().registered) ?: return
         val applicableMeds = DB.medicines().findAll().filter { (it.database.isNullOrEmpty() || it.database.equals(currentDB)) && !it.cn.isNullOrEmpty() }
 
         if (applicableMeds.isNotEmpty()) {
