@@ -253,7 +253,7 @@ public class Agenda {
             }
             return true;
         } catch (SQLException e) {
-            LogUtil.e(TAG, "Error creating reminders ", e);
+            LogUtil.e(TAG, "Reminder persistence failed");
             // An outer agenda transaction must not publish a completed-day
             // marker when this nested reminder transaction has rolled back.
             return false;
@@ -551,7 +551,7 @@ public class Agenda {
                 CalendulaApp.eventBus().post(new AgendaUpdatedEvent());
             } catch (SQLException | RuntimeException e) {
                 // Do not publish success or suppress a later retry.
-                LogUtil.e(TAG, "Error updating agenda; will retry on next update", e);
+                LogUtil.e(TAG, "Daily agenda update failed; retry required");
             }
         } else {
             LogUtil.d(TAG, "No need to update daily schedule (" + DB.eventInstances().count() + " items found for today)");
@@ -833,14 +833,14 @@ public class Agenda {
                 }
                 DB.medicines().fireEvent();
             } catch (RuntimeException error) {
-                LogUtil.e(TAG, "Committed stock alert could not be refreshed", error);
+                LogUtil.e(TAG, "Committed stock alert could not be refreshed");
             }
         }
         if (eventsChanged[0]) {
             try {
                 DB.eventInstances().fireEvent();
             } catch (RuntimeException error) {
-                LogUtil.e(TAG, "Committed intake UI event could not be published", error);
+                LogUtil.e(TAG, "Committed intake UI event could not be published");
             }
         }
     }
