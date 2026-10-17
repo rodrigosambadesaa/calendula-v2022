@@ -166,7 +166,7 @@ public class HtmlCacheManager {
                     hashCode, url, now, data, ttl);
             return getDao().create(newEntry) == 1;
         } catch (SQLException e) {
-            LogUtil.e(TAG, "Could not persist HTML cache entry", e);
+            LogUtil.e(TAG, "Could not persist HTML cache entry");
             return false;
         }
     }
@@ -174,7 +174,7 @@ public class HtmlCacheManager {
     public boolean remove(final String url) {
         HtmlCacheEntry entry = retrieve(url);
         if (entry != null) {
-            LogUtil.d(TAG, "remove: removing entry: " + entry);
+            LogUtil.d(TAG, "Removing medical HTML cache entry");
             return remove(entry);
         } else {
             LogUtil.d(TAG, "remove: entry does not exist");
@@ -248,7 +248,7 @@ public class HtmlCacheManager {
             return entry;
         }
 
-        LogUtil.d(TAG, "retrieve: Deleting expired entry with hashCode: " + hashCode);
+        LogUtil.d(TAG, "Deleting expired medical HTML cache entry");
         remove(entry);
         return null;
     }
@@ -261,8 +261,7 @@ public class HtmlCacheManager {
             if (htmlCacheEntries.isEmpty()) {
                 return null;
             } else if (htmlCacheEntries.size() > 1) {
-                LogUtil.w(TAG, "Inconsistent state of cache: hashcode " + hashCode
-                        + " is not unique. Deleting all copies.");
+                LogUtil.w(TAG, "HTML cache hash collision or duplicate detected; removing duplicate entries");
                 for (HtmlCacheEntry entry : htmlCacheEntries) {
                     remove(entry);
                 }
@@ -270,7 +269,7 @@ public class HtmlCacheManager {
             }
             return htmlCacheEntries.get(0);
         } catch (SQLException e) {
-            LogUtil.e(TAG, "retrieveByHash: ", e);
+            LogUtil.e(TAG, "Medical HTML cache lookup failed");
             return null;
         }
     }
@@ -299,7 +298,7 @@ public class HtmlCacheManager {
         try {
             return getDao().delete(entry) == 1;
         } catch (SQLException e) {
-            LogUtil.e(TAG, "remove: ", e);
+            LogUtil.e(TAG, "Medical HTML cache removal failed");
             return false;
         }
     }
@@ -310,7 +309,7 @@ public class HtmlCacheManager {
                 remove(entry);
             }
         } catch (SQLException e) {
-            LogUtil.e(TAG, "clearCache: ", e);
+            LogUtil.e(TAG, "Medical HTML cache clear failed");
         }
     }
 
