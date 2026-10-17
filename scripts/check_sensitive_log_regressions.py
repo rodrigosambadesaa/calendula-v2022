@@ -92,6 +92,20 @@ RULES = {
         (r"LogUtil\.\w+\s*\([^\n]*,\s*(?:e|error|failure)\s*\)", "patient allergen database exception exposed to Logcat"),
         (r"storeAllergen:\s*inserted allergen into database:", "legacy allergy record dump reintroduced"),
     ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/login/LoginActivity.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*(?:e|exception)\s*\)", "login exception could expose authentication details"),
+        (r"LogUtil\.\w+\s*\([^\n]*serviceConfig\.authorizationEndpoint\b", "OAuth provider endpoint exposed to diagnostic log"),
+        (r"Making auth request to", "legacy OAuth endpoint diagnostic reintroduced"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/database/RoutineDao.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "clinical routine SQL exception exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/util/HttpDownloadUtil.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "medicine catalog download file or URL exception exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/jobs/CheckDatabaseUpdatesJob.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "catalog update request exception exposed to Logcat"),
+    ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/database/PatientAlertDao.java": (
         (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "patient alert SQL exception exposed to Logcat"),
     ),
@@ -202,6 +216,15 @@ def self_test() -> None:
     assert violations(allergy_screen, 'LogUtil.w(TAG, "Unexpected allergy item " + item)')
     assert violations(allergy_screen, 'LogUtil.e(TAG, "Unable to save patient allergens", failure)')
     assert violations(allergy_screen, 'LogUtil.d(TAG, "storeAllergen: inserted allergen into database: " + allergen)')
+    login_screen = "Calendula/src/main/java/es/usc/citius/servando/calendula/login/LoginActivity.java"
+    routine_dao = "Calendula/src/main/java/es/usc/citius/servando/calendula/database/RoutineDao.java"
+    download_util = "Calendula/src/main/java/es/usc/citius/servando/calendula/util/HttpDownloadUtil.java"
+    update_job = "Calendula/src/main/java/es/usc/citius/servando/calendula/jobs/CheckDatabaseUpdatesJob.java"
+    assert violations(login_screen, 'LogUtil.d(TAG, "Making auth request to " + serviceConfig.authorizationEndpoint)')
+    assert violations(login_screen, 'LogUtil.e(TAG, "No token", exception)')
+    assert violations(routine_dao, 'LogUtil.e(TAG, "Error in findInHour", e)')
+    assert violations(download_util, 'LogUtil.e(TAG, "downloadFile", e)')
+    assert violations(update_job, 'LogUtil.e(TAG, "onRunJob", e)')
     for name in RULES:
         assert not violations(name, 'LogUtil.d(TAG, "Operation completed")')
     print("Sensitive log regression guard self-test passed")

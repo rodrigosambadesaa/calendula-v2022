@@ -196,7 +196,7 @@ public class RoutineDao extends GenericDao<Routine, Long> {
                     .between(Routine.COLUMN_TIME, time, endTime)
                     .query();
         } catch (Exception e) {
-            LogUtil.e(TAG, "Error in findInHour", e);
+            LogUtil.e(TAG, "Routine lookup failed");
             throw new RuntimeException(e);
         }
     }

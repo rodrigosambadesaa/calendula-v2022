@@ -89,7 +89,7 @@ public class CheckDatabaseUpdatesJob extends CalendulaJob {
         try {
             checkForUpdate(getContext());
         } catch (Exception e) {
-            LogUtil.e(TAG, "onRunJob: ", e);
+            LogUtil.e(TAG, "Medicine catalog update check failed");
             return Result.FAILURE;
         }
 
