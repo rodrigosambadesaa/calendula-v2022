@@ -104,7 +104,7 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
     private Button addCustomMedFooter;
     private MedicinesSearchAutoCompleteAdapter adapter;
     private Long openedPatientId;
-    private static final String STATE_PATIENT_AT_SEARCH_OPEN = "med_search_original_patient";
+    private static final String STATE_PATIENT_AT_SEARCH_OPEN = MedicineSearchOwnerGuard.SAVED_OWNER_KEY;
 
     private boolean originalPatientStillActive() {
         es.usc.citius.servando.calendula.persistence.Patient current =
@@ -243,10 +243,8 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
             cancelStaleSearch();
             return;
         }
-        Long restored = savedInstanceState != null
-                && savedInstanceState.containsKey(STATE_PATIENT_AT_SEARCH_OPEN)
-                ? savedInstanceState.getLong(STATE_PATIENT_AT_SEARCH_OPEN, -1L)
-                : active.getId();
+        Long restored = MedicineSearchOwnerGuard.restoredOwnerOrNull(
+                savedInstanceState, active.getId());
         if (!MedicineSearchOwnerGuard.samePatient(restored, active.getId())) {
             cancelStaleSearch();
             return;
@@ -313,8 +311,8 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
             }
         });
 
-        final String search = getIntent() == null ? null
-                : getIntent().getStringExtra(EXTRA_SEARCH_TERM);
+        final String search = MedicineSearchOwnerGuard.safeStringExtra(
+                getIntent(), EXTRA_SEARCH_TERM);
         if (search != null) {
             searchEditText.setText(search);
             searchEditText.setSelection(search.length());
@@ -405,8 +403,10 @@ public class MedicinesSearchActivity extends CalendulaActivity implements Medici
         }
         if (requestCode == IntentIntegrator.REQUEST_CODE
                 && resultCode == RESULT_OK && data != null) {
-            String contents = data.getStringExtra(Intents.Scan.RESULT);
-            String format = data.getStringExtra(Intents.Scan.RESULT_FORMAT);
+            String contents = MedicineSearchOwnerGuard.safeStringExtra(
+                    data, Intents.Scan.RESULT);
+            String format = MedicineSearchOwnerGuard.safeStringExtra(
+                    data, Intents.Scan.RESULT_FORMAT);
             // Handle successful scan
             LogUtil.d(TAG, "Barcode scan completed; format present=" + (format != null));
             if (contents != null) {
