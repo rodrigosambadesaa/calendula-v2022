@@ -33,7 +33,7 @@ import static org.junit.Assert.assertTrue;
 @RunWith(AndroidJUnit4.class)
 public class MedicineRelinkCatalogPersistenceSmokeTest {
     @Test
-    public void damagedOrRetiredSelectionNeverRewritesExistingPatientMedicine() {
+    public void damagedOrRetiredSelectionNeverRewritesExistingPatientMedicine() throws Exception {
         assertTrue(DB.initialized);
         SharedPreferences prefs = PreferenceUtils.instance().preferences();
         String key = PreferenceKeys.DRUGDB_CURRENT_DB.key();
