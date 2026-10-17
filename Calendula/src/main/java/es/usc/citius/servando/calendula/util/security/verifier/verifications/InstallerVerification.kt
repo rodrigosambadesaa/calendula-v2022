@@ -66,7 +66,7 @@ class InstallerVerification : Verification {
             } else {
                 legacyInstallerPackageName(c)
             }
-        } catch (e: RuntimeException) {
+        } catch (e: Exception) {
             // Exception messages may include private package/file information.
             // Unknown install provenance is never trusted by the policy.
             LogUtil.w(TAG, "Could not resolve app install source")
