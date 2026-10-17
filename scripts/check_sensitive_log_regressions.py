@@ -68,6 +68,14 @@ RULES = {
     "Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/AlertListFragment.java": (
         (r"LogUtil\.e\s*\(\s*TAG\s*,[^\n]*,\s*e\s*\)", "patient clinical alert exception exposed to Logcat"),
     ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/healthcareprovider/persistence/ActiveMedType.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*\+\s*coding\b", "unknown provider medication classification leaked to Logcat"),
+        (r"forCoding:\s*unknown coding", "legacy provider coding diagnostic reintroduced"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/healthcareprovider/model/ActiveMedCodingSystemType.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*\+\s*coding\b", "unknown provider medication system leaked to Logcat"),
+        (r"forCoding:\s*unknown coding", "legacy coding system diagnostic reintroduced"),
+    ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/PdfViewActivity.java": (
         (r"LogUtil\.\w+\s*\([^\n]*\+\s*(?:url|previewUrl)\b", "provider document URL logged"),
         (r"Finished loading URL:", "legacy clinical document URI log reintroduced"),
@@ -112,6 +120,10 @@ def self_test() -> None:
     assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/scheduling/Agenda.java", 'LogUtil.e(TAG, "Error updating agenda", e)')
     assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/persistence/ScheduleUtils.java", 'LogUtil.e(TAG, "Post-commit reminder error", schedulingError)')
     assert violations("Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/AlertListFragment.java", 'LogUtil.e(TAG, "Unable to load patient clinical alerts", e)')
+    med_type = "Calendula/src/main/java/es/usc/citius/servando/calendula/healthcareprovider/persistence/ActiveMedType.java"
+    coding_system = "Calendula/src/main/java/es/usc/citius/servando/calendula/healthcareprovider/model/ActiveMedCodingSystemType.java"
+    assert violations(med_type, 'LogUtil.e(TAG, "forCoding: unknown coding " + coding)')
+    assert violations(coding_system, 'LogUtil.d(TAG, "Coding " + coding)')
     for name in RULES:
         assert not violations(name, 'LogUtil.d(TAG, "Operation completed")')
     print("Sensitive log regression guard self-test passed")

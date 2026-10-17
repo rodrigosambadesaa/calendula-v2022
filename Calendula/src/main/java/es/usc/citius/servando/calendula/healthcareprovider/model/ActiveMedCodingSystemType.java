@@ -49,7 +49,9 @@ public enum ActiveMedCodingSystemType {
     public static ActiveMedCodingSystemType forCoding(final String coding) {
         final ActiveMedCodingSystemType type = codingToEnum.get(coding);
         if (type == null) {
-            LogUtil.e(TAG, "forCoding: unknown coding " + coding);
+            // Unrecognized provider coding values may be untrusted and contain
+            // private healthcare document identifiers. Do not log the value.
+            LogUtil.e(TAG, "Unknown provider medication coding");
         }
         return type;
     }
