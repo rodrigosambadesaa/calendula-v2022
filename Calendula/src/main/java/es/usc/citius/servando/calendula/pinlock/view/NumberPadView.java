@@ -134,7 +134,7 @@ public class NumberPadView extends FrameLayout {
         }
 
         private void onNumberClicked(String numberValue) {
-            LogUtil.v(TAG, "Number clicked: " + numberValue);
+            // PIN digits are secrets; never log individual keypad presses.
             if (mListener != null) {
                 mListener.onNumberClicked(Integer.valueOf(numberValue));
             }
