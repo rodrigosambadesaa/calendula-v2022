@@ -693,7 +693,7 @@ public class ScheduleUtils {
                 }
                 DB.medicines().fireEvent();
             } catch (RuntimeException alertError) {
-                LogUtil.e(TAG, "Post-commit medicine stock alert failed", alertError);
+                LogUtil.e(TAG, "Post-commit medicine stock alert failed");
             }
         }
         try {
@@ -704,7 +704,7 @@ public class ScheduleUtils {
                 LogUtil.e(TAG, "Post-commit reminder recovery could not be scheduled");
             }
         } catch (RuntimeException schedulingError) {
-            LogUtil.e(TAG, "Post-commit reminder reconciliation failed", schedulingError);
+            LogUtil.e(TAG, "Post-commit reminder reconciliation failed");
         }
     }
 
@@ -712,7 +712,7 @@ public class ScheduleUtils {
         try {
             DB.eventInstances().fireEvent();
         } catch (RuntimeException listenerError) {
-            LogUtil.e(TAG, "Post-commit intake UI update failed", listenerError);
+            LogUtil.e(TAG, "Post-commit intake UI update failed");
         }
     }
 
