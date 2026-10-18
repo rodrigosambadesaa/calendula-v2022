@@ -49,7 +49,7 @@ class CalendulaSettingsActivity : CalendulaActivity(),
             transaction.addToBackStack(null)
             transaction.commit()
         } catch (e: Exception) {
-            LogUtil.e(TAG, "onPreferenceStartFragment: ", e)
+            LogUtil.e(TAG, "Unable to open settings fragment")
             Toast.makeText(this, R.string.message_generic_error, Toast.LENGTH_SHORT).show()
         }
         return true
