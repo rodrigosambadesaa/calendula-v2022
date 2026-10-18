@@ -182,10 +182,8 @@ public class AllergiesActivity extends CalendulaActivity {
             finish();
             return;
         }
-        Long savedOwner = savedInstanceState != null
-                && savedInstanceState.containsKey(STATE_OPENED_PATIENT_ID)
-                ? savedInstanceState.getLong(STATE_OPENED_PATIENT_ID, -1L)
-                : patient.getId();
+        Long savedOwner = RestoredClinicalOwnerGuard.restoredOwnerOrNull(
+                savedInstanceState, STATE_OPENED_PATIENT_ID, patient.getId());
         if (!AllergenSearchOwnerGuard.samePatient(savedOwner, patient.getId())) {
             finish();
             return;

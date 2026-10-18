@@ -281,7 +281,7 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
     }
 
     public void showSearchView(@Nullable final String searchText) {
-        LogUtil.d(TAG, "showSearchView() called with: searchText = [" + searchText + "]");
+        LogUtil.d(TAG, "Medicine search view opened");
         Intent i = new Intent(this, MedicinesSearchActivity.class);
         i.putExtra(MedicinesSearchActivity.EXTRA_SEARCH_TERM, searchText);
         startActivityForResult(i, REQUEST_CODE_GET_MED);
@@ -308,16 +308,11 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
         // Configuration changes restore the draft editor's form state.
         // Never let it silently move from the originally opened patient to
         // whichever patient became active while the activity was paused.
-        if (savedInstanceState != null
-                && savedInstanceState.containsKey(STATE_OPENED_PATIENT_ID)) {
-            long restoredId = savedInstanceState.getLong(STATE_OPENED_PATIENT_ID, -1L);
-            if (!MedicineSaveOwnerGuard.canRestoreEditor(restoredId, opened.getId())) {
-                closeStaleMedicineEditor();
-                return;
-            }
-            openedPatientId = restoredId;
-        } else {
-            openedPatientId = opened.getId();
+        openedPatientId = RestoredClinicalOwnerGuard.restoredOwnerOrNull(
+                savedInstanceState, STATE_OPENED_PATIENT_ID, opened.getId());
+        if (!MedicineSaveOwnerGuard.canRestoreEditor(openedPatientId, opened.getId())) {
+            closeStaleMedicineEditor();
+            return;
         }
         color = opened.getColor();
         setupToolbar(null, color);
