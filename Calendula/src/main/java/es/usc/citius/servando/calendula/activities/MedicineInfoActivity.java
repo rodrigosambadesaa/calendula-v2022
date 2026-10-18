@@ -429,7 +429,7 @@ public class MedicineInfoActivity extends CalendulaActivity {
         final String action = intent.getAction();
 
         if (action != null) {
-            LogUtil.d(TAG, "processIntent: action is " + action);
+            LogUtil.d(TAG, "Medicine information action received");
             switch (action) {
                 case ACTION_SHOW_ALERTS:
                     showAlerts = true;
@@ -495,7 +495,7 @@ public class MedicineInfoActivity extends CalendulaActivity {
                 // A corrupt or cross-owner alert must never be displayed as
                 // though it belonged to this patient. Avoid constructing the
                 // detail pager from unverified clinical data.
-                LogUtil.e(TAG, "Unable to verify medicine clinical alerts", error);
+                LogUtil.e(TAG, "Unable to verify medicine clinical alerts");
                 Toast.makeText(this, R.string.medicine_alerts_unavailable,
                         Toast.LENGTH_SHORT).show();
                 finish();
