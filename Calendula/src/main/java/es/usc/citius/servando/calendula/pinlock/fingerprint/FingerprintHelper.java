@@ -219,7 +219,7 @@ public class FingerprintHelper {
         }
 
         public void startAuth(FingerprintManager manager, FingerprintManager.CryptoObject cryptoObject) {
-            LogUtil.d(TAG, "startAuth() called with: manager = [" + manager + "], cryptoObject = [" + cryptoObject + "]");
+            LogUtil.d(TAG, "Starting fingerprint authentication");
             cancellationSignal = new CancellationSignal();
 
             if (ActivityCompat.checkSelfPermission(appContext, Manifest.permission.USE_FINGERPRINT) != PackageManager.PERMISSION_GRANTED) {
@@ -237,13 +237,13 @@ public class FingerprintHelper {
 
         @Override
         public void onAuthenticationError(int errMsgId, CharSequence errString) {
-            LogUtil.w(TAG, "onAuthenticationError() called with: errMsgId = [" + errMsgId + "], errString = [" + errString + "]");
+            LogUtil.w(TAG, "Fingerprint authentication reported an error");
             Toast.makeText(appContext, errString, Toast.LENGTH_LONG).show();
         }
 
         @Override
         public void onAuthenticationHelp(int helpMsgId, CharSequence helpString) {
-            LogUtil.d(TAG, "onAuthenticationHelp() called with: helpMsgId = [" + helpMsgId + "], helpString = [" + helpString + "]");
+            LogUtil.d(TAG, "Fingerprint authentication requires assistance");
             Toast.makeText(appContext, helpString, Toast.LENGTH_LONG).show();
         }
 
