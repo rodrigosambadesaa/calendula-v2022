@@ -163,6 +163,10 @@ RULES = {
     "Calendula/src/main/java/es/usc/citius/servando/calendula/settings/CalendulaSettingsActivity.kt": (
         (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "settings exception exposes configuration details"),
     ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/MedicinesActivity.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*\+\s*searchText\b", "medical search terms exposed in diagnostic logs"),
+        (r"showSearchView\(\) called with:\s*searchText", "legacy medication search data dump reintroduced"),
+    ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/database/PatientAlertDao.java": (
         (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "patient alert SQL exception exposed to Logcat"),
     ),
@@ -306,6 +310,9 @@ def self_test() -> None:
     assert violations(logout, 'LogUtil.e(TAG, "onInstanceIDError:", exception)')
     assert violations(images, 'LogUtil.e(TAG, e.getMessage(), e)')
     assert violations(settings, 'LogUtil.e(TAG, "Preferences", e)')
+    medicine_editor = "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/MedicinesActivity.java"
+    assert violations(medicine_editor, 'LogUtil.d(TAG, "Search " + searchText)')
+    assert violations(medicine_editor, 'LogUtil.d(TAG, "showSearchView() called with: searchText = [" + searchText + "]")')
     for name in RULES:
         assert not violations(name, 'LogUtil.d(TAG, "Operation completed")')
     print("Sensitive log regression guard self-test passed")
