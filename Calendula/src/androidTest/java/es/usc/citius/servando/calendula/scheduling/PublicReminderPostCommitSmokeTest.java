@@ -204,8 +204,23 @@ public class PublicReminderPostCommitSmokeTest {
     }
 
     @Test
-    public void publicReminderCreationCommitsThenRegistersStableAndroidAlarm() {
+    public void publicReminderCreationCommitsThenRegistersStableAndroidAlarm()
+            throws Exception {
         assertTrue(DB.initialized);
+        // The instrumentation class can run independently of startup tests.
+        // Register a synthetic receiver only when no real module has done so.
+        Field field = Agenda.class.getDeclaredField("receivers");
+        field.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<EventType, EventReminderReceiver> receivers =
+                (Map<EventType, EventReminderReceiver>) field.get(Agenda.instance());
+        EventReminderReceiver original = receivers.get(EventType.MEDICATION_INTAKE);
+        if (original == null) {
+            receivers.put(EventType.MEDICATION_INTAKE, new EventReminderReceiver() {
+                @Override public boolean autoRepeat() { return false; }
+                @Override public void onEvent(Context ctx, EventReminder reminder) { }
+            });
+        }
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         DateTime future = DateTime.now().plusMinutes(4).withMillisOfSecond(0);
         EventInstance event = new EventInstance(future, EventType.MEDICATION_INTAKE);
@@ -238,6 +253,9 @@ public class PublicReminderPostCommitSmokeTest {
             if (created != null && created.getId() != null) {
                 assertNull("Synthetic record must be cleaned after the test",
                         DB.eventReminders().findById(created.getId()));
+            }
+            if (original == null) {
+                receivers.remove(EventType.MEDICATION_INTAKE);
             }
         }
     }
