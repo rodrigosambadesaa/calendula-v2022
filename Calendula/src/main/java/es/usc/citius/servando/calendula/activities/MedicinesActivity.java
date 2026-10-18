@@ -276,7 +276,7 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
             finish();
         } catch (RuntimeException failure) {
             rejectStaleMedicineSave();
-            LogUtil.e(TAG, "Unable to delete selected medicine", failure);
+            LogUtil.e(TAG, "Unable to delete selected medicine");
         }
     }
 
@@ -479,7 +479,7 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
             finish();
         } catch (RuntimeException | SQLException e) {
             Snack.show(R.string.medicine_save_error_message, this);
-            LogUtil.e(TAG, "updateMedicine: ", e);
+            LogUtil.e(TAG, "Medicine update failed");
         }
     }
 
@@ -522,7 +522,7 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
             finish();
         } catch (RuntimeException e) {
             Snack.show(R.string.medicine_save_error_message, this);
-            LogUtil.e(TAG, "createMedicine: ", e);
+            LogUtil.e(TAG, "Medicine creation failed");
         }
     }
 

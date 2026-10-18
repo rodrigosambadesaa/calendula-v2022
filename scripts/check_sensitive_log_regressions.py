@@ -166,6 +166,11 @@ RULES = {
     "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/MedicinesActivity.java": (
         (r"LogUtil\.\w+\s*\([^\n]*\+\s*searchText\b", "medical search terms exposed in diagnostic logs"),
         (r"showSearchView\(\) called with:\s*searchText", "legacy medication search data dump reintroduced"),
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*(?:e|error|failure)\s*\)", "medication database exception exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/MedicineInfoActivity.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*(?:e|error|failure)\s*\)", "clinical alert verification exception exposed to Logcat"),
+        (r"LogUtil\.\w+\s*\([^\n]*\+\s*action\b", "untrusted medicine detail intent action exposed to Logcat"),
     ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/database/PatientAlertDao.java": (
         (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "patient alert SQL exception exposed to Logcat"),
@@ -313,6 +318,11 @@ def self_test() -> None:
     medicine_editor = "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/MedicinesActivity.java"
     assert violations(medicine_editor, 'LogUtil.d(TAG, "Search " + searchText)')
     assert violations(medicine_editor, 'LogUtil.d(TAG, "showSearchView() called with: searchText = [" + searchText + "]")')
+    med_info = "Calendula/src/main/java/es/usc/citius/servando/calendula/activities/MedicineInfoActivity.java"
+    assert violations(medicine_editor, 'LogUtil.e(TAG, "Medicine save failed", e)')
+    assert violations(medicine_editor, 'LogUtil.e(TAG, "Delete failed", failure)')
+    assert violations(med_info, 'LogUtil.e(TAG, "Clinical alerts failed", error)')
+    assert violations(med_info, 'LogUtil.d(TAG, "Action " + action)')
     for name in RULES:
         assert not violations(name, 'LogUtil.d(TAG, "Operation completed")')
     print("Sensitive log regression guard self-test passed")
