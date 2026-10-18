@@ -17,10 +17,14 @@ import es.usc.citius.servando.calendula.database.EventReminderDao;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
+import es.usc.citius.servando.calendula.scheduling.model.EventReminderReceiver;
+import java.lang.reflect.Field;
+import java.util.Map;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeUtils;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -48,6 +52,20 @@ public class DailyAgendaPostCommitAlarmTest {
     @Test
     public void dailyTransactionPersistsReminderBeforeCreatingPlatformAlarm()
             throws Exception {
+        // Agenda is a process singleton; no test may depend on another test
+        // having registered a medication delivery receiver first.
+        Field field = Agenda.class.getDeclaredField("receivers");
+        field.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<EventType, EventReminderReceiver> receivers =
+                (Map<EventType, EventReminderReceiver>) field.get(Agenda.instance());
+        EventReminderReceiver original = receivers.put(
+                EventType.MEDICATION_INTAKE, mock(EventReminderReceiver.class));
+        // Keep the synthetic occurrence inside today's eligible scheduling
+        // window even if CI runs at 23:48 UTC. No OS alarm is created here.
+        DateTimeUtils.setCurrentMillisFixed(
+                DateTime.now().withTime(12, 0, 0, 0).getMillis());
+        try {
         Context context = ApplicationProvider.getApplicationContext();
         DatabaseHelper helper = mock(DatabaseHelper.class);
         ConnectionSource source = mock(ConnectionSource.class);
@@ -92,6 +110,14 @@ public class DailyAgendaPostCommitAlarmTest {
             // No cleanup/AlarmManager access occurs inside this transaction.
             verify(reminders, times(1)).exists(
                     EventType.MEDICATION_INTAKE, future, null);
+        }
+        } finally {
+            DateTimeUtils.setCurrentMillisSystem();
+            if (original == null) {
+                receivers.remove(EventType.MEDICATION_INTAKE);
+            } else {
+                receivers.put(EventType.MEDICATION_INTAKE, original);
+            }
         }
     }
 }

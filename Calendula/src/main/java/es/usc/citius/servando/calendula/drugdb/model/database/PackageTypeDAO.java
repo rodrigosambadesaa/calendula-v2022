@@ -48,7 +48,7 @@ public class PackageTypeDAO extends GenericDao<PackageType, Long> {
                 daoInstance = dbHelper.getDao(PackageType.class);
             return daoInstance;
         } catch (SQLException e) {
-            LogUtil.e(TAG, "Error creating PackageType DAO", e);
+            LogUtil.e(TAG, "Catalog DAO initialization failed");
             throw new RuntimeException("Error creating PackageType DAO", e);
         }
     }

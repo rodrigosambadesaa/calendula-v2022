@@ -14,6 +14,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 
 import org.joda.time.DateTime;
 import org.junit.Test;
+import org.junit.Assume;
 import org.junit.runner.RunWith;
 
 import java.util.Arrays;
@@ -204,10 +205,32 @@ public class PublicReminderPostCommitSmokeTest {
     }
 
     @Test
-    public void publicReminderCreationCommitsThenRegistersStableAndroidAlarm() {
+    public void publicReminderCreationCommitsThenRegistersStableAndroidAlarm()
+            throws Exception {
         assertTrue(DB.initialized);
+        // This public API intentionally schedules only today's occurrences.
+        // At 23:56 a +4 minute fixture belongs to tomorrow and must not
+        // produce a row until the next midnight agenda refresh. Do not
+        // mistake that expected behavior for a persistence regression.
+        DateTime testNow = DateTime.now();
+        DateTime future = testNow.plusMinutes(4).withMillisOfSecond(0);
+        Assume.assumeTrue("A same-day reminder cannot be tested across midnight",
+                testNow.toLocalDate().equals(future.toLocalDate()));
+        // The instrumentation class can run independently of startup tests.
+        // Register a synthetic receiver only when no real module has done so.
+        Field field = Agenda.class.getDeclaredField("receivers");
+        field.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<EventType, EventReminderReceiver> receivers =
+                (Map<EventType, EventReminderReceiver>) field.get(Agenda.instance());
+        EventReminderReceiver original = receivers.get(EventType.MEDICATION_INTAKE);
+        if (original == null) {
+            receivers.put(EventType.MEDICATION_INTAKE, new EventReminderReceiver() {
+                @Override public boolean autoRepeat() { return false; }
+                @Override public void onEvent(Context ctx, EventReminder reminder) { }
+            });
+        }
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
-        DateTime future = DateTime.now().plusMinutes(4).withMillisOfSecond(0);
         EventInstance event = new EventInstance(future, EventType.MEDICATION_INTAKE);
         EventReminder created = null;
         try {
@@ -238,6 +261,9 @@ public class PublicReminderPostCommitSmokeTest {
             if (created != null && created.getId() != null) {
                 assertNull("Synthetic record must be cleaned after the test",
                         DB.eventReminders().findById(created.getId()));
+            }
+            if (original == null) {
+                receivers.remove(EventType.MEDICATION_INTAKE);
             }
         }
     }

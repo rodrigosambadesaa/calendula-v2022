@@ -124,6 +124,36 @@ RULES = {
     "Calendula/src/main/java/es/usc/citius/servando/calendula/modules/ModuleRegistry.java": (
         (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "module reflection exception exposed to Logcat"),
     ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/drugdb/model/database/ATCCodeDAO.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "catalog DAO throwable exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/drugdb/model/database/ActiveIngredientDAO.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "catalog DAO throwable exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/drugdb/model/database/ContentUnitDAO.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "catalog DAO throwable exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/drugdb/model/database/ExcipientDAO.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "catalog DAO throwable exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/drugdb/model/database/HomogeneousGroupDAO.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "catalog DAO throwable exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/drugdb/model/database/PackageTypeDAO.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "catalog DAO throwable exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/drugdb/model/database/PrescriptionActiveIngredientDAO.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "catalog DAO throwable exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/drugdb/model/database/PrescriptionExcipientDAO.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "catalog DAO throwable exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/drugdb/model/database/PresentationFormDAO.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "catalog DAO throwable exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/drugdb/model/database/PrescriptionDAO.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "catalog DAO throwable exposed to Logcat"),
+    ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/database/PatientAlertDao.java": (
         (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "patient alert SQL exception exposed to Logcat"),
     ),
@@ -258,6 +288,9 @@ def self_test() -> None:
     assert violations(mod_manager, 'LogUtil.e(TAG, "Module failed", e)')
     assert violations(mod_registry, 'LogUtil.e(TAG, "Failed to load module", e)')
     assert violations(app_lifecycle, 'LogUtil.e(TAG, "Module startup failed", e)')
+    for dao_name in ["ATCCodeDAO","ActiveIngredientDAO","ContentUnitDAO","ExcipientDAO","HomogeneousGroupDAO","PackageTypeDAO","PrescriptionActiveIngredientDAO","PrescriptionExcipientDAO","PresentationFormDAO","PrescriptionDAO"]:
+        dao_path = "Calendula/src/main/java/es/usc/citius/servando/calendula/drugdb/model/database/" + dao_name + ".java"
+        assert violations(dao_path, 'LogUtil.e(TAG, "Cannot initialize catalog DAO", e)')
     for name in RULES:
         assert not violations(name, 'LogUtil.d(TAG, "Operation completed")')
     print("Sensitive log regression guard self-test passed")

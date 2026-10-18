@@ -48,7 +48,7 @@ public class PresentationFormDAO extends GenericDao<PresentationForm, Long> {
                 daoInstance = dbHelper.getDao(PresentationForm.class);
             return daoInstance;
         } catch (SQLException e) {
-            LogUtil.e(TAG, "Error creating PresentationForm DAO", e);
+            LogUtil.e(TAG, "Catalog DAO initialization failed");
             throw new RuntimeException("Error creating PresentationForm DAO", e);
         }
     }

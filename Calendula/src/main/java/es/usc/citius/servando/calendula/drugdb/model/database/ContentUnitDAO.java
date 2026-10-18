@@ -48,7 +48,7 @@ public class ContentUnitDAO extends GenericDao<ContentUnit, Long> {
                 daoInstance = dbHelper.getDao(ContentUnit.class);
             return daoInstance;
         } catch (SQLException e) {
-            LogUtil.e(TAG, "Error creating ContentUnit DAO", e);
+            LogUtil.e(TAG, "Catalog DAO initialization failed");
             throw new RuntimeException("Error creating ContentUnit DAO", e);
         }
     }
