@@ -117,7 +117,7 @@ public class ScreenUtils {
             return Bitmap.createScaledBitmap(roughBitmap, (int) (roughBitmap.getWidth() * values[0]), (int) (roughBitmap.getHeight() * values[4]), true);
 
         } catch (IOException e) {
-            LogUtil.e(TAG, e.getMessage(), e);
+            LogUtil.e(TAG, "Unable to load display image resource");
         } finally {
             CloseableUtil.closeQuietly(in);
         }

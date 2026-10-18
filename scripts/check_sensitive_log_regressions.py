@@ -154,6 +154,15 @@ RULES = {
     "Calendula/src/main/java/es/usc/citius/servando/calendula/drugdb/model/database/PrescriptionDAO.java": (
         (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "catalog DAO throwable exposed to Logcat"),
     ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/login/LogoutActivity.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*exception\s*\)", "logout failure exception exposes credentials"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/util/ScreenUtils.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*e\.getMessage\(\)", "image path/URI exception exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/settings/CalendulaSettingsActivity.kt": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "settings exception exposes configuration details"),
+    ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/database/PatientAlertDao.java": (
         (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "patient alert SQL exception exposed to Logcat"),
     ),
@@ -291,6 +300,12 @@ def self_test() -> None:
     for dao_name in ["ATCCodeDAO","ActiveIngredientDAO","ContentUnitDAO","ExcipientDAO","HomogeneousGroupDAO","PackageTypeDAO","PrescriptionActiveIngredientDAO","PrescriptionExcipientDAO","PresentationFormDAO","PrescriptionDAO"]:
         dao_path = "Calendula/src/main/java/es/usc/citius/servando/calendula/drugdb/model/database/" + dao_name + ".java"
         assert violations(dao_path, 'LogUtil.e(TAG, "Cannot initialize catalog DAO", e)')
+    logout = "Calendula/src/main/java/es/usc/citius/servando/calendula/login/LogoutActivity.java"
+    images = "Calendula/src/main/java/es/usc/citius/servando/calendula/util/ScreenUtils.java"
+    settings = "Calendula/src/main/java/es/usc/citius/servando/calendula/settings/CalendulaSettingsActivity.kt"
+    assert violations(logout, 'LogUtil.e(TAG, "onInstanceIDError:", exception)')
+    assert violations(images, 'LogUtil.e(TAG, e.getMessage(), e)')
+    assert violations(settings, 'LogUtil.e(TAG, "Preferences", e)')
     for name in RULES:
         assert not violations(name, 'LogUtil.d(TAG, "Operation completed")')
     print("Sensitive log regression guard self-test passed")

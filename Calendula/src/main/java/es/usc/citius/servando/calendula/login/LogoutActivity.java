@@ -134,7 +134,7 @@ public class LogoutActivity extends AppCompatActivity {
 
 
     private void onInstanceIDError(final InstanceIDHelper.NoInstanceIDException exception) {
-        LogUtil.e(TAG, "onInstanceIDError: ", exception);
+        LogUtil.e(TAG, "Logout push-registration state unavailable");
         switch (exception.getReason()) {
             case NO_CONNECTION:
                 Snack.showIfUnobstructed(R.string.login_no_internet, this, Snackbar.LENGTH_LONG);
