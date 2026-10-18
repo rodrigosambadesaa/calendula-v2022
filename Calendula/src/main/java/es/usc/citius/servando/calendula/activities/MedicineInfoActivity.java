@@ -83,6 +83,7 @@ public class MedicineInfoActivity extends CalendulaActivity {
     public static final String EXTRA_ACTIVE_MED = "calendula.MedicineInfoActivity.extras.ACTIVE_MED";
 
     private static final String TAG = "MedicineInfoActivity";
+    static final String STATE_OPENED_PATIENT_ID = "medicine_info_original_patient";
 
     @BindView(R.id.appbar)
     AppBarLayout appBarLayout;
@@ -105,6 +106,7 @@ public class MedicineInfoActivity extends CalendulaActivity {
     IconicsImageView providerBadge;
 
     Patient activePatient;
+    private Long openedPatientId;
     Medicine medicine;
     ActiveMedVO activeMedVO;
     PrescriptionDBMgr dbMgr;
@@ -274,7 +276,12 @@ public class MedicineInfoActivity extends CalendulaActivity {
         setupStatusBar(Color.TRANSPARENT);
 
         activePatient = DB.patients().getActive(this);
-        if (activePatient == null || activePatient.getId() == null) {
+        openedPatientId = RestoredClinicalOwnerGuard.restoredOwnerOrNull(
+                savedInstanceState, STATE_OPENED_PATIENT_ID,
+                activePatient == null ? null : activePatient.getId());
+        if (openedPatientId == null) {
+            // A restored provider-code detail must never resolve under a
+            // different active patient, even when that code exists for both.
             finish();
             return;
         }
@@ -352,6 +359,14 @@ public class MedicineInfoActivity extends CalendulaActivity {
     }
 
     @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        if (openedPatientId != null && openedPatientId > 0L) {
+            outState.putLong(STATE_OPENED_PATIENT_ID, openedPatientId);
+        }
+        super.onSaveInstanceState(outState);
+    }
+
+    @Override
     protected void onPostCreate(Bundle savedInstanceState) {
         super.onPostCreate(savedInstanceState);
     }
@@ -360,9 +375,9 @@ public class MedicineInfoActivity extends CalendulaActivity {
     protected void onResume() {
         super.onResume();
         Patient current = DB.patients().getActive(this);
-        if (activePatient == null || activePatient.getId() == null
-                || current == null
-                || !activePatient.getId().equals(current.getId())
+        if (openedPatientId == null || current == null
+                || !openedPatientId.equals(current.getId())
+                || activePatient == null || !openedPatientId.equals(activePatient.getId())
                 || (medicine != null && !canViewMedicine(medicine))) {
             // Close rather than leave a ViewPager showing another patient's
             // medical information after the account switches.
