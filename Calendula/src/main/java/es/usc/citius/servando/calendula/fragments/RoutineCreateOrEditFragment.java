@@ -76,6 +76,7 @@ public class RoutineCreateOrEditFragment extends DialogFragment implements Radia
 
     int pColor;
     private boolean blockedByPatientChange;
+    private Long originallyOpenedPatientId;
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -83,6 +84,15 @@ public class RoutineCreateOrEditFragment extends DialogFragment implements Radia
         unbinder = ButterKnife.bind(this, rootView);
 
         Patient openingPatient = DB.patients().getActive(getActivity());
+        if (savedInstanceState != null) {
+            originallyOpenedPatientId = RoutineEditorOwnerState.restoredOwnerOrNull(
+                    savedInstanceState, openingPatient);
+        } else if (originallyOpenedPatientId == null) {
+            // First view only: a later view reattachment must not retarget
+            // an existing draft to whatever patient is now active.
+            originallyOpenedPatientId = RoutineEditorOwnerState.restoredOwnerOrNull(
+                    null, openingPatient);
+        }
         pColor = RoutineOwnerGuard.hasActivePatient(openingPatient)
                 ? openingPatient.getColor()
                 : getResources().getColor(R.color.android_blue_dark);
@@ -146,7 +156,8 @@ public class RoutineCreateOrEditFragment extends DialogFragment implements Radia
     public void setRoutine(long routineId) {
         Patient active = DB.patients().getActive(getContext());
         Routine persisted = routineId == -1 ? null : DB.routines().findById(routineId);
-        blockedByPatientChange = !RoutineOwnerGuard.hasActivePatient(active)
+        blockedByPatientChange =
+                !RoutineEditorOwnerState.stillOwnedBy(originallyOpenedPatientId, active)
                 || (routineId != -1 && !RoutineOwnerGuard.isOwnedBy(persisted, active));
         if (blockedByPatientChange) {
             // Never prefill the name of a stale/deleted/foreign routine.
@@ -186,6 +197,28 @@ public class RoutineCreateOrEditFragment extends DialogFragment implements Radia
         }
     }
 
+    @Override
+    public void onResume() {
+        super.onResume();
+        // The user may switch patients while this editor is paused. Clear
+        // stale treatment text rather than displaying another patient's draft.
+        Patient active = DB.patients().getActive(getContext());
+        if (!RoutineEditorOwnerState.stillOwnedBy(originallyOpenedPatientId, active)) {
+            blockedByPatientChange = true;
+            mRoutine = null;
+            if (mNameTextView != null) {
+                mNameTextView.setText("");
+                mNameTextView.setEnabled(false);
+            }
+            if (timeButton != null) {
+                timeButton.setEnabled(false);
+            }
+            if (mConfirmButton != null) {
+                mConfirmButton.setEnabled(false);
+            }
+        }
+    }
+
     public void setTime(LocalTime time) {
         hour = time.getHourOfDay();
         minute = time.getMinuteOfHour();
@@ -195,6 +228,10 @@ public class RoutineCreateOrEditFragment extends DialogFragment implements Radia
     @Override
     public void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
+        if (originallyOpenedPatientId != null && originallyOpenedPatientId > 0L) {
+            outState.putLong(RoutineEditorOwnerState.ORIGINAL_OWNER,
+                    originallyOpenedPatientId);
+        }
         if (mRoutine != null)
             outState.putLong(CalendulaApp.INTENT_EXTRA_ROUTINE_ID, mRoutine.getId());
     }
@@ -228,7 +265,8 @@ public class RoutineCreateOrEditFragment extends DialogFragment implements Radia
         Patient p = DB.patients().getActive(getContext());
         // A patient can be switched/deleted while this editor is open.
         // Re-read stored ownership immediately before any mutation.
-        if (blockedByPatientChange || !RoutineOwnerGuard.hasActivePatient(p)
+        if (blockedByPatientChange
+                || !RoutineEditorOwnerState.stillOwnedBy(originallyOpenedPatientId, p)
                 || (mRoutine != null && (!RoutineOwnerGuard.isOwnedBy(mRoutine, p)
                     || !RoutineOwnerGuard.isOwnedBy(
                         DB.routines().findById(mRoutine.getId()), p)))) {
@@ -279,7 +317,8 @@ public class RoutineCreateOrEditFragment extends DialogFragment implements Radia
 
     public void showDeleteConfirmationDialog(final Routine r) {
         Patient active = DB.patients().getActive(getContext());
-        if (!RoutineOwnerGuard.isOwnedBy(r, active)
+        if (!RoutineEditorOwnerState.stillOwnedBy(originallyOpenedPatientId, active)
+                || !RoutineOwnerGuard.isOwnedBy(r, active)
                 || !RoutineOwnerGuard.isOwnedBy(
                         DB.routines().findById(r.getId()), active)) {
             Snack.show(R.string.routine_profile_unavailable, getActivity());
