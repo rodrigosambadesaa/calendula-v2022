@@ -130,12 +130,12 @@ public class LoginActivity extends AppCompatActivity {
             mAuthService = AuthorizationServiceHelper.createAuthorizationService(this);
 
             if (action != null && action.equals(ACTION_LOGIN_FAILED)) {
-                final String failReason = getIntent().getStringExtra(EXTRA_LOGIN_FAILED_REASON);
-                if (failReason != null && failReason.equals(LOGIN_FAIL_REASON_AUTH_LEVEL)) {
+                if (LoginFailureIntentGuard.isAuthLevelFailure(getIntent())) {
                     // Save login failed status
                     PreferenceUtils.edit().putBoolean(PreferenceKeys.LAST_LOGIN_FAILED_AUTH_LEVEL.key(), true).commit();
                 } else {
-                    Snack.show(getString(R.string.login_failed) + " [" + failReason + "]", this);
+                    // Remote login failures can contain provider URLs or token fragments.
+                    Snack.show(getString(R.string.login_failed), this);
                 }
             }
 
