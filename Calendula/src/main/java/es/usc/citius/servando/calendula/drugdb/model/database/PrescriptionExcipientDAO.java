@@ -48,7 +48,7 @@ public class PrescriptionExcipientDAO extends GenericDao<PrescriptionExcipient, 
                 daoInstance = dbHelper.getDao(PrescriptionExcipient.class);
             return daoInstance;
         } catch (SQLException e) {
-            LogUtil.e(TAG, "Error creating PrescriptionExcipient DAO", e);
+            LogUtil.e(TAG, "Catalog DAO initialization failed");
             throw new RuntimeException("Error creating PrescriptionExcipient DAO", e);
         }
     }

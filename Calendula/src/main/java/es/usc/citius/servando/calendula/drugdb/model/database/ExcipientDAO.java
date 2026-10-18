@@ -48,7 +48,7 @@ public class ExcipientDAO extends GenericDao<Excipient, Long> {
                 daoInstance = dbHelper.getDao(Excipient.class);
             return daoInstance;
         } catch (SQLException e) {
-            LogUtil.e(TAG, "Error creating Excipient DAO", e);
+            LogUtil.e(TAG, "Catalog DAO initialization failed");
             throw new RuntimeException("Error creating Excipient DAO", e);
         }
     }

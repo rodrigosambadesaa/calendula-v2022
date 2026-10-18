@@ -48,7 +48,7 @@ public class ActiveIngredientDAO extends GenericDao<ActiveIngredient, Long> {
                 daoInstance = dbHelper.getDao(ActiveIngredient.class);
             return daoInstance;
         } catch (SQLException e) {
-            LogUtil.e(TAG, "Error creating ActiveIngredient DAO", e);
+            LogUtil.e(TAG, "Catalog DAO initialization failed");
             throw new RuntimeException("Error creating ActiveIngredient DAO", e);
         }
     }

@@ -31,7 +31,7 @@ public class ATCCodeDAO extends GenericDao<ATCCode, Long> {
                 daoInstance = dbHelper.getDao(ATCCode.class);
             return daoInstance;
         } catch (SQLException e) {
-            LogUtil.e(TAG, "Error creating ATCCode DAO", e);
+            LogUtil.e(TAG, "Catalog DAO initialization failed");
             throw new RuntimeException("Error creating ATCCode DAO", e);
         }
     }

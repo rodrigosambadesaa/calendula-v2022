@@ -48,7 +48,7 @@ public class HomogeneousGroupDAO extends GenericDao<HomogeneousGroup, Long> {
                 daoInstance = dbHelper.getDao(HomogeneousGroup.class);
             return daoInstance;
         } catch (SQLException e) {
-            LogUtil.e(TAG, "Error creating HomogeneousGroup DAO", e);
+            LogUtil.e(TAG, "Catalog DAO initialization failed");
             throw new RuntimeException("Error creating HomogeneousGroup DAO", e);
         }
     }
