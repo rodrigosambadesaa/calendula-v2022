@@ -27,6 +27,7 @@ import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Environment;
 import android.os.IBinder;
+import android.os.Bundle;
 
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
@@ -151,17 +152,30 @@ public class InstallDatabaseService extends Service {
         startForeground(NOTIFICATION_ID, getNotification(100, 0, null));
         isRunning = true;
 
-        final String dbPath = intent.getStringExtra(EXTRA_DB_PATH);
-        final String dbPref = intent.getStringExtra(EXTRA_DB_PREF_VALUE);
-        final String dbVersion = intent.getStringExtra(EXTRA_DB_VERSION);
-        final String installType = intent.getStringExtra(EXTRA_DB_INSTALL_TYPE);
-        final boolean requestSilent = intent.getBooleanExtra(EXTRA_SILENT, false);
+        // Service intents can outlive an app update. Never let a wrong-typed
+        // serialized extra crash the foreground service during recovery.
+        final String dbPath = safeStringExtra(intent, EXTRA_DB_PATH);
+        final String dbPref = safeStringExtra(intent, EXTRA_DB_PREF_VALUE);
+        final String dbVersion = safeStringExtra(intent, EXTRA_DB_VERSION);
+        final String installType = safeStringExtra(intent, EXTRA_DB_INSTALL_TYPE);
+        final boolean requestSilent = safeBooleanExtra(intent, EXTRA_SILENT, false);
+        final boolean hasMetadata = hasRequiredCatalogMetadata(
+                ACTION_DOWNLOAD.equals(action), dbPath, dbPref, dbVersion, installType);
 
         databaseExecutor.execute(new Runnable() {
             @Override
             public void run() {
                 try {
                     silent = requestSilent;
+                    if (!hasMetadata) {
+                        // Ignore obsolete/corrupt queued work *without*
+                        // clearing an already selected, valid drug catalog.
+                        // Execute this on the same serial worker as a normal
+                        // installation so it cannot interrupt earlier work.
+                        LogUtil.w(TAG, "Ignoring incomplete catalog installation metadata");
+                        onFailure();
+                        return;
+                    }
                     final DBInstallType type;
                     final boolean success;
 
@@ -187,7 +201,10 @@ public class InstallDatabaseService extends Service {
                         }
                         onComplete();
                     } else if (type == null) {
-                        failDatabaseOperation("Invalid database install type", null, DBInstallType.SETUP);
+                        // A wrong enum from an older queued request is not
+                        // evidence that the existing catalog is invalid.
+                        LogUtil.w(TAG, "Ignoring invalid database install type");
+                        onFailure();
                     }
                 } finally {
                     stopSelf(startId);
@@ -198,6 +215,42 @@ public class InstallDatabaseService extends Service {
         return Service.START_NOT_STICKY;
     }
 
+    /** Invalid or unparcelable extras must not break the foreground lifecycle. */
+    static String safeStringExtra(Intent intent, String key) {
+        if (intent == null || key == null) return null;
+        try {
+            Bundle extras = intent.getExtras();
+            Object value = extras == null ? null : extras.get(key);
+            return value instanceof String ? (String) value : null;
+        } catch (RuntimeException malformed) {
+            return null;
+        }
+    }
+
+    static boolean safeBooleanExtra(Intent intent, String key, boolean fallback) {
+        if (intent == null || key == null) return fallback;
+        try {
+            Bundle extras = intent.getExtras();
+            Object value = extras == null ? null : extras.get(key);
+            return value instanceof Boolean ? (Boolean) value : fallback;
+        } catch (RuntimeException malformed) {
+            return fallback;
+        }
+    }
+
+    /** Only internally complete requests may proceed to catalog installation. */
+    static boolean hasRequiredCatalogMetadata(boolean download, String dbPath,
+            String dbPref, String dbVersion, String installType) {
+        if (dbPref == null || dbPref.trim().isEmpty()) {
+            return false;
+        }
+        if (download) {
+            return installType != null && !installType.trim().isEmpty();
+        }
+        return dbPath != null && !dbPath.trim().isEmpty()
+                && dbVersion != null && !dbVersion.trim().isEmpty();
+    }
+
     private DBInstallType parseInstallType(String value) {
         if (value == null) {
             return null;
@@ -205,7 +258,7 @@ public class InstallDatabaseService extends Service {
         try {
             return DBInstallType.valueOf(value);
         } catch (IllegalArgumentException e) {
-            LogUtil.e(TAG, "Invalid database install type", e);
+            LogUtil.e(TAG, "Invalid database install type");
             return null;
         }
     }
@@ -253,7 +306,7 @@ public class InstallDatabaseService extends Service {
                     BuildConfig.DB_DOWNLOAD_URL,
                     dbName,
                     dbVersion);
-            LogUtil.d(TAG, "Downloading database " + dbName + " version " + dbVersion);
+            LogUtil.d(TAG, "Downloading verified prescription catalog");
 
             if (!HttpDownloadUtil.downloadFile(this, url, destination)) {
                 throw new IOException("Database download failed");
@@ -323,8 +376,7 @@ public class InstallDatabaseService extends Service {
                 LogUtil.w(TAG, "Database installed but VACUUM failed");
             }
 
-            LogUtil.d(TAG, dbPref + "-" + dbVersion + ": Finished saving "
-                    + DB.drugDB().prescriptions().count() + " prescriptions");
+            LogUtil.d(TAG, "Prescription catalog installation finished");
             return true;
         } catch (Exception e) {
             failDatabaseOperation("Error while saving prescription data", e, type);
@@ -334,7 +386,7 @@ public class InstallDatabaseService extends Service {
 
     private void failDatabaseOperation(String message, Exception error, DBInstallType type) {
         if (error != null) {
-            LogUtil.e(TAG, message, error);
+            LogUtil.e(TAG, message);
         } else {
             LogUtil.e(TAG, message);
         }
