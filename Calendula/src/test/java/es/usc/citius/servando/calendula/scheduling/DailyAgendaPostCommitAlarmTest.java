@@ -24,6 +24,7 @@ import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeUtils;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -60,6 +61,10 @@ public class DailyAgendaPostCommitAlarmTest {
                 (Map<EventType, EventReminderReceiver>) field.get(Agenda.instance());
         EventReminderReceiver original = receivers.put(
                 EventType.MEDICATION_INTAKE, mock(EventReminderReceiver.class));
+        // Keep the synthetic occurrence inside today's eligible scheduling
+        // window even if CI runs at 23:48 UTC. No OS alarm is created here.
+        DateTimeUtils.setCurrentMillisFixed(
+                DateTime.now().withTime(12, 0, 0, 0).getMillis());
         try {
         Context context = ApplicationProvider.getApplicationContext();
         DatabaseHelper helper = mock(DatabaseHelper.class);
@@ -107,6 +112,7 @@ public class DailyAgendaPostCommitAlarmTest {
                     EventType.MEDICATION_INTAKE, future, null);
         }
         } finally {
+            DateTimeUtils.setCurrentMillisSystem();
             if (original == null) {
                 receivers.remove(EventType.MEDICATION_INTAKE);
             } else {
