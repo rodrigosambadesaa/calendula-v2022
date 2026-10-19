@@ -278,7 +278,7 @@ public class MedicinesListFragment extends Fragment {
                             try {
                                 DB.medicines().deleteCascade(confirmed, true);
                             } catch (RuntimeException failure) {
-                                LogUtil.e(TAG, "Could not safely remove selected medicine", failure);
+                                LogUtil.e(TAG, "Could not safely remove selected medicine");
                             }
                             notifyDataChange();
                         }
@@ -480,7 +480,7 @@ public class MedicinesListFragment extends Fragment {
             try {
                 medicines = DB.medicines().findAllForActivePatient(applicationContext);
             } catch (RuntimeException failure) {
-                LogUtil.e(TAG, "Medication list reload failed", failure);
+                LogUtil.e(TAG, "Medication list reload failed");
                 return;
             }
             mainHandler.post(() -> {

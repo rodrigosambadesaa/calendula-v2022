@@ -172,6 +172,19 @@ RULES = {
         (r"LogUtil\.\w+\s*\([^\n]*,\s*(?:e|error|failure)\s*\)", "clinical alert verification exception exposed to Logcat"),
         (r"LogUtil\.\w+\s*\([^\n]*\+\s*action\b", "untrusted medicine detail intent action exposed to Logcat"),
     ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/MedicinesListFragment.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*(?:e|error|failure)\s*\)", "patient medication list exception exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/healthcareprovider/remote/extraInfo/ExtraInfoHelper.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*(?:e|error|failure)\s*\)", "provider extra-info/clinical PDF exception exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/adapters/HomePageAdapter.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*,\s*(?:e|error|failure)\s*\)", "UI fragment startup exception exposed to Logcat"),
+    ),
+    "Calendula/src/main/java/es/usc/citius/servando/calendula/pinlock/fingerprint/FingerprintHelper.java": (
+        (r"LogUtil\.\w+\s*\([^\n]*\b(?:manager|cryptoObject|errString|helpString)\b", "fingerprint authenticator object or provider response logged"),
+        (r"startAuth\(\) called with: manager", "legacy biometric manager diagnostic reintroduced"),
+    ),
     "Calendula/src/main/java/es/usc/citius/servando/calendula/database/PatientAlertDao.java": (
         (r"LogUtil\.\w+\s*\([^\n]*,\s*e\s*\)", "patient alert SQL exception exposed to Logcat"),
     ),
@@ -323,6 +336,16 @@ def self_test() -> None:
     assert violations(medicine_editor, 'LogUtil.e(TAG, "Delete failed", failure)')
     assert violations(med_info, 'LogUtil.e(TAG, "Clinical alerts failed", error)')
     assert violations(med_info, 'LogUtil.d(TAG, "Action " + action)')
+    med_list = "Calendula/src/main/java/es/usc/citius/servando/calendula/fragments/MedicinesListFragment.java"
+    extra_info = "Calendula/src/main/java/es/usc/citius/servando/calendula/healthcareprovider/remote/extraInfo/ExtraInfoHelper.java"
+    home_adapter = "Calendula/src/main/java/es/usc/citius/servando/calendula/adapters/HomePageAdapter.java"
+    biometrics = "Calendula/src/main/java/es/usc/citius/servando/calendula/pinlock/fingerprint/FingerprintHelper.java"
+    assert violations(med_list, 'LogUtil.e(TAG, "Medication list reload failed", failure)')
+    assert violations(extra_info, 'LogUtil.e(TAG, "fetchExtraInfo", e)')
+    assert violations(home_adapter, 'LogUtil.e(TAG, "Cannot create fragment", e)')
+    assert violations(biometrics, 'LogUtil.d(TAG, "Fingerprint CryptoObject " + cryptoObject)')
+    assert violations(biometrics, 'LogUtil.w(TAG, "error " + errString)')
+    assert violations(biometrics, 'LogUtil.d(TAG, "startAuth() called with: manager")')
     for name in RULES:
         assert not violations(name, 'LogUtil.d(TAG, "Operation completed")')
     print("Sensitive log regression guard self-test passed")

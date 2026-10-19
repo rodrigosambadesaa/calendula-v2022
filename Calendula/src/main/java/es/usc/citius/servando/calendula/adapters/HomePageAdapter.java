@@ -56,7 +56,7 @@ public class HomePageAdapter extends FragmentPagerAdapter {
             final Constructor<?> constructor = Class.forName(cn).getConstructor();
             return (Fragment) constructor.newInstance();
         } catch (Exception e) {
-            LogUtil.e(TAG, "getItem: cannot instantiate fragment.", e);
+            LogUtil.e(TAG, "Unable to instantiate home page fragment");
         }
 
         return null;

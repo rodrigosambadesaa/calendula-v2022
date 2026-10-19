@@ -97,7 +97,7 @@ public class ExtraInfoHelper {
             try {
                 params = InstanceIDHelper.getAdditionalParams(ctx);
             } catch (InstanceIDHelper.NoInstanceIDException e) {
-                LogUtil.e(TAG, "Could not fetch Extra info because there is no InstanceID", e);
+                LogUtil.e(TAG, "Provider extra-info credentials unavailable");
                 return new GetExtraInfoEvent(Status.ERROR_GENERIC, null);
             }
 
@@ -160,14 +160,14 @@ public class ExtraInfoHelper {
                     }
                 }
             } catch (IOException e) {
-                LogUtil.e(TAG, "fetchExtraInfo: ", e);
+                LogUtil.e(TAG, "Provider extra-info request failed");
                 if(NetworkUtils.isNetworkAvailable(ctx))
                     status = GetExtraInfoEvent.Status.ERROR_GENERIC;
                 else
                     status = GetExtraInfoEvent.Status.ERROR_NO_CONNECTION;
             } catch (Exception e) {
                 // for unexpected stuff
-                LogUtil.e(TAG, "fetchExtraInfo: ", e);
+                LogUtil.e(TAG, "Provider extra-info request failed");
                 status = GetExtraInfoEvent.Status.ERROR_GENERIC;
             }
         }
@@ -181,7 +181,7 @@ public class ExtraInfoHelper {
         try {
             return GsonUtil.get().fromJson(response.result, ExtraInfo.class);
         } catch (RuntimeException e) {
-            LogUtil.e(TAG, "Unable to parse provider extra-info payload", e);
+            LogUtil.e(TAG, "Unable to parse provider extra-info payload");
             return null;
         }
     }
