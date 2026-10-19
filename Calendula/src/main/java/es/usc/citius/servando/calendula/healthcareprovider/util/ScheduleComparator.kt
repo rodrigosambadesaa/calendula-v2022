@@ -64,7 +64,8 @@ object ScheduleComparator {
         return changes
     }
 
-    private fun checkActiveMed(activeMed: ActiveMedVO, schedule: Schedule): Collection<Change> {
+    /** Exposed internally for patient-isolation regression tests. */
+    internal fun checkActiveMed(activeMed: ActiveMedVO, schedule: Schedule): Collection<Change> {
         val changes = ArrayList<Change>()
         // Medication codes may be shared by distinct patients. Never compare
         // a schedule against another patient's provider record.
