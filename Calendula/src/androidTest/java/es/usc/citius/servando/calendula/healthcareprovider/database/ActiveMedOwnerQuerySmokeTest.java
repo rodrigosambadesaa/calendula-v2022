@@ -77,6 +77,49 @@ public class ActiveMedOwnerQuerySmokeTest {
         }
     }
 
+    @Test
+    public void duplicateCodeWithinOnePatientFailsClosed() throws Exception {
+        assertTrue(DB.initialized);
+        String code = "ci-duplicate-provider-code-" + System.nanoTime();
+        Patient owner = patient("duplicate");
+        DosageEntity firstDosage = new DosageEntity();
+        DosageEntity secondDosage = new DosageEntity();
+        firstDosage.setType(DosageType.AS_NEEDED);
+        secondDosage.setType(DosageType.AS_NEEDED);
+        ActiveMedEntity first = entity(code, owner, firstDosage);
+        ActiveMedEntity second = entity(code, owner, secondDosage);
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            assertEquals(1, DB.healthcareProviderDB().dosages().create(firstDosage));
+            assertEquals(1, DB.healthcareProviderDB().dosages().create(secondDosage));
+            assertEquals(1, DB.healthcareProviderDB().activeMeds().create(first));
+            assertEquals(1, DB.healthcareProviderDB().activeMeds().create(second));
+            boolean rejected = false;
+            try {
+                DB.healthcareProviderDB().activeMeds().findByCodeForPatient(code, owner);
+            } catch (IllegalStateException expected) {
+                rejected = true;
+            }
+            assertTrue("Ambiguous same-patient provider rows must be rejected", rejected);
+            // A rejected lookup must not have deleted or altered either row.
+            assertNotNull(DB.healthcareProviderDB().activeMeds().findById(first.getId()));
+            assertNotNull(DB.healthcareProviderDB().activeMeds().findById(second.getId()));
+        } finally {
+            for (ActiveMedEntity med : new ActiveMedEntity[]{first, second}) {
+                if (med.getId() != null
+                        && DB.healthcareProviderDB().activeMeds().findById(med.getId()) != null)
+                    DB.healthcareProviderDB().activeMeds().deleteById(med.getId());
+            }
+            for (DosageEntity dose : new DosageEntity[]{firstDosage, secondDosage}) {
+                if (dose.getId() != null
+                        && DB.healthcareProviderDB().dosages().findById(dose.getId()) != null)
+                    DB.healthcareProviderDB().dosages().deleteById(dose.getId());
+            }
+            if (owner.getId() != null && DB.patients().findById(owner.getId()) != null)
+                DB.patients().deleteById(owner.getId());
+        }
+    }
+
     private static Patient patient(String name) {
         Patient owner = new Patient();
         owner.setCode("ci-med-owner-" + name + "-" + System.nanoTime());
