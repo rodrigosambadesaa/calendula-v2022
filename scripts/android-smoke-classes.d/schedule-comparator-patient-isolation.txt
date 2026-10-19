@@ -1,0 +1,1 @@
+es.usc.citius.servando.calendula.healthcareprovider.util.ScheduleComparatorPatientIsolationSmokeTest
