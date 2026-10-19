@@ -25,11 +25,19 @@ import es.usc.citius.servando.calendula.persistence.Schedule
 import es.usc.citius.servando.calendula.healthcareprovider.model.ActiveMedVO
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageType
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.RepeatType
+import es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime
 import org.dmfs.rfc5545.recur.Freq
 import org.joda.time.DateTime
 import org.joda.time.LocalTime
 
 object ScheduleComparator {
+
+    /** A missing expected time is a legitimate schedule difference, not an exception. */
+    internal fun matchingScheduledTime(
+        times: List<DailyFixedTime>,
+        expected: LocalTime
+    ): DailyFixedTime? = times.firstOrNull { it.time == expected }
+
 
     fun compare(activeMed: ActiveMedVO, schedule: Schedule): Collection<Change> {
 
@@ -144,7 +152,7 @@ object ScheduleComparator {
                     val times = recur.dailyFixedTimes
                     var exists = false
 
-                    times.first { it.time == entryTime }?.let {
+                    matchingScheduledTime(times, entryTime)?.let {
                         exists = true
                         scheduleDose = schedule.getDosage(it.time)
                     }
