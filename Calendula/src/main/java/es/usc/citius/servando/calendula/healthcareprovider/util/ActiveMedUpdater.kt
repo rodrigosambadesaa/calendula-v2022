@@ -134,6 +134,11 @@ object ActiveMedUpdater {
                 cleanOldActiveMeds(ctx, patient.id, summary, activeMedication)
             }
         }
+        // Even an empty snapshot must not acknowledge a remote revision for
+        // a patient who was switched away during the import.
+        check(DB.patients().getActive(ctx)?.id == patient.id) {
+            "Active patient changed before provider revision acknowledgement"
+        }
         // update the stored hash
         PreferenceUtils.edit().putString(PreferenceKeys.REMOTE_LAST_HASH.key(), newHash).apply()
         // show a notification if necessary
