@@ -23,7 +23,6 @@ import es.usc.citius.servando.calendula.R
 import es.usc.citius.servando.calendula.database.DB
 import es.usc.citius.servando.calendula.persistence.Schedule
 import es.usc.citius.servando.calendula.healthcareprovider.model.ActiveMedVO
-import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageType
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.RepeatType
 import org.dmfs.rfc5545.recur.Freq
@@ -67,12 +66,17 @@ object ScheduleComparator {
 
     private fun checkActiveMed(activeMed: ActiveMedVO, schedule: Schedule): Collection<Change> {
         val changes = ArrayList<Change>()
-        val entity =
-            DB.healthcareProviderDB().activeMeds().findOneBy(ActiveMedEntity.COLUMN_CODE, activeMed.code)
+        // Medication codes may be shared by distinct patients. Never compare
+        // a schedule against another patient's provider record.
+        val patient = activeMed.patient
+            ?: throw IllegalStateException("Patient required for schedule comparison")
+        val entity = DB.healthcareProviderDB().activeMeds()
+            .findByCodeForPatient(activeMed.code, patient)
 
         if (schedule.medicine == null) {
             changes.add(ActiveMedChange("", activeMed.display))
-        } else if (!schedule.medicine.isFromActiveMed || entity.id != schedule.medicine.activeMedId) {
+        } else if (!schedule.medicine.isFromActiveMed ||
+            entity == null || entity.id != schedule.medicine.activeMedId) {
             changes.add(ActiveMedChange(schedule.medicine.name, activeMed.display))
         }
         return changes
