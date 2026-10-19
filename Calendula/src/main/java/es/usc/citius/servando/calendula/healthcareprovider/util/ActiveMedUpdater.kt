@@ -115,6 +115,11 @@ object ActiveMedUpdater {
                     "Active patient changed during provider import"
                 }
                 activeMedication.forEach {
+                    // Abort and roll back if a profile switch is observed
+                    // between imported items, rather than continuing writes.
+                    check(DB.patients().getActive(ctx)?.id == patient.id) {
+                        "Active patient changed during provider import"
+                    }
                     // always update dispensation info if med is stored
                     if (isStored(it)) {
                         updateActiveMedDispensation(it)
@@ -130,6 +135,11 @@ object ActiveMedUpdater {
                         LogUtil.d(TAG, "onNewMeds: Creating a medication")
                         addToKit(createActiveMed(it, summary), patient)
                     }
+                }
+                // Cleanup can retire schedules: never run it after observing
+                // an intervening profile change.
+                check(DB.patients().getActive(ctx)?.id == patient.id) {
+                    "Active patient changed before provider cleanup"
                 }
                 cleanOldActiveMeds(ctx, patient.id, summary, activeMedication)
             }
