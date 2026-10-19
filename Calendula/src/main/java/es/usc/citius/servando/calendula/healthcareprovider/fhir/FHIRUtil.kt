@@ -239,7 +239,14 @@ object FHIRUtil {
                 ret.add(medVO)
 
             } catch (e: Exception) {
+                // A partial FHIR list must never be treated as a complete
+                // provider snapshot. ActiveMedUpdater removes locally stored
+                // medications not present in the parsed list and may retire
+                // their future schedule events; skipping an invalid entry
+                // would make a valid medicine look discontinued.
                 LogUtil.e(TAG, "Could not parse imported medication record")
+                throw IllegalArgumentException(
+                    "Provider medication snapshot contains an invalid record", e)
             }
 
         }
