@@ -89,10 +89,12 @@ object ActiveMedUpdater {
         if (activeMedication.any { it.code.isNullOrBlank() }) {
             throw IllegalStateException("Provider medication has no usable code")
         }
-        val previouslyStoredOwners = activeMedication.mapNotNull { incoming ->
+        val previouslyStoredOwners = activeMedication.flatMap { incoming ->
+            // A legacy database may contain multiple rows with the same code.
+            // Inspect *every* matching owner, not only an arbitrary first row.
             DB.healthcareProviderDB().activeMeds()
-                .findOneBy(ActiveMedEntity.COLUMN_CODE, incoming.code)
-                ?.let { stored -> stored.patient?.id ?: 0L }
+                .findBy(ActiveMedEntity.COLUMN_CODE, incoming.code)
+                .map { stored -> stored.patient?.id ?: 0L }
         }
         if (!ownersAreConsistent(patient.id, incomingOwners, previouslyStoredOwners)) {
             LogUtil.w(TAG, "Provider medication update rejected due to patient ownership mismatch")
