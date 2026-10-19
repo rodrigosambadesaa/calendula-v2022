@@ -94,6 +94,29 @@ class ActiveMedVoParseTest {
         }
     }
 
+    /**
+     * The standard three-medicine fixture parses successfully, but appending
+     * one corrupt request must fail the *whole* snapshot. In the old parser,
+     * that missing request would be silently omitted, allowing reconciliation
+     * to treat a real medicine as discontinued.
+     */
+    @Test
+    fun malformedRequestAfterValidRequestsRejectsEntireSnapshot() {
+        val stream = javaClass.classLoader?.getResourceAsStream(RESPONSE_FILE)
+        val parsed = FHIRUtil.parseResponse(InputStreamReader(stream))
+        val requests = LinkedHashMap(parsed.medicationRequests!!)
+        assertTrue(requests.size >= 3)
+        requests["synthetic-invalid-request"] = org.hl7.fhir.dstu3.model.MedicationRequest()
+        parsed.medicationRequests = requests
+
+        try {
+            FHIRUtil.genVOsFromResponse(parsed)
+            fail("A partial medication snapshot must not be returned")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message?.contains("invalid record") == true)
+        }
+    }
+
     companion object {
 
         private val RESPONSE_FILE = "resposta.json"
