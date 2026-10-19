@@ -51,6 +51,20 @@ object ActiveMedUpdater {
         received != stored
 
     /**
+     * The provider's imported items, the active profile and any previously
+     * persisted rows with the same code must all have the same real owner.
+     * A code collision across two patients is not authorization to update the
+     * first patient's dosage, inventory or review state.
+     */
+    internal fun ownersAreConsistent(
+        activePatientId: Long?,
+        incomingPatientIds: Collection<Long?>,
+        matchingStoredPatientIds: Collection<Long?>
+    ): Boolean = activePatientId != null && activePatientId > 0L &&
+        incomingPatientIds.all { it == activePatientId } &&
+        matchingStoredPatientIds.all { it == activePatientId }
+
+    /**
      * Called when active med list has changed
      *
      * @param newHash the new hash
@@ -65,7 +79,25 @@ object ActiveMedUpdater {
         // Medication display names and remote hashes are sensitive clinical
         // context: log a count only, never identifiers or prescription data.
         LogUtil.d(TAG, "onNewMeds: received medication count=${activeMedication.size}")
-        val patient = DB.patients().getActive(ctx)!!
+        val patient = DB.patients().getActive(ctx)
+            ?: throw IllegalStateException("Active patient is required for provider import")
+        val incomingOwners = activeMedication.map { it.patient?.id }
+        // The existing provider medication DAO's code-only lookups are not
+        // patient-scoped. Fail closed on another owner's row before *any*
+        // mutation or server-revision update. A later migration can safely
+        // replace these lookups with composite owner-and-code queries.
+        if (activeMedication.any { it.code.isNullOrBlank() }) {
+            throw IllegalStateException("Provider medication has no usable code")
+        }
+        val previouslyStoredOwners = activeMedication.mapNotNull { incoming ->
+            DB.healthcareProviderDB().activeMeds()
+                .findOneBy(ActiveMedEntity.COLUMN_CODE, incoming.code)
+                ?.let { stored -> stored.patient?.id ?: 0L }
+        }
+        if (!ownersAreConsistent(patient.id, incomingOwners, previouslyStoredOwners)) {
+            LogUtil.w(TAG, "Provider medication update rejected due to patient ownership mismatch")
+            throw IllegalStateException("Provider medication patient ownership mismatch")
+        }
         val summary = UpdateSummary()
         // update active med list
         if (activeMedication.isNotEmpty()) {
