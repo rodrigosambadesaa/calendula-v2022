@@ -94,7 +94,12 @@ object ActiveMedUpdater {
             // Inspect *every* matching owner, not only an arbitrary first row.
             DB.healthcareProviderDB().activeMeds()
                 .findBy(ActiveMedEntity.COLUMN_CODE, incoming.code)
-                .map { stored -> stored.patient?.id ?: 0L }
+                .map { stored ->
+                    // Kotlin sees @NonNull here, but a corrupt legacy SQL
+                    // foreign key can still deserialize without an owner.
+                    val storedOwner: Patient? = stored.patient
+                    storedOwner?.id ?: 0L
+                }
         }
         if (!ownersAreConsistent(patient.id, incomingOwners, previouslyStoredOwners)) {
             LogUtil.w(TAG, "Provider medication update rejected due to patient ownership mismatch")
