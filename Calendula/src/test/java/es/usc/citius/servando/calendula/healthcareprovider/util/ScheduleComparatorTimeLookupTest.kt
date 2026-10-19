@@ -35,4 +35,15 @@ class ScheduleComparatorTimeLookupTest {
         assertSame(ten, ScheduleComparator.matchingScheduledTime(
             listOf(nine, ten), LocalTime(10, 30)))
     }
+
+    @Test
+    fun emptyOrAvailableDailyTimeForPeriodicMedication() {
+        assertNull(ScheduleComparator.firstFixedDoseTimeOrNull(emptyList()))
+        val first = DailyFixedTime(
+            DailyFixedTime.ReferenceType.ABSOLUTE, LocalTime(7, 45))
+        val second = DailyFixedTime(
+            DailyFixedTime.ReferenceType.ABSOLUTE, LocalTime(19, 15))
+        org.junit.Assert.assertEquals(LocalTime(7, 45),
+            ScheduleComparator.firstFixedDoseTimeOrNull(listOf(first, second)))
+    }
 }
