@@ -41,4 +41,29 @@ class FhirSnapshotCompletenessTest {
         }
         assertTrue(FHIRUtil.genVOsFromResponse(response).isEmpty())
     }
+    @Test
+    fun rejectedSnapshotDoesNotPoisonSubsequentEmptySnapshot() {
+        val invalid = ResponseVO().apply {
+            medicationRequests = linkedMapOf(
+                "first-broken" to MedicationRequest(),
+                "second-broken" to MedicationRequest()
+            )
+            medications = emptyMap()
+            medicationDispenses = emptyMap()
+        }
+        try {
+            FHIRUtil.genVOsFromResponse(invalid)
+            throw AssertionError("An invalid provider snapshot must fail completely")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message?.contains("invalid record") == true)
+        }
+
+        val validEmpty = ResponseVO().apply {
+            medicationRequests = emptyMap()
+            medications = emptyMap()
+            medicationDispenses = emptyMap()
+        }
+        assertTrue(FHIRUtil.genVOsFromResponse(validEmpty).isEmpty())
+    }
+
 }
