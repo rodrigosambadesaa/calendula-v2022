@@ -38,6 +38,7 @@ import es.usc.citius.servando.calendula.healthcareprovider.util.ScheduleComparat
 import es.usc.citius.servando.calendula.util.LogUtil
 import es.usc.citius.servando.calendula.util.PreferenceKeys
 import es.usc.citius.servando.calendula.util.PreferenceUtils
+import es.usc.citius.servando.calendula.util.ProviderRevisionGuard
 import org.joda.time.DateTime
 
 
@@ -134,7 +135,14 @@ object ActiveMedUpdater {
             "Active patient changed before provider revision acknowledgement"
         }
         // update the stored hash
-        PreferenceUtils.edit().putString(PreferenceKeys.REMOTE_LAST_HASH.key(), newHash).apply()
+        // Couple revision and its authoritative patient in one preference edit;
+        // a legacy unowned hash must never authorize another profile's 304.
+        val revisionOwner = ProviderRevisionGuard.ownerKey(patient.id, patient.code)
+            ?: throw IllegalStateException("Provider revision requires persisted patient identity")
+        PreferenceUtils.edit()
+            .putString(PreferenceKeys.REMOTE_LAST_HASH_OWNER.key(), revisionOwner)
+            .putString(PreferenceKeys.REMOTE_LAST_HASH.key(), newHash)
+            .apply()
         // show a notification if necessary
         if (notify && summary.hasChanges()) {
             ActiveMedNotification.show(ctx, patient, summary)
