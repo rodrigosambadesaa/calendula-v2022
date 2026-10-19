@@ -1,6 +1,9 @@
 package es.usc.citius.servando.calendula.healthcareprovider.jobs;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
 
 import es.usc.citius.servando.calendula.persistence.Patient;
 
@@ -8,6 +11,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /** Synthetic IDs only: no credentials, health records or remote requests. */
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = 28)
 public class ProviderAuthenticatedPatientGuardTest {
     private static Patient patient(Long id, String subject) {
         Patient p = new Patient();
