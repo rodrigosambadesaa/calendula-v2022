@@ -45,6 +45,7 @@ import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.NetworkUtils;
 import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 import es.usc.citius.servando.calendula.util.RemoteMedicationPreferenceReader;
+import es.usc.citius.servando.calendula.util.ProviderRevisionGuard;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
@@ -114,7 +115,8 @@ public class UpdateMedicationHelper {
 
             notifyStatusUpdate(Status.UPDATE_START);
 
-            final String lastHash = RemoteMedicationPreferenceReader.lastRevisionOrNull();
+            final String lastHash = ProviderRevisionGuard.lastRevisionForPatient(
+                    originalPatient, authenticatedSubject);
             try {
                 // do call and parse active meds
                 final ResponseVO responseVO = RemoteQueryManager.instance().checkForActiveMeds(lastHash);
