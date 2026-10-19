@@ -49,4 +49,21 @@ class ActiveMedPatientOwnershipTest {
         assertFalse(ActiveMedUpdater.ownersAreConsistent(
             101L, listOf(101L), listOf(101L, 102L)))
     }
+    @Test
+    fun invalidPersistedOwnersCannotBeMaskedByOtherValidRows() {
+        assertFalse(ActiveMedUpdater.ownersAreConsistent(
+            101L, listOf(101L), listOf(101L, 0L, 101L)))
+        assertFalse(ActiveMedUpdater.ownersAreConsistent(
+            101L, listOf(101L), listOf(101L, -1L)))
+        assertFalse(ActiveMedUpdater.ownersAreConsistent(
+            101L, emptyList(), listOf(102L)))
+    }
+
+    @Test
+    fun switchingSelectedPatientRejectsPreviouslyParsedSnapshot() {
+        // The FHIR response was associated with patient 101 when parsed.
+        // Import-time validation must fail if patient 102 becomes active.
+        assertFalse(ActiveMedUpdater.ownersAreConsistent(
+            102L, listOf(101L), listOf(101L)))
+    }
 }
