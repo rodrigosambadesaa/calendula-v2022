@@ -48,7 +48,7 @@ public class RemoteMedicationPreferenceReaderTest {
                     .thenThrow(new ClassCastException("Synthetic integer revision"));
             assertNull(RemoteMedicationPreferenceReader.lastRevisionOrNull());
         }
-        for (String invalid : new String[]{null, "", "   "}) {
+        for (String invalid : new String[]{null, "", "   ", "null", " NULL ", "NuLl", "a\\nb", "a\\rb", "a\\tb", "a\\u0000b", "a\\u007fb"}) {
             try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
                 prefs.when(() -> PreferenceUtils.getString(
                         PreferenceKeys.REMOTE_LAST_HASH, null)).thenReturn(invalid);
@@ -65,6 +65,10 @@ public class RemoteMedicationPreferenceReaderTest {
             prefs.when(() -> PreferenceUtils.getString(
                     PreferenceKeys.REMOTE_UPDATE_STATUS, null)).thenReturn("SUCCESS");
             assertEquals("v2026-10", RemoteMedicationPreferenceReader.lastRevisionOrNull());
+            prefs.when(() -> PreferenceUtils.getString(
+                    PreferenceKeys.REMOTE_LAST_HASH, null)).thenReturn("v2026-10 +opaque");
+            assertEquals("v2026-10 +opaque",
+                    RemoteMedicationPreferenceReader.lastRevisionOrNull());
             assertEquals("SUCCESS", RemoteMedicationPreferenceReader.readOrDefault(
                     PreferenceKeys.REMOTE_UPDATE_STATUS, null));
         }
