@@ -92,10 +92,16 @@ public class LoginActivity extends AppCompatActivity {
                 patient.setDefault(true);
                 try {
                     DB.patients().create(patient);
-                } catch (SQLException e) {
+                    // Activation must succeed before allowing a debug guest
+                    // session: an unsaved/deleted owner cannot own medication.
+                    DB.patients().setActive(patient);
+                } catch (SQLException | RuntimeException setupFailure) {
+                    // Do not enter the app with an unpersisted/default owner.
+                    // Keep clinical data and exception details out of Logcat.
                     LogUtil.e(TAG, "Local patient setup failed");
+                    Snack.show(getString(R.string.login_failed), this);
+                    return;
                 }
-                DB.patients().setActive(patient);
             }
             LoginStateManager.getInstance().skipLogin();
             launchHomeWithNotificationPermission();
