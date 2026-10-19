@@ -21,9 +21,27 @@ public final class RemoteMedicationPreferenceReader {
         }
     }
 
-    /** A broken or absent revision must request full verification, not 304. */
+    /**
+     * A restored revision is untrusted state. Apply the same format rules as
+     * fresh provider revisions before using it in a conditional query.
+     * A malformed value must trigger a complete fetch, not a stale 304.
+     */
+    static boolean isUsableCachedRevision(String revision) {
+        if (revision == null || revision.trim().isEmpty()
+                || "null".equalsIgnoreCase(revision.trim())) {
+            return false;
+        }
+        for (int i = 0; i < revision.length(); i++) {
+            if (Character.isISOControl(revision.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Never normalize valid opaque server revisions. */
     public static String lastRevisionOrNull() {
         String revision = readOrDefault(PreferenceKeys.REMOTE_LAST_HASH, null);
-        return revision == null || revision.trim().isEmpty() ? null : revision;
+        return isUsableCachedRevision(revision) ? revision : null;
     }
 }
