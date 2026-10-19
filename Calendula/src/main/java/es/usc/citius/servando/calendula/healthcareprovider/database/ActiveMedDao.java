@@ -23,6 +23,7 @@ import com.j256.ormlite.dao.Dao;
 import org.joda.time.DateTime;
 
 import java.sql.SQLException;
+import java.util.List;
 
 import es.usc.citius.servando.calendula.database.DatabaseHelper;
 import es.usc.citius.servando.calendula.database.GenericDao;
@@ -67,10 +68,16 @@ public class ActiveMedDao extends GenericDao<ActiveMedEntity, Long> {
             return null;
         }
         try {
-            ActiveMedEntity result = dao.queryBuilder().where()
+            List<ActiveMedEntity> matches = dao.queryBuilder().where()
                     .eq(ActiveMedEntity.COLUMN_CODE, code)
                     .and().eq(ActiveMedEntity.COLUMN_PATIENT, persistedPatient)
-                    .queryForFirst();
+                    .query();
+            // Legacy duplicates for one patient are ambiguous: selecting the
+            // first row could overwrite the wrong dosage or linked schedule.
+            if (matches.size() > 1) {
+                throw new IllegalStateException("Ambiguous provider medication for patient");
+            }
+            ActiveMedEntity result = matches.isEmpty() ? null : matches.get(0);
             if (result != null && (result.getPatient() == null
                     || !ActiveMedOwnerGuard.samePatient(
                             result.getPatient().getId(), persistedPatient.getId()))) {
