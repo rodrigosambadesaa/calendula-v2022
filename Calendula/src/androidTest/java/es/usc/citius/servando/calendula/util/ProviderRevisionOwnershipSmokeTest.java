@@ -1,6 +1,11 @@
 package es.usc.citius.servando.calendula.util;
 
 import android.content.SharedPreferences;
+import android.content.Context;
+import androidx.test.platform.app.InstrumentationRegistry;
+import java.util.Collections;
+import es.usc.citius.servando.calendula.healthcareprovider.model.ActiveMedVO;
+import es.usc.citius.servando.calendula.healthcareprovider.util.ActiveMedUpdater;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -55,6 +60,45 @@ public class ProviderRevisionOwnershipSmokeTest {
                 if (patient.getId() != null && DB.patients().findById(patient.getId()) != null) {
                     DB.patients().remove(patient);
                 }
+            }
+        }
+    }
+
+    @Test
+    public void validEmptyProviderSnapshotWritesRevisionAndOwnerTogether() throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        Patient previous = DB.patients().getActive(context);
+        Patient a = patient("ci-empty-provider-" + System.nanoTime());
+        SharedPreferences prefs = PreferenceUtils.instance().preferences();
+        String hashKey = PreferenceKeys.REMOTE_LAST_HASH.key();
+        String ownerKey = PreferenceKeys.REMOTE_LAST_HASH_OWNER.key();
+        Object originalHash = prefs.getAll().get(hashKey);
+        Object originalOwner = prefs.getAll().get(ownerKey);
+        try {
+            assertEquals(1, DB.patients().create(a));
+            DB.patients().setActive(a);
+            String expectedHash = "ci-empty-snapshot-" + System.nanoTime();
+            ActiveMedUpdater.INSTANCE.onNewMeds(
+                    expectedHash, Collections.<ActiveMedVO>emptyList(), context, false);
+            assertEquals(expectedHash, prefs.getString(hashKey, null));
+            assertEquals(ProviderRevisionGuard.ownerKey(a.getId(), a.getCode()),
+                    prefs.getString(ownerKey, null));
+            assertEquals(expectedHash,
+                    ProviderRevisionGuard.lastRevisionForPatient(a, a.getCode()));
+        } finally {
+            SharedPreferences.Editor editor = prefs.edit();
+            restore(editor, hashKey, originalHash);
+            restore(editor, ownerKey, originalOwner);
+            assertTrue(editor.commit());
+            if (previous != null && previous.getId() != null
+                    && DB.patients().findById(previous.getId()) != null) {
+                DB.patients().setActive(previous);
+            } else {
+                PreferenceUtils.edit().remove(PreferenceKeys.PATIENTS_ACTIVE.key()).commit();
+            }
+            if (a.getId() != null && DB.patients().findById(a.getId()) != null) {
+                DB.patients().remove(a);
             }
         }
     }
