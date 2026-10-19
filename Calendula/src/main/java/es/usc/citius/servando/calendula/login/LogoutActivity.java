@@ -76,8 +76,8 @@ public class LogoutActivity extends AppCompatActivity {
         mAuthService = AuthorizationServiceHelper.createAuthorizationService(this);
 
         if (action != null && action.equals(ACTION_LOGOUT_FAILED)) {
-            final String failReason = getIntent().getStringExtra(EXTRA_LOGOUT_FAILED_REASON);
-            Snack.show(getString(R.string.logout_failed) + " [" + failReason + "]", this);
+            // Never render untrusted logout error details supplied by an Intent.
+            Snack.show(getString(R.string.logout_failed), this);
         }
     }
 
