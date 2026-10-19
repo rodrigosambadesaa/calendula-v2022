@@ -75,37 +75,38 @@ public class Strings {
     }
 
     public static SpannableStringBuilder getHighlighted(String text, String match, int color) {
-        final SpannableStringBuilder sb = new SpannableStringBuilder(Strings.toProperCase(text));
-        String t = text.toLowerCase(Locale.ROOT), m = match.toLowerCase(Locale.ROOT);
-        int start = t.indexOf(m);
-        if (start >= 0) {
-            int end = start + match.length();
-            return getHighlighted(text, start, end, color);
+        // Normalize before computing indices. Converting names to title case
+        // can collapse repeated whitespace, so offsets from the original
+        // medication/allergen label may no longer fit the displayed text.
+        final SpannableStringBuilder sb = new SpannableStringBuilder(
+                text == null ? "" : Strings.toProperCase(text));
+        if (match == null || match.isEmpty()) {
+            return sb;
         }
-        return sb;
+        String folded = sb.toString().toLowerCase(Locale.ROOT);
+        String query = match.toLowerCase(Locale.ROOT);
+        int start = folded.indexOf(query);
+        return highlightRange(sb, start, start < 0 ? -1 : start + query.length(), color);
     }
 
     public static SpannableStringBuilder getHighlighted(final String text, final int start, final int end, final int color) {
-        final SpannableStringBuilder sb = new SpannableStringBuilder(Strings.toProperCase(text));
+        return highlightRange(new SpannableStringBuilder(
+                text == null ? "" : Strings.toProperCase(text)), start, end, color);
+    }
 
-        // check sanity of params
-        if (end <= start) {
-            throw new IllegalArgumentException("Illegal indexes: end<start!");
+    private static SpannableStringBuilder highlightRange(
+            SpannableStringBuilder sb, int start, int end, int color) {
+        // Corrupt/imported medical labels or asynchronous search positions
+        // must not crash the search results list. No match is safer than an
+        // invalid span, and clinical search content is never logged.
+        if (start < 0 || start >= sb.length() || end <= start) {
+            return sb;
         }
-        if (end < 0 || start < 0) {
-            throw new IllegalArgumentException("Illegal indexes: less than 0");
-        }
-        // fix end index if needed
-        int realEnd = end;
-        if (end > sb.length()) {
-            LogUtil.d(TAG, "getHighlighted: end index bigger than string, defaulting to last valid index");
-            realEnd = sb.length();
-        }
-
+        int boundedEnd = Math.min(end, sb.length());
         final ForegroundColorSpan fcs = new ForegroundColorSpan(color);
         final StyleSpan bss = new StyleSpan(android.graphics.Typeface.BOLD);
-        sb.setSpan(fcs, start, realEnd, Spannable.SPAN_INCLUSIVE_INCLUSIVE);
-        sb.setSpan(bss, start, realEnd, Spannable.SPAN_INCLUSIVE_INCLUSIVE);
+        sb.setSpan(fcs, start, boundedEnd, Spannable.SPAN_INCLUSIVE_INCLUSIVE);
+        sb.setSpan(bss, start, boundedEnd, Spannable.SPAN_INCLUSIVE_INCLUSIVE);
         return sb;
     }
 
