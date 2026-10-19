@@ -50,19 +50,16 @@ object ActiveMedUpdater {
     internal fun displayNameChanged(received: String?, stored: String?): Boolean =
         received != stored
 
-    /**
-     * The provider's imported items, the active profile and any previously
-     * persisted rows with the same code must all have the same real owner.
-     * A code collision across two patients is not authorization to update the
-     * first patient's dosage, inventory or review state.
-     */
-    internal fun ownersAreConsistent(
+    /** Verify imported owners before any patient-specific DAO mutation. */
+    internal fun incomingOwnersMatchActivePatient(
         activePatientId: Long?,
-        incomingPatientIds: Collection<Long?>,
-        matchingStoredPatientIds: Collection<Long?>
+        incomingPatientIds: Collection<Long?>
     ): Boolean = activePatientId != null && activePatientId > 0L &&
-        incomingPatientIds.all { it == activePatientId } &&
-        matchingStoredPatientIds.all { it == activePatientId }
+        incomingPatientIds.all { it == activePatientId }
+
+    /** Ambiguous duplicate provider codes within one snapshot must fail closed. */
+    internal fun hasUniqueUsableCodes(codes: Collection<String?>): Boolean =
+        codes.all { !it.isNullOrBlank() } && codes.size == codes.toSet().size
 
     /**
      * Called when active med list has changed
@@ -82,26 +79,13 @@ object ActiveMedUpdater {
         val patient = DB.patients().getActive(ctx)
             ?: throw IllegalStateException("Active patient is required for provider import")
         val incomingOwners = activeMedication.map { it.patient?.id }
-        // The existing provider medication DAO's code-only lookups are not
-        // patient-scoped. Fail closed on another owner's row before *any*
-        // mutation or server-revision update. A later migration can safely
-        // replace these lookups with composite owner-and-code queries.
-        if (activeMedication.any { it.code.isNullOrBlank() }) {
-            throw IllegalStateException("Provider medication has no usable code")
+        // All subsequent medication lookups are scoped by the persisted
+        // patient and code. Another patient's identical code is legitimate.
+        // Duplicate codes *within this snapshot* are ambiguous and rejected.
+        if (!hasUniqueUsableCodes(activeMedication.map { it.code })) {
+            throw IllegalStateException("Provider medication codes missing or duplicated")
         }
-        val previouslyStoredOwners = activeMedication.flatMap { incoming ->
-            // A legacy database may contain multiple rows with the same code.
-            // Inspect *every* matching owner, not only an arbitrary first row.
-            DB.healthcareProviderDB().activeMeds()
-                .findBy(ActiveMedEntity.COLUMN_CODE, incoming.code)
-                .map { stored ->
-                    // Kotlin sees @NonNull here, but a corrupt legacy SQL
-                    // foreign key can still deserialize without an owner.
-                    val storedOwner: Patient? = stored.patient
-                    storedOwner?.id ?: 0L
-                }
-        }
-        if (!ownersAreConsistent(patient.id, incomingOwners, previouslyStoredOwners)) {
+        if (!incomingOwnersMatchActivePatient(patient.id, incomingOwners)) {
             LogUtil.w(TAG, "Provider medication update rejected due to patient ownership mismatch")
             throw IllegalStateException("Provider medication patient ownership mismatch")
         }
@@ -197,7 +181,7 @@ object ActiveMedUpdater {
     }
 
     private fun isStored(med: ActiveMedVO): Boolean {
-        return DB.healthcareProviderDB().activeMeds().findOneBy(ActiveMedEntity.COLUMN_CODE, med.code) != null
+        return DB.healthcareProviderDB().activeMeds().findByCodeForPatient(med.code, med.patient) != null
     }
 
     private fun shouldBeCreated(med: ActiveMedVO): Boolean {
@@ -205,7 +189,7 @@ object ActiveMedUpdater {
     }
 
     private fun shouldBeUpdated(med: ActiveMedVO): Boolean {
-        val stored = DB.healthcareProviderDB().activeMeds().findOneBy(ActiveMedEntity.COLUMN_CODE, med.code)
+        val stored = DB.healthcareProviderDB().activeMeds().findByCodeForPatient(med.code, med.patient)
         var changed = false
         stored?.let {
             val vo = ActiveMedVO.forEntity(stored)
@@ -263,7 +247,7 @@ object ActiveMedUpdater {
     ): ActiveMedEntity {
 
         val storedActiveMed =
-            DB.healthcareProviderDB().activeMeds().findOneBy(ActiveMedEntity.COLUMN_CODE, med.code)
+            DB.healthcareProviderDB().activeMeds().findByCodeForPatient(med.code, med.patient)
         storedActiveMed!!.dosage.entries.map { DB.healthcareProviderDB().dosageEntries().remove(it) }
         DB.healthcareProviderDB().dosages().remove(storedActiveMed.dosage)
 
@@ -298,7 +282,7 @@ object ActiveMedUpdater {
 
     private fun updateActiveMedDispensation(med: ActiveMedVO): ActiveMedEntity {
         val storedActiveMed =
-            DB.healthcareProviderDB().activeMeds().findOneBy(ActiveMedEntity.COLUMN_CODE, med.code)
+            DB.healthcareProviderDB().activeMeds().findByCodeForPatient(med.code, med.patient)
         storedActiveMed.dispensationInfo.map { DB.healthcareProviderDB().dispensationInfo().remove(it) }
         // save dispensation info
         val dispensationInfo = med.backingEntity.dispensationInfo
