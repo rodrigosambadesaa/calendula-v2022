@@ -38,6 +38,10 @@ object ScheduleComparator {
         expected: LocalTime
     ): DailyFixedTime? = times.firstOrNull { it.time == expected }
 
+    /** An empty fixed-time schedule cannot provide a PERIOD dose lookup. */
+    internal fun firstFixedDoseTimeOrNull(times: List<DailyFixedTime>): LocalTime? =
+        times.firstOrNull()?.time
+
 
     fun compare(activeMed: ActiveMedVO, schedule: Schedule): Collection<Change> {
 
@@ -133,7 +137,8 @@ object ScheduleComparator {
                     val dosage = if (schedule.recur.hasHourlyFrequency()) {
                         schedule.getDosage(null)
                     } else {
-                        schedule.getDosage(schedule.recur.dailyFixedTimes[0].time)
+                        val time = firstFixedDoseTimeOrNull(schedule.recur.dailyFixedTimes)
+                        if (time == null) null else schedule.getDosage(time)
                     }
 
                     if (interval != repeatValue || repeatFreq != freq) {
