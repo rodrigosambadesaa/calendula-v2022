@@ -31,6 +31,7 @@ import es.usc.citius.servando.calendula.login.LoginActivity;
 import es.usc.citius.servando.calendula.login.LoginStateManager;
 import es.usc.citius.servando.calendula.notifications.NotificationHelper;
 import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.healthcareprovider.fhir.ResponseVO;
 import es.usc.citius.servando.calendula.healthcareprovider.fhir.FHIRUtil;
 import es.usc.citius.servando.calendula.healthcareprovider.model.ActiveMedVO;
@@ -65,6 +66,26 @@ public class UpdateMedicationHelper {
                 && !state.getAccessToken().trim().isEmpty();
     }
 
+    /**
+     * OAuth credentials authorize one remote patient, not every locally
+     * selectable profile. Use the persisted login subject and patient ID;
+     * restored/missing preferences must never authorize a provider import.
+     */
+    static boolean isAuthenticatedPatient(String authenticatedSubject, Patient patient) {
+        return authenticatedSubject != null && !authenticatedSubject.trim().isEmpty()
+                && patient != null && patient.getId() != null
+                && patient.getId() > 0L && patient.getCode() != null
+                && authenticatedSubject.equals(patient.getCode());
+    }
+
+    /** Reject a response for a profile that changed while the network was busy. */
+    static boolean isSameAuthenticatedPatient(
+            String authenticatedSubject, Long originalPatientId, Patient nowActive) {
+        return originalPatientId != null && originalPatientId > 0L
+                && isAuthenticatedPatient(authenticatedSubject, nowActive)
+                && originalPatientId.equals(nowActive.getId());
+    }
+
     @NonNull
     public static Status checkForUpdates(final Context ctx) {
 
@@ -80,6 +101,16 @@ public class UpdateMedicationHelper {
             // force login next time the user opens the app
             return Status.ERROR_AUTHORIZATION;
         } else {
+            // Authenticated provider data must only be imported for the
+            // patient whose persisted code matches the validated login subject.
+            // An active local guest/profile is not an OAuth authorization.
+            final String authenticatedSubject = LoginStateManager.getInstance().getUserId();
+            final Patient originalPatient = DB.patients().getActive(ctx);
+            if (!isAuthenticatedPatient(authenticatedSubject, originalPatient)) {
+                LogUtil.w(TAG, "Provider sync rejected: selected patient differs from login");
+                return Status.ERROR_AUTHORIZATION;
+            }
+            final Long originalPatientId = originalPatient.getId();
 
             notifyStatusUpdate(Status.UPDATE_START);
 
@@ -87,6 +118,14 @@ public class UpdateMedicationHelper {
             try {
                 // do call and parse active meds
                 final ResponseVO responseVO = RemoteQueryManager.instance().checkForActiveMeds(lastHash);
+                // The profile or login can change while the HTTP request is
+                // running. A stale 304 must not be recorded as success either.
+                if (!authenticatedSubject.equals(LoginStateManager.getInstance().getUserId())
+                        || !isSameAuthenticatedPatient(authenticatedSubject,
+                                originalPatientId, DB.patients().getActive(ctx))) {
+                    LogUtil.w(TAG, "Provider sync rejected: patient changed during request");
+                    return Status.ERROR_AUTHORIZATION;
+                }
                 LogUtil.d(TAG, "checkForUpdates: provider response code = " + responseVO.getCode());
 
                 switch (responseVO.getCode()) {
@@ -117,6 +156,13 @@ public class UpdateMedicationHelper {
                             } else {
                                 LogUtil.d(TAG, "onRunJob: Received new med data!");
                                 final List<ActiveMedVO> meds = FHIRUtil.genVOsFromResponse(responseVO);
+                                // FHIR parsing may also take time; do not
+                                // reconcile or advance a revision for a new profile.
+                                if (!authenticatedSubject.equals(LoginStateManager.getInstance().getUserId())
+                                        || !isSameAuthenticatedPatient(authenticatedSubject,
+                                                originalPatientId, DB.patients().getActive(ctx))) {
+                                    return Status.ERROR_AUTHORIZATION;
+                                }
                                 ActiveMedUpdater.INSTANCE.onNewMeds(newHash, meds, ctx, true);
                             }
                         }
