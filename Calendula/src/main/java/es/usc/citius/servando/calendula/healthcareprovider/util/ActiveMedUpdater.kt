@@ -109,6 +109,11 @@ object ActiveMedUpdater {
         // update active med list
         if (activeMedication.isNotEmpty()) {
             DB.transaction {
+                // A profile can change after FHIR parsing/preflight. Do not
+                // begin mutating medicines under a stale active patient.
+                check(DB.patients().getActive(ctx)?.id == patient.id) {
+                    "Active patient changed during provider import"
+                }
                 activeMedication.forEach {
                     // always update dispensation info if med is stored
                     if (isStored(it)) {
