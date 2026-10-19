@@ -7,63 +7,68 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** Fake patient IDs only; no real clinical, credential or profile values. */
+/** Synthetic patient IDs and medicine codes only; no real clinical data. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class ActiveMedPatientOwnershipTest {
 
     @Test
     fun samePatientNewAndExistingMedicationCanBeImported() {
-        assertTrue(ActiveMedUpdater.ownersAreConsistent(
-            101L, listOf(101L, 101L), listOf(101L)))
-        assertTrue(ActiveMedUpdater.ownersAreConsistent(
-            101L, emptyList(), emptyList()))
+        assertTrue(ActiveMedUpdater.incomingOwnersMatchActivePatient(
+            101L, listOf(101L, 101L)))
+        assertTrue(ActiveMedUpdater.incomingOwnersMatchActivePatient(
+            101L, emptyList()))
     }
 
     @Test
     fun missingOrTransientActivePatientNeverAdmitsProviderImport() {
-        assertFalse(ActiveMedUpdater.ownersAreConsistent(
-            null, listOf(101L), emptyList()))
-        assertFalse(ActiveMedUpdater.ownersAreConsistent(
-            0L, listOf(101L), emptyList()))
-        assertFalse(ActiveMedUpdater.ownersAreConsistent(
-            -1L, emptyList(), emptyList()))
+        assertFalse(ActiveMedUpdater.incomingOwnersMatchActivePatient(
+            null, listOf(101L)))
+        assertFalse(ActiveMedUpdater.incomingOwnersMatchActivePatient(
+            0L, listOf(101L)))
+        assertFalse(ActiveMedUpdater.incomingOwnersMatchActivePatient(
+            -1L, emptyList()))
     }
 
     @Test
     fun importedMedicationFromOtherPatientIsRejectedBeforeMutation() {
-        assertFalse(ActiveMedUpdater.ownersAreConsistent(
-            101L, listOf(102L), emptyList()))
-        assertFalse(ActiveMedUpdater.ownersAreConsistent(
-            101L, listOf(101L, 102L), emptyList()))
-        assertFalse(ActiveMedUpdater.ownersAreConsistent(
-            101L, listOf(null), emptyList()))
+        assertFalse(ActiveMedUpdater.incomingOwnersMatchActivePatient(
+            101L, listOf(102L)))
+        assertFalse(ActiveMedUpdater.incomingOwnersMatchActivePatient(
+            101L, listOf(101L, 102L)))
+        assertFalse(ActiveMedUpdater.incomingOwnersMatchActivePatient(
+            101L, listOf(null)))
     }
 
     @Test
-    fun sameCodeAlreadyStoredByAnotherPatientMustFailClosed() {
-        assertFalse(ActiveMedUpdater.ownersAreConsistent(
-            101L, listOf(101L), listOf(102L)))
-        assertFalse(ActiveMedUpdater.ownersAreConsistent(
-            101L, listOf(101L), listOf(null)))
-        assertFalse(ActiveMedUpdater.ownersAreConsistent(
-            101L, listOf(101L), listOf(101L, 102L)))
+    fun sameMedicineCodeIsValidForDifferentPatientsSeparately() {
+        // A provider code is not a globally unique patient identifier.
+        // Each individual snapshot belongs entirely to its own patient.
+        assertTrue(ActiveMedUpdater.incomingOwnersMatchActivePatient(
+            101L, listOf(101L)))
+        assertTrue(ActiveMedUpdater.incomingOwnersMatchActivePatient(
+            102L, listOf(102L)))
+        assertTrue(ActiveMedUpdater.hasUniqueUsableCodes(listOf("same-code")))
     }
+
     @Test
-    fun invalidPersistedOwnersCannotBeMaskedByOtherValidRows() {
-        assertFalse(ActiveMedUpdater.ownersAreConsistent(
-            101L, listOf(101L), listOf(101L, 0L, 101L)))
-        assertFalse(ActiveMedUpdater.ownersAreConsistent(
-            101L, listOf(101L), listOf(101L, -1L)))
-        assertFalse(ActiveMedUpdater.ownersAreConsistent(
-            101L, emptyList(), listOf(102L)))
+    fun duplicateOrMissingCodesInOneSnapshotAreRejected() {
+        assertTrue(ActiveMedUpdater.hasUniqueUsableCodes(
+            listOf("code-one", "code-two")))
+        assertTrue(ActiveMedUpdater.hasUniqueUsableCodes(emptyList()))
+        assertFalse(ActiveMedUpdater.hasUniqueUsableCodes(
+            listOf("same-code", "same-code")))
+        assertFalse(ActiveMedUpdater.hasUniqueUsableCodes(
+            listOf("valid-code", "")))
+        assertFalse(ActiveMedUpdater.hasUniqueUsableCodes(
+            listOf("valid-code", null)))
+        assertFalse(ActiveMedUpdater.hasUniqueUsableCodes(
+            listOf("   ")))
     }
 
     @Test
     fun switchingSelectedPatientRejectsPreviouslyParsedSnapshot() {
-        // The FHIR response was associated with patient 101 when parsed.
-        // Import-time validation must fail if patient 102 becomes active.
-        assertFalse(ActiveMedUpdater.ownersAreConsistent(
-            102L, listOf(101L), listOf(101L)))
+        assertFalse(ActiveMedUpdater.incomingOwnersMatchActivePatient(
+            102L, listOf(101L)))
     }
 }
