@@ -1,2 +1,3 @@
 es.usc.citius.servando.calendula.healthcareprovider.util.EmptyFhirSnapshotReconciliationSmokeTest
 es.usc.citius.servando.calendula.healthcareprovider.util.EmptyFhirRollbackSmokeTest
+es.usc.citius.servando.calendula.healthcareprovider.util.CrossPatientFhirRetirementSmokeTest
