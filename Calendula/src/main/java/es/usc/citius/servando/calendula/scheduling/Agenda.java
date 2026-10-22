@@ -596,6 +596,30 @@ public class Agenda {
 
     }
 
+    /**
+     * A provider import for one patient must never sweep the alarm tokens
+     * belonging to another patient. Call after the SQLite reconciliation has
+     * committed so rollback cannot restore an intake with a cancelled alarm.
+     */
+    public void cleanRemindersForPatient(Context context, Patient patient) {
+        if (context == null || patient == null || patient.getId() == null
+                || patient.getId() <= 0L
+                || DB.patients().findById(patient.getId()) == null) {
+            throw new IllegalArgumentException("A persisted patient and context are required for alarm cleanup");
+        }
+        final Long ownerId = patient.getId();
+        for (EventReminder reminder : DB.eventReminders()
+                .findBy(EventReminder.COLUMN_PATIENT, ownerId)) {
+            if (reminder == null || reminder.getId() == null
+                    || reminder.getPatient() == null
+                    || !ownerId.equals(reminder.getPatient().getId())) {
+                throw new IllegalStateException("Patient reminder ownership changed during cleanup");
+            }
+            cleanReminderIfPossible(context, patient,
+                    reminder.getEventType(), reminder.getDateTime());
+        }
+    }
+
     public void cleanReminders(Context context) {
         List<EventReminder> eventReminders = DB.eventReminders().findAll();
         for (EventReminder r : eventReminders) {
