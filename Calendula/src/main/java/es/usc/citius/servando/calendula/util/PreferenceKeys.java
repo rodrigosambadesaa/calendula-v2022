@@ -67,6 +67,7 @@ public enum PreferenceKeys {
      * Last active med hash code
      */
     REMOTE_LAST_HASH(R.string.prefkey_remote_last_hash),
+    REMOTE_LAST_HASH_OWNER(R.string.prefkey_remote_last_hash_owner),
     REMOTE_LAST_GOOD_UPDATE_DATE(R.string.prefkey_remote_last_updated),
     REMOTE_LAST_GOOD_UPDATE_SUMMARY(R.string.prefkey_remote_last_updated_summary),
     REMOTE_UPDATE_STATUS(R.string.prefkey_remote_failed_update),
