@@ -16,6 +16,10 @@ import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMed
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageEntity;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageType;
 import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.Schedule;
+import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
+import es.usc.citius.servando.calendula.scheduling.model.EventType;
+import org.joda.time.DateTime;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
@@ -49,6 +53,8 @@ public class EmptyFhirRollbackSmokeTest {
         official.setDefaultDisplay("Synthetic provider medication");
         official.setDosage(dose);
         Medicine local = new Medicine("Synthetic linked medicine", Presentation.PILLS);
+        Schedule linkedSchedule = new Schedule(local);
+        EventInstance future = null;
         final String trigger = "ci_empty_fhir_retire_abort";
         sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
         try {
@@ -59,6 +65,14 @@ public class EmptyFhirRollbackSmokeTest {
             local.setStock(9f);
             local.setActiveMedId(official.getId());
             assertEquals(1, DB.medicines().create(local));
+            linkedSchedule.setPatient(patient);
+            linkedSchedule.setActiveMedId(official.getId());
+            assertEquals(1, DB.schedules().create(linkedSchedule));
+            future = new EventInstance(DateTime.now().plusDays(4), EventType.MEDICATION_INTAKE);
+            future.setPatient(patient);
+            future.setRef(linkedSchedule.getId());
+            future.addParam(EventInstance.PARAM_DOSE, 1.0d);
+            assertEquals(1, DB.eventInstances().create(future));
             DB.patients().setActive(patient);
             sqlite.execSQL("CREATE TRIGGER " + trigger
                 + " BEFORE DELETE ON ActiveMedItems WHEN OLD._id = " + official.getId()
@@ -83,6 +97,14 @@ public class EmptyFhirRollbackSmokeTest {
                 persisted.getStock());
             assertFalse("Rejected revision must not be acknowledged",
                 rejectedRevision.equals(prefs.getAll().get(hashKey)));
+            Schedule afterFailure = DB.schedules().findById(linkedSchedule.getId());
+            assertNotNull(afterFailure);
+            assertEquals("A failed import cannot detach a schedule",
+                official.getId(), afterFailure.getActiveMedId());
+            assertFalse("Pending-review state must roll back with SQLite",
+                afterFailure.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE));
+            assertNotNull("Uncommitted removal must not erase a future intake",
+                DB.eventInstances().findById(future.getId()));
         } finally {
             sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
             SharedPreferences.Editor editor = prefs.edit();
@@ -95,6 +117,12 @@ public class EmptyFhirRollbackSmokeTest {
             } else {
                 PreferenceUtils.edit().remove(PreferenceKeys.PATIENTS_ACTIVE.key()).commit();
             }
+            if (future != null && future.getId() != null
+                    && DB.eventInstances().findById(future.getId()) != null)
+                DB.eventInstances().remove(future);
+            if (linkedSchedule.getId() != null
+                    && DB.schedules().findById(linkedSchedule.getId()) != null)
+                DB.schedules().remove(linkedSchedule);
             if (local.getId() != null && DB.medicines().findById(local.getId()) != null)
                 DB.medicines().deleteById(local.getId());
             if (official.getId() != null
