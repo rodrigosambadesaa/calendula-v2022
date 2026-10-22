@@ -136,6 +136,14 @@ public class UpdateMedicationHelper {
                         // either new info or unchanged
 
                         if (isNoChanges(responseVO)) {
+                            // A fresh/unowned revision request cannot safely
+                            // accept an "unchanged" answer: there was no
+                            // authenticated previous snapshot to compare.
+                            if (!canAcceptUnchangedResponse(lastHash)) {
+                                LogUtil.w(TAG, "Unchanged provider response without a trusted revision");
+                                status = Status.ERROR_GENERIC;
+                                break;
+                            }
                             LogUtil.d(TAG, "onRunJob: received unchanged response from server");
                         } else {
                             // A provider response without its real revision
@@ -196,6 +204,11 @@ public class UpdateMedicationHelper {
      * Server revisions are opaque; do not trim or normalize legitimate ones.
      * Never create a synthetic revision from a null, blank or malformed value.
      */
+    /** A no-change response only confirms an explicitly scoped prior revision. */
+    static boolean canAcceptUnchangedResponse(String previouslySentRevision) {
+        return isUsableProviderRevision(previouslySentRevision);
+    }
+
     static boolean isUsableProviderRevision(String revision) {
         if (revision == null || revision.trim().isEmpty()
                 || "null".equalsIgnoreCase(revision.trim())) {
