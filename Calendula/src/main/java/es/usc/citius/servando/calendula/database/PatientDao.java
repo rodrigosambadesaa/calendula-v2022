@@ -70,8 +70,11 @@ public class PatientDao extends GenericDao<Patient, Long> {
             return false;
         }
         try {
-            return PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1)
-                    == p.getId().longValue();
+            final long selectedId = PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1);
+            // A stale preference must not authorize a deleted patient row.
+            // Check persisted identity rather than trusting the caller's
+            // Patient instance, which can outlive the SQLite record.
+            return selectedId == p.getId().longValue() && findById(selectedId) != null;
         } catch (ClassCastException malformedSelection) {
             return false;
         }

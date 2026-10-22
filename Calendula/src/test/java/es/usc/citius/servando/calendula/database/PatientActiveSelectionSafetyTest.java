@@ -109,6 +109,7 @@ public class PatientActiveSelectionSafetyTest {
         PatientDao subject = createSubject(raw);
         Patient sameIdDifferentBox = new Patient();
         sameIdDifferentBox.setId(Long.valueOf("98434"));
+        when(raw.queryForId(98434L)).thenReturn(sameIdDifferentBox);
         Patient unsaved = new Patient();
         try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
             prefs.when(() -> PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1))
@@ -118,6 +119,21 @@ public class PatientActiveSelectionSafetyTest {
             assertFalse(subject.isActive(null, null));
         }
     }
+    @Test
+    public void deletedPatientIsNotActiveEvenWhenStalePreferenceStillMatches() throws Exception {
+        Dao<Patient, Long> raw = rawDao();
+        PatientDao subject = createSubject(raw);
+        Patient deleted = new Patient();
+        deleted.setId(98440L);
+        when(raw.queryForId(98440L)).thenReturn(null);
+        try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
+            prefs.when(() -> PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1))
+                    .thenReturn(98440L);
+            assertFalse("A removed SQLite patient must not stay active by preference alone",
+                    subject.isActive(deleted, null));
+        }
+    }
+
     @Test
     public void existingPatientStillActivatesAndNotifiesListeners() throws Exception {
         Dao<Patient, Long> raw = rawDao();
