@@ -149,8 +149,20 @@ object FHIRUtil {
 
     @JvmStatic
     fun genVOsFromResponse(response: ResponseVO): List<ActiveMedVO> {
+        // An empty snapshot can retire every previously stored provider
+        // medicine. Never infer it from a partially constructed response:
+        // the provider parser populates all three collections, even if empty.
+        val requests = response.medicationRequests
+            ?: throw IllegalArgumentException("Provider medication snapshot is incomplete")
+        val medications = response.medications
+            ?: throw IllegalArgumentException("Provider medication snapshot is incomplete")
+        val dispenses = response.medicationDispenses
+            ?: throw IllegalArgumentException("Provider medication snapshot is incomplete")
+        if (requests.isEmpty() && (medications.isNotEmpty() || dispenses.isNotEmpty())) {
+            throw IllegalArgumentException("Empty provider snapshot contains unmatched resources")
+        }
         val ret = ArrayList<ActiveMedVO>()
-        for (requestKey in response.medicationRequests!!.keys) {
+        for (requestKey in requests.keys) {
             try {
                 val request = response.medicationRequests!![requestKey]
                 val reference = request!!.medicationReference.reference
