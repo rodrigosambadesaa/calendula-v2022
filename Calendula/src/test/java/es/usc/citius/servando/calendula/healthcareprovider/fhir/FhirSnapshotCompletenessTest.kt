@@ -66,4 +66,43 @@ class FhirSnapshotCompletenessTest {
         assertTrue(FHIRUtil.genVOsFromResponse(validEmpty).isEmpty())
     }
 
+    @Test
+    fun emptySnapshotRejectsMissingCollectionsOrUnmatchedResources() {
+        val missing = ResponseVO().apply {
+            medicationRequests = emptyMap()
+            medications = emptyMap()
+            // Missing medicationDispenses is not an authoritative empty set.
+        }
+        try {
+            FHIRUtil.genVOsFromResponse(missing)
+            throw AssertionError("Missing FHIR resources must not retire patient medication")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message?.contains("incomplete") == true)
+        }
+
+        val contradictsEmpty = ResponseVO().apply {
+            medicationRequests = emptyMap()
+            medications = mapOf("orphan" to org.hl7.fhir.dstu3.model.Medication())
+            medicationDispenses = emptyMap()
+        }
+        try {
+            FHIRUtil.genVOsFromResponse(contradictsEmpty)
+            throw AssertionError("Unreferenced FHIR medication must not imply empty treatment")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message?.contains("unmatched") == true)
+        }
+
+        val orphanDispensation = ResponseVO().apply {
+            medicationRequests = emptyMap()
+            medications = emptyMap()
+            medicationDispenses = mapOf("orphan" to org.hl7.fhir.dstu3.model.MedicationDispense())
+        }
+        try {
+            FHIRUtil.genVOsFromResponse(orphanDispensation)
+            throw AssertionError("Unmatched dispensing data must not retire treatments")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message?.contains("unmatched") == true)
+        }
+    }
+
 }
