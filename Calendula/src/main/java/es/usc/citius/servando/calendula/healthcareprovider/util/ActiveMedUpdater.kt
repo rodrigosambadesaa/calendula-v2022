@@ -95,42 +95,45 @@ object ActiveMedUpdater {
         }
         val summary = UpdateSummary()
         // update active med list
-        if (activeMedication.isNotEmpty()) {
-            DB.transaction {
-                // A profile can change after FHIR parsing/preflight. Do not
-                // begin mutating medicines under a stale active patient.
+        // Even a verified, complete empty FHIR snapshot is authoritative:
+        // reconcile prior provider medicines instead of acknowledging its
+        // revision while silently retaining stale active prescriptions.
+        // The FHIR parser must reject malformed/partial snapshots *before*
+        // this function is reached. Cleanup remains patient-scoped.
+        DB.transaction {
+            // A profile can change after FHIR parsing/preflight. Do not
+            // begin mutating medicines under a stale active patient.
+            check(DB.patients().getActive(ctx)?.id == patient.id) {
+                "Active patient changed during provider import"
+            }
+            activeMedication.forEach {
+                // Abort and roll back if a profile switch is observed
+                // between imported items, rather than continuing writes.
                 check(DB.patients().getActive(ctx)?.id == patient.id) {
                     "Active patient changed during provider import"
                 }
-                activeMedication.forEach {
-                    // Abort and roll back if a profile switch is observed
-                    // between imported items, rather than continuing writes.
-                    check(DB.patients().getActive(ctx)?.id == patient.id) {
-                        "Active patient changed during provider import"
-                    }
-                    // always update dispensation info if med is stored
-                    if (isStored(it)) {
-                        updateActiveMedDispensation(it)
-                    }
-                    // update med and set pending review if something changed
-                    if (shouldBeUpdated(it)) {
-                        LogUtil.d(TAG, "onNewMeds: Updating a medication")
-                        val updatedMed = updateActiveMed(it, summary)
-                        setPendingReview(ctx, updatedMed)
-                    }
-                    // or create a new active med if it not exists
-                    else if (shouldBeCreated(it)) {
-                        LogUtil.d(TAG, "onNewMeds: Creating a medication")
-                        addToKit(createActiveMed(it, summary), patient)
-                    }
+                // always update dispensation info if med is stored
+                if (isStored(it)) {
+                    updateActiveMedDispensation(it)
                 }
-                // Cleanup can retire schedules: never run it after observing
-                // an intervening profile change.
-                check(DB.patients().getActive(ctx)?.id == patient.id) {
-                    "Active patient changed before provider cleanup"
+                // update med and set pending review if something changed
+                if (shouldBeUpdated(it)) {
+                    LogUtil.d(TAG, "onNewMeds: Updating a medication")
+                    val updatedMed = updateActiveMed(it, summary)
+                    setPendingReview(ctx, updatedMed)
                 }
-                cleanOldActiveMeds(ctx, patient.id, summary, activeMedication)
+                // or create a new active med if it not exists
+                else if (shouldBeCreated(it)) {
+                    LogUtil.d(TAG, "onNewMeds: Creating a medication")
+                    addToKit(createActiveMed(it, summary), patient)
+                }
             }
+            // Cleanup can retire schedules: never run it after observing
+            // an intervening profile change.
+            check(DB.patients().getActive(ctx)?.id == patient.id) {
+                "Active patient changed before provider cleanup"
+            }
+            cleanOldActiveMeds(ctx, patient.id, summary, activeMedication)
         }
         // Even an empty snapshot must not acknowledge a remote revision for
         // a patient who was switched away during the import.
