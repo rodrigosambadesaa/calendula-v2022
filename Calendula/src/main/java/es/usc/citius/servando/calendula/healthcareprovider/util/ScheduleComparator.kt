@@ -43,7 +43,21 @@ object ScheduleComparator {
         times.firstOrNull()?.time
 
 
+    /** Reject misbound official schedules before interpreting dose times. */
+    internal fun ownersMatchForComparison(
+        providerPatientId: Long?, schedulePatientId: Long?,
+        medicinePresent: Boolean, medicinePatientId: Long?
+    ): Boolean = providerPatientId != null && providerPatientId > 0L &&
+        schedulePatientId == providerPatientId &&
+        (!medicinePresent || medicinePatientId == providerPatientId)
+
     fun compare(activeMed: ActiveMedVO, schedule: Schedule): Collection<Change> {
+        // A stale or corrupt bound schedule is not a valid basis for clinical
+        // reconciliation, even if its medication code happens to match.
+        check(ownersMatchForComparison(
+            activeMed.patient?.id, schedule.patient?.id,
+            schedule.medicine != null, schedule.medicine?.patient?.id
+        )) { "Schedule and provider medication patient ownership mismatch" }
 
         val changes = ArrayList<Change>()
         changes.addAll(checkActiveMed(activeMed, schedule))
