@@ -63,6 +63,40 @@ object ActiveMedUpdater {
         codes.all { !it.isNullOrBlank() } && codes.size == codes.toSet().size
 
     /**
+     * Historical databases can contain ambiguous or cross-owned links.
+     * Their deletion cannot be reconciled through findOneBy without risking
+     * a stranded schedule or an unrelated patient's medicine.
+     */
+    internal fun hasOneOrNoOwnerMatchedLink(
+        expectedPatientId: Long?, linkedPatientIds: Collection<Long?>
+    ): Boolean = expectedPatientId != null && expectedPatientId > 0L &&
+        linkedPatientIds.size <= 1 &&
+        linkedPatientIds.all { it == expectedPatientId }
+
+    /**
+     * Validate every provider medicine due for retirement *before* changing
+     * any SQLite rows, scheduling events or cached FHIR revision.
+     * Linked rows with multiple or foreign owners require separate repair.
+     */
+    private fun validatePendingRetirementLinks(patientId: Long, incomingCodes: Set<String?>) {
+        DB.healthcareProviderDB().activeMeds()
+            .findBy(ActiveMedEntity.COLUMN_PATIENT, patientId)
+            .filter { it.code !in incomingCodes }
+            .forEach { stored ->
+                check(stored.patient?.id == patientId) {
+                    "Provider medicine ownership mismatch before retirement"
+                }
+                val schedules = DB.schedules().findBy(Schedule.BOUND_TO, stored.id)
+                val medicines = DB.medicines().findBy(Medicine.COLUMN_ACTIVE_MED_ID, stored.id)
+                check(hasOneOrNoOwnerMatchedLink(patientId, schedules.map { it.patient?.id }) &&
+                      hasOneOrNoOwnerMatchedLink(patientId, medicines.map { it.patient?.id }) &&
+                      schedules.all { it.medicine == null || it.medicine.patient?.id == patientId }) {
+                    "Ambiguous or cross-patient provider medicine retirement links"
+                }
+            }
+    }
+
+    /**
      * Called when active med list has changed
      *
      * @param newHash the new hash
@@ -93,6 +127,10 @@ object ActiveMedUpdater {
             LogUtil.w(TAG, "Provider medication update rejected due to patient ownership mismatch")
             throw IllegalStateException("Provider medication patient ownership mismatch")
         }
+        // Fail closed on ambiguous or cross-patient local links before any
+        // scheduling side effects. The reconciliation transaction itself
+        // checks that the active patient has not changed.
+        validatePendingRetirementLinks(patient.id, activeMedication.map { it.code }.toSet())
         val summary = UpdateSummary()
         // update active med list
         // Even a verified, complete empty FHIR snapshot is authoritative:
