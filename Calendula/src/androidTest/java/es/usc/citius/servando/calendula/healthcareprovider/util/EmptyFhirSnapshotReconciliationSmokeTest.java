@@ -19,6 +19,8 @@ import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMed
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageEntity;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageType;
 import es.usc.citius.servando.calendula.persistence.Patient;
+import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 import es.usc.citius.servando.calendula.util.ProviderRevisionGuard;
@@ -49,6 +51,8 @@ public class EmptyFhirSnapshotReconciliationSmokeTest {
         DosageEntity doseB = dosage();
         ActiveMedEntity medA = med("ci-empty-med-a-" + nonce, a, doseA);
         ActiveMedEntity medB = med("ci-empty-med-b-" + nonce, b, doseB);
+        Medicine localA = new Medicine("Synthetic linked medicine A");
+        Medicine localB = new Medicine("Synthetic linked medicine B");
         try {
             assertEquals(1, DB.patients().create(a));
             assertEquals(1, DB.patients().create(b));
@@ -56,6 +60,16 @@ public class EmptyFhirSnapshotReconciliationSmokeTest {
             assertEquals(1, DB.healthcareProviderDB().dosages().create(doseB));
             assertEquals(1, DB.healthcareProviderDB().activeMeds().create(medA));
             assertEquals(1, DB.healthcareProviderDB().activeMeds().create(medB));
+            localA.setPatient(a);
+            localA.setActiveMedId(medA.getId());
+            localA.setPresentation(Presentation.PILLS);
+            localA.setStock(12.0f);
+            localB.setPatient(b);
+            localB.setActiveMedId(medB.getId());
+            localB.setPresentation(Presentation.PILLS);
+            localB.setStock(7.0f);
+            assertEquals(1, DB.medicines().create(localA));
+            assertEquals(1, DB.medicines().create(localB));
 
             DB.patients().setActive(a);
             String firstRevision = "ci-empty-fhir-revision-" + nonce;
@@ -68,6 +82,16 @@ public class EmptyFhirSnapshotReconciliationSmokeTest {
                     DB.healthcareProviderDB().activeMeds().findById(medB.getId()));
             assertNotNull("Other patient's dosage must remain untouched",
                     DB.healthcareProviderDB().dosages().findById(doseB.getId()));
+            Medicine afterA = DB.medicines().findById(localA.getId());
+            Medicine afterB = DB.medicines().findById(localB.getId());
+            assertNotNull(afterA);
+            assertNotNull(afterB);
+            assertNull("Discontinued official medicine must be unlinked, not deleted",
+                    afterA.getActiveMedId());
+            assertEquals("Local stock must be preserved", Float.valueOf(12.0f), afterA.getStock());
+            assertEquals("Other patient's provider link must remain",
+                    medB.getId(), afterB.getActiveMedId());
+            assertEquals("Other patient's stock must remain", Float.valueOf(7.0f), afterB.getStock());
             assertEquals(firstRevision,
                     ProviderRevisionGuard.lastRevisionForPatient(a, a.getCode()));
             assertNull(ProviderRevisionGuard.lastRevisionForPatient(b, b.getCode()));
@@ -89,6 +113,11 @@ public class EmptyFhirSnapshotReconciliationSmokeTest {
                 DB.patients().setActive(previous);
             } else {
                 PreferenceUtils.edit().remove(PreferenceKeys.PATIENTS_ACTIVE.key()).commit();
+            }
+            for (Medicine m : new Medicine[]{localA, localB}) {
+                if (m.getId() != null && DB.medicines().findById(m.getId()) != null) {
+                    DB.medicines().deleteById(m.getId());
+                }
             }
             for (ActiveMedEntity med : new ActiveMedEntity[]{medA, medB}) {
                 if (med.getId() != null
