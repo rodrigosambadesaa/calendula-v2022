@@ -26,7 +26,7 @@ import es.usc.citius.servando.calendula.events.PersistenceEvents
 import es.usc.citius.servando.calendula.persistence.Medicine
 import es.usc.citius.servando.calendula.persistence.Patient
 import es.usc.citius.servando.calendula.persistence.Schedule
-import es.usc.citius.servando.calendula.persistence.ScheduleUtils
+import es.usc.citius.servando.calendula.scheduling.Agenda
 import es.usc.citius.servando.calendula.healthcareprovider.jobs.UpdateSummary
 import es.usc.citius.servando.calendula.healthcareprovider.model.ActiveMedVO
 import es.usc.citius.servando.calendula.healthcareprovider.model.DosageVO
@@ -127,10 +127,6 @@ object ActiveMedUpdater {
             LogUtil.w(TAG, "Provider medication update rejected due to patient ownership mismatch")
             throw IllegalStateException("Provider medication patient ownership mismatch")
         }
-        // Fail closed on ambiguous or cross-patient local links before any
-        // scheduling side effects. The reconciliation transaction itself
-        // checks that the active patient has not changed.
-        validatePendingRetirementLinks(patient.id, activeMedication.map { it.code }.toSet())
         val summary = UpdateSummary()
         // update active med list
         // Even a verified, complete empty FHIR snapshot is authoritative:
@@ -144,6 +140,9 @@ object ActiveMedUpdater {
             check(DB.patients().getActive(ctx)?.id == patient.id) {
                 "Active patient changed during provider import"
             }
+            // Link ownership must be checked inside the same transaction as
+            // the eventual retirement, not against a stale preflight snapshot.
+            validatePendingRetirementLinks(patient.id, activeMedication.map { it.code }.toSet())
             activeMedication.forEach {
                 // Abort and roll back if a profile switch is observed
                 // between imported items, rather than continuing writes.
@@ -173,6 +172,12 @@ object ActiveMedUpdater {
             }
             cleanOldActiveMeds(ctx, patient.id, summary, activeMedication)
         }
+        // Never cancel OS alarm tokens before SQLite commits: a rollback
+        // could restore medication/schedules while leaving alarms revoked.
+        // Always retry cleanup, even if the previous attempt committed SQL
+        // and failed before writing the remote revision. This also recovers
+        // outstanding unlinked reminders left by an interrupted sync.
+        Agenda.instance().cleanReminders(ctx)
         // Even an empty snapshot must not acknowledge a remote revision for
         // a patient who was switched away during the import.
         check(DB.patients().getActive(ctx)?.id == patient.id) {
@@ -355,7 +360,7 @@ object ActiveMedUpdater {
             it.removeState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL)
             it.activeMedId = null
             DB.schedules().save(it)
-            ScheduleUtils.instance().removeFutureScheduleEvents(c, it, false)
+            DB.eventInstances().removeByRefAndTime(it.id, DateTime.now())
         }
         // Remove active med reference from linked medicines
         DB.medicines().findOneBy(Medicine.COLUMN_ACTIVE_MED_ID, activeMed.id)?.let {
@@ -394,7 +399,7 @@ object ActiveMedUpdater {
                 }
             }
             DB.schedules().save(it)
-            ScheduleUtils.instance().removeFutureScheduleEvents(c, it, false)
+            DB.eventInstances().removeByRefAndTime(it.id, DateTime.now())
         }
     }
 
