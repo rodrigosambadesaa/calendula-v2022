@@ -21,6 +21,10 @@ import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageTyp
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Presentation;
+import es.usc.citius.servando.calendula.persistence.Schedule;
+import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
+import es.usc.citius.servando.calendula.scheduling.model.EventType;
+import org.joda.time.DateTime;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 import es.usc.citius.servando.calendula.util.ProviderRevisionGuard;
@@ -53,6 +57,11 @@ public class EmptyFhirSnapshotReconciliationSmokeTest {
         ActiveMedEntity medB = med("ci-empty-med-b-" + nonce, b, doseB);
         Medicine localA = new Medicine("Synthetic linked medicine A");
         Medicine localB = new Medicine("Synthetic linked medicine B");
+        Schedule scheduleA = new Schedule(localA);
+        Schedule scheduleB = new Schedule(localB);
+        EventInstance completedHistory = null;
+        EventInstance futureA = null;
+        EventInstance futureB = null;
         try {
             assertEquals(1, DB.patients().create(a));
             assertEquals(1, DB.patients().create(b));
@@ -70,6 +79,32 @@ public class EmptyFhirSnapshotReconciliationSmokeTest {
             localB.setStock(7.0f);
             assertEquals(1, DB.medicines().create(localA));
             assertEquals(1, DB.medicines().create(localB));
+            scheduleA.setPatient(a);
+            scheduleA.setActiveMedId(medA.getId());
+            scheduleB.setPatient(b);
+            scheduleB.setActiveMedId(medB.getId());
+            assertEquals(1, DB.schedules().create(scheduleA));
+            assertEquals(1, DB.schedules().create(scheduleB));
+            DateTime now = DateTime.now().withMillisOfSecond(0);
+            completedHistory = new EventInstance(now.minusDays(2), EventType.MEDICATION_INTAKE);
+            completedHistory.setRef(scheduleA.getId());
+            completedHistory.setPatient(a);
+            completedHistory.addParam(EventInstance.PARAM_DOSE, 1.0d);
+            completedHistory.setCompleted(true);
+            completedHistory.setCompletedAt(now.minusDays(2).plusMinutes(3));
+            assertEquals(1, DB.eventInstances().create(completedHistory));
+
+            futureA = new EventInstance(now.plusDays(3), EventType.MEDICATION_INTAKE);
+            futureA.setRef(scheduleA.getId());
+            futureA.setPatient(a);
+            futureA.addParam(EventInstance.PARAM_DOSE, 1.0d);
+            assertEquals(1, DB.eventInstances().create(futureA));
+
+            futureB = new EventInstance(now.plusDays(3), EventType.MEDICATION_INTAKE);
+            futureB.setRef(scheduleB.getId());
+            futureB.setPatient(b);
+            futureB.addParam(EventInstance.PARAM_DOSE, 1.0d);
+            assertEquals(1, DB.eventInstances().create(futureB));
 
             DB.patients().setActive(a);
             String firstRevision = "ci-empty-fhir-revision-" + nonce;
@@ -92,6 +127,24 @@ public class EmptyFhirSnapshotReconciliationSmokeTest {
             assertEquals("Other patient's provider link must remain",
                     medB.getId(), afterB.getActiveMedId());
             assertEquals("Other patient's stock must remain", Float.valueOf(7.0f), afterB.getStock());
+            Schedule retiredSchedule = DB.schedules().findById(scheduleA.getId());
+            Schedule untouchedSchedule = DB.schedules().findById(scheduleB.getId());
+            assertNotNull(retiredSchedule);
+            assertNotNull(untouchedSchedule);
+            assertNull("Official link removed, local schedule remains", retiredSchedule.getActiveMedId());
+            assertTrue("Discontinued schedule requires patient review",
+                    retiredSchedule.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE));
+            assertEquals("Another patient's schedule remains linked",
+                    medB.getId(), untouchedSchedule.getActiveMedId());
+            assertFalse(untouchedSchedule.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE));
+            EventInstance history = DB.eventInstances().findById(completedHistory.getId());
+            assertNotNull("Confirmed dose history must survive provider retirement", history);
+            assertTrue(history.completed());
+            assertEquals(completedHistory.completedAt(), history.completedAt());
+            assertNull("Future A intake must not remain scheduled after retirement",
+                    DB.eventInstances().findById(futureA.getId()));
+            assertNotNull("Patient B future intake must remain unchanged",
+                    DB.eventInstances().findById(futureB.getId()));
             assertEquals(firstRevision,
                     ProviderRevisionGuard.lastRevisionForPatient(a, a.getCode()));
             assertNull(ProviderRevisionGuard.lastRevisionForPatient(b, b.getCode()));
@@ -113,6 +166,17 @@ public class EmptyFhirSnapshotReconciliationSmokeTest {
                 DB.patients().setActive(previous);
             } else {
                 PreferenceUtils.edit().remove(PreferenceKeys.PATIENTS_ACTIVE.key()).commit();
+            }
+            for (EventInstance ev : new EventInstance[]{completedHistory, futureA, futureB}) {
+                if (ev != null && ev.getId() != null
+                        && DB.eventInstances().findById(ev.getId()) != null) {
+                    DB.eventInstances().remove(ev);
+                }
+            }
+            for (Schedule s : new Schedule[]{scheduleA, scheduleB}) {
+                if (s.getId() != null && DB.schedules().findById(s.getId()) != null) {
+                    DB.schedules().remove(s);
+                }
             }
             for (Medicine m : new Medicine[]{localA, localB}) {
                 if (m.getId() != null && DB.medicines().findById(m.getId()) != null) {
