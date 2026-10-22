@@ -83,7 +83,7 @@ object ActiveMedUpdater {
             .findBy(ActiveMedEntity.COLUMN_PATIENT, patientId)
             .filter { it.code !in incomingCodes }
             .forEach { stored ->
-                check(stored.patient?.id == patientId) {
+                check(stored.patient.id == patientId) {
                     "Provider medicine ownership mismatch before retirement"
                 }
                 val schedules = DB.schedules().findBy(Schedule.BOUND_TO, stored.id)
