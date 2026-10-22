@@ -59,8 +59,23 @@ public class CrossPatientFhirRetirementSmokeTest {
                 ActiveMedUpdater.INSTANCE.onNewMeds(rejected,
                         Collections.<ActiveMedVO>emptyList(), ctx, false);
                 fail("Cross-owned schedule must reject official medicine retirement");
-            } catch (IllegalStateException expected) {
-                assertTrue(expected.getMessage().contains("retirement links"));
+            } catch (RuntimeException expected) {
+                // DB.transaction wraps the original ownership exception in a
+                // RuntimeException/SQLException. Check the full cause chain,
+                // not only the outer wrapper, so other failures cannot pass.
+                Throwable cause = expected;
+                boolean ownershipRejected = false;
+                while (cause != null) {
+                    if (cause instanceof IllegalStateException
+                            && cause.getMessage() != null
+                            && cause.getMessage().contains("retirement links")) {
+                        ownershipRejected = true;
+                        break;
+                    }
+                    cause = cause.getCause();
+                }
+                assertTrue("Expected cross-patient retirement ownership rejection",
+                        ownershipRejected);
             }
             assertNotNull("Official medicine must remain",
                     DB.healthcareProviderDB().activeMeds().findById(official.getId()));
