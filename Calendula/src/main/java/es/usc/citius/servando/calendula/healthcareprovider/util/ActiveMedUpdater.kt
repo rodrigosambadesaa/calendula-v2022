@@ -177,7 +177,7 @@ object ActiveMedUpdater {
         // Always retry cleanup, even if the previous attempt committed SQL
         // and failed before writing the remote revision. This also recovers
         // outstanding unlinked reminders left by an interrupted sync.
-        Agenda.instance().cleanReminders(ctx)
+        Agenda.instance().cleanRemindersForPatient(ctx, patient)
         // Even an empty snapshot must not acknowledge a remote revision for
         // a patient who was switched away during the import.
         check(DB.patients().getActive(ctx)?.id == patient.id) {
