@@ -18,6 +18,7 @@ import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageTyp
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
+import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import org.joda.time.DateTime;
 import es.usc.citius.servando.calendula.persistence.Patient;
@@ -55,6 +56,7 @@ public class EmptyFhirRollbackSmokeTest {
         Medicine local = new Medicine("Synthetic linked medicine", Presentation.PILLS);
         Schedule linkedSchedule = new Schedule(local);
         EventInstance future = null;
+        EventReminder pendingAlarm = null;
         final String trigger = "ci_empty_fhir_retire_abort";
         sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
         try {
@@ -73,6 +75,10 @@ public class EmptyFhirRollbackSmokeTest {
             future.setRef(linkedSchedule.getId());
             future.addParam(EventInstance.PARAM_DOSE, 1.0d);
             assertEquals(1, DB.eventInstances().create(future));
+            pendingAlarm = new EventReminder(future.getTime(), EventType.MEDICATION_INTAKE);
+            pendingAlarm.setPatient(patient);
+            pendingAlarm.setNextTime(future.getTime());
+            assertEquals(1, DB.eventReminders().create(pendingAlarm));
             DB.patients().setActive(patient);
             sqlite.execSQL("CREATE TRIGGER " + trigger
                 + " BEFORE DELETE ON ActiveMedItems WHEN OLD._id = " + official.getId()
@@ -105,6 +111,8 @@ public class EmptyFhirRollbackSmokeTest {
                 afterFailure.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE));
             assertNotNull("Uncommitted removal must not erase a future intake",
                 DB.eventInstances().findById(future.getId()));
+            assertNotNull("An aborted import must not revoke its alarm reminder",
+                DB.eventReminders().findById(pendingAlarm.getId()));
         } finally {
             sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
             SharedPreferences.Editor editor = prefs.edit();
@@ -117,6 +125,9 @@ public class EmptyFhirRollbackSmokeTest {
             } else {
                 PreferenceUtils.edit().remove(PreferenceKeys.PATIENTS_ACTIVE.key()).commit();
             }
+            if (pendingAlarm != null && pendingAlarm.getId() != null
+                    && DB.eventReminders().findById(pendingAlarm.getId()) != null)
+                DB.eventReminders().deleteById(pendingAlarm.getId());
             if (future != null && future.getId() != null
                     && DB.eventInstances().findById(future.getId()) != null)
                 DB.eventInstances().remove(future);
