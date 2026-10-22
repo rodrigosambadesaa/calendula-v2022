@@ -69,8 +69,11 @@ jobs:
           for attempt in 1 2 3 4; do
             echo "Verify Android Emulator tooling (attempt $attempt/4)"
             if "$MANAGER" --install emulator && \
-               test -x "$SDK/emulator/emulator" && \
-               "$SDK/emulator/emulator" -version >/dev/null 2>&1; then
+               test -x "$SDK/emulator/emulator"; then
+              # Some emulator builds return nonzero from the CLI -version
+              # probe despite a valid executable. Do not delete a healthy
+              # installation based only on that diagnostic.
+              "$SDK/emulator/emulator" -version || true
               exit 0
             fi
             echo "::warning::Android Emulator installation incomplete; retrying."
