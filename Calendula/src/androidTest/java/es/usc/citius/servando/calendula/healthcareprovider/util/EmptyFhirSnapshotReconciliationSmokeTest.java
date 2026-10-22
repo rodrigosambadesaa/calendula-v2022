@@ -23,6 +23,7 @@ import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
+import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import org.joda.time.DateTime;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
@@ -62,6 +63,8 @@ public class EmptyFhirSnapshotReconciliationSmokeTest {
         EventInstance completedHistory = null;
         EventInstance futureA = null;
         EventInstance futureB = null;
+        EventReminder reminderA = null;
+        EventReminder reminderB = null;
         try {
             assertEquals(1, DB.patients().create(a));
             assertEquals(1, DB.patients().create(b));
@@ -105,6 +108,14 @@ public class EmptyFhirSnapshotReconciliationSmokeTest {
             futureB.setPatient(b);
             futureB.addParam(EventInstance.PARAM_DOSE, 1.0d);
             assertEquals(1, DB.eventInstances().create(futureB));
+            reminderA = new EventReminder(futureA.getTime(), EventType.MEDICATION_INTAKE);
+            reminderA.setPatient(a);
+            reminderA.setNextTime(futureA.getTime());
+            reminderB = new EventReminder(futureB.getTime(), EventType.MEDICATION_INTAKE);
+            reminderB.setPatient(b);
+            reminderB.setNextTime(futureB.getTime());
+            assertEquals(1, DB.eventReminders().create(reminderA));
+            assertEquals(1, DB.eventReminders().create(reminderB));
 
             DB.patients().setActive(a);
             String firstRevision = "ci-empty-fhir-revision-" + nonce;
@@ -145,6 +156,10 @@ public class EmptyFhirSnapshotReconciliationSmokeTest {
                     DB.eventInstances().findById(futureA.getId()));
             assertNotNull("Patient B future intake must remain unchanged",
                     DB.eventInstances().findById(futureB.getId()));
+            assertNull("Patient A's obsolete future alarm must be retired",
+                    DB.eventReminders().findById(reminderA.getId()));
+            assertNotNull("Patient B's pending alarm must not be touched",
+                    DB.eventReminders().findById(reminderB.getId()));
             assertEquals(firstRevision,
                     ProviderRevisionGuard.lastRevisionForPatient(a, a.getCode()));
             assertNull(ProviderRevisionGuard.lastRevisionForPatient(b, b.getCode()));
@@ -166,6 +181,12 @@ public class EmptyFhirSnapshotReconciliationSmokeTest {
                 DB.patients().setActive(previous);
             } else {
                 PreferenceUtils.edit().remove(PreferenceKeys.PATIENTS_ACTIVE.key()).commit();
+            }
+            for (EventReminder reminder : new EventReminder[]{reminderA, reminderB}) {
+                if (reminder != null && reminder.getId() != null
+                        && DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().deleteById(reminder.getId());
+                }
             }
             for (EventInstance ev : new EventInstance[]{completedHistory, futureA, futureB}) {
                 if (ev != null && ev.getId() != null
