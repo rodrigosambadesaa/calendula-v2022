@@ -67,6 +67,17 @@ class ActiveMedPatientOwnershipTest {
     }
 
     @Test
+    fun providerRetirementLinksMustBeUnambiguousAndOwned() {
+        assertTrue(ActiveMedUpdater.hasOneOrNoOwnerMatchedLink(101L, emptyList()))
+        assertTrue(ActiveMedUpdater.hasOneOrNoOwnerMatchedLink(101L, listOf(101L)))
+        assertFalse(ActiveMedUpdater.hasOneOrNoOwnerMatchedLink(101L, listOf(101L, 101L)))
+        assertFalse(ActiveMedUpdater.hasOneOrNoOwnerMatchedLink(101L, listOf(102L)))
+        assertFalse(ActiveMedUpdater.hasOneOrNoOwnerMatchedLink(101L, listOf(null)))
+        assertFalse(ActiveMedUpdater.hasOneOrNoOwnerMatchedLink(0L, emptyList()))
+        assertFalse(ActiveMedUpdater.hasOneOrNoOwnerMatchedLink(null, emptyList()))
+    }
+
+    @Test
     fun switchingSelectedPatientRejectsPreviouslyParsedSnapshot() {
         assertFalse(ActiveMedUpdater.incomingOwnersMatchActivePatient(
             102L, listOf(101L)))

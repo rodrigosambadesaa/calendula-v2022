@@ -26,7 +26,7 @@ import es.usc.citius.servando.calendula.events.PersistenceEvents
 import es.usc.citius.servando.calendula.persistence.Medicine
 import es.usc.citius.servando.calendula.persistence.Patient
 import es.usc.citius.servando.calendula.persistence.Schedule
-import es.usc.citius.servando.calendula.persistence.ScheduleUtils
+import es.usc.citius.servando.calendula.scheduling.Agenda
 import es.usc.citius.servando.calendula.healthcareprovider.jobs.UpdateSummary
 import es.usc.citius.servando.calendula.healthcareprovider.model.ActiveMedVO
 import es.usc.citius.servando.calendula.healthcareprovider.model.DosageVO
@@ -63,6 +63,40 @@ object ActiveMedUpdater {
         codes.all { !it.isNullOrBlank() } && codes.size == codes.toSet().size
 
     /**
+     * Historical databases can contain ambiguous or cross-owned links.
+     * Their deletion cannot be reconciled through findOneBy without risking
+     * a stranded schedule or an unrelated patient's medicine.
+     */
+    internal fun hasOneOrNoOwnerMatchedLink(
+        expectedPatientId: Long?, linkedPatientIds: Collection<Long?>
+    ): Boolean = expectedPatientId != null && expectedPatientId > 0L &&
+        linkedPatientIds.size <= 1 &&
+        linkedPatientIds.all { it == expectedPatientId }
+
+    /**
+     * Validate every provider medicine due for retirement *before* changing
+     * any SQLite rows, scheduling events or cached FHIR revision.
+     * Linked rows with multiple or foreign owners require separate repair.
+     */
+    private fun validatePendingRetirementLinks(patientId: Long, incomingCodes: Set<String?>) {
+        DB.healthcareProviderDB().activeMeds()
+            .findBy(ActiveMedEntity.COLUMN_PATIENT, patientId)
+            .filter { it.code !in incomingCodes }
+            .forEach { stored ->
+                check(stored.patient.id == patientId) {
+                    "Provider medicine ownership mismatch before retirement"
+                }
+                val schedules = DB.schedules().findBy(Schedule.BOUND_TO, stored.id)
+                val medicines = DB.medicines().findBy(Medicine.COLUMN_ACTIVE_MED_ID, stored.id)
+                check(hasOneOrNoOwnerMatchedLink(patientId, schedules.map { it.patient?.id }) &&
+                      hasOneOrNoOwnerMatchedLink(patientId, medicines.map { it.patient?.id }) &&
+                      schedules.all { it.medicine == null || it.medicine.patient?.id == patientId }) {
+                    "Ambiguous or cross-patient provider medicine retirement links"
+                }
+            }
+    }
+
+    /**
      * Called when active med list has changed
      *
      * @param newHash the new hash
@@ -95,43 +129,55 @@ object ActiveMedUpdater {
         }
         val summary = UpdateSummary()
         // update active med list
-        if (activeMedication.isNotEmpty()) {
-            DB.transaction {
-                // A profile can change after FHIR parsing/preflight. Do not
-                // begin mutating medicines under a stale active patient.
+        // Even a verified, complete empty FHIR snapshot is authoritative:
+        // reconcile prior provider medicines instead of acknowledging its
+        // revision while silently retaining stale active prescriptions.
+        // The FHIR parser must reject malformed/partial snapshots *before*
+        // this function is reached. Cleanup remains patient-scoped.
+        DB.transaction {
+            // A profile can change after FHIR parsing/preflight. Do not
+            // begin mutating medicines under a stale active patient.
+            check(DB.patients().getActive(ctx)?.id == patient.id) {
+                "Active patient changed during provider import"
+            }
+            // Link ownership must be checked inside the same transaction as
+            // the eventual retirement, not against a stale preflight snapshot.
+            validatePendingRetirementLinks(patient.id, activeMedication.map { it.code }.toSet())
+            activeMedication.forEach {
+                // Abort and roll back if a profile switch is observed
+                // between imported items, rather than continuing writes.
                 check(DB.patients().getActive(ctx)?.id == patient.id) {
                     "Active patient changed during provider import"
                 }
-                activeMedication.forEach {
-                    // Abort and roll back if a profile switch is observed
-                    // between imported items, rather than continuing writes.
-                    check(DB.patients().getActive(ctx)?.id == patient.id) {
-                        "Active patient changed during provider import"
-                    }
-                    // always update dispensation info if med is stored
-                    if (isStored(it)) {
-                        updateActiveMedDispensation(it)
-                    }
-                    // update med and set pending review if something changed
-                    if (shouldBeUpdated(it)) {
-                        LogUtil.d(TAG, "onNewMeds: Updating a medication")
-                        val updatedMed = updateActiveMed(it, summary)
-                        setPendingReview(ctx, updatedMed)
-                    }
-                    // or create a new active med if it not exists
-                    else if (shouldBeCreated(it)) {
-                        LogUtil.d(TAG, "onNewMeds: Creating a medication")
-                        addToKit(createActiveMed(it, summary), patient)
-                    }
+                // always update dispensation info if med is stored
+                if (isStored(it)) {
+                    updateActiveMedDispensation(it)
                 }
-                // Cleanup can retire schedules: never run it after observing
-                // an intervening profile change.
-                check(DB.patients().getActive(ctx)?.id == patient.id) {
-                    "Active patient changed before provider cleanup"
+                // update med and set pending review if something changed
+                if (shouldBeUpdated(it)) {
+                    LogUtil.d(TAG, "onNewMeds: Updating a medication")
+                    val updatedMed = updateActiveMed(it, summary)
+                    setPendingReview(ctx, updatedMed)
                 }
-                cleanOldActiveMeds(ctx, patient.id, summary, activeMedication)
+                // or create a new active med if it not exists
+                else if (shouldBeCreated(it)) {
+                    LogUtil.d(TAG, "onNewMeds: Creating a medication")
+                    addToKit(createActiveMed(it, summary), patient)
+                }
             }
+            // Cleanup can retire schedules: never run it after observing
+            // an intervening profile change.
+            check(DB.patients().getActive(ctx)?.id == patient.id) {
+                "Active patient changed before provider cleanup"
+            }
+            cleanOldActiveMeds(ctx, patient.id, summary, activeMedication)
         }
+        // Never cancel OS alarm tokens before SQLite commits: a rollback
+        // could restore medication/schedules while leaving alarms revoked.
+        // Always retry cleanup, even if the previous attempt committed SQL
+        // and failed before writing the remote revision. This also recovers
+        // outstanding unlinked reminders left by an interrupted sync.
+        Agenda.instance().cleanRemindersForPatient(ctx, patient)
         // Even an empty snapshot must not acknowledge a remote revision for
         // a patient who was switched away during the import.
         check(DB.patients().getActive(ctx)?.id == patient.id) {
@@ -314,7 +360,7 @@ object ActiveMedUpdater {
             it.removeState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL)
             it.activeMedId = null
             DB.schedules().save(it)
-            ScheduleUtils.instance().removeFutureScheduleEvents(c, it, false)
+            DB.eventInstances().removeByRefAndTime(it.id, DateTime.now())
         }
         // Remove active med reference from linked medicines
         DB.medicines().findOneBy(Medicine.COLUMN_ACTIVE_MED_ID, activeMed.id)?.let {
@@ -353,7 +399,7 @@ object ActiveMedUpdater {
                 }
             }
             DB.schedules().save(it)
-            ScheduleUtils.instance().removeFutureScheduleEvents(c, it, false)
+            DB.eventInstances().removeByRefAndTime(it.id, DateTime.now())
         }
     }
 
