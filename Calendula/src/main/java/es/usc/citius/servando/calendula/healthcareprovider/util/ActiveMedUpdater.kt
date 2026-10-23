@@ -63,35 +63,33 @@ object ActiveMedUpdater {
         codes.all { !it.isNullOrBlank() } && codes.size == codes.toSet().size
 
     /**
-     * Historical databases can contain ambiguous or cross-owned links.
-     * Their deletion cannot be reconciled through findOneBy without risking
-     * a stranded schedule or an unrelated patient's medicine.
+     * Several local schedules/medicines can legitimately link to one official
+     * medication. Validate every linked owner rather than silently ignoring
+     * all but the first or allowing another patient's links to be mutated.
      */
-    internal fun hasOneOrNoOwnerMatchedLink(
+    internal fun allLinksBelongToPatient(
         expectedPatientId: Long?, linkedPatientIds: Collection<Long?>
     ): Boolean = expectedPatientId != null && expectedPatientId > 0L &&
-        linkedPatientIds.size <= 1 &&
         linkedPatientIds.all { it == expectedPatientId }
 
     /**
-     * Validate every provider medicine due for retirement *before* changing
-     * any SQLite rows, scheduling events or cached FHIR revision.
-     * Linked rows with multiple or foreign owners require separate repair.
+     * Validate *all* linked provider medicines before touching data. An
+     * incoming update may change schedules just as a retirement would.
+     * Cross-owned/ownerless records still require manual repair.
      */
-    private fun validatePendingRetirementLinks(patientId: Long, incomingCodes: Set<String?>) {
+    private fun validateLinkedProviderOwners(patientId: Long) {
         DB.healthcareProviderDB().activeMeds()
             .findBy(ActiveMedEntity.COLUMN_PATIENT, patientId)
-            .filter { it.code !in incomingCodes }
             .forEach { stored ->
                 check(stored.patient.id == patientId) {
                     "Provider medicine ownership mismatch before retirement"
                 }
                 val schedules = DB.schedules().findBy(Schedule.BOUND_TO, stored.id)
                 val medicines = DB.medicines().findBy(Medicine.COLUMN_ACTIVE_MED_ID, stored.id)
-                check(hasOneOrNoOwnerMatchedLink(patientId, schedules.map { it.patient?.id }) &&
-                      hasOneOrNoOwnerMatchedLink(patientId, medicines.map { it.patient?.id }) &&
+                check(allLinksBelongToPatient(patientId, schedules.map { it.patient?.id }) &&
+                      allLinksBelongToPatient(patientId, medicines.map { it.patient?.id }) &&
                       schedules.all { it.medicine == null || it.medicine.patient?.id == patientId }) {
-                    "Ambiguous or cross-patient provider medicine retirement links"
+                    "Cross-patient or ownerless provider medicine links"
                 }
             }
     }
@@ -142,7 +140,7 @@ object ActiveMedUpdater {
             }
             // Link ownership must be checked inside the same transaction as
             // the eventual retirement, not against a stale preflight snapshot.
-            validatePendingRetirementLinks(patient.id, activeMedication.map { it.code }.toSet())
+            validateLinkedProviderOwners(patient.id)
             activeMedication.forEach {
                 // Abort and roll back if a profile switch is observed
                 // between imported items, rather than continuing writes.
@@ -354,7 +352,7 @@ object ActiveMedUpdater {
 
     private fun onRemovedFromActiveMeds(c: Context, activeMed: ActiveMedEntity) {
         // Set schedule state to PENDING_REVIEW
-        DB.schedules().findOneBy(Schedule.BOUND_TO, activeMed.id)?.let {
+        DB.schedules().findBy(Schedule.BOUND_TO, activeMed.id).forEach {
             it.addState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE)
             it.removeState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL)
             it.removeState(Schedule.ScheduleState.DIFFERS_FROM_OFFICIAL)
@@ -363,7 +361,7 @@ object ActiveMedUpdater {
             DB.eventInstances().removeByRefAndTime(it.id, DateTime.now())
         }
         // Remove active med reference from linked medicines
-        DB.medicines().findOneBy(Medicine.COLUMN_ACTIVE_MED_ID, activeMed.id)?.let {
+        DB.medicines().findBy(Medicine.COLUMN_ACTIVE_MED_ID, activeMed.id).forEach {
             it.activeMedId = null
             DB.medicines().save(it)
         }
@@ -380,7 +378,7 @@ object ActiveMedUpdater {
 
     private fun setPendingReview(c: Context, activeMed: ActiveMedEntity) {
         // Set schedule state to PENDING_REVIEW
-        DB.schedules().findOneBy(Schedule.BOUND_TO, activeMed.id)?.let {
+        DB.schedules().findBy(Schedule.BOUND_TO, activeMed.id).forEach {
             it.addState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE)
             val vo = ActiveMedVO.forEntity(activeMed);
             val dosage: DosageVO = vo.dosage
