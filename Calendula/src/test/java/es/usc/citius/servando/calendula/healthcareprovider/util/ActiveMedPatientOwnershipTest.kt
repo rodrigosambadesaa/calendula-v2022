@@ -67,14 +67,16 @@ class ActiveMedPatientOwnershipTest {
     }
 
     @Test
-    fun providerRetirementLinksMustBeUnambiguousAndOwned() {
-        assertTrue(ActiveMedUpdater.hasOneOrNoOwnerMatchedLink(101L, emptyList()))
-        assertTrue(ActiveMedUpdater.hasOneOrNoOwnerMatchedLink(101L, listOf(101L)))
-        assertFalse(ActiveMedUpdater.hasOneOrNoOwnerMatchedLink(101L, listOf(101L, 101L)))
-        assertFalse(ActiveMedUpdater.hasOneOrNoOwnerMatchedLink(101L, listOf(102L)))
-        assertFalse(ActiveMedUpdater.hasOneOrNoOwnerMatchedLink(101L, listOf(null)))
-        assertFalse(ActiveMedUpdater.hasOneOrNoOwnerMatchedLink(0L, emptyList()))
-        assertFalse(ActiveMedUpdater.hasOneOrNoOwnerMatchedLink(null, emptyList()))
+    fun multipleOwnedProviderLinksAreAllowedButForeignOrMissingOwnersAreRejected() {
+        assertTrue(ActiveMedUpdater.allLinksBelongToPatient(101L, emptyList()))
+        assertTrue(ActiveMedUpdater.allLinksBelongToPatient(101L, listOf(101L)))
+        assertTrue(ActiveMedUpdater.allLinksBelongToPatient(101L, listOf(101L, 101L)))
+        assertTrue(ActiveMedUpdater.allLinksBelongToPatient(101L, listOf(101L, 101L, 101L)))
+        assertFalse(ActiveMedUpdater.allLinksBelongToPatient(101L, listOf(101L, 102L)))
+        assertFalse(ActiveMedUpdater.allLinksBelongToPatient(101L, listOf(102L)))
+        assertFalse(ActiveMedUpdater.allLinksBelongToPatient(101L, listOf(null)))
+        assertFalse(ActiveMedUpdater.allLinksBelongToPatient(0L, emptyList()))
+        assertFalse(ActiveMedUpdater.allLinksBelongToPatient(null, emptyList()))
     }
 
     @Test
