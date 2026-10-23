@@ -35,6 +35,20 @@ public final class DailyAgendaOfficialTreatmentValidator {
                 && scheduleOwner.getId().equals(externalOwner.getId());
     }
 
+    /**
+     * Schedule editor previews must be bound to the patient currently active
+     * in the UI, in addition to checking the imported provider row itself.
+     * Missing/stale provider data may not be displayed across profiles.
+     */
+    public static boolean verifiedLinkForActivePatient(
+            Schedule schedule, ActiveMedEntity external, Patient activePatient) {
+        return activePatient != null && activePatient.getId() != null
+                && activePatient.getId() > 0L
+                && schedule != null && schedule.getPatient() != null
+                && activePatient.getId().equals(schedule.getPatient().getId())
+                && verifiedLink(schedule, external);
+    }
+
     @Nullable
     public static String firstInstruction(Schedule schedule, ActiveMedEntity external) {
         if (!verifiedLink(schedule, external)) {
