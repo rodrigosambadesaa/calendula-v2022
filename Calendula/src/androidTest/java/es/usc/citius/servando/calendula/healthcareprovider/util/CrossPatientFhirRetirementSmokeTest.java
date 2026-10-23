@@ -68,7 +68,7 @@ public class CrossPatientFhirRetirementSmokeTest {
                 while (cause != null) {
                     if (cause instanceof IllegalStateException
                             && cause.getMessage() != null
-                            && cause.getMessage().contains("retirement links")) {
+                            && cause.getMessage().contains("Cross-patient or ownerless provider medicine links")) {
                         ownershipRejected = true;
                         break;
                     }
