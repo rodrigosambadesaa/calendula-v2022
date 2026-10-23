@@ -72,6 +72,28 @@ public class DailyAgendaOfficialTreatmentValidatorTest {
     }
 
     @Test
+    public void editorPreviewRequiresBothActivePatientAndVerifiedOfficialRecord() {
+        Patient owner = patient(755555L);
+        Schedule linked = schedule(owner);
+        ActiveMedEntity official = provider(patient(755555L));
+        assertTrue(DailyAgendaOfficialTreatmentValidator.verifiedLinkForActivePatient(
+                linked, official, patient(755555L)));
+        assertFalse(DailyAgendaOfficialTreatmentValidator.verifiedLinkForActivePatient(
+                linked, official, patient(755556L)));
+        assertFalse(DailyAgendaOfficialTreatmentValidator.verifiedLinkForActivePatient(
+                linked, provider(patient(755556L)), patient(755555L)));
+        assertFalse(DailyAgendaOfficialTreatmentValidator.verifiedLinkForActivePatient(
+                linked, null, patient(755555L)));
+        assertFalse(DailyAgendaOfficialTreatmentValidator.verifiedLinkForActivePatient(
+                linked, official, null));
+        assertFalse(DailyAgendaOfficialTreatmentValidator.verifiedLinkForActivePatient(
+                linked, official, patient(0L)));
+        linked.setActiveMedId(null);
+        assertFalse(DailyAgendaOfficialTreatmentValidator.verifiedLinkForActivePatient(
+                linked, official, patient(755555L)));
+    }
+
+    @Test
     public void missingOrIncompleteProviderRowsAreNotDisplayable() {
         Patient owner = patient(755555L);
         Schedule s = schedule(owner);
