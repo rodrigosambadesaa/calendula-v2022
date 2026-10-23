@@ -376,7 +376,7 @@ object ActiveMedUpdater {
 
     }
 
-    private fun setPendingReview(c: Context, activeMed: ActiveMedEntity) {
+    internal fun setPendingReview(c: Context, activeMed: ActiveMedEntity) {
         // Set schedule state to PENDING_REVIEW
         DB.schedules().findBy(Schedule.BOUND_TO, activeMed.id).forEach {
             it.addState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE)
