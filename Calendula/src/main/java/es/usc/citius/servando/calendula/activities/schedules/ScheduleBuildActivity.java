@@ -82,6 +82,7 @@ import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime;
 import es.usc.citius.servando.calendula.scheduling.model.recur.RecurringEvent;
 import es.usc.citius.servando.calendula.healthcareprovider.model.ActiveMedVO;
+import es.usc.citius.servando.calendula.fragments.DailyAgendaOfficialTreatmentValidator;
 import es.usc.citius.servando.calendula.healthcareprovider.util.ScheduleComparator;
 import es.usc.citius.servando.calendula.healthcareprovider.util.ScheduleCreator;
 import es.usc.citius.servando.calendula.util.IconUtils;
@@ -444,8 +445,23 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
 
         }
 
-        if (isInEditMode() && editingSchedule.isBoundToActiveMed() && editingSchedule.hasState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL)) {
-            this.activeMed = ActiveMedVO.forEntity(DB.healthcareProviderDB().activeMeds().findById(editingSchedule.getActiveMedId()));
+        // A saved schedule can outlive the official provider record or be
+        // opened after a patient switch. Never load or display a foreign
+        // patient's prescription from an unscoped provider ID.
+        ActiveMedEntity trustedProvider = null;
+        if (isInEditMode() && editingSchedule != null
+                && editingSchedule.isBoundToActiveMed()
+                && editingSchedule.hasState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL)) {
+            Patient currentPatient = DB.patients().getActive(this);
+            ActiveMedEntity candidate = DB.healthcareProviderDB().activeMeds()
+                    .findByIdForPatient(editingSchedule.getActiveMedId(), currentPatient);
+            if (DailyAgendaOfficialTreatmentValidator.verifiedLinkForActivePatient(
+                    editingSchedule, candidate, currentPatient)) {
+                trustedProvider = candidate;
+            }
+        }
+        if (trustedProvider != null) {
+            this.activeMed = ActiveMedVO.forEntity(trustedProvider);
             activeMedInfoContainer.setVisibility(View.VISIBLE);
             providerIcon.setImageDrawable(new IconicsDrawable(this)
                     .icon(HealthcareProviderTypeface.Icon.hcp_healthcare_provider)
