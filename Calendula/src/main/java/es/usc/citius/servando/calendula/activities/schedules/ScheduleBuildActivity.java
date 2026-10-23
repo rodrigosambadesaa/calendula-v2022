@@ -81,6 +81,7 @@ import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime;
 import es.usc.citius.servando.calendula.scheduling.model.recur.RecurringEvent;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
 import es.usc.citius.servando.calendula.healthcareprovider.model.ActiveMedVO;
 import es.usc.citius.servando.calendula.fragments.DailyAgendaOfficialTreatmentValidator;
 import es.usc.citius.servando.calendula.healthcareprovider.util.ScheduleComparator;
