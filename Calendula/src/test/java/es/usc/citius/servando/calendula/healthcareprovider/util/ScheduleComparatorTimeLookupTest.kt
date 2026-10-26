@@ -63,4 +63,18 @@ class ScheduleComparatorTimeLookupTest {
         org.junit.Assert.assertEquals(Int.MAX_VALUE,
             ScheduleComparator.usablePeriodIntervalOrNull(Int.MAX_VALUE.toDouble()))
     }
+    @Test
+    fun absentFHIRPeriodUnitIsReportedAsUnavailableWithoutThrowing() {
+        assertNull(ScheduleComparator.usablePeriodFrequencyOrNull(null))
+        org.junit.Assert.assertEquals(org.dmfs.rfc5545.recur.Freq.HOURLY,
+            ScheduleComparator.usablePeriodFrequencyOrNull(
+                org.hl7.fhir.dstu3.model.Timing.UnitsOfTime.H))
+        org.junit.Assert.assertEquals(org.dmfs.rfc5545.recur.Freq.DAILY,
+            ScheduleComparator.usablePeriodFrequencyOrNull(
+                org.hl7.fhir.dstu3.model.Timing.UnitsOfTime.D))
+        org.junit.Assert.assertEquals(org.dmfs.rfc5545.recur.Freq.WEEKLY,
+            ScheduleComparator.usablePeriodFrequencyOrNull(
+                org.hl7.fhir.dstu3.model.Timing.UnitsOfTime.WK))
+    }
+
 }
