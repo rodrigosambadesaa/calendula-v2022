@@ -63,6 +63,7 @@
     <string name="prefkey_remote_last_hash_owner" translatable="false">remote_last_hash_owner</string>
     <string name="prefkey_remote_last_updated" translatable="false">remote_last_update_timestamp</string>
     <string name="prefkey_remote_last_updated_summary" translatable="false">remote_last_update_summary</string>
+    <string name="prefkey_remote_last_updated_summary_owner" translatable="false">remote_last_update_summary_owner</string>
     <string name="prefkey_remote_failed_update" translatable="false">remote_failed_update</string>
     <string name="prefkey_remote_periodic_job_id" translatable="false">remote_periodic_job_id</string>
     <string name="prefkey_remote_patient_name_retrieved" translatable="false">remote_patient_name_retrieved</string>
