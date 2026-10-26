@@ -184,13 +184,21 @@ public class DispensationInfoStore {
     }
 
     public DispensationInfoEntity lastPickedUp() {
-        for (int i = dispensationInfoList.size() - 1; i >= 0; i--) {
-            DispensationInfoEntity e = dispensationInfoList.get(i);
-            if (e.isDispensed()) {
-                return e;
+        // Entries are sorted by their *eligible pickup interval*, not by when
+        // medicines were actually dispensed. The latter is the only valid
+        // ordering for the "last picked up" patient-facing summary.
+        DispensationInfoEntity latest = null;
+        for (DispensationInfoEntity entry : dispensationInfoList) {
+            if (entry == null || !entry.isDispensed()
+                    || entry.getDispensedDateTime() == null) {
+                continue;
+            }
+            if (latest == null || entry.getDispensedDateTime()
+                    .isAfter(latest.getDispensedDateTime())) {
+                latest = entry;
             }
         }
-        return null;
+        return latest;
     }
 
     public DispensationInfoEntity nextForPickUp(DateTime date) {
