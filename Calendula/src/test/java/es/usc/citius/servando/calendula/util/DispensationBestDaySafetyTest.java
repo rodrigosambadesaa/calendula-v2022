@@ -38,8 +38,10 @@ public class DispensationBestDaySafetyTest {
                 DispensationInfoStore.chooseBestNonSundayPickup(days);
         assertNotNull(chosen);
         assertEquals(SATURDAY, chosen.first);
-        assertEquals(Collections.singletonList(saturdayMed), chosen.second);
-        assertFalse(chosen.second.contains(sundayOnly));
+        assertEquals(1, chosen.second.size());
+        assertSame(saturdayMed, chosen.second.get(0));
+        assertNotSame("Do not show a Sunday-only medicine as eligible on Saturday",
+                sundayOnly, chosen.second.get(0));
     }
 
     @Test
