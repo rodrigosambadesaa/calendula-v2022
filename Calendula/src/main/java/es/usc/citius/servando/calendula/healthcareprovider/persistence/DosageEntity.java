@@ -143,7 +143,9 @@ public class DosageEntity {
 
     @Override
     public int hashCode() {
-        int result = type.hashCode();
+        // Legacy/partially imported provider rows may have no dosage type.
+        // Hashing them must not crash model collections or audit/recovery code.
+        int result = type != null ? type.hashCode() : 0;
         result = 31 * result + (entries != null ? entries.hashCode() : 0);
         return result;
     }
