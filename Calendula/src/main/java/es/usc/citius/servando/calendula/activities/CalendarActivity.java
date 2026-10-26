@@ -472,6 +472,20 @@ public class CalendarActivity extends CalendulaActivity {
                 && expected.getId() > 0L && expected.getId().equals(active.getId());
     }
 
+    /** A dispensation row must belong to the exact patient-owned provider medicine. */
+    static boolean isOwnedPickup(Patient selected, ActiveMedEntity provider,
+                                 DispensationInfoEntity pickup) {
+        if (selected == null || provider == null || provider.getId() == null
+                || provider.getId() <= 0L || !samePersistedPatient(selected, provider.getPatient())
+                || pickup == null || pickup.getDispenseInterval() == null
+                || pickup.getActiveMed() == null) {
+            return false;
+        }
+        ActiveMedEntity linked = pickup.getActiveMed();
+        return provider.getId().equals(linked.getId())
+                && samePersistedPatient(selected, linked.getPatient());
+    }
+
     private void updatePickupsAsync() {
         LogUtil.d(TAG, "updatePickupsAsync: starting");
         final ProgressDialog dialog = new ProgressDialog(this);
@@ -497,7 +511,12 @@ public class CalendarActivity extends CalendulaActivity {
                         java.util.Collection<DispensationInfoEntity> dispensed =
                                 med.getDispensationInfo();
                         if (dispensed != null) {
-                            rows.addAll(dispensed);
+                            for (DispensationInfoEntity entry : dispensed) {
+                                if (!isOwnedPickup(patientForQuery, med, entry)) {
+                                    throw new IllegalStateException("Provider pickup link is invalid");
+                                }
+                                rows.add(entry);
+                            }
                         }
                     }
                     fetched = new DispensationInfoStore(rows);
