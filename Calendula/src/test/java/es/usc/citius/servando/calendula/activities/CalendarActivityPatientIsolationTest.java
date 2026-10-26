@@ -67,6 +67,40 @@ public class CalendarActivityPatientIsolationTest {
         assertFalse(CalendarActivity.isOwnedPickup(a, providerA, pickup));
     }
 
+    @Test
+    public void selectingDateRejectsEntireSetContainingForeignOrMissingPickup() {
+        Patient a = patient(711L);
+        Patient b = patient(712L);
+        ActiveMedEntity owned = new ActiveMedEntity();
+        owned.setId(301L);
+        owned.setPatient(a);
+        ActiveMedEntity foreign = new ActiveMedEntity();
+        foreign.setId(302L);
+        foreign.setPatient(b);
+        DispensationInfoEntity valid = new DispensationInfoEntity();
+        valid.setActiveMed(owned);
+        valid.setDispenseInterval(new Interval(
+                new DateTime(2026, 10, 26, 0, 0),
+                new DateTime(2026, 10, 27, 0, 0)));
+        DispensationInfoEntity wrongOwner = new DispensationInfoEntity();
+        wrongOwner.setActiveMed(foreign);
+        wrongOwner.setDispenseInterval(valid.getDispenseInterval());
+        DispensationInfoEntity orphan = new DispensationInfoEntity();
+        orphan.setDispenseInterval(valid.getDispenseInterval());
+
+        assertTrue(CalendarActivity.allPickupsBelongToPatient(a,
+                java.util.Collections.singletonList(valid)));
+        assertFalse(CalendarActivity.allPickupsBelongToPatient(a,
+                java.util.Arrays.asList(valid, wrongOwner)));
+        assertFalse(CalendarActivity.allPickupsBelongToPatient(a,
+                java.util.Arrays.asList(valid, orphan)));
+        assertFalse(CalendarActivity.allPickupsBelongToPatient(a,
+                java.util.Arrays.asList(valid, null)));
+        assertFalse(CalendarActivity.allPickupsBelongToPatient(a, null));
+        assertFalse(CalendarActivity.allPickupsBelongToPatient(b,
+                java.util.Collections.singletonList(valid)));
+    }
+
     private static Patient patient(Long id) {
         Patient p = new Patient();
         p.setId(id);
