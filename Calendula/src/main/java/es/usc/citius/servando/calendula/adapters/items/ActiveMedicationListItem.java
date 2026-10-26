@@ -160,7 +160,10 @@ public class ActiveMedicationListItem extends AbstractItem<ActiveMedicationListI
                     switch (dosageType) {
                         case AS_NEEDED:
                             if (!ProviderCardPresentationGuard.hasFirstDosageEntry(entries.size())
-                                    || entries.get(0) == null) {
+                                    || entries.get(0) == null
+                                    || !ProviderCardPresentationGuard.canRenderPeriod(
+                                            entries.get(0).getRepeatValue(),
+                                            entries.get(0).getRepeatUnits())) {
                                 dosageStr = ctx.getString(R.string.aml_schedule_info_missing);
                                 break;
                             }
@@ -172,7 +175,10 @@ public class ActiveMedicationListItem extends AbstractItem<ActiveMedicationListI
                             break;
                         case GENERAL:
                             if (!ProviderCardPresentationGuard.hasFirstDosageEntry(entries.size())
-                                    || entries.get(0) == null) {
+                                    || entries.get(0) == null
+                                    || !ProviderCardPresentationGuard.canRenderPeriod(
+                                            entries.get(0).getRepeatValue(),
+                                            entries.get(0).getRepeatUnits())) {
                                 dosageStr = ctx.getString(R.string.aml_schedule_info_missing);
                                 break;
                             }

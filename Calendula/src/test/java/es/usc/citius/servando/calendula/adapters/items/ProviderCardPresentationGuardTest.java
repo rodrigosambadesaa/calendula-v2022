@@ -18,6 +18,21 @@ public class ProviderCardPresentationGuardTest {
     }
 
     @Test
+    public void malformedProviderRepeatPeriodsMustNeverAppearAsValidSchedule() {
+        org.hl7.fhir.dstu3.model.Timing.UnitsOfTime hours =
+                org.hl7.fhir.dstu3.model.Timing.UnitsOfTime.H;
+        for (Double invalid : new Double[]{null, -1.0d, 0.0d,
+                Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY}) {
+            assertFalse(ProviderCardPresentationGuard.canRenderPeriod(invalid, hours));
+        }
+        assertFalse(ProviderCardPresentationGuard.canRenderPeriod(8.0d, null));
+        assertTrue(ProviderCardPresentationGuard.canRenderPeriod(0.5d, hours));
+        assertTrue(ProviderCardPresentationGuard.canRenderPeriod(8.0d, hours));
+        assertTrue(ProviderCardPresentationGuard.canRenderPeriod(
+                1.0d, org.hl7.fhir.dstu3.model.Timing.UnitsOfTime.D));
+    }
+
+    @Test
     public void missingFutureOrInvalidUpdateTimestampsMustNotBeDisplayed() {
         long now = 1_000_000_000L;
         assertFalse(ProviderCardPresentationGuard.mayShowUpdateDate(null, now, false));
