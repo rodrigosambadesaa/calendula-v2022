@@ -53,6 +53,8 @@ import es.usc.citius.servando.calendula.drugdb.DBRegistry;
 import es.usc.citius.servando.calendula.drugdb.PrescriptionDBMgr;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.persistence.Schedule;
+import es.usc.citius.servando.calendula.persistence.Patient;
+import es.usc.citius.servando.calendula.fragments.OfficialReminderLinkSelector;
 import es.usc.citius.servando.calendula.scheduling.ScheduleDisplayUtils;
 import es.usc.citius.servando.calendula.healthcareprovider.model.ActiveMedCNVO;
 import es.usc.citius.servando.calendula.healthcareprovider.model.ActiveMedDCPFVO;
@@ -126,26 +128,11 @@ public class ActiveMedicationListItem extends AbstractItem<ActiveMedicationListI
                     } else {
                         holder.infoButton.setVisibility(View.GONE);
                         holder.infoButton.setEnabled(false);
-                        holder.reminderButton.setVisibility(View.VISIBLE);
-                        holder.reminderButton.setEnabled(true);
+                        bindVerifiedReminderButton(holder, vo, ctx);
                     }
 
                 } else if (!DosageType.AS_NEEDED.equals(dosageType)) {
-                    Schedule schedule = DB.schedules().findOneBy(Schedule.BOUND_TO, vo.getBackingEntity().getId());
-                    if (schedule != null) {
-                        holder.reminderButton.setImageDrawable(IconUtils.icon(ctx,
-                                CommunityMaterial.Icon.cmd_bell_ring,
-                                R.color.black, 30, 5));
-                    }
-                    else {
-                        IconicsDrawable icon = IconUtils.icon(ctx,
-                                CommunityMaterial.Icon.cmd_bell_plus,
-                                R.color.black, 30, 5);
-
-                        holder.reminderButton.setImageDrawable(icon);
-                    }
-                    holder.reminderButton.setVisibility(View.VISIBLE);
-                    holder.reminderButton.setEnabled(true);
+                    bindVerifiedReminderButton(holder, vo, ctx);
                     holder.infoButton.setVisibility(View.GONE);
                     holder.infoButton.setEnabled(false);
                 } else {
@@ -299,6 +286,32 @@ public class ActiveMedicationListItem extends AbstractItem<ActiveMedicationListI
                 resetForReuse(holder);
             }
         }
+    }
+
+    /** Icons and actions must agree on patient identity and all linked schedules. */
+    private static void bindVerifiedReminderButton(
+            ActiveMedicationViewHolder holder, ActiveMedVO vo, Context ctx) {
+        ActiveMedEntity official = vo.getBackingEntity();
+        Patient selected = DB.patients().getActive(ctx);
+        Long ownerId = official == null || official.getPatient() == null
+                ? null : official.getPatient().getId();
+        OfficialReminderLinkSelector.Selection links = OfficialReminderLinkSelector.inspect(
+                ownerId, selected == null ? null : selected.getId(), ownerId,
+                official == null || official.getId() == null ? null
+                        : DB.schedules().findBy(Schedule.BOUND_TO, official.getId()));
+
+        if (links.action == OfficialReminderLinkSelector.Action.UNAVAILABLE) {
+            holder.reminderButton.setVisibility(View.GONE);
+            holder.reminderButton.setEnabled(false);
+            return;
+        }
+        holder.reminderButton.setImageDrawable(IconUtils.icon(ctx,
+                links.action == OfficialReminderLinkSelector.Action.CREATE
+                        ? CommunityMaterial.Icon.cmd_bell_plus
+                        : CommunityMaterial.Icon.cmd_bell_ring,
+                R.color.black, 30, 5));
+        holder.reminderButton.setVisibility(View.VISIBLE);
+        holder.reminderButton.setEnabled(true);
     }
 
     private void resetForReuse(ActiveMedicationViewHolder holder) {

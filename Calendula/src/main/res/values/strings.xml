@@ -137,4 +137,7 @@
     </string-array>
 
     <string name="schedule_invalid_hourly_interval">Enter a whole number of hours from 1 to 72.</string>
+    <string name="aml_reminder_choose_title">Choose a reminder to edit</string>
+    <string name="aml_reminder_choice_item">Reminder %1$d</string>
+    <string name="aml_reminder_unavailable">This reminder cannot be opened for the selected patient.</string>
 </resources>

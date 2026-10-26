@@ -28,6 +28,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 import com.google.android.material.snackbar.Snackbar;
 import androidx.fragment.app.Fragment;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.FragmentActivity;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -38,6 +39,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.mikepenz.fastadapter.FastAdapter;
 import com.mikepenz.fastadapter.IAdapter;
@@ -153,6 +155,73 @@ public class ActiveMedicationListFragment extends Fragment {
                         displayedPatientId, activeId, persisted.getPatient().getId());
     }
 
+
+    /**
+     * Re-query and revalidate on every click, including dialog selection:
+     * profile switches and provider updates can invalidate a displayed card.
+     */
+    private void openVerifiedReminder(ActiveMedicationListItem item, @Nullable Long chosenScheduleId) {
+        if (!canOpenProviderMedicine(item) || getContext() == null) {
+            notifyDataChange();
+            return;
+        }
+        final Context context = getContext();
+        final ActiveMedEntity provider = item.getVo().getBackingEntity();
+        final Patient patient = DB.patients().getActive(context);
+        if (patient == null || provider.getPatient() == null) {
+            notifyDataChange();
+            return;
+        }
+        final List<Schedule> links = DB.schedules().findBy(Schedule.BOUND_TO, provider.getId());
+        final OfficialReminderLinkSelector.Selection selection =
+                OfficialReminderLinkSelector.inspect(
+                        displayedPatientId, patient.getId(),
+                        provider.getPatient().getId(), links);
+
+        if (selection.action == OfficialReminderLinkSelector.Action.UNAVAILABLE) {
+            Toast.makeText(context, R.string.aml_reminder_unavailable, Toast.LENGTH_LONG).show();
+            notifyDataChange();
+            return;
+        }
+
+        if (chosenScheduleId != null) {
+            for (Schedule schedule : selection.schedules) {
+                if (chosenScheduleId.equals(schedule.getId())) {
+                    Intent edit = new Intent(context, ScheduleBuildActivity.class);
+                    edit.putExtra(CalendulaApp.INTENT_EXTRA_SCHEDULE_ID, chosenScheduleId);
+                    startActivity(edit);
+                    return;
+                }
+            }
+            notifyDataChange();
+            return;
+        }
+        if (selection.action == OfficialReminderLinkSelector.Action.CHOOSE) {
+            final CharSequence[] labels = new CharSequence[selection.schedules.size()];
+            for (int i = 0; i < labels.length; i++) {
+                labels[i] = context.getString(R.string.aml_reminder_choice_item, i + 1);
+            }
+            new AlertDialog.Builder(context)
+                    .setTitle(R.string.aml_reminder_choose_title)
+                    .setItems(labels, (dialog, which) -> {
+                        if (which >= 0 && which < selection.schedules.size()) {
+                            openVerifiedReminder(item, selection.schedules.get(which).getId());
+                        }
+                    })
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show();
+            return;
+        }
+        Intent intent = new Intent(context, ScheduleBuildActivity.class);
+        if (selection.action == OfficialReminderLinkSelector.Action.EDIT) {
+            intent.putExtra(CalendulaApp.INTENT_EXTRA_SCHEDULE_ID,
+                    selection.schedules.get(0).getId());
+        } else {
+            intent.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_CREATE_REMINDER);
+            intent.putExtra(IntentParams.EXTRA_ACTIVEMED_ID, provider.getId());
+        }
+        startActivity(intent);
+    }
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -345,15 +414,12 @@ public class ActiveMedicationListFragment extends Fragment {
                     return true;
                 }
                 final ActiveMedVO vo = item.getVo();
-                Medicine m = DB.medicines().findOneBy(
-                        Medicine.COLUMN_ACTIVE_MED_ID, vo.getBackingEntity().getId());
                 final Patient activePatient = DB.patients().getActive(getContext());
-                if (m != null && (m.getPatient() == null || activePatient == null
-                        || !ActiveMedicationOwnerGuard.matchingPatient(
-                            displayedPatientId, activePatient.getId(),
-                            m.getPatient().getId()))) {
-                    m = null;
-                }
+                final Medicine m = ActiveMedicationOwnerGuard.uniqueOwnedLocalMedicine(
+                        DB.medicines().findBy(
+                                Medicine.COLUMN_ACTIVE_MED_ID,
+                                vo.getBackingEntity().getId()),
+                        activePatient == null ? null : activePatient.getId());
 
                 Intent i = new Intent(getActivity(), MedicineInfoActivity.class);
                 i.setAction(MedicineInfoActivity.ACTION_SHOW_ONLY_ACTIVE_MED);
@@ -390,20 +456,9 @@ public class ActiveMedicationListFragment extends Fragment {
                     return;
                 }
                 Intent intent;
-                Schedule s;
-                Long id;
                 switch (v.getId()) {
                     case R.id.enable_reminders_button:
-                        id = item.getVo().getBackingEntity().getId();
-                        s = DB.schedules().findOneBy(Schedule.BOUND_TO, id);
-                        intent = new Intent(getContext(), ScheduleBuildActivity.class);
-                        if (s != null) {
-                            intent.putExtra(CalendulaApp.INTENT_EXTRA_SCHEDULE_ID, s.getId());
-                        } else {
-                            intent.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_CREATE_REMINDER);
-                            intent.putExtra(IntentParams.EXTRA_ACTIVEMED_ID, id);
-                        }
-                        getContext().startActivity(intent);
+                        openVerifiedReminder(item, null);
                         break;
                     case R.id.get_info_button:
                         intent = new Intent(getContext(), PdfViewActivity.class);
