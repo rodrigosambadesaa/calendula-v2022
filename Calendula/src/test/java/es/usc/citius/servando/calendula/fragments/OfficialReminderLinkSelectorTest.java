@@ -24,6 +24,7 @@ public class OfficialReminderLinkSelectorTest {
     private static Schedule link(long id, Patient patient, Patient medicineOwner) {
         Medicine medicine = new Medicine("Synthetic local medicine");
         medicine.setPatient(medicineOwner);
+        medicine.setId(id + 1000L);
         Schedule schedule = new Schedule(medicine);
         schedule.setId(id);
         schedule.setPatient(patient);
@@ -55,8 +56,13 @@ public class OfficialReminderLinkSelectorTest {
         Schedule foreignSchedule = link(11L, patient(2L), patient(2L));
         Schedule foreignMedicine = link(12L, patient(1L), patient(2L));
         Schedule ownerlessMedicine = link(13L, patient(1L), new Patient());
+        Schedule missingMedicine = link(14L, patient(1L), patient(1L));
+        missingMedicine.setMedicine(null);
+        Schedule unsavedMedicine = link(15L, patient(1L), patient(1L));
+        unsavedMedicine.getMedicine().setId(null);
         for (Schedule invalid : Arrays.asList(
-                foreignSchedule, foreignMedicine, ownerlessMedicine)) {
+                foreignSchedule, foreignMedicine, ownerlessMedicine, missingMedicine,
+                unsavedMedicine)) {
             OfficialReminderLinkSelector.Selection result =
                     OfficialReminderLinkSelector.inspect(1L, 1L, 1L,
                             Arrays.asList(owned, invalid));
