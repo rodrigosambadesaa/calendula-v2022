@@ -46,7 +46,8 @@ public final class OfficialReminderLinkSelector {
             Medicine medicine = schedule.getMedicine();
             // A missing medicine is not an authorized, editable reminder.
             // Fail closed rather than treating a dangling local link as owned.
-            if (medicine == null || !sameOwner(displayedPatientId, medicine.getPatient())) {
+            if (medicine == null || medicine.getId() == null || medicine.getId() <= 0L
+                    || !sameOwner(displayedPatientId, medicine.getPatient())) {
                 return new Selection(Action.UNAVAILABLE, Collections.emptyList());
             }
             owned.add(schedule);
