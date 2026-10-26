@@ -154,6 +154,7 @@ public class DispensationInfoStore {
             return null;
         }
         ArrayList<LocalDate> days = new ArrayList<>(candidates.keySet());
+        days.remove(null);
         Collections.sort(days);
         LocalDate bestDate = null;
         List<DispensationInfoEntity> bestMedicines = null;
