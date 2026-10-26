@@ -87,6 +87,25 @@ if [[ "${CALENDULA_SMOKE_LIST_ONLY:-0}" == "1" ]]; then
   exit 0
 fi
 
+# API 36's SQLite emits one WARN log per value imported from the
+# bundled legacy medicine catalog (100k+ lines before the first SQLite test
+# completes). The Gradle instrumentation process has lost its test connection
+# during that unrelated logging flood. This only changes diagnostic verbosity
+# on the *disposable CI emulator*: SQL errors remain visible and neither
+# SQLite execution nor any clinical checks are skipped.
+# Fail closed if adb cannot set the property; do not claim an unverified run.
+if command -v adb >/dev/null 2>&1; then
+  DEVICE_API="$(adb shell getprop ro.build.version.sdk | tr -d '\r')"
+  if [[ "$DEVICE_API" == "36" ]]; then
+    echo "Android API 36: retain SQLite ERROR diagnostics, suppress repetitive WARN-only legacy catalog import logs"
+    adb shell setprop log.tag.SQLiteLog ERROR
+    if [[ "$(adb shell getprop log.tag.SQLiteLog | tr -d '\r')" != "ERROR" ]]; then
+      echo "Could not configure SQLiteLog diagnostic threshold on CI emulator" >&2
+      exit 1
+    fi
+  fi
+fi
+
 exec ./gradlew connectedCiDebugAndroidTest \
   "-Pandroid.testInstrumentationRunnerArguments.class=${TEST_CLASSES}" \
   --stacktrace --no-daemon
