@@ -412,11 +412,8 @@ public class CalendarActivity extends CalendulaActivity {
             LinearLayout list = (LinearLayout) findViewById(R.id.pickup_list);
             list.removeAllViews();
             for (final DispensationInfoEntity p : from) {
-
                 Patient pat = p.getActiveMed().getPatient();
-                {
-
-                    View v = i.inflate(R.layout.calendar_pickup_list_item, list, false);
+                View v = i.inflate(R.layout.calendar_pickup_list_item, list, false);
                     TextView tv1 = ((TextView) v.findViewById(R.id.textView));
                     TextView tv2 = ((TextView) v.findViewById(R.id.textView2));
                     ImageView avatar = ((ImageView) v.findViewById(R.id.avatar));
@@ -441,7 +438,6 @@ public class CalendarActivity extends CalendulaActivity {
                         }
                     });
                     list.addView(v);
-                }
             }
             nestedScrollView.scrollBy(0, bottomSheet.getHeight());
             showBottomSheet();
