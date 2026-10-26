@@ -41,6 +41,48 @@ public class RemoteMedicationPreferenceReaderTest {
     }
 
     @Test
+    public void globalOrForeignProviderSummaryIsNeverDisplayedForAnotherPatient() {
+        es.usc.citius.servando.calendula.persistence.Patient a =
+                new es.usc.citius.servando.calendula.persistence.Patient();
+        a.setId(301L);
+        a.setCode("synthetic-account-a");
+        es.usc.citius.servando.calendula.persistence.Patient b =
+                new es.usc.citius.servando.calendula.persistence.Patient();
+        b.setId(302L);
+        b.setCode("synthetic-account-b");
+        String ownerA = ProviderRevisionGuard.ownerKey(a.getId(), a.getCode());
+        String ownerB = ProviderRevisionGuard.ownerKey(b.getId(), b.getCode());
+        try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
+            prefs.when(() -> PreferenceUtils.getString(
+                    PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY, ""))
+                    .thenReturn("Synthetic medication update from patient A");
+            prefs.when(() -> PreferenceUtils.getString(
+                    PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY_OWNER, null))
+                    .thenReturn(null);
+
+            assertEquals("", RemoteMedicationPreferenceReader.summaryForPatientOrEmpty(a));
+            assertEquals("", RemoteMedicationPreferenceReader.summaryForPatientOrEmpty(null));
+
+            prefs.when(() -> PreferenceUtils.getString(
+                    PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY_OWNER, null))
+                    .thenReturn(ownerA);
+            assertEquals("Synthetic medication update from patient A",
+                    RemoteMedicationPreferenceReader.summaryForPatientOrEmpty(a));
+            assertEquals("", RemoteMedicationPreferenceReader.summaryForPatientOrEmpty(b));
+
+            prefs.when(() -> PreferenceUtils.getString(
+                    PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY_OWNER, null))
+                    .thenReturn(ownerB);
+            assertEquals("", RemoteMedicationPreferenceReader.summaryForPatientOrEmpty(a));
+
+            prefs.when(() -> PreferenceUtils.getString(
+                    PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY_OWNER, null))
+                    .thenThrow(new ClassCastException("Synthetic restored owner type"));
+            assertEquals("", RemoteMedicationPreferenceReader.summaryForPatientOrEmpty(a));
+        }
+    }
+
+    @Test
     public void corruptOrMissingRevisionNeverClaimsIncrementalSync() {
         try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
             prefs.when(() -> PreferenceUtils.getString(
