@@ -151,7 +151,8 @@ public class DosageEntryVO {
 
         switch (repeatType) {
             case PERIOD:
-                if (!hasQuantity() || getRepeatValue() == null || getRepeatUnits() == null) {
+                if (!hasQuantity() || !isPositiveFiniteNumber(getRepeatValue())
+                        || !isSupportedTimingUnit(getRepeatUnits())) {
                     return notAvailable(ctx);
                 }
                 final String repeatUnitsDispl = StringUtils.timeUnitDisplayName(ctx, getRepeatUnits());
@@ -162,7 +163,8 @@ public class DosageEntryVO {
                         Strings.prettyDouble(getRepeatValue()),
                         repeatUnitsDispl);
             case DURATION:
-                if (getRepeatValue() == null || getRepeatUnits() == null) {
+                if (!isPositiveFiniteNumber(getRepeatValue())
+                        || !isSupportedTimingUnit(getRepeatUnits())) {
                     return notAvailable(ctx);
                 }
                 final String repeatUnitsDisp = StringUtils.timeUnitDisplayName(ctx, getRepeatUnits());
@@ -185,8 +187,33 @@ public class DosageEntryVO {
         }
     }
 
+    /** Never present malformed remote dose numbers as patient instructions. */
+    static boolean isPositiveFiniteNumber(Double value) {
+        return value != null && value > 0.0d
+                && !Double.isNaN(value) && !Double.isInfinite(value);
+    }
+
+    /** Unsupported provider timing units should render as unavailable, not throw. */
+    static boolean isSupportedTimingUnit(Timing.UnitsOfTime unit) {
+        if (unit == null) return false;
+        switch (unit) {
+            case S:
+            case MIN:
+            case H:
+            case D:
+            case WK:
+            case MO:
+            case A:
+                return true;
+            default:
+                return false;
+        }
+    }
+
     private boolean hasQuantity() {
-        return getQuantityValue() != null && !TextUtils.isEmpty(getQuantityUnits());
+        return isPositiveFiniteNumber(getQuantityValue())
+                && !TextUtils.isEmpty(getQuantityUnits())
+                && !getQuantityUnits().trim().isEmpty();
     }
 
     private String notAvailable(Context ctx) {
