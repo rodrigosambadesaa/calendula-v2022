@@ -509,4 +509,7 @@ Quieres instalar la nueva base de datos ahora?"</string>
     <string name="patient_qr_invalid">El código de vinculación del paciente no es válido o es demasiado grande.</string>
     <string name="active_med_details_unavailable">Los datos de este medicamento no están disponibles. Revisa el registro del proveedor sanitario.</string>
     <string name="schedule_invalid_hourly_interval">Introduce un número entero de horas entre 1 y 72.</string>
+    <string name="aml_reminder_choose_title">Elige un recordatorio para editar</string>
+    <string name="aml_reminder_choice_item">Recordatorio %1$d</string>
+    <string name="aml_reminder_unavailable">Este recordatorio no se puede abrir para el paciente seleccionado.</string>
 </resources>
