@@ -103,10 +103,21 @@ public class ActiveMedDao extends GenericDao<ActiveMedEntity, Long> {
     }
 
     public DateTime findLastUpdateDate(Patient patient) {
+        // The activity can hold an unsaved or stale profile reference after
+        // deletion/switch. Never query or display official update metadata
+        // without a current persisted owner identity.
+        if (patient == null || patient.getId() == null || patient.getId() <= 0L) {
+            return null;
+        }
+        Patient persisted = es.usc.citius.servando.calendula.database.DB
+                .patients().findById(patient.getId());
+        if (persisted == null) {
+            return null;
+        }
         try {
             ActiveMedEntity med = dao.queryBuilder()
                     .orderBy(ActiveMedEntity.COLUMN_LAST_UPDATED, false)
-                    .where().eq(ActiveMedEntity.COLUMN_PATIENT, patient)
+                    .where().eq(ActiveMedEntity.COLUMN_PATIENT, persisted)
                     .queryForFirst();
 
             if (med != null) {
