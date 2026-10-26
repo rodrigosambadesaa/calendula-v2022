@@ -86,7 +86,8 @@ public class CalendarActivity extends CalendulaActivity {
     private static final String TAG = "CalendarActivity";
     private static final ExecutorService PICKUPS_EXECUTOR = Executors.newSingleThreadExecutor();
     private final DateFormat dtf2 = new SimpleDateFormat("dd/MMM", Locale.getDefault());
-    private static DispensationInfoStore dispensationInfoStore;
+    /** Per-window clinical state; never shared between patient calendars. */
+    private DispensationInfoStore dispensationInfoStore;
 
     @BindView(R.id.pickup_list_container)
     View bottomSheet;
@@ -453,8 +454,36 @@ public class CalendarActivity extends CalendulaActivity {
     public static class CaldroidSampleCustomFragment extends CaldroidFragment {
         @Override
         public CaldroidGridAdapter getNewDatesGridAdapter(int month, int year) {
-            return new PickupCalendarAdapter(getActivity(), month, year, getCaldroidData(), extraData, dispensationInfoStore);
+            CalendarActivity host = getActivity() instanceof CalendarActivity
+                    ? (CalendarActivity) getActivity() : null;
+            // A detached/restored fragment must not inherit data from another
+            // patient's CalendarActivity. The empty model renders no pickups.
+            DispensationInfoStore ownStore = host != null && host.dispensationInfoStore != null
+                    ? host.dispensationInfoStore
+                    : new DispensationInfoStore(new ArrayList<>());
+            return new PickupCalendarAdapter(getActivity(), month, year,
+                    getCaldroidData(), extraData, ownStore);
         }
+    }
+
+    /** Reject the result of a patient-specific background query after switching profiles. */
+    static boolean samePersistedPatient(Patient expected, Patient active) {
+        return expected != null && active != null && expected.getId() != null
+                && expected.getId() > 0L && expected.getId().equals(active.getId());
+    }
+
+    /** A dispensation row must belong to the exact patient-owned provider medicine. */
+    static boolean isOwnedPickup(Patient selected, ActiveMedEntity provider,
+                                 DispensationInfoEntity pickup) {
+        if (selected == null || provider == null || provider.getId() == null
+                || provider.getId() <= 0L || !samePersistedPatient(selected, provider.getPatient())
+                || pickup == null || pickup.getDispenseInterval() == null
+                || pickup.getActiveMed() == null) {
+            return false;
+        }
+        ActiveMedEntity linked = pickup.getActiveMed();
+        return provider.getId().equals(linked.getId())
+                && samePersistedPatient(selected, linked.getPatient());
     }
 
     private void updatePickupsAsync() {
@@ -467,18 +496,47 @@ public class CalendarActivity extends CalendulaActivity {
         final Patient patientForQuery = patient;
         final Handler mainHandler = new Handler(Looper.getMainLooper());
         PICKUPS_EXECUTOR.execute(() -> {
-            final List<ActiveMedEntity> activeMedEntities = DB.healthcareProviderDB().activeMeds().findBy(ActiveMedEntity.COLUMN_PATIENT, patientForQuery);
-            final List<DispensationInfoEntity> dispensationInfoEntities = new ArrayList<>();
-            for (ActiveMedEntity activeMedEntity : activeMedEntities) {
-                dispensationInfoEntities.addAll(activeMedEntity.getDispensationInfo());
+            DispensationInfoStore fetched = null;
+            try {
+                if (patientForQuery != null && patientForQuery.getId() != null
+                        && patientForQuery.getId() > 0L) {
+                    final List<ActiveMedEntity> activeMeds = DB.healthcareProviderDB()
+                            .activeMeds().findBy(ActiveMedEntity.COLUMN_PATIENT, patientForQuery);
+                    final List<DispensationInfoEntity> rows = new ArrayList<>();
+                    for (ActiveMedEntity med : activeMeds) {
+                        if (med == null || med.getPatient() == null
+                                || !samePersistedPatient(patientForQuery, med.getPatient())) {
+                            throw new IllegalStateException("Provider pickup owner mismatch");
+                        }
+                        java.util.Collection<DispensationInfoEntity> dispensed =
+                                med.getDispensationInfo();
+                        if (dispensed != null) {
+                            for (DispensationInfoEntity entry : dispensed) {
+                                if (!isOwnedPickup(patientForQuery, med, entry)) {
+                                    throw new IllegalStateException("Provider pickup link is invalid");
+                                }
+                                rows.add(entry);
+                            }
+                        }
+                    }
+                    fetched = new DispensationInfoStore(rows);
+                }
+            } catch (RuntimeException invalidProviderData) {
+                LogUtil.w(TAG, "Patient pickup calendar could not be verified");
             }
-            final DispensationInfoStore store = new DispensationInfoStore(dispensationInfoEntities);
+            final DispensationInfoStore store = fetched;
 
             mainHandler.post(() -> {
                 if (dialog.isShowing()) {
                     dialog.dismiss();
                 }
                 if (isFinishing() || isDestroyed()) {
+                    return;
+                }
+                Patient nowActive = DB.patients().getActive(CalendarActivity.this);
+                if (store == null || !samePersistedPatient(patientForQuery, nowActive)) {
+                    // Do not present data returned for another login/profile.
+                    finish();
                     return;
                 }
                 dispensationInfoStore = store;
