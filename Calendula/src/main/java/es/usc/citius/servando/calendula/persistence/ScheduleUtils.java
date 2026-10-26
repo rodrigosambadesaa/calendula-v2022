@@ -452,7 +452,7 @@ public class ScheduleUtils {
                             }
                             ActiveMedEntity official = schedule != null && schedule.isBoundToActiveMed()
                                     ? DB.healthcareProviderDB().activeMeds()
-                                            .findById(schedule.getActiveMedId())
+                                            .findByIdForPatient(schedule.getActiveMedId(), patient)
                                     : null;
                             if (!ConfirmIntakeGuard.verified(stored, patient, dateTime,
                                     schedule, official)) {
@@ -622,7 +622,7 @@ public class ScheduleUtils {
                             }
                             ActiveMedEntity official = schedule != null && schedule.isBoundToActiveMed()
                                     ? DB.healthcareProviderDB().activeMeds()
-                                            .findById(schedule.getActiveMedId())
+                                            .findByIdForPatient(schedule.getActiveMedId(), persistedPatient)
                                     : null;
                             if (persistedPatient == null
                                     || !ConfirmIntakeGuard.verified(stored, persistedPatient,

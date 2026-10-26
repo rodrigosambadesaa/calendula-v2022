@@ -810,7 +810,7 @@ public class Agenda {
                                 ActiveMedEntity official = schedule != null
                                         && schedule.isBoundToActiveMed()
                                         ? DB.healthcareProviderDB().activeMeds()
-                                                .findById(schedule.getActiveMedId())
+                                                .findByIdForPatient(schedule.getActiveMedId(), patient)
                                         : null;
                                 if (DB.patients().findById(patient.getId()) == null
                                         || !ConfirmIntakeGuard.verified(stored, patient,
