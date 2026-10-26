@@ -56,7 +56,9 @@ public class DispensationBestDaySafetyTest {
                 DispensationInfoStore.chooseBestNonSundayPickup(days);
         assertNotNull(chosen);
         assertEquals(MONDAY, chosen.first);
-        assertEquals(Arrays.asList(a, b), chosen.second);
+        assertEquals(2, chosen.second.size());
+        assertSame(a, chosen.second.get(0));
+        assertSame(b, chosen.second.get(1));
         assertNotSame("Output must not expose the input list for mutation",
                 days.get(MONDAY), chosen.second);
 
