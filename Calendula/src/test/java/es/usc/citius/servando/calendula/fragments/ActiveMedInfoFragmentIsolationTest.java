@@ -82,6 +82,29 @@ public class ActiveMedInfoFragmentIsolationTest {
     }
 
     @Test
+    public void changedDispensationWindowMustHideAndRestoreReviewBanner() {
+        TextView banner = new TextView(ApplicationProvider.getApplicationContext());
+
+        ActiveMedInfoFragment.bindDispensationIntervalInfo(
+                banner, "Synthetic: pickup window open");
+        assertEquals(View.VISIBLE, banner.getVisibility());
+        assertEquals("Synthetic: pickup window open", banner.getText().toString());
+
+        ActiveMedInfoFragment.bindDispensationIntervalInfo(banner, null);
+        assertEquals(View.GONE, banner.getVisibility());
+        assertEquals("", banner.getText().toString());
+
+        ActiveMedInfoFragment.bindDispensationIntervalInfo(
+                banner, "Synthetic: updated open window");
+        assertEquals(View.VISIBLE, banner.getVisibility());
+        assertEquals("Synthetic: updated open window", banner.getText().toString());
+
+        ActiveMedInfoFragment.bindDispensationIntervalInfo(banner, "");
+        assertEquals(View.GONE, banner.getVisibility());
+        assertEquals("", banner.getText().toString());
+    }
+
+    @Test
     public void unavailableOrCorruptFirstProviderInstructionIsNotDisplayed() {
         assertNull(ActiveMedInfoFragment.firstPatientInstructionOrNull(null));
         assertNull(ActiveMedInfoFragment.firstPatientInstructionOrNull(Collections.emptyList()));
