@@ -503,6 +503,27 @@ public class ActiveMedInfoFragment extends Fragment {
                 if (!isAdded() || getView() == null || getFragmentManager() == null) {
                     return;
                 }
+                // Import and profile selection can change while the background
+                // worker reads dispensations. Re-resolve the official record
+                // under the *currently active* persisted patient before using
+                // any result in this fragment.
+                try {
+                    Patient nowActive = DB.patients().getActive(context);
+                    ActiveMedEntity nowStored = DB.healthcareProviderDB().activeMeds()
+                            .findByIdForPatient(
+                                    activeMedEntity == null ? null : activeMedEntity.getId(),
+                                    nowActive);
+                    ActiveMedEntity displayed = activeMed == null
+                            ? null : activeMed.getBackingEntity();
+                    if (!ProviderDispensationRenderGuard.canApply(
+                            activeMedEntity, displayed, nowStored, nowActive)) {
+                        closeUnavailableProviderPage();
+                        return;
+                    }
+                } catch (RuntimeException staleOrCorruptProvider) {
+                    closeUnavailableProviderPage();
+                    return;
+                }
 
                 dispensationInfoStore = store;
                 FragmentTransaction t = getFragmentManager().beginTransaction();
