@@ -42,6 +42,13 @@ object ScheduleComparator {
     internal fun firstFixedDoseTimeOrNull(times: List<DailyFixedTime>): LocalTime? =
         times.firstOrNull()?.time
 
+    /** Reject malformed recurrence intervals instead of truncating clinical instructions. */
+    internal fun usablePeriodIntervalOrNull(value: Double?): Int? =
+        if (value != null && !value.isNaN() && !value.isInfinite() &&
+            value >= 1.0 && value <= Int.MAX_VALUE.toDouble() &&
+            value % 1.0 == 0.0
+        ) value.toInt() else null
+
 
     /** Reject misbound official schedules before interpreting dose times. */
     internal fun ownersMatchForComparison(
@@ -143,7 +150,13 @@ object ScheduleComparator {
 
                 RepeatType.PERIOD -> {
                     val entryDose = entry.quantityValue
-                    val repeatValue = entry.repeatValue.toInt()
+                    val repeatValue = usablePeriodIntervalOrNull(entry.repeatValue)
+                    if (repeatValue == null) {
+                        // A malformed server interval must never be silently
+                        // rounded to a different dosing frequency.
+                        changes.add(DosageChange())
+                        continue
+                    }
                     val repeatFreq = TimingUtils.freqFromUnitsOfTime(entry.repeatUnits)
                     val freq = recur.freq
                     val interval = recur.interval
