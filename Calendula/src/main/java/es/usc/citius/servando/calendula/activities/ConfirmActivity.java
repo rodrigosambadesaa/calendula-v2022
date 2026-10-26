@@ -699,7 +699,8 @@ public class ConfirmActivity extends CalendulaActivity {
             }
             Schedule schedule = DB.schedules().findById(persisted.getRef());
             ActiveMedEntity imported = schedule != null && schedule.isBoundToActiveMed()
-                    ? DB.healthcareProviderDB().activeMeds().findById(schedule.getActiveMedId())
+                    ? DB.healthcareProviderDB().activeMeds()
+                            .findByIdForPatient(schedule.getActiveMedId(), persistedPatient)
                     : null;
             return ConfirmIntakeGuard.verified(
                     persisted, persistedPatient, dateTime, schedule, imported);
@@ -911,8 +912,10 @@ public class ConfirmActivity extends CalendulaActivity {
 
             h.info.setVisibility(View.GONE);
             if (s.isBoundToActiveMed()) {
+                // Query by provider ID and displayed patient together, not
+                // a global ID followed by a UI-level ownership check.
                 ActiveMedEntity am = DB.healthcareProviderDB().activeMeds()
-                        .findById(s.getActiveMedId());
+                        .findByIdForPatient(s.getActiveMedId(), patient);
                 String instr = DailyAgendaOfficialTreatmentValidator.firstInstruction(s, am);
                 if (!StringUtils.isBlank(instr)) {
                     h.info.setVisibility(View.VISIBLE);
