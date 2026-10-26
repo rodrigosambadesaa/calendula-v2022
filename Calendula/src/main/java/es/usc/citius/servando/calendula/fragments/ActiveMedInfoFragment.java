@@ -91,7 +91,7 @@ public class ActiveMedInfoFragment extends Fragment {
     private final static String ID_ARG = "active_med_id";
 
     private final static DateTimeFormatter dateFormat = DateTimeFormat.forPattern("dd/MM/yyyy");
-    private static DispensationInfoStore dispensationInfoStore;
+    private DispensationInfoStore dispensationInfoStore;
     @BindView(R.id.active_med_from_container)
     View validityStartContainer;
     @BindView(R.id.active_med_to_container)
@@ -253,6 +253,15 @@ public class ActiveMedInfoFragment extends Fragment {
         startActivity(intent);
     }
 
+    /** Malformed provider dosage entries must not crash the detail fragment. */
+    static String firstPatientInstructionOrNull(List<DosageEntryVO> entries) {
+        if (entries == null || entries.isEmpty() || entries.get(0) == null) {
+            return null;
+        }
+        String text = entries.get(0).getPatientInstruction();
+        return org.apache.commons.lang3.StringUtils.isBlank(text) ? null : text;
+    }
+
     private void setupView() {
         if (activeMed == null || getView() == null || getContext() == null) {
             return;
@@ -300,19 +309,14 @@ public class ActiveMedInfoFragment extends Fragment {
             scheduleText.setText(dosage.toReadableString(getContext()));
         }
 
-        List<DosageEntryVO> entries = dosage == null || dosage.getEntries() == null
-                ? Collections.emptyList() : dosage.getEntries();
-        if(entries.size()!=0) {
-            String instructions = entries.get(0).getPatientInstruction();
-            if (instructions == null || org.apache.commons.lang3.StringUtils.isBlank(instructions)){
-                intakeInstructions.setVisibility(View.GONE);
-            }
-            else {
-                intakeInstructions.setText(getInfoMessage(getContext().getString(R.string.instructions_prefix) + " " + instructions, CommunityMaterial.Icon2.cmd_medical_bag, getContext()));
-                intakeInstructions.setVisibility(View.VISIBLE);
-            }
-        }
-        else {
+        List<DosageEntryVO> entries = dosage == null ? null : dosage.getEntries();
+        String instructions = firstPatientInstructionOrNull(entries);
+        if (instructions != null) {
+            intakeInstructions.setText(getInfoMessage(
+                    getContext().getString(R.string.instructions_prefix) + " " + instructions,
+                    CommunityMaterial.Icon2.cmd_medical_bag, getContext()));
+            intakeInstructions.setVisibility(View.VISIBLE);
+        } else {
             intakeInstructions.setVisibility(View.GONE);
         }
 
@@ -385,8 +389,11 @@ public class ActiveMedInfoFragment extends Fragment {
 
         setDispensationSummaryText();
         for (DispensationInfoEntity e : dispensationInfoStore.pickups()) {
+            if (e == null) {
+                continue;
+            }
             Interval interval = e.getDispenseInterval();
-            if (interval.contains(DateTime.now())) {
+            if (interval != null && interval.contains(DateTime.now())) {
                 setSelectedInterval(interval);
             }
         }
@@ -492,9 +499,23 @@ public class ActiveMedInfoFragment extends Fragment {
         final ActiveMedEntity activeMedEntity = activeMed.getBackingEntity();
         final Handler mainHandler = new Handler(Looper.getMainLooper());
         DISPENSATION_EXECUTOR.execute(() -> {
-            final List<DispensationInfoEntity> dispensationInfoEntities = new ArrayList<>();
-            dispensationInfoEntities.addAll(activeMedEntity.getDispensationInfo());
-            final DispensationInfoStore store = new DispensationInfoStore(dispensationInfoEntities);
+            DispensationInfoStore loaded = null;
+            try {
+                if (activeMedEntity != null) {
+                    final List<DispensationInfoEntity> rows = new ArrayList<>();
+                    java.util.Collection<DispensationInfoEntity> available =
+                            activeMedEntity.getDispensationInfo();
+                    if (available != null) {
+                        rows.addAll(available);
+                    }
+                    loaded = new DispensationInfoStore(rows);
+                }
+            } catch (RuntimeException malformedDispensation) {
+                // A broken lazy SQLite collection must not leave a loading
+                // dialog on screen or leak clinical details through Logcat.
+                LogUtil.w(TAG, "Official dispensation data unavailable");
+            }
+            final DispensationInfoStore store = loaded;
 
             mainHandler.post(() -> {
                 if (dialog.isShowing()) {
@@ -525,6 +546,10 @@ public class ActiveMedInfoFragment extends Fragment {
                     return;
                 }
 
+                if (store == null) {
+                    closeUnavailableProviderPage();
+                    return;
+                }
                 dispensationInfoStore = store;
                 FragmentTransaction t = getFragmentManager().beginTransaction();
                 t.replace(R.id.dispensation_calendar, caldroidFragment);
