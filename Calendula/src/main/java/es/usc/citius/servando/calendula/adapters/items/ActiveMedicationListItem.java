@@ -128,33 +128,11 @@ public class ActiveMedicationListItem extends AbstractItem<ActiveMedicationListI
                     } else {
                         holder.infoButton.setVisibility(View.GONE);
                         holder.infoButton.setEnabled(false);
-                        holder.reminderButton.setVisibility(View.VISIBLE);
-                        holder.reminderButton.setEnabled(true);
+                        bindVerifiedReminderButton(holder, vo, ctx);
                     }
 
                 } else if (!DosageType.AS_NEEDED.equals(dosageType)) {
-                    final ActiveMedEntity official = vo.getBackingEntity();
-                    final Patient selected = DB.patients().getActive(ctx);
-                    final Long owner = official == null || official.getPatient() == null
-                            ? null : official.getPatient().getId();
-                    final OfficialReminderLinkSelector.Selection reminderSelection =
-                            OfficialReminderLinkSelector.inspect(
-                                    owner, selected == null ? null : selected.getId(), owner,
-                                    official == null || official.getId() == null
-                                            ? null : DB.schedules().findBy(
-                                                Schedule.BOUND_TO, official.getId()));
-                    if (reminderSelection.action == OfficialReminderLinkSelector.Action.UNAVAILABLE) {
-                        holder.reminderButton.setVisibility(View.GONE);
-                        holder.reminderButton.setEnabled(false);
-                    } else {
-                        holder.reminderButton.setImageDrawable(IconUtils.icon(ctx,
-                                reminderSelection.action == OfficialReminderLinkSelector.Action.CREATE
-                                        ? CommunityMaterial.Icon.cmd_bell_plus
-                                        : CommunityMaterial.Icon.cmd_bell_ring,
-                                R.color.black, 30, 5));
-                        holder.reminderButton.setVisibility(View.VISIBLE);
-                        holder.reminderButton.setEnabled(true);
-                    }
+                    bindVerifiedReminderButton(holder, vo, ctx);
                     holder.infoButton.setVisibility(View.GONE);
                     holder.infoButton.setEnabled(false);
                 } else {
@@ -308,6 +286,32 @@ public class ActiveMedicationListItem extends AbstractItem<ActiveMedicationListI
                 resetForReuse(holder);
             }
         }
+    }
+
+    /** Icons and actions must agree on patient identity and all linked schedules. */
+    private static void bindVerifiedReminderButton(
+            ActiveMedicationViewHolder holder, ActiveMedVO vo, Context ctx) {
+        ActiveMedEntity official = vo.getBackingEntity();
+        Patient selected = DB.patients().getActive(ctx);
+        Long ownerId = official == null || official.getPatient() == null
+                ? null : official.getPatient().getId();
+        OfficialReminderLinkSelector.Selection links = OfficialReminderLinkSelector.inspect(
+                ownerId, selected == null ? null : selected.getId(), ownerId,
+                official == null || official.getId() == null ? null
+                        : DB.schedules().findBy(Schedule.BOUND_TO, official.getId()));
+
+        if (links.action == OfficialReminderLinkSelector.Action.UNAVAILABLE) {
+            holder.reminderButton.setVisibility(View.GONE);
+            holder.reminderButton.setEnabled(false);
+            return;
+        }
+        holder.reminderButton.setImageDrawable(IconUtils.icon(ctx,
+                links.action == OfficialReminderLinkSelector.Action.CREATE
+                        ? CommunityMaterial.Icon.cmd_bell_plus
+                        : CommunityMaterial.Icon.cmd_bell_ring,
+                R.color.black, 30, 5));
+        holder.reminderButton.setVisibility(View.VISIBLE);
+        holder.reminderButton.setEnabled(true);
     }
 
     private void resetForReuse(ActiveMedicationViewHolder holder) {
