@@ -119,7 +119,16 @@ public class ActiveMedNotification {
         inboxStyle.setBigContentTitle(context.getString(R.string.aml_updated_notification_title));
         inboxStyle.setSummaryText(summaryText);
 
-        PreferenceUtils.edit().putString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY.key(), summaryStr.toString()).apply();
+        // The private summary cannot be safely displayed from a global
+        // preference unless it is bound to the exact patient+account owner.
+        // An unowned legacy summary must never be surfaced in another profile.
+        String summaryOwner = ProviderRevisionGuard.ownerKey(p.getId(), p.getCode());
+        PreferenceUtils.edit()
+                .putString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY.key(),
+                        summaryOwner == null ? "" : summaryStr.toString())
+                .putString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY_OWNER.key(),
+                        summaryOwner)
+                .apply();
 
         final NotificationCompat.Builder builder = new NotificationCompat.Builder(context, NotificationHelper.CHANNEL_MEDS_ID)
 
