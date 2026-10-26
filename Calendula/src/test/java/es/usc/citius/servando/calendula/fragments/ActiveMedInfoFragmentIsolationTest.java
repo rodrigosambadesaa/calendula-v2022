@@ -24,6 +24,10 @@ public class ActiveMedInfoFragmentIsolationTest {
         Field field = ActiveMedInfoFragment.class.getDeclaredField("dispensationInfoStore");
         assertFalse("Clinical dispensations must not be shared across fragment instances",
                 Modifier.isStatic(field.getModifiers()));
+        Field calendarModel =
+                ActiveMedInfoFragment.DispensationFragment.class.getDeclaredField("ownStore");
+        assertFalse("The retained calendar widget must also have isolated clinical state",
+                Modifier.isStatic(calendarModel.getModifiers()));
     }
 
     @Test
