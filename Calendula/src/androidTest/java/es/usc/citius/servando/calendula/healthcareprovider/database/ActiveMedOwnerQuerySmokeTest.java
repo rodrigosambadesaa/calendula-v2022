@@ -55,6 +55,13 @@ public class ActiveMedOwnerQuerySmokeTest {
             assertNotEquals(first.getId(), second.getId());
             assertNull(DB.healthcareProviderDB().activeMeds()
                     .findByIdForPatient(aMed.getId(), b));
+            assertNull("Confirmation must never retrieve B's official prescription for A",
+                    DB.healthcareProviderDB().activeMeds()
+                            .findByIdForPatient(bMed.getId(), a));
+            assertEquals(aMed.getId(), DB.healthcareProviderDB().activeMeds()
+                    .findByIdForPatient(aMed.getId(), a).getId());
+            assertEquals(bMed.getId(), DB.healthcareProviderDB().activeMeds()
+                    .findByIdForPatient(bMed.getId(), b).getId());
             assertNull(DB.healthcareProviderDB().activeMeds()
                     .findByCodeForPatient(code, null));
             assertNull(DB.healthcareProviderDB().activeMeds()
