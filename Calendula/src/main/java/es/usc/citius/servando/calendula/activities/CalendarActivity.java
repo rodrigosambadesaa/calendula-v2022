@@ -179,6 +179,16 @@ public class CalendarActivity extends CalendulaActivity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        // An already-open calendar may reappear after profile selection in
+        // another screen, without the user clicking a day first.
+        if (patient != null) {
+            currentPickupPatientIsActive();
+        }
+    }
+
+    @Override
     protected void onDestroy() {
         selectedDate = null;
         super.onDestroy();
