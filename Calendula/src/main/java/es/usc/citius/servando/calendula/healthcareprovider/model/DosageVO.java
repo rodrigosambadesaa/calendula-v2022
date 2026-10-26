@@ -138,8 +138,10 @@ public class DosageVO {
                 continue;
             }
             final Locale locale = Locale.getDefault();
+            // Preserve provider-supplied capitalization: mL, IU and similar
+            // clinical units must not become ml or iu in patient instructions.
             readableInfo = readableInfo.substring(0, 1).toUpperCase(locale) +
-                    readableInfo.substring(1).toLowerCase(locale);
+                    readableInfo.substring(1);
             out.append("● ").append(readableInfo).append("\n");
         }
         return out.toString();
