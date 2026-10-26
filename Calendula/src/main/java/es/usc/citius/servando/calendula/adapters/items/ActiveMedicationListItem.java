@@ -53,6 +53,8 @@ import es.usc.citius.servando.calendula.drugdb.DBRegistry;
 import es.usc.citius.servando.calendula.drugdb.PrescriptionDBMgr;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.persistence.Schedule;
+import es.usc.citius.servando.calendula.persistence.Patient;
+import es.usc.citius.servando.calendula.fragments.OfficialReminderLinkSelector;
 import es.usc.citius.servando.calendula.scheduling.ScheduleDisplayUtils;
 import es.usc.citius.servando.calendula.healthcareprovider.model.ActiveMedCNVO;
 import es.usc.citius.servando.calendula.healthcareprovider.model.ActiveMedDCPFVO;
@@ -131,21 +133,28 @@ public class ActiveMedicationListItem extends AbstractItem<ActiveMedicationListI
                     }
 
                 } else if (!DosageType.AS_NEEDED.equals(dosageType)) {
-                    Schedule schedule = DB.schedules().findOneBy(Schedule.BOUND_TO, vo.getBackingEntity().getId());
-                    if (schedule != null) {
+                    final ActiveMedEntity official = vo.getBackingEntity();
+                    final Patient selected = DB.patients().getActive(ctx);
+                    final Long owner = official == null || official.getPatient() == null
+                            ? null : official.getPatient().getId();
+                    final OfficialReminderLinkSelector.Selection reminderSelection =
+                            OfficialReminderLinkSelector.inspect(
+                                    owner, selected == null ? null : selected.getId(), owner,
+                                    official == null || official.getId() == null
+                                            ? null : DB.schedules().findBy(
+                                                Schedule.BOUND_TO, official.getId()));
+                    if (reminderSelection.action == OfficialReminderLinkSelector.Action.UNAVAILABLE) {
+                        holder.reminderButton.setVisibility(View.GONE);
+                        holder.reminderButton.setEnabled(false);
+                    } else {
                         holder.reminderButton.setImageDrawable(IconUtils.icon(ctx,
-                                CommunityMaterial.Icon.cmd_bell_ring,
+                                reminderSelection.action == OfficialReminderLinkSelector.Action.CREATE
+                                        ? CommunityMaterial.Icon.cmd_bell_plus
+                                        : CommunityMaterial.Icon.cmd_bell_ring,
                                 R.color.black, 30, 5));
+                        holder.reminderButton.setVisibility(View.VISIBLE);
+                        holder.reminderButton.setEnabled(true);
                     }
-                    else {
-                        IconicsDrawable icon = IconUtils.icon(ctx,
-                                CommunityMaterial.Icon.cmd_bell_plus,
-                                R.color.black, 30, 5);
-
-                        holder.reminderButton.setImageDrawable(icon);
-                    }
-                    holder.reminderButton.setVisibility(View.VISIBLE);
-                    holder.reminderButton.setEnabled(true);
                     holder.infoButton.setVisibility(View.GONE);
                     holder.infoButton.setEnabled(false);
                 } else {
