@@ -478,9 +478,19 @@ public class ActiveMedInfoFragment extends Fragment {
 
 
     public static class DispensationFragment extends CaldroidFragment {
+        // Retained nested fragments must carry their own owner-specific data.
+        // An empty fallback prevents another detail page's cache being reused.
+        private DispensationInfoStore ownStore;
+
+        public void setStore(DispensationInfoStore store) {
+            this.ownStore = store;
+        }
+
         @Override
         public CaldroidGridAdapter getNewDatesGridAdapter(int month, int year) {
-            return new PickupCalendarAdapter(getActivity(), month, year, getCaldroidData(), extraData, dispensationInfoStore);
+            DispensationInfoStore data = ownStore == null
+                    ? new DispensationInfoStore(new ArrayList<>()) : ownStore;
+            return new PickupCalendarAdapter(getActivity(), month, year, getCaldroidData(), extraData, data);
         }
     }
 
@@ -551,6 +561,9 @@ public class ActiveMedInfoFragment extends Fragment {
                     return;
                 }
                 dispensationInfoStore = store;
+                if (caldroidFragment instanceof DispensationFragment) {
+                    ((DispensationFragment) caldroidFragment).setStore(store);
+                }
                 FragmentTransaction t = getFragmentManager().beginTransaction();
                 t.replace(R.id.dispensation_calendar, caldroidFragment);
                 t.commit();
