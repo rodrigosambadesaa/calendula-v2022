@@ -9,6 +9,10 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
 import es.usc.citius.servando.calendula.persistence.Patient;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.DispensationInfoEntity;
+import org.joda.time.DateTime;
+import org.joda.time.Interval;
 
 import static org.junit.Assert.*;
 
@@ -34,6 +38,33 @@ public class CalendarActivityPatientIsolationTest {
         assertFalse(CalendarActivity.samePersistedPatient(null, requested));
         assertFalse(CalendarActivity.samePersistedPatient(patient(0L), patient(0L)));
         assertFalse(CalendarActivity.samePersistedPatient(new Patient(), new Patient()));
+    }
+
+    @Test
+    public void pickupMustLinkToTheExactProviderRowAndPatientWithAnInterval() {
+        Patient a = patient(101L);
+        Patient b = patient(102L);
+        ActiveMedEntity providerA = new ActiveMedEntity();
+        providerA.setId(500L);
+        providerA.setPatient(a);
+        ActiveMedEntity providerB = new ActiveMedEntity();
+        providerB.setId(501L);
+        providerB.setPatient(b);
+        DispensationInfoEntity pickup = new DispensationInfoEntity();
+        pickup.setActiveMed(providerA);
+        pickup.setDispenseInterval(new Interval(DateTime.now(), DateTime.now().plusDays(1)));
+
+        assertTrue(CalendarActivity.isOwnedPickup(a, providerA, pickup));
+        assertFalse(CalendarActivity.isOwnedPickup(b, providerA, pickup));
+        assertFalse(CalendarActivity.isOwnedPickup(a, providerB, pickup));
+        assertFalse(CalendarActivity.isOwnedPickup(null, providerA, pickup));
+        assertFalse(CalendarActivity.isOwnedPickup(a, providerA, null));
+
+        pickup.setActiveMed(providerB);
+        assertFalse(CalendarActivity.isOwnedPickup(a, providerA, pickup));
+        pickup.setActiveMed(providerA);
+        pickup.setDispenseInterval(null);
+        assertFalse(CalendarActivity.isOwnedPickup(a, providerA, pickup));
     }
 
     private static Patient patient(Long id) {
