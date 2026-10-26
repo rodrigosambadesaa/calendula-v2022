@@ -300,7 +300,11 @@ public class CalendarActivity extends CalendulaActivity {
             @Override
             public void onSelectDate(Date date, View view) {
                 LocalDate d = LocalDate.fromDateFields(date);
-                onDaySelected(d);
+                // Profile selection may change after the async pickup query
+                // completed. Never reveal a cached patient summary after it.
+                if (!currentPickupPatientIsActive() || !onDaySelected(d)) {
+                    return;
+                }
                 if (bestDay != null && bestDay.first != null && bestDay.first.equals(d)) {
                     //Toast.makeText(CalendarActivity.this, "Best day!", Toast.LENGTH_SHORT).show();
                     AlertDialog.Builder builder = new AlertDialog.Builder(CalendarActivity.this);
@@ -365,14 +369,39 @@ public class CalendarActivity extends CalendulaActivity {
     }
 
     private boolean onDaySelected(LocalDate date) {
+        if (!currentPickupPatientIsActive()) {
+            return false;
+        }
         selectedDate = date.toDateTimeAtStartOfDay().toDate();
         return showPickupsInfo(date);
+    }
+
+    private boolean currentPickupPatientIsActive() {
+        try {
+            if (samePersistedPatient(patient, DB.patients().getActive(this))) {
+                return true;
+            }
+        } catch (RuntimeException unavailable) {
+            // Do not display stale clinical information if the owner cannot
+            // be resolved at interaction time.
+            LogUtil.w(TAG, "Pickup calendar owner cannot be verified");
+        }
+        bottomSheet.setVisibility(View.INVISIBLE);
+        finish();
+        return false;
     }
 
     private boolean showPickupsInfo(final LocalDate date) {
         clearSelectedInterval();
         final List<DispensationInfoEntity> from = dispensationInfoStore.pickupsMap().get(date);
         if (from != null && !from.isEmpty()) {
+            // A corrupt or re-linked row must block the entire date, not
+            // show part of another patient's treatment or highlight it.
+            if (!allPickupsBelongToPatient(patient, from)) {
+                bottomSheet.setVisibility(View.INVISIBLE);
+                finish();
+                return false;
+            }
             if (from.size() == 1) {
                 selectInterval(from.get(0));
             }
@@ -385,8 +414,7 @@ public class CalendarActivity extends CalendulaActivity {
             for (final DispensationInfoEntity p : from) {
 
                 Patient pat = p.getActiveMed().getPatient();
-
-                if (pat.getId().equals(patient.getId())) {
+                {
 
                     View v = i.inflate(R.layout.calendar_pickup_list_item, list, false);
                     TextView tv1 = ((TextView) v.findViewById(R.id.textView));
@@ -426,6 +454,10 @@ public class CalendarActivity extends CalendulaActivity {
     }
 
     private void selectInterval(DispensationInfoEntity p) {
+        if (!currentPickupPatientIsActive() || p == null
+                || !isOwnedPickup(patient, p.getActiveMed(), p)) {
+            return;
+        }
         clearSelectedInterval();
         Interval interval = p.getDispenseInterval();
         for (DateTime date = interval.getStart(); date.isBefore(interval.getEnd().plusDays(1)); date = date.plusDays(1)) {
@@ -438,7 +470,8 @@ public class CalendarActivity extends CalendulaActivity {
 
     private void clearSelectedInterval() {
         if (!selectedDates.isEmpty()) {
-            caldroidFragment.clearBackgroundDrawableForDates(selectedDates);
+            caldroidFragment.clearBackgroundDrawableForDates(new ArrayList<>(selectedDates));
+            selectedDates.clear();
             caldroidFragment.refreshView();
         }
     }
@@ -484,6 +517,20 @@ public class CalendarActivity extends CalendulaActivity {
         ActiveMedEntity linked = pickup.getActiveMed();
         return provider.getId().equals(linked.getId())
                 && samePersistedPatient(selected, linked.getPatient());
+    }
+
+    /** Reject the entire day's selection rather than filtering an unsafe row. */
+    static boolean allPickupsBelongToPatient(
+            Patient expected, List<DispensationInfoEntity> candidates) {
+        if (candidates == null) {
+            return false;
+        }
+        for (DispensationInfoEntity row : candidates) {
+            if (row == null || !isOwnedPickup(expected, row.getActiveMed(), row)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void updatePickupsAsync() {
