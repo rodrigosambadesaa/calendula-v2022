@@ -462,6 +462,9 @@ public class ActiveMedInfoFragment extends Fragment {
 
         dispensationInfoText.setText(getString(R.string.dispensation_summary_text, lastString, nextString));
 
+        // The fragment can be refreshed with a new provider snapshot. Clear
+        // an obsolete "interval open" banner before checking the new window.
+        bindDispensationIntervalInfo(dispensationIntervalInfo, null);
         if (next != null && next.getDispenseInterval() != null && next.getDispenseInterval().getStart() != null) {
             if (next.getDispenseInterval().getStart().isBeforeNow()) {
 
@@ -477,10 +480,19 @@ public class ActiveMedInfoFragment extends Fragment {
                 ImageSpan imageSpan = new ImageSpan(drawable);
                 SpannableString span = new SpannableString("  " + getString(R.string.dispensation_interval_open));
                 span.setSpan(imageSpan, 0, 1, Spanned.SPAN_INCLUSIVE_EXCLUSIVE);
-                dispensationIntervalInfo.setText(span);
+                bindDispensationIntervalInfo(dispensationIntervalInfo, span);
             }
+        }
+    }
+
+    /** An old pickup-window message may never survive a provider refresh. */
+    static void bindDispensationIntervalInfo(TextView view, @Nullable CharSequence message) {
+        if (message == null || message.length() == 0) {
+            view.setText(null);
+            view.setVisibility(View.GONE);
         } else {
-            dispensationIntervalInfo.setVisibility(View.GONE);
+            view.setText(message);
+            view.setVisibility(View.VISIBLE);
         }
     }
 
