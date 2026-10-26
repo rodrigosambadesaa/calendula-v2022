@@ -262,6 +262,26 @@ public class ActiveMedInfoFragment extends Fragment {
         return org.apache.commons.lang3.StringUtils.isBlank(text) ? null : text;
     }
 
+    /** Reset or restore each provider validity field on a reused detail view. */
+    static void bindValidityDate(View container, TextView label, @Nullable DateTime date) {
+        if (date == null) {
+            label.setText(null);
+            container.setVisibility(View.GONE);
+        } else {
+            label.setText(date.toString(dateFormat));
+            container.setVisibility(View.VISIBLE);
+        }
+    }
+
+    /** Missing updated dosage must not leave a previous prescription visible. */
+    static void bindDosageText(TextView label, @Nullable String readable) {
+        if (readable == null || readable.trim().isEmpty()) {
+            label.setText(R.string.dosage_string_not_available);
+        } else {
+            label.setText(readable);
+        }
+    }
+
     private void setupView() {
         if (activeMed == null || getView() == null || getContext() == null) {
             return;
@@ -293,21 +313,14 @@ public class ActiveMedInfoFragment extends Fragment {
         final DateTime validityStart = activeMed.getValidityStart();
         final DateTime validityEnd = activeMed.getValidityEnd();
 
-        if (validityStart != null) {
-            validityStartText.setText(validityStart.toString(dateFormat));
-        } else {
-            validityStartContainer.setVisibility(View.GONE);
-        }
-        if (validityEnd != null) {
-            validityEndText.setText(validityEnd.toString(dateFormat));
-        } else {
-            validityEndContainer.setVisibility(View.GONE);
-        }
-        // schedule (dosage)
+        // This fragment's view can be reused after a provider refresh.
+        // Clear absent values and restore hidden containers for new values.
+        bindValidityDate(validityStartContainer, validityStartText, validityStart);
+        bindValidityDate(validityEndContainer, validityEndText, validityEnd);
+
         final DosageVO dosage = activeMed.getDosage();
-        if (dosage != null) {
-            scheduleText.setText(dosage.toReadableString(getContext()));
-        }
+        bindDosageText(scheduleText,
+                dosage == null ? null : dosage.toReadableString(getContext()));
 
         List<DosageEntryVO> entries = dosage == null ? null : dosage.getEntries();
         String instructions = firstPatientInstructionOrNull(entries);
