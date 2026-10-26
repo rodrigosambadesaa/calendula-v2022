@@ -589,9 +589,20 @@ public class HomePagerActivity extends CalendulaActivity implements
     }
 
     private void showLastUpdatedMsg() {
-        String msg = RemoteMedicationPreferenceReader.readOrDefault(
-                PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY, "");
-        DateTime lastUpdated = DB.healthcareProviderDB().activeMeds().findLastUpdateDate(activePatient);
+        // A cached activity selection is not an authorization to display
+        // provider metadata after switching profiles on another screen.
+        Patient selectedNow = DB.patients().getActive(this);
+        if (activePatient == null || activePatient.getId() == null
+                || selectedNow == null || selectedNow.getId() == null
+                || !activePatient.getId().equals(selectedNow.getId())
+                || !java.util.Objects.equals(activePatient.getCode(), selectedNow.getCode())) {
+            Toast.makeText(this, R.string.active_med_no_last_updated_time,
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String msg = RemoteMedicationPreferenceReader.summaryForPatientOrEmpty(selectedNow);
+        DateTime lastUpdated = DB.healthcareProviderDB().activeMeds()
+                .findLastUpdateDate(selectedNow);
         if (lastUpdated != null) {
             new MaterialStyledDialog.Builder(this)
                     .setTitle(lastUpdated.toString(getString(R.string.active_med_last_updated_time)))
