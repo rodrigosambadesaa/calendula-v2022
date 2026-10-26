@@ -27,6 +27,19 @@ import static org.junit.Assert.*;
 @Config(sdk = 28)
 public class ActiveMedInfoFragmentIsolationTest {
     @Test
+    public void asyncDispensationLoadsMustBeFragmentLocalAndStaleCallbacksRejected() throws Exception {
+        Field generation =
+                ActiveMedInfoFragment.class.getDeclaredField("dispensationLoadGeneration");
+        assertFalse("Different patient detail fragments must never share loading state",
+                Modifier.isStatic(generation.getModifiers()));
+        assertTrue(ActiveMedInfoFragment.isCurrentDispensationLoad(4L, 4L));
+        assertFalse("Older loads may not replace results from a more recent refresh",
+                ActiveMedInfoFragment.isCurrentDispensationLoad(3L, 4L));
+        assertFalse("Stopped fragments must reject their former callbacks",
+                ActiveMedInfoFragment.isCurrentDispensationLoad(4L, 5L));
+    }
+
+    @Test
     public void dispensationCalendarMustBelongToOneFragmentNotAllPatients() throws Exception {
         Field field = ActiveMedInfoFragment.class.getDeclaredField("dispensationInfoStore");
         assertFalse("Clinical dispensations must not be shared across fragment instances",
