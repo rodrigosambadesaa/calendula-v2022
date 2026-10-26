@@ -74,6 +74,56 @@ public class DosageReadableStringTest {
     }
 
     @Test
+    public void negativeNaNAndInfiniteDoseQuantitiesAreUnavailable() {
+        for (Double invalid : new Double[]{null, 0.0d, -1.0d,
+                Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY}) {
+            DosageEntryEntity entity = new DosageEntryEntity();
+            entity.setRepeatType(RepeatType.TIME_OF_DAY);
+            entity.setQuantityValue(invalid);
+            entity.setQuantityUnits("tablet");
+            entity.setAt(new org.joda.time.LocalTime(9, 0));
+            assertEquals(notAvailable(), new DosageEntryVO(entity).toReadableString(context));
+        }
+    }
+
+    @Test
+    public void malformedProviderDurationAndPeriodCannotRenderAsInstructions() {
+        for (Double invalid : new Double[]{null, 0.0d, -2.0d,
+                Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY}) {
+            DosageEntryEntity duration = new DosageEntryEntity();
+            duration.setRepeatType(RepeatType.DURATION);
+            duration.setRepeatValue(invalid);
+            duration.setRepeatUnits(Timing.UnitsOfTime.H);
+            assertEquals(notAvailable(), new DosageEntryVO(duration).toReadableString(context));
+
+            DosageEntryEntity period = new DosageEntryEntity();
+            period.setRepeatType(RepeatType.PERIOD);
+            period.setRepeatValue(invalid);
+            period.setRepeatUnits(Timing.UnitsOfTime.H);
+            period.setQuantityValue(1.0d);
+            period.setQuantityUnits("tablet");
+            assertEquals(notAvailable(), new DosageEntryVO(period).toReadableString(context));
+        }
+    }
+
+    @Test
+    public void validFiniteReadabilityAndUnsupportedUnitAreDistinguished() {
+        DosageEntryEntity entity = new DosageEntryEntity();
+        entity.setRepeatType(RepeatType.PERIOD);
+        entity.setQuantityValue(1.5d);
+        entity.setQuantityUnits("tablet");
+        entity.setRepeatValue(0.5d);
+        entity.setRepeatUnits(Timing.UnitsOfTime.H);
+        org.junit.Assert.assertNotEquals(notAvailable(),
+                new DosageEntryVO(entity).toReadableString(context));
+        entity.setRepeatUnits(null);
+        assertEquals(notAvailable(), new DosageEntryVO(entity).toReadableString(context));
+        entity.setRepeatUnits(Timing.UnitsOfTime.H);
+        entity.setQuantityUnits("  ");
+        assertEquals(notAvailable(), new DosageEntryVO(entity).toReadableString(context));
+    }
+
+    @Test
     public void emptyDosageHasEmptyReadableDescription() {
         assertEquals("", new DosageVO().toReadableString(context));
     }
