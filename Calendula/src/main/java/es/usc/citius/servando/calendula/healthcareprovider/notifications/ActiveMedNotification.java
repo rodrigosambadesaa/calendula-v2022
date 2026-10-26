@@ -44,6 +44,7 @@ import es.usc.citius.servando.calendula.util.IntentParams;
 import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
+import es.usc.citius.servando.calendula.util.ProviderRevisionGuard;
 
 
 public class ActiveMedNotification {
