@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 
 import es.usc.citius.servando.calendula.database.DB;
+import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Routine;
@@ -95,9 +96,22 @@ public class ScheduleCreator {
         return (T) DB.transaction(work);
     }
 
+    /**
+     * Schedule creation can be triggered by an Intent. Never trust its provider
+     * medicine ID without the live, persisted active patient profile.
+     */
+    static ActiveMedEntity findProviderForActivePatient(Long providerId) {
+        Patient active = DB.patients().getActive(CalendulaApp.getContext());
+        return DB.healthcareProviderDB().activeMeds()
+                .findByIdForPatient(providerId, active);
+    }
+
     private static Pair<ScheduleMappingResult, Schedule> mapActiveMed(Long activeMedId)
             throws Exception {
-            ActiveMedEntity am = DB.healthcareProviderDB().activeMeds().findById(activeMedId);
+            ActiveMedEntity am = findProviderForActivePatient(activeMedId);
+            if (am == null) {
+                throw new IllegalStateException("Official medication is unavailable for active patient");
+            }
             ActiveMedVO vo = ActiveMedVO.forEntity(am);
             Patient patient = vo.getPatient();
             // Reject contradictory prescription bounds before writing new
@@ -218,6 +232,13 @@ public class ScheduleCreator {
             s.setActiveMedId(activeMedId);
             if (result == ScheduleMappingResult.COMPLETE) {
                 s.addState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL);
+            }
+            // A profile may change while building or loading routines. A
+            // mismatch must roll back all writes performed in DB.transaction.
+            Patient stillActive = DB.patients().getActive(CalendulaApp.getContext());
+            if (patient == null || patient.getId() == null || stillActive == null
+                    || !patient.getId().equals(stillActive.getId())) {
+                throw new IllegalStateException("Active patient changed during official schedule mapping");
             }
             return new Pair<>(result, s);
     }
