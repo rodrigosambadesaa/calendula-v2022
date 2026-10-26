@@ -46,4 +46,21 @@ class ScheduleComparatorTimeLookupTest {
         org.junit.Assert.assertEquals(LocalTime(7, 45),
             ScheduleComparator.firstFixedDoseTimeOrNull(listOf(first, second)))
     }
+
+    @Test
+    fun malformedClinicalPeriodIntervalsCannotBeSilentlyConvertedToIntegers() {
+        for (value in listOf<Double?>(
+            null, 0.0, -1.0, 0.5, 1.5, Double.NaN,
+            Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY,
+            Int.MAX_VALUE.toDouble() + 1.0
+        )) {
+            assertNull(ScheduleComparator.usablePeriodIntervalOrNull(value))
+        }
+        org.junit.Assert.assertEquals(1,
+            ScheduleComparator.usablePeriodIntervalOrNull(1.0))
+        org.junit.Assert.assertEquals(24,
+            ScheduleComparator.usablePeriodIntervalOrNull(24.0))
+        org.junit.Assert.assertEquals(Int.MAX_VALUE,
+            ScheduleComparator.usablePeriodIntervalOrNull(Int.MAX_VALUE.toDouble()))
+    }
 }
