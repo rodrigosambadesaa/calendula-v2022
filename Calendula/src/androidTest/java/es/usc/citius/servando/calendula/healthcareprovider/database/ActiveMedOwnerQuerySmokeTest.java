@@ -34,6 +34,10 @@ public class ActiveMedOwnerQuerySmokeTest {
         bDosage.setType(DosageType.AS_NEEDED);
         ActiveMedEntity aMed = entity(code, a, aDosage);
         ActiveMedEntity bMed = entity(code, b, bDosage);
+        org.joda.time.DateTime aUpdated = new org.joda.time.DateTime(2026, 10, 1, 12, 0);
+        org.joda.time.DateTime bUpdated = new org.joda.time.DateTime(2026, 10, 20, 18, 30);
+        aMed.setLastUpdated(aUpdated);
+        bMed.setLastUpdated(bUpdated);
         try {
             assertEquals(1, DB.patients().create(a));
             assertEquals(1, DB.patients().create(b));
@@ -66,6 +70,19 @@ public class ActiveMedOwnerQuerySmokeTest {
                     .findByCodeForPatient(code, null));
             assertNull(DB.healthcareProviderDB().activeMeds()
                     .findByCodeForPatient(null, a));
+            // Provider update metadata is just as patient-sensitive as dosage.
+            assertEquals(aUpdated, DB.healthcareProviderDB().activeMeds()
+                    .findLastUpdateDate(a));
+            assertEquals(bUpdated, DB.healthcareProviderDB().activeMeds()
+                    .findLastUpdateDate(b));
+            assertNull(DB.healthcareProviderDB().activeMeds()
+                    .findLastUpdateDate(null));
+            assertNull(DB.healthcareProviderDB().activeMeds()
+                    .findLastUpdateDate(new Patient()));
+            Patient deletedOrForged = patient("not-persisted");
+            deletedOrForged.setId(Long.MAX_VALUE);
+            assertNull(DB.healthcareProviderDB().activeMeds()
+                    .findLastUpdateDate(deletedOrForged));
         } finally {
             for (ActiveMedEntity med : new ActiveMedEntity[]{aMed, bMed}) {
                 if (med.getId() != null
