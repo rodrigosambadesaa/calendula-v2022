@@ -507,7 +507,12 @@ public class ActiveMedInfoFragment extends Fragment {
 
     private void clearSelectedInterval() {
         if (!intervalDates.isEmpty()) {
-            caldroidFragment.clearBackgroundDrawableForDates(intervalDates);
+            // Only the previously selected interval belongs to this highlight.
+            // Clear the tracked dates after the widget accepts the removal,
+            // otherwise each date selection retains every older interval.
+            caldroidFragment.clearBackgroundDrawableForDates(
+                    new ArrayList<>(intervalDates));
+            intervalDates.clear();
             caldroidFragment.refreshView();
         }
     }
