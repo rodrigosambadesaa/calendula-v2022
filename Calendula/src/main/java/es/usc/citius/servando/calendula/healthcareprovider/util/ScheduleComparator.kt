@@ -27,6 +27,7 @@ import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageTyp
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.RepeatType
 import es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime
 import org.dmfs.rfc5545.recur.Freq
+import org.hl7.fhir.dstu3.model.Timing
 import org.joda.time.DateTime
 import org.joda.time.LocalTime
 
@@ -49,6 +50,14 @@ object ScheduleComparator {
             value % 1.0 == 0.0
         ) value.toInt() else null
 
+
+    /** Unsupported or absent FHIR timing units are differences, not crashes. */
+    internal fun usablePeriodFrequencyOrNull(unit: Timing.UnitsOfTime?): Freq? =
+        if (unit == null) null else try {
+            TimingUtils.freqFromUnitsOfTime(unit)
+        } catch (unsupported: IllegalArgumentException) {
+            null
+        }
 
     /** Reject misbound official schedules before interpreting dose times. */
     internal fun ownersMatchForComparison(
@@ -157,7 +166,11 @@ object ScheduleComparator {
                         changes.add(DosageChange())
                         continue
                     }
-                    val repeatFreq = TimingUtils.freqFromUnitsOfTime(entry.repeatUnits)
+                    val repeatFreq = usablePeriodFrequencyOrNull(entry.repeatUnits)
+                    if (repeatFreq == null) {
+                        changes.add(DosageChange())
+                        continue
+                    }
                     val freq = recur.freq
                     val interval = recur.interval
 
