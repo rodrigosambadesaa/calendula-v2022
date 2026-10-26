@@ -202,7 +202,7 @@ public class DailyAgendaFragment extends Fragment {
                 ActiveMedEntity linkedOfficial = null;
                 if (s.isBoundToActiveMed()) {
                     linkedOfficial = DB.healthcareProviderDB().activeMeds()
-                            .findById(s.getActiveMedId());
+                            .findByIdForPatient(s.getActiveMedId(), p);
                     if (!DailyAgendaOfficialTreatmentValidator.verifiedLink(s, linkedOfficial)) {
                         // Do not render another patient's imported treatment
                         // under this profile or hide a missing source silently.
