@@ -60,6 +60,7 @@ import java.util.List;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -92,6 +93,8 @@ public class ActiveMedInfoFragment extends Fragment {
 
     private final static DateTimeFormatter dateFormat = DateTimeFormat.forPattern("dd/MM/yyyy");
     private DispensationInfoStore dispensationInfoStore;
+    private final AtomicLong dispensationLoadGeneration = new AtomicLong();
+    @Nullable private ProgressDialog dispensationProgressDialog;
     @BindView(R.id.active_med_from_container)
     View validityStartContainer;
     @BindView(R.id.active_med_to_container)
@@ -153,9 +156,31 @@ public class ActiveMedInfoFragment extends Fragment {
 
     @Override
     public void onDestroyView() {
+        invalidateDispensationLoad();
         super.onDestroyView();
         if (unbinder != null)
             unbinder.unbind();
+    }
+
+    @Override
+    public void onStop() {
+        invalidateDispensationLoad();
+        super.onStop();
+    }
+
+    private void invalidateDispensationLoad() {
+        dispensationLoadGeneration.incrementAndGet();
+        if (dispensationProgressDialog != null) {
+            if (dispensationProgressDialog.isShowing()) {
+                dispensationProgressDialog.dismiss();
+            }
+            dispensationProgressDialog = null;
+        }
+    }
+
+    /** A callback from an older refresh must not overwrite a newer calendar. */
+    static boolean isCurrentDispensationLoad(long requestedGeneration, long currentGeneration) {
+        return requestedGeneration == currentGeneration;
     }
 
     public void notifyDataChange() {
@@ -168,6 +193,7 @@ public class ActiveMedInfoFragment extends Fragment {
     }
 
     private void closeUnavailableProviderPage() {
+        invalidateDispensationLoad();
         // The selected profile/official medication may have changed while
         // this fragment was paused. Never leave the old dosage visible.
         if (getView() != null) {
@@ -514,10 +540,15 @@ public class ActiveMedInfoFragment extends Fragment {
         }
 
         LogUtil.d(TAG, "loadDispensationInfoAsync: starting");
+        // Serial background work can finish after a newer medication refresh.
+        // Discard stale results and retire the previous loading dialog.
+        invalidateDispensationLoad();
+        final long requestedGeneration = dispensationLoadGeneration.get();
         final ProgressDialog dialog = new ProgressDialog(context);
         dialog.setIndeterminate(true);
         dialog.setMessage(getString(R.string.calendar_updating));
         dialog.show();
+        dispensationProgressDialog = dialog;
 
         final ActiveMedEntity activeMedEntity = activeMed.getBackingEntity();
         final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -543,6 +574,13 @@ public class ActiveMedInfoFragment extends Fragment {
             mainHandler.post(() -> {
                 if (dialog.isShowing()) {
                     dialog.dismiss();
+                }
+                if (dispensationProgressDialog == dialog) {
+                    dispensationProgressDialog = null;
+                }
+                if (!isCurrentDispensationLoad(requestedGeneration,
+                        dispensationLoadGeneration.get())) {
+                    return;
                 }
                 if (!isAdded() || getView() == null || getFragmentManager() == null) {
                     return;
