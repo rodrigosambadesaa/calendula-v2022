@@ -39,6 +39,25 @@ public final class RemoteMedicationPreferenceReader {
         return true;
     }
 
+    /**
+     * Legacy global summaries have no trustworthy owner: do not show them.
+     * New notification summaries are explicitly tied to the persisted
+     * patient and authenticated account subject.
+     */
+    public static String summaryForPatientOrEmpty(
+            es.usc.citius.servando.calendula.persistence.Patient patient) {
+        if (patient == null) {
+            return "";
+        }
+        String expectedOwner = ProviderRevisionGuard.ownerKey(
+                patient.getId(), patient.getCode());
+        String recordedOwner = readOrDefault(
+                PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY_OWNER, null);
+        return ProviderRevisionGuard.isSameOwner(expectedOwner, recordedOwner)
+                ? readOrDefault(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY, "")
+                : "";
+    }
+
     /** Never normalize valid opaque server revisions. */
     public static String lastRevisionOrNull() {
         String revision = readOrDefault(PreferenceKeys.REMOTE_LAST_HASH, null);
