@@ -414,15 +414,12 @@ public class ActiveMedicationListFragment extends Fragment {
                     return true;
                 }
                 final ActiveMedVO vo = item.getVo();
-                Medicine m = DB.medicines().findOneBy(
-                        Medicine.COLUMN_ACTIVE_MED_ID, vo.getBackingEntity().getId());
                 final Patient activePatient = DB.patients().getActive(getContext());
-                if (m != null && (m.getPatient() == null || activePatient == null
-                        || !ActiveMedicationOwnerGuard.matchingPatient(
-                            displayedPatientId, activePatient.getId(),
-                            m.getPatient().getId()))) {
-                    m = null;
-                }
+                final Medicine m = ActiveMedicationOwnerGuard.uniqueOwnedLocalMedicine(
+                        DB.medicines().findBy(
+                                Medicine.COLUMN_ACTIVE_MED_ID,
+                                vo.getBackingEntity().getId()),
+                        activePatient == null ? null : activePatient.getId());
 
                 Intent i = new Intent(getActivity(), MedicineInfoActivity.class);
                 i.setAction(MedicineInfoActivity.ACTION_SHOW_ONLY_ACTIVE_MED);
