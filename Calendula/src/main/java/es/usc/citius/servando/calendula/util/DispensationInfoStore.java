@@ -132,30 +132,46 @@ public class DispensationInfoStore {
                 }
             }
 
-            // select the day with the highest number of meds
-            int bestDayCount = 0;
-            LocalDate bestOption = null;
-            Set<LocalDate> LocalDates = bestDays.keySet();
-            ArrayList<LocalDate> sorted = new ArrayList<>(LocalDates);
-            Collections.sort(sorted);
-            for (LocalDate day : sorted) {
-                List<DispensationInfoEntity> pks = bestDays.get(day);
-                // Dispensation timestamps must not be disclosed via debug output.
-                if (pks.size() >= bestDayCount) {
-                    bestDayCount = pks.size();
-                    bestOption = day;
-                    if (bestOption.getDayOfWeek() == DateTimeConstants.SUNDAY) {
-                        bestOption = bestOption.minusDays(1);
-                    }
-                }
-            }
-            if (bestOption != null) {
-                this.bestDay = new Pair<>(bestOption, bestDays.get(bestOption));
-                return this.bestDay;
-            }
+            // Choose only days actually considered eligible by the interval
+            // checks above. Moving a Sunday candidate to Saturday without
+            // rechecking every medication interval can recommend medicines
+            // before their authorized pickup windows and lose their list.
+            this.bestDay = chooseBestNonSundayPickup(bestDays);
+            return this.bestDay;
         }
 
         return null;
+    }
+
+    /**
+     * A recommendation must refer to a real eligible pickup day and that
+     * day's exact medicines; never remap Sunday to an unchecked Saturday.
+     * Ties preserve the existing latest-eligible-day selection.
+     */
+    static Pair<LocalDate, List<DispensationInfoEntity>> chooseBestNonSundayPickup(
+            Map<LocalDate, List<DispensationInfoEntity>> candidates) {
+        if (candidates == null || candidates.isEmpty()) {
+            return null;
+        }
+        ArrayList<LocalDate> days = new ArrayList<>(candidates.keySet());
+        days.remove(null);
+        Collections.sort(days);
+        LocalDate bestDate = null;
+        List<DispensationInfoEntity> bestMedicines = null;
+        for (LocalDate day : days) {
+            if (day == null || day.getDayOfWeek() == DateTimeConstants.SUNDAY) {
+                continue;
+            }
+            List<DispensationInfoEntity> medicines = candidates.get(day);
+            if (medicines == null || medicines.isEmpty()) {
+                continue;
+            }
+            if (bestMedicines == null || medicines.size() >= bestMedicines.size()) {
+                bestDate = day;
+                bestMedicines = medicines;
+            }
+        }
+        return bestDate == null ? null : new Pair<>(bestDate, new ArrayList<>(bestMedicines));
     }
 
     public Patient getPatient(DispensationInfoEntity p) {
