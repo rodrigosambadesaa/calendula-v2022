@@ -334,7 +334,7 @@ public class IntakeNotificationMgr {
                 try {
                     source = schedule.isBoundToActiveMed()
                             ? DB.healthcareProviderDB().activeMeds()
-                                    .findById(schedule.getActiveMedId())
+                                    .findByIdForPatient(schedule.getActiveMedId(), patient)
                             : null;
                 } catch (RuntimeException unavailable) {
                     alertUnverifiedMedicationData(context, reminder);
