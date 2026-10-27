@@ -79,6 +79,7 @@ import es.usc.citius.servando.calendula.healthcareprovider.database.ActiveMedOwn
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DispensationInfoEntity;
 import es.usc.citius.servando.calendula.util.DispensationInfoStore;
+import es.usc.citius.servando.calendula.util.DispensationIntervalHighlight;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.IntentParams;
 import es.usc.citius.servando.calendula.util.LogUtil;
@@ -498,9 +499,9 @@ public class ActiveMedInfoFragment extends Fragment {
 
     void setSelectedInterval(Interval interval) {
         clearSelectedInterval();
-        for (DateTime date = interval.getStart(); date.isBefore(interval.getEnd().plusDays(1)); date = date.plusDays(1)) {
-            caldroidFragment.setBackgroundDrawableForDate(intervalColor, date.toDate());
-            intervalDates.add(date.toDate());
+        for (Date date : DispensationIntervalHighlight.dates(interval)) {
+            caldroidFragment.setBackgroundDrawableForDate(intervalColor, date);
+            intervalDates.add(date);
         }
         caldroidFragment.refreshView();
     }
