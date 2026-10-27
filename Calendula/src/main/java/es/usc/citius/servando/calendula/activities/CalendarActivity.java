@@ -220,6 +220,11 @@ public class CalendarActivity extends CalendulaActivity {
         bottomSheet.setVisibility(View.VISIBLE);
     }
 
+    /** Compare the recommended date, never the Pair wrapping it. */
+    static boolean isTomorrowPickup(LocalDate proposed, LocalDate today) {
+        return proposed != null && today != null && proposed.equals(today.plusDays(1));
+    }
+
     private CharSequence getBestDayText() {
 
         final List<DispensationInfoEntity> urgent = dispensationInfoStore.urgentMeds();
@@ -252,7 +257,9 @@ public class CalendarActivity extends CalendulaActivity {
             LogUtil.d(TAG, "and others");
             if (best != null) {
 
-                String bestStr = best.equals(LocalDate.now().plusDays(1)) ? getString(R.string.calendar_date_tomorrow) : best.first.toString(getString(R.string.best_date_format));
+                String bestStr = isTomorrowPickup(best.first, today)
+                        ? getString(R.string.calendar_date_tomorrow)
+                        : best.first.toString(getString(R.string.best_date_format));
 
                 // and the others date is near
                 LogUtil.d(TAG, "and the others date is near");
@@ -456,6 +463,9 @@ public class CalendarActivity extends CalendulaActivity {
             appBarLayout.setExpanded(false, true);
             return true;
         }
+        // An empty selection must not leave the previously selected day's
+        // medication list visible beneath the new calendar date.
+        hideBottomSheet();
         return false;
     }
 
