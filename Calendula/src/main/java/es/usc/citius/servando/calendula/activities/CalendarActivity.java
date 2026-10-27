@@ -78,6 +78,7 @@ import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMed
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DispensationInfoEntity;
 import es.usc.citius.servando.calendula.util.AvatarMgr;
 import es.usc.citius.servando.calendula.util.DispensationInfoStore;
+import es.usc.citius.servando.calendula.util.DispensationIntervalHighlight;
 import es.usc.citius.servando.calendula.util.LogUtil;
 
 public class CalendarActivity extends CalendulaActivity {
@@ -493,8 +494,7 @@ public class CalendarActivity extends CalendulaActivity {
         }
         clearSelectedInterval();
         Interval interval = p.getDispenseInterval();
-        for (DateTime date = interval.getStart(); date.isBefore(interval.getEnd().plusDays(1)); date = date.plusDays(1)) {
-            Date d = date.toDate();
+        for (Date d : DispensationIntervalHighlight.dates(interval)) {
             caldroidFragment.setBackgroundDrawableForDate(intervalColor, d);
             selectedDates.add(d);
         }
