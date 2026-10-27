@@ -131,12 +131,11 @@ public class DispensationInfoStore {
 
                 // compute the number of meds we cant take for each day
                 for (DispensationInfoEntity p : dispensationInfoList) {
-                    // get the pickup take secure interval
-                    DateTime iStart = p.getDispenseInterval().getStart();
-                    DateTime iEnd = p.getDispenseInterval().getStart().plusDays(MAX_DAYS - 1);
-                    Interval interval = new Interval(iStart, iEnd);
-                    // add the pickup to the daily list if we can take it
-                    if (!p.isDispensed() && interval.contains(d.toDateTimeAtStartOfDay())) {
+                    // Both the server-authorized interval AND our
+                    // conservative local horizon must include the date.
+                    // The old code checked only start+MAX_DAYS and could
+                    // recommend dates after the provider's actual end.
+                    if (eligibleWithinProviderInterval(p, d, MAX_DAYS)) {
                         if (!bestDays.containsKey(d)) {
                             bestDays.put(d, new ArrayList<DispensationInfoEntity>());
                         }
@@ -154,6 +153,24 @@ public class DispensationInfoStore {
         }
 
         return null;
+    }
+
+    /**
+     * Local "best day" ranking may narrow provider authorization, never
+     * extend it. Keep the previous conservative midnight instant check so
+     * this correction cannot move a pickup recommendation earlier.
+     */
+    static boolean eligibleWithinProviderInterval(DispensationInfoEntity pickup,
+                                                   LocalDate day, int maxDays) {
+        if (pickup == null || pickup.isDispensed() || day == null || maxDays <= 1
+                || pickup.getDispenseInterval() == null) {
+            return false;
+        }
+        Interval authorized = pickup.getDispenseInterval();
+        DateTime instant = day.toDateTimeAtStartOfDay();
+        Interval localHorizon = new Interval(authorized.getStart(),
+                authorized.getStart().plusDays(maxDays - 1));
+        return authorized.contains(instant) && localHorizon.contains(instant);
     }
 
     /**
