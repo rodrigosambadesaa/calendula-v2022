@@ -112,6 +112,23 @@ public class CalendarActivityPatientIsolationTest {
         assertFalse(CalendarActivity.isTomorrowPickup(today, null));
     }
 
+    @Test
+    public void bestDayInsideIntervalCanStillOfferPickupAdviceWithoutStartDayRows() {
+        org.joda.time.LocalDate selected = new org.joda.time.LocalDate(2026, 10, 28);
+        androidx.core.util.Pair<org.joda.time.LocalDate,
+                java.util.List<DispensationInfoEntity>> best =
+                new androidx.core.util.Pair<>(selected,
+                        java.util.Collections.singletonList(new DispensationInfoEntity()));
+        assertTrue("An eligible day need not be the window start",
+                CalendarActivity.isRecommendedPickupDate(selected, best));
+        assertFalse(CalendarActivity.isRecommendedPickupDate(selected.minusDays(1), best));
+        assertFalse(CalendarActivity.isRecommendedPickupDate(null, best));
+        assertFalse(CalendarActivity.isRecommendedPickupDate(selected, null));
+        assertFalse(CalendarActivity.isRecommendedPickupDate(selected,
+                new androidx.core.util.Pair<>(selected,
+                        java.util.Collections.emptyList())));
+    }
+
     private static Patient patient(Long id) {
         Patient p = new Patient();
         p.setId(id);
