@@ -48,12 +48,25 @@ public class DispensationInfoStore {
     private Pair<LocalDate, List<DispensationInfoEntity>> bestDay;
 
     public DispensationInfoStore(List<DispensationInfoEntity> dispensationInfoList) {
-        this.dispensationInfoList = dispensationInfoList;
+        if (dispensationInfoList == null) {
+            throw new IllegalArgumentException("Provider dispensation collection is missing");
+        }
+        // Snapshot provider rows before sorting. The caller may supply an
+        // unmodifiable list or share it with a concurrent UI refresh; never
+        // reorder or retain its mutable list as our own calendar model.
+        this.dispensationInfoList = new ArrayList<>(dispensationInfoList);
+        for (DispensationInfoEntity entry : this.dispensationInfoList) {
+            // A partially imported interval must invalidate this entire
+            // snapshot, not silently produce a partial pickup recommendation.
+            if (entry == null || entry.getDispenseInterval() == null) {
+                throw new IllegalArgumentException("Provider dispensation interval is missing");
+            }
+        }
         this.bestDay = null;
         Collections.sort(this.dispensationInfoList, DispensationInfoEntity.DispensationEntityComparator.getInstance());
         pickupsMap.clear();
 
-        for (DispensationInfoEntity entry : dispensationInfoList) {
+        for (DispensationInfoEntity entry : this.dispensationInfoList) {
             if (!pickupsMap.containsKey(entry.getDispenseInterval().getStart().toLocalDate())) {
                 pickupsMap.put(entry.getDispenseInterval().getStart().toLocalDate(), new ArrayList<DispensationInfoEntity>());
             }
