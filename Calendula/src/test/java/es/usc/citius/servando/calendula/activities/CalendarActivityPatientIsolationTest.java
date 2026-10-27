@@ -101,6 +101,17 @@ public class CalendarActivityPatientIsolationTest {
                 java.util.Collections.singletonList(valid)));
     }
 
+    @Test
+    public void nextDayPickupLabelUsesProposedDateRatherThanItsPairWrapper() {
+        org.joda.time.LocalDate today = new org.joda.time.LocalDate(2026, 10, 27);
+        assertTrue(CalendarActivity.isTomorrowPickup(today.plusDays(1), today));
+        assertFalse(CalendarActivity.isTomorrowPickup(today, today));
+        assertFalse(CalendarActivity.isTomorrowPickup(today.minusDays(1), today));
+        assertFalse(CalendarActivity.isTomorrowPickup(today.plusDays(2), today));
+        assertFalse(CalendarActivity.isTomorrowPickup(null, today));
+        assertFalse(CalendarActivity.isTomorrowPickup(today, null));
+    }
+
     private static Patient patient(Long id) {
         Patient p = new Patient();
         p.setId(id);
