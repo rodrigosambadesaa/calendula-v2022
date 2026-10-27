@@ -70,6 +70,7 @@ public enum PreferenceKeys {
     REMOTE_LAST_HASH_OWNER(R.string.prefkey_remote_last_hash_owner),
     REMOTE_LAST_GOOD_UPDATE_DATE(R.string.prefkey_remote_last_updated),
     REMOTE_LAST_GOOD_UPDATE_SUMMARY(R.string.prefkey_remote_last_updated_summary),
+    REMOTE_LAST_GOOD_UPDATE_SUMMARY_OWNER(R.string.prefkey_remote_last_updated_summary_owner),
     REMOTE_UPDATE_STATUS(R.string.prefkey_remote_failed_update),
     REMOTE_PERIODIC_JOB_ID(R.string.prefkey_remote_periodic_job_id),
     REMOTE_PATIENT_NAME_RETRIEVED(R.string.prefkey_remote_patient_name_retrieved),

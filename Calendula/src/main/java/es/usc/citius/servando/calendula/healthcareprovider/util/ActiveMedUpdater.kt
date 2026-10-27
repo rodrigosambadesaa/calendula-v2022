@@ -187,6 +187,10 @@ object ActiveMedUpdater {
         PreferenceUtils.edit()
             .putString(PreferenceKeys.REMOTE_LAST_HASH_OWNER.key(), revisionOwner)
             .putString(PreferenceKeys.REMOTE_LAST_HASH.key(), newHash)
+            // Never reuse the previous patient's textual medication change
+            // summary after a switch, or a stale summary after a no-op sync.
+            .putString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY.key(), "")
+            .putString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY_OWNER.key(), null)
             .apply()
         // show a notification if necessary
         if (notify && summary.hasChanges()) {
