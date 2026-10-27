@@ -225,6 +225,14 @@ public class CalendarActivity extends CalendulaActivity {
         return proposed != null && today != null && proposed.equals(today.plusDays(1));
     }
 
+    /** A recommended date need not appear among interval *start* dates. */
+    static boolean isRecommendedPickupDate(LocalDate selected,
+            Pair<LocalDate, List<DispensationInfoEntity>> recommendation) {
+        return selected != null && recommendation != null
+                && recommendation.first != null && selected.equals(recommendation.first)
+                && recommendation.second != null && !recommendation.second.isEmpty();
+    }
+
     private CharSequence getBestDayText() {
 
         final List<DispensationInfoEntity> urgent = dispensationInfoStore.urgentMeds();
@@ -319,10 +327,19 @@ public class CalendarActivity extends CalendulaActivity {
                 LocalDate d = LocalDate.fromDateFields(date);
                 // Profile selection may change after the async pickup query
                 // completed. Never reveal a cached patient summary after it.
-                if (!currentPickupPatientIsActive() || !onDaySelected(d)) {
+                if (!currentPickupPatientIsActive()) {
                     return;
                 }
-                if (bestDay != null && bestDay.first != null && bestDay.first.equals(d)) {
+                // A best-day recommendation may fall inside a pickup interval
+                // rather than on its first date. The per-day bottom sheet is
+                // indexed by interval starts, so an empty sheet must NOT hide
+                // the separately validated recommendation.
+                onDaySelected(d);
+                if (isFinishing() || isDestroyed() || !currentPickupPatientIsActive()) {
+                    return;
+                }
+                if (isRecommendedPickupDate(d, bestDay)
+                        && allPickupsBelongToPatient(patient, bestDay.second)) {
                     //Toast.makeText(CalendarActivity.this, "Best day!", Toast.LENGTH_SHORT).show();
                     AlertDialog.Builder builder = new AlertDialog.Builder(CalendarActivity.this);
                     builder.setTitle(R.string.best_date_recommendation_title)
