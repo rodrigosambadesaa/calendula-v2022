@@ -1,6 +1,5 @@
 package es.usc.citius.servando.calendula.util;
 
-import org.joda.time.DateTime;
 import org.joda.time.Interval;
 import org.joda.time.LocalDate;
 
