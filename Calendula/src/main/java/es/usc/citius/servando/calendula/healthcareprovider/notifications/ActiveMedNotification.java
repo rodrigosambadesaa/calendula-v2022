@@ -29,10 +29,8 @@ import android.graphics.BitmapFactory;
 import android.provider.Settings;
 import androidx.core.app.NotificationCompat;
 
-import org.apache.commons.lang3.StringUtils;
 import org.joda.time.DateTime;
 
-import java.util.Locale;
 
 import es.usc.citius.servando.calendula.HomePagerActivity;
 import es.usc.citius.servando.calendula.R;
@@ -102,17 +100,17 @@ public class ActiveMedNotification {
 
         StringBuilder summaryStr = new StringBuilder();
         for (int i = 0; i < summary.getCreated().size(); i++) {
-            String line = StringUtils.capitalize(summary.getCreated().get(i).getDefaultDisplay().toLowerCase(Locale.getDefault()));
+            String line = providerDisplayName(summary.getCreated().get(i).getDefaultDisplay(), context.getString(R.string.not_available_short));
             summaryStr.append("• ").append(context.getString(R.string.active_med_notification_new)).append(" ").append(line).append("\n\n");
             inboxStyle.addLine(ADD_SYMBOL + " " + line);
         }
         for (int i = 0; i < summary.getUpdated().size(); i++) {
-            String line = StringUtils.capitalize(summary.getUpdated().get(i).getDefaultDisplay().toLowerCase(Locale.getDefault()));
+            String line = providerDisplayName(summary.getUpdated().get(i).getDefaultDisplay(), context.getString(R.string.not_available_short));
             summaryStr.append("• ").append(context.getString(R.string.active_med_notification_updated)).append(" ").append(line).append("\n\n");
             inboxStyle.addLine(UPDATE_SYMBOL + " " + line);
         }
         for (int i = 0; i < summary.getDeleted().size(); i++) {
-            String line = StringUtils.capitalize(summary.getDeleted().get(i).getDefaultDisplay().toLowerCase(Locale.getDefault()));
+            String line = providerDisplayName(summary.getDeleted().get(i).getDefaultDisplay(), context.getString(R.string.not_available_short));
             summaryStr.append("• ").append(context.getString(R.string.active_med_notification_deleted)).append(" ").append(line).append("\n\n");
             inboxStyle.addLine(DELETE_SYMBOL + " " + line);
         }
@@ -160,6 +158,16 @@ public class ActiveMedNotification {
         n.ledOffMS = 2000;
 
         notify(context, n);
+    }
+
+    /**
+     * A provider's capitalization can be clinically meaningful (mL, IU,
+     * insulin brand names). Never lower-case medication names to prettify
+     * a patient-facing notification, and never print a literal "null".
+     */
+    static String providerDisplayName(String providerName, String unavailableLabel) {
+        return providerName == null || providerName.trim().isEmpty()
+                ? unavailableLabel : providerName.trim();
     }
 
     /** A damaged restored Boolean preference must not abort notification delivery. */

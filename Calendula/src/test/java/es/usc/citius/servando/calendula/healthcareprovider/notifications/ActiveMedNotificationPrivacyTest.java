@@ -43,6 +43,19 @@ public class ActiveMedNotificationPrivacyTest {
     }
 
     @Test
+    public void providerNotificationPreservesClinicallyMeaningfulCapitalization() {
+        String unknown = "Not available";
+        assertEquals("Insulin 100 IU/mL", ActiveMedNotification.providerDisplayName(
+                "Insulin 100 IU/mL", unknown));
+        assertEquals("eGFR mL/min", ActiveMedNotification.providerDisplayName(
+                "eGFR mL/min", unknown));
+        assertEquals("METFORMIN", ActiveMedNotification.providerDisplayName(
+                " METFORMIN ", unknown));
+        assertEquals(unknown, ActiveMedNotification.providerDisplayName(null, unknown));
+        assertEquals(unknown, ActiveMedNotification.providerDisplayName("  ", unknown));
+    }
+
+    @Test
     public void wrongTypeSavedInsistentSwitchDefaultsSafely() {
         try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
             prefs.when(() -> PreferenceUtils.getBoolean(
