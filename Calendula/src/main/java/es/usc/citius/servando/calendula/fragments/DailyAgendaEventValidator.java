@@ -27,16 +27,20 @@ public final class DailyAgendaEventValidator {
     @Nullable
     public static Double verifiedDose(EventInstance event, Schedule schedule) {
         if (event == null || schedule == null
-                || event.getId() == null || event.getTime() == null
+                || event.getId() == null || event.getId() <= 0L
+                || event.getTime() == null
                 || event.getType() != EventType.MEDICATION_INTAKE
-                || event.getRef() == null || schedule.getId() == null
+                || event.getRef() == null || event.getRef() <= 0L
+                || schedule.getId() == null || schedule.getId() <= 0L
                 || !event.getRef().equals(schedule.getId())) {
             return null;
         }
         Patient eventPatient = event.getPatient();
         Patient schedulePatient = schedule.getPatient();
         if (eventPatient == null || eventPatient.getId() == null
+                || eventPatient.getId() <= 0L
                 || schedulePatient == null || schedulePatient.getId() == null
+                || schedulePatient.getId() <= 0L
                 || !eventPatient.getId().equals(schedulePatient.getId())) {
             return null;
         }
