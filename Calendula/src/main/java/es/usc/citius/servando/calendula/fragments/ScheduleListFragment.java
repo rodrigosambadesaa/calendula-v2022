@@ -30,6 +30,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Toast;
 
 import com.afollestad.materialdialogs.DialogAction;
 import com.afollestad.materialdialogs.MaterialDialog;
@@ -237,7 +238,22 @@ public class ScheduleListFragment extends Fragment {
                 .onPositive(new MaterialDialog.SingleButtonCallback() {
                     @Override
                     public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
-                        ScheduleUtils.instance().removeVerifiedActiveSchedule(getContext(), s, true);
+                        final Context currentContext = getContext();
+                        if (currentContext == null) {
+                            return;
+                        }
+                        try {
+                            ScheduleUtils.instance().removeVerifiedActiveSchedule(
+                                    currentContext, s, true);
+                        } catch (RuntimeException noLongerValid) {
+                            // A stale/deleted schedule must never crash the
+                            // clinical UI or claim a successful deletion.
+                            LogUtil.w(TAG, "Schedule deletion rejected; refresh required");
+                            Toast.makeText(currentContext, R.string.reminder_delete_failed,
+                                    Toast.LENGTH_LONG).show();
+                            notifyDataChange();
+                            return;
+                        }
                         notifyDataChange();
                     }
                 })
