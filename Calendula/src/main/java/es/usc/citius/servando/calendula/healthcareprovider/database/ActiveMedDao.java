@@ -95,10 +95,18 @@ public class ActiveMedDao extends GenericDao<ActiveMedEntity, Long> {
                 || patient.getId() == null || patient.getId() <= 0L) {
             return null;
         }
+        // An old notification or activity can retain an owner object after
+        // the patient has been deleted. Require a currently persisted owner
+        // before returning any clinical dosage/dispensation by provider ID.
+        Patient persisted = es.usc.citius.servando.calendula.database.DB
+                .patients().findById(patient.getId());
+        if (persisted == null) {
+            return null;
+        }
         ActiveMedEntity result = findById(id);
         return result != null && result.getPatient() != null
                 && ActiveMedOwnerGuard.samePatient(
-                        result.getPatient().getId(), patient.getId())
+                        result.getPatient().getId(), persisted.getId())
                 ? result : null;
     }
 
