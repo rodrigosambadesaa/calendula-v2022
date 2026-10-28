@@ -42,7 +42,6 @@ public class DispensationInfoStore {
     private final int MAX_DAYS = 10;
 
     private List<DispensationInfoEntity> dispensationInfoList;
-    private List<DispensationInfoEntity> urgentMeds;
     private Map<LocalDate, List<DispensationInfoEntity>> pickupsMap = new HashMap<>();
     private Map<LocalDate, List<DispensationInfoEntity>> pickupsEndMap = new HashMap<>();
     private Pair<LocalDate, List<DispensationInfoEntity>> bestDay;
@@ -86,16 +85,33 @@ public class DispensationInfoStore {
      * @return the meds
      */
     public List<DispensationInfoEntity> urgentMeds() {
-        if (urgentMeds == null) {
-            urgentMeds = new ArrayList<>();
-            DateTime now = DateTime.now();
-            for (DispensationInfoEntity p : dispensationInfoList) {
-                if (!p.isDispensed() && p.getDispenseInterval().getEnd().isAfter(now) && p.getDispenseInterval().getStart().plusDays(MAX_DAYS - 3).isBefore(now)) {
-                    urgentMeds.add(p);
-                }
+        // Refresh against the current clock: a calendar can remain open
+        // overnight and provider pickup windows need not last ten days.
+        DateTime now = DateTime.now();
+        List<DispensationInfoEntity> urgent = new ArrayList<>();
+        for (DispensationInfoEntity pickup : dispensationInfoList) {
+            if (isUrgentWithinProviderWindow(pickup, now, 3)) {
+                urgent.add(pickup);
             }
         }
-        return urgentMeds;
+        return urgent;
+    }
+
+    /**
+     * A short provider window must become urgent near its actual expiry.
+     * Never classify a future, expired, dispensed or unverified interval as
+     * a currently eligible pickup. This only affects the presentation badge;
+     * it does not authorize a pharmacy to dispense medication.
+     */
+    static boolean isUrgentWithinProviderWindow(
+            DispensationInfoEntity pickup, DateTime now, int daysBeforeEnd) {
+        if (pickup == null || pickup.isDispensed() || now == null
+                || daysBeforeEnd <= 0 || pickup.getDispenseInterval() == null) {
+            return false;
+        }
+        Interval allowed = pickup.getDispenseInterval();
+        return allowed.contains(now) &&
+                !allowed.getEnd().isAfter(now.plusDays(daysBeforeEnd));
     }
 
     public Pair<LocalDate, List<DispensationInfoEntity>> getBestDay() {
