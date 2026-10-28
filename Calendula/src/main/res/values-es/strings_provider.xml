@@ -30,6 +30,7 @@
 ¡Añade aquí tus pautas y permite que te avisemos!"</string>
 <string name="remove_reminder_dialog_title">"Eliminar recordatorio"</string>
 <string name="remove_reminder_message">"¿Eliminar el recordatorio de %1$s?"</string>
+    <string name="reminder_delete_failed">No se ha podido eliminar este recordatorio. Comprueba la pauta y vuelve a intentarlo.</string>
 <string name="reminder">"Recordatorio"</string>
 <string name="intro_schedules_reminders_text">"Define tu calendario de tomas usando nuestro editor de recordatorios. Puedes vincular tus tomas con tus rutinas, definir pautas que se repiten diariamente o semanalmente, ¡y mucho más!"</string>
 <string name="intro_alarms_title">"Alarmas"</string>
