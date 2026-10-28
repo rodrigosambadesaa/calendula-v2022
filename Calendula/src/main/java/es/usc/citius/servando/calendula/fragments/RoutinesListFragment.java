@@ -169,6 +169,7 @@ public class RoutinesListFragment extends Fragment {
     /** Only the current persisted owner may see or navigate a routine. */
     static boolean ownsRoutine(Routine routine, Patient active) {
         return routine != null && routine.getId() != null && routine.getId() > 0L
+                && routine.getTime() != null && routine.getName() != null
                 && routine.getPatient() != null && routine.getPatient().getId() != null
                 && active != null && active.getId() != null && active.getId() > 0L
                 && active.getId().equals(routine.getPatient().getId());
@@ -204,7 +205,7 @@ public class RoutinesListFragment extends Fragment {
             return;
         }
         RepeatType repeatType = r.dailyEventType();
-        if (!repeatType.equals(RepeatType.TIME_OF_DAY)) {
+        if (repeatType != RepeatType.TIME_OF_DAY) {
             Toast.makeText(getContext(), R.string.mandatory_routine_msg, Toast.LENGTH_SHORT).show();
             return;
         }
