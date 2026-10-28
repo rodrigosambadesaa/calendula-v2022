@@ -736,6 +736,26 @@ public class ScheduleUtils {
      * Android alarm cleanup runs only AFTER the SQLite unit of work commits.
      */
     public void removeSchedule(Context c, Schedule s, boolean fireEvent) {
+        // The historical backend API may be used by migrations and maintenance
+        // outside the currently selected UI patient. Its row-owner validation
+        // remains unchanged; interactive deletion uses the stricter method.
+        removeScheduleInternal(c, s, fireEvent, false);
+    }
+
+    /**
+     * A dialog may outlive its patient's selection. Recheck the active profile
+     * INSIDE the SQLite unit of work before deleting any occurrence or schedule.
+     * Never let a stale row from another patient's screen be destructive.
+     */
+    public void removeVerifiedActiveSchedule(Context c, Schedule s, boolean fireEvent) {
+        if (c == null) {
+            throw new IllegalArgumentException("A live clinical context is required");
+        }
+        removeScheduleInternal(c, s, fireEvent, true);
+    }
+
+    private void removeScheduleInternal(Context c, Schedule s, boolean fireEvent,
+                                        boolean requireActivePatient) {
         if (s == null || s.getId() == null || s.getId() <= 0L) {
             throw new IllegalArgumentException("A persisted schedule is required");
         }
@@ -746,6 +766,11 @@ public class ScheduleUtils {
             }
             if (!samePatientIdentity(s.getPatient(), persisted.getPatient())) {
                 throw new SQLException("Schedule ownership changed before deletion");
+            }
+            if (requireActivePatient
+                    && !samePatientIdentity(DB.patients().getActive(c),
+                            persisted.getPatient())) {
+                throw new SQLException("Schedule no longer belongs to the active patient");
             }
             DB.eventInstances().removeByRef(persisted.getId());
             if (DB.schedules().delete(persisted) != 1) {
