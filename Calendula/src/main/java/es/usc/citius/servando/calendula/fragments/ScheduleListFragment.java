@@ -152,7 +152,7 @@ public class ScheduleListFragment extends Fragment {
                 .onPositive(new MaterialDialog.SingleButtonCallback() {
                     @Override
                     public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
-                        ScheduleUtils.instance().removeSchedule(getContext(), s, true);
+                        ScheduleUtils.instance().removeVerifiedActiveSchedule(getContext(), s, true);
                         notifyDataChange();
                     }
                 })
