@@ -30,6 +30,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Toast;
 
 import com.afollestad.materialdialogs.DialogAction;
 import com.afollestad.materialdialogs.MaterialDialog;
@@ -44,7 +45,9 @@ import com.mikepenz.fastadapter.listeners.OnLongClickListener;
 
 import org.greenrobot.eventbus.Subscribe;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -56,6 +59,7 @@ import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.adapters.items.ScheduleListItem;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.events.PersistenceEvents;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.util.IconUtils;
@@ -65,6 +69,10 @@ public class ScheduleListFragment extends Fragment {
 
     private static final String TAG = "ScheduleListFragment";
     private static final ExecutorService RELOAD_EXECUTOR = Executors.newSingleThreadExecutor();
+    // UI results from a previous profile or a destroyed fragment must never
+    // become visible merely because its background database query finished.
+    private final AtomicLong reloadGeneration = new AtomicLong();
+    private Long displayedPatientId;
 
     List<Schedule> mSchedules;
     OnScheduleSelectedListener mScheduleSelectedCallback;
@@ -84,7 +92,11 @@ public class ScheduleListFragment extends Fragment {
         View rootView = inflater.inflate(R.layout.fragment_schedule_list, container, false);
         unbinder = ButterKnife.bind(this, rootView);
 
-        mSchedules = DB.schedules().findAllForActivePatient(getContext());
+        Patient active = DB.patients().getActive(getContext());
+        List<Schedule> initial = DB.schedules().findAllForActivePatient(getContext());
+        boolean safe = ownsEverySchedule(active, initial);
+        mSchedules = safe ? initial : new ArrayList<>();
+        displayedPatientId = safe ? active.getId() : null;
         if (mSchedules.size() > 0)
             empty.setVisibility(View.GONE);
         setupRecyclerView();
@@ -94,6 +106,8 @@ public class ScheduleListFragment extends Fragment {
 
     @Override
     public void onDestroyView() {
+        reloadGeneration.incrementAndGet();
+        displayedPatientId = null;
         super.onDestroyView();
         if (unbinder != null)
             unbinder.unbind();
@@ -123,10 +137,19 @@ public class ScheduleListFragment extends Fragment {
     public void onStart() {
         super.onStart();
         CalendulaApp.eventBus().register(this);
+        Context context = getContext();
+        Patient selected = context == null ? null : DB.patients().getActive(context);
+        if (selected == null || selected.getId() == null
+                || !selected.getId().equals(displayedPatientId)
+                || !ownsEverySchedule(selected, mSchedules)) {
+            clearVisibleSchedules();
+        }
+        reloadItemsAsync();
     }
 
     @Override
     public void onStop() {
+        reloadGeneration.incrementAndGet();
         CalendulaApp.eventBus().unregister(this);
         super.onStop();
     }
@@ -135,24 +158,102 @@ public class ScheduleListFragment extends Fragment {
     @SuppressWarnings("unused")
     @Subscribe
     public void handleActiveUserChange(final PersistenceEvents.ActiveUserChangeEvent event) {
-        notifyDataChange();
+        // May be delivered off the main thread; clear the old profile's
+        // visible clinical rows before scheduling the next query.
+        reloadGeneration.incrementAndGet();
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (!isAdded() || getView() == null) {
+                return;
+            }
+            clearVisibleSchedules();
+            reloadItemsAsync();
+        });
+    }
+
+    private void clearVisibleSchedules() {
+        mSchedules = new ArrayList<>();
+        displayedPatientId = null;
+        if (adapter != null) {
+            adapter.clear();
+        }
+        if (empty != null) {
+            empty.setVisibility(View.VISIBLE);
+        }
+    }
+
+    /** Never apply a mixed-owner or an obsolete background schedule snapshot. */
+    static boolean ownsEverySchedule(Patient expected, List<Schedule> rows) {
+        if (expected == null || expected.getId() == null || expected.getId() <= 0L
+                || rows == null) {
+            return false;
+        }
+        for (Schedule schedule : rows) {
+            if (!canReviewDeleteForActivePatient(schedule, expected)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static boolean mayApplyScheduleReload(long requestedGeneration,
+                                          long currentGeneration, Patient requested,
+                                          Patient currentlySelected, List<Schedule> rows) {
+        return requestedGeneration == currentGeneration
+                && requested != null && currentlySelected != null
+                && requested.getId() != null && requested.getId() > 0L
+                && requested.getId().equals(currentlySelected.getId())
+                && ownsEverySchedule(requested, rows);
+    }
+
+    /** Prevent displaying a stale patient's schedule details at dialog opening. */
+    static boolean canReviewDeleteForActivePatient(Schedule schedule,
+                                                    es.usc.citius.servando.calendula.persistence.Patient active) {
+        return schedule != null && schedule.getId() != null && schedule.getId() > 0L
+                && schedule.getPatient() != null && schedule.getPatient().getId() != null
+                && active != null && active.getId() != null && active.getId() > 0L
+                && active.getId().equals(schedule.getPatient().getId());
     }
 
     void showDeleteConfirmationDialog(final Schedule s) {
+        Context context = getContext();
+        if (context == null || !canReviewDeleteForActivePatient(
+                s, DB.patients().getActive(context))) {
+            // Do not show another profile's medication name after a switch.
+            // The SQL path repeats this check when confirmation is pressed.
+            LogUtil.w(TAG, "Refusing stale schedule deletion dialog");
+            return;
+        }
+        String medicineName = s.getMedicine() == null || s.getMedicine().getName() == null
+                ? getString(R.string.not_available_short) : s.getMedicine().getName();
         new MaterialStyledDialog.Builder(getActivity())
                 .setStyle(Style.HEADER_WITH_ICON)
                 .setIcon(IconUtils.icon(getActivity(), CommunityMaterial.Icon.cmd_calendar, R.color.white, 100))
                 .setHeaderColor(R.color.android_red)
                 .withDialogAnimation(true)
                 .setTitle(getString(R.string.remove_reminder_dialog_title))
-                .setDescription(String.format(getString(R.string.remove_reminder_message), s.getMedicine().getName()))
+                .setDescription(String.format(getString(R.string.remove_reminder_message), medicineName))
                 .setCancelable(true)
                 .setNeutralText(getString(R.string.dialog_no_option))
                 .setPositiveText(getString(R.string.dialog_yes_option))
                 .onPositive(new MaterialDialog.SingleButtonCallback() {
                     @Override
                     public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
-                        ScheduleUtils.instance().removeSchedule(getContext(), s, true);
+                        final Context currentContext = getContext();
+                        if (currentContext == null) {
+                            return;
+                        }
+                        try {
+                            ScheduleUtils.instance().removeVerifiedActiveSchedule(
+                                    currentContext, s, true);
+                        } catch (RuntimeException noLongerValid) {
+                            // A stale/deleted schedule must never crash the
+                            // clinical UI or claim a successful deletion.
+                            LogUtil.w(TAG, "Schedule deletion rejected; refresh required");
+                            Toast.makeText(currentContext, R.string.reminder_delete_failed,
+                                    Toast.LENGTH_LONG).show();
+                            notifyDataChange();
+                            return;
+                        }
                         notifyDataChange();
                     }
                 })
@@ -179,7 +280,13 @@ public class ScheduleListFragment extends Fragment {
             @Override
             public boolean onClick(View v, IAdapter<ScheduleListItem> adapter, ScheduleListItem item, int position) {
                 Schedule s = item.getSchedule();
-                if (mScheduleSelectedCallback != null && s != null) {
+                Context context = getContext();
+                Patient active = context == null ? null : DB.patients().getActive(context);
+                if (!canReviewDeleteForActivePatient(s, active)) {
+                    LogUtil.w(TAG, "Ignoring schedule selection for a stale patient");
+                    return true;
+                }
+                if (mScheduleSelectedCallback != null) {
                     LogUtil.d(TAG, "Schedule selected");
                     mScheduleSelectedCallback.onScheduleSelected(s);
                 } else {
@@ -210,25 +317,42 @@ public class ScheduleListFragment extends Fragment {
         if (context == null) {
             return;
         }
-
         final Context applicationContext = context.getApplicationContext();
+        final Patient requested = DB.patients().getActive(applicationContext);
+        final long generation = reloadGeneration.incrementAndGet();
         final Handler mainHandler = new Handler(Looper.getMainLooper());
         RELOAD_EXECUTOR.execute(() -> {
-            final List<Schedule> schedules = DB.schedules().findAllForActivePatient(applicationContext);
-            LogUtil.d(TAG, "Schedules after reload: " + schedules.size());
+            final List<Schedule> schedules;
+            try {
+                schedules = DB.schedules().findAllForActivePatient(applicationContext);
+            } catch (RuntimeException unavailable) {
+                LogUtil.w(TAG, "Schedule reload could not verify active patient");
+                mainHandler.post(() -> {
+                    if (generation == reloadGeneration.get() && isAdded()
+                            && getView() != null) {
+                        clearVisibleSchedules();
+                    }
+                });
+                return;
+            }
             mainHandler.post(() -> {
-                if (!isAdded() || getView() == null) {
+                if (!isAdded() || getView() == null || generation != reloadGeneration.get()) {
                     return;
                 }
-                mSchedules = schedules;
-                if (mSchedules.size() > 0) {
-                    empty.setVisibility(View.GONE);
-                } else {
-                    empty.setVisibility(View.VISIBLE);
+                final Patient now = DB.patients().getActive(applicationContext);
+                if (!mayApplyScheduleReload(generation, reloadGeneration.get(),
+                        requested, now, schedules)) {
+                    // Profile switched or a cross-owned legacy row appeared
+                    // while SQLite was being queried: never render any subset.
+                    clearVisibleSchedules();
+                    return;
                 }
+                displayedPatientId = requested.getId();
+                mSchedules = schedules;
+                empty.setVisibility(mSchedules.isEmpty() ? View.VISIBLE : View.GONE);
                 adapter.clear();
-                for (Schedule s : mSchedules) {
-                    adapter.add(new ScheduleListItem(s));
+                for (Schedule schedule : mSchedules) {
+                    adapter.add(new ScheduleListItem(schedule));
                 }
                 adapter.notifyAdapterDataSetChanged();
             });

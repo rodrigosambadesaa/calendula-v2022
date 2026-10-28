@@ -30,6 +30,7 @@
 Add your reminders here and let us just notify you!"</string>
 <string name="remove_reminder_dialog_title">"Remove reminder"</string>
 <string name="remove_reminder_message">"Remove the reminder for %1$s?"</string>
+    <string name="reminder_delete_failed">Could not remove this reminder. Review the schedule and try again.</string>
 <string name="reminder">"Reminder"</string>
 <string name="intro_schedules_reminders_text">"Create your medication agenda by using the reminder editor. You can link your intakes to your routines, define hourly or daily repetitions and much more!"</string>
 <string name="intro_alarms_title">"Alarms"</string>
