@@ -46,13 +46,24 @@ public final class IntakeSnapshot {
         }
         List<EventInstance> sorted = new ArrayList<>(visible);
         HashSet<Long> seen = new HashSet<>();
+        Long expectedPatientId = null;
         for (EventInstance event : sorted) {
             if (event == null || event.getId() == null || event.getId() <= 0L
-                    || event.getRef() == null || event.getTime() == null
+                    || event.getRef() == null || event.getRef() <= 0L
+                    || event.getTime() == null
                     || event.getPatient() == null || event.getPatient().getId() == null
+                    || event.getPatient().getId() <= 0L
                     || event.getType() != EventType.MEDICATION_INTAKE
                     || event.completed() || event.cancelled()
                     || !seen.add(event.getId())) {
+                return null;
+            }
+            // Never issue a single consent fingerprint for multiple patients.
+            // The SQLite write still independently rechecks persisted owners.
+            Long eventPatientId = event.getPatient().getId();
+            if (expectedPatientId == null) {
+                expectedPatientId = eventPatientId;
+            } else if (!expectedPatientId.equals(eventPatientId)) {
                 return null;
             }
         }
@@ -109,6 +120,7 @@ public final class IntakeSnapshot {
         if (reminder == null || reminder.getId() == null || reminder.getId() <= 0L
                 || reminder.getPatient() == null
                 || reminder.getPatient().getId() == null
+                || reminder.getPatient().getId() <= 0L
                 || reminder.getEventType() != EventType.MEDICATION_INTAKE
                 || reminder.getDateTime() == null || reminder.getNextTime() == null) {
             return null;
@@ -116,6 +128,15 @@ public final class IntakeSnapshot {
         String doseFingerprint = fingerprint(visible);
         if (doseFingerprint == null) {
             return null;
+        }
+        for (EventInstance event : visible) {
+            if (event == null || event.getPatient() == null
+                    || !reminder.getPatient().getId().equals(event.getPatient().getId())) {
+                // An event from another patient's calendar must never be
+                // actionable from this reminder, even if its own schedule
+                // happens to be valid or a different owner remains active.
+                return null;
+            }
         }
         StringBuilder combined = new StringBuilder("reminder-snapshot-v2:");
         append(combined, Long.toString(reminder.getId()));
