@@ -138,14 +138,33 @@ public class ScheduleListFragment extends Fragment {
         notifyDataChange();
     }
 
+    /** Prevent displaying a stale patient's schedule details at dialog opening. */
+    static boolean canReviewDeleteForActivePatient(Schedule schedule,
+                                                    es.usc.citius.servando.calendula.persistence.Patient active) {
+        return schedule != null && schedule.getId() != null && schedule.getId() > 0L
+                && schedule.getPatient() != null && schedule.getPatient().getId() != null
+                && active != null && active.getId() != null && active.getId() > 0L
+                && active.getId().equals(schedule.getPatient().getId());
+    }
+
     void showDeleteConfirmationDialog(final Schedule s) {
+        Context context = getContext();
+        if (context == null || !canReviewDeleteForActivePatient(
+                s, DB.patients().getActive(context))) {
+            // Do not show another profile's medication name after a switch.
+            // The SQL path repeats this check when confirmation is pressed.
+            LogUtil.w(TAG, "Refusing stale schedule deletion dialog");
+            return;
+        }
+        String medicineName = s.getMedicine() == null || s.getMedicine().getName() == null
+                ? getString(R.string.not_available_short) : s.getMedicine().getName();
         new MaterialStyledDialog.Builder(getActivity())
                 .setStyle(Style.HEADER_WITH_ICON)
                 .setIcon(IconUtils.icon(getActivity(), CommunityMaterial.Icon.cmd_calendar, R.color.white, 100))
                 .setHeaderColor(R.color.android_red)
                 .withDialogAnimation(true)
                 .setTitle(getString(R.string.remove_reminder_dialog_title))
-                .setDescription(String.format(getString(R.string.remove_reminder_message), s.getMedicine().getName()))
+                .setDescription(String.format(getString(R.string.remove_reminder_message), medicineName))
                 .setCancelable(true)
                 .setNeutralText(getString(R.string.dialog_no_option))
                 .setPositiveText(getString(R.string.dialog_yes_option))
