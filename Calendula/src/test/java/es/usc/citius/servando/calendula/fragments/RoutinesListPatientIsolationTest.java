@@ -57,6 +57,12 @@ public class RoutinesListPatientIsolationTest {
         assertFalse(RoutinesListFragment.ownsRoutine(routine(null, a), a));
         assertFalse(RoutinesListFragment.ownsRoutine(routine(2001L, null), a));
         assertFalse(RoutinesListFragment.ownsRoutine(routine(2001L, patient(0L)), a));
+        Routine missingTime = routine(2001L, a);
+        missingTime.setTime(null);
+        assertFalse(RoutinesListFragment.ownsRoutine(missingTime, a));
+        Routine missingName = routine(2001L, a);
+        missingName.setName(null);
+        assertFalse(RoutinesListFragment.ownsRoutine(missingName, a));
     }
 
     @Test
@@ -82,6 +88,8 @@ public class RoutinesListPatientIsolationTest {
         Routine r = new Routine();
         r.setId(id);
         r.setPatient(patient);
+        r.setName("Synthetic named routine");
+        r.setTime(new org.joda.time.LocalTime(9, 15));
         return r;
     }
 }
