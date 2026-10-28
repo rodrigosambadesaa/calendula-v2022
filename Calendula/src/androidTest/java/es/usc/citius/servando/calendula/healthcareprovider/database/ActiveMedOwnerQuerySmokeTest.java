@@ -83,6 +83,15 @@ public class ActiveMedOwnerQuerySmokeTest {
             deletedOrForged.setId(Long.MAX_VALUE);
             assertNull(DB.healthcareProviderDB().activeMeds()
                     .findLastUpdateDate(deletedOrForged));
+            assertNull("An owner not present in SQLite cannot access imported treatment by ID",
+                    DB.healthcareProviderDB().activeMeds()
+                            .findByIdForPatient(aMed.getId(), deletedOrForged));
+            assertNull(DB.healthcareProviderDB().activeMeds()
+                    .findByIdForPatient(aMed.getId(), null));
+            assertNull(DB.healthcareProviderDB().activeMeds()
+                    .findByIdForPatient(0L, a));
+            assertNull(DB.healthcareProviderDB().activeMeds()
+                    .findByIdForPatient(-1L, a));
         } finally {
             for (ActiveMedEntity med : new ActiveMedEntity[]{aMed, bMed}) {
                 if (med.getId() != null
