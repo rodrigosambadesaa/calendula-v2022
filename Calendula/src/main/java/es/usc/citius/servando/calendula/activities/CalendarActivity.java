@@ -78,6 +78,7 @@ import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMed
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DispensationInfoEntity;
 import es.usc.citius.servando.calendula.util.AvatarMgr;
 import es.usc.citius.servando.calendula.util.DispensationInfoStore;
+import es.usc.citius.servando.calendula.util.DispensationIntervalHighlight;
 import es.usc.citius.servando.calendula.util.LogUtil;
 
 public class CalendarActivity extends CalendulaActivity {
@@ -220,6 +221,19 @@ public class CalendarActivity extends CalendulaActivity {
         bottomSheet.setVisibility(View.VISIBLE);
     }
 
+    /** Compare the recommended date, never the Pair wrapping it. */
+    static boolean isTomorrowPickup(LocalDate proposed, LocalDate today) {
+        return proposed != null && today != null && proposed.equals(today.plusDays(1));
+    }
+
+    /** A recommended date need not appear among interval *start* dates. */
+    static boolean isRecommendedPickupDate(LocalDate selected,
+            Pair<LocalDate, List<DispensationInfoEntity>> recommendation) {
+        return selected != null && recommendation != null
+                && recommendation.first != null && selected.equals(recommendation.first)
+                && recommendation.second != null && !recommendation.second.isEmpty();
+    }
+
     private CharSequence getBestDayText() {
 
         final List<DispensationInfoEntity> urgent = dispensationInfoStore.urgentMeds();
@@ -252,7 +266,9 @@ public class CalendarActivity extends CalendulaActivity {
             LogUtil.d(TAG, "and others");
             if (best != null) {
 
-                String bestStr = best.equals(LocalDate.now().plusDays(1)) ? getString(R.string.calendar_date_tomorrow) : best.first.toString(getString(R.string.best_date_format));
+                String bestStr = isTomorrowPickup(best.first, today)
+                        ? getString(R.string.calendar_date_tomorrow)
+                        : best.first.toString(getString(R.string.best_date_format));
 
                 // and the others date is near
                 LogUtil.d(TAG, "and the others date is near");
@@ -312,10 +328,19 @@ public class CalendarActivity extends CalendulaActivity {
                 LocalDate d = LocalDate.fromDateFields(date);
                 // Profile selection may change after the async pickup query
                 // completed. Never reveal a cached patient summary after it.
-                if (!currentPickupPatientIsActive() || !onDaySelected(d)) {
+                if (!currentPickupPatientIsActive()) {
                     return;
                 }
-                if (bestDay != null && bestDay.first != null && bestDay.first.equals(d)) {
+                // A best-day recommendation may fall inside a pickup interval
+                // rather than on its first date. The per-day bottom sheet is
+                // indexed by interval starts, so an empty sheet must NOT hide
+                // the separately validated recommendation.
+                onDaySelected(d);
+                if (isFinishing() || isDestroyed() || !currentPickupPatientIsActive()) {
+                    return;
+                }
+                if (isRecommendedPickupDate(d, bestDay)
+                        && allPickupsBelongToPatient(patient, bestDay.second)) {
                     //Toast.makeText(CalendarActivity.this, "Best day!", Toast.LENGTH_SHORT).show();
                     AlertDialog.Builder builder = new AlertDialog.Builder(CalendarActivity.this);
                     builder.setTitle(R.string.best_date_recommendation_title)
@@ -456,6 +481,9 @@ public class CalendarActivity extends CalendulaActivity {
             appBarLayout.setExpanded(false, true);
             return true;
         }
+        // An empty selection must not leave the previously selected day's
+        // medication list visible beneath the new calendar date.
+        hideBottomSheet();
         return false;
     }
 
@@ -466,8 +494,7 @@ public class CalendarActivity extends CalendulaActivity {
         }
         clearSelectedInterval();
         Interval interval = p.getDispenseInterval();
-        for (DateTime date = interval.getStart(); date.isBefore(interval.getEnd().plusDays(1)); date = date.plusDays(1)) {
-            Date d = date.toDate();
+        for (Date d : DispensationIntervalHighlight.dates(interval)) {
             caldroidFragment.setBackgroundDrawableForDate(intervalColor, d);
             selectedDates.add(d);
         }
