@@ -498,7 +498,14 @@ public class Agenda {
     }
 
 
-    public void onDailyUpdate(final Context context) {
+    /**
+     * App startup, midnight alarms and background workers can trigger the
+     * same daily rebuild concurrently. Serialize on the singleton so a
+     * second caller rechecks the durable completion marker AFTER the first
+     * caller commits (or fails and leaves it retryable). Never interleave
+     * the prune/generate/post-commit-alarm stages for the same process.
+     */
+    public synchronized void onDailyUpdate(final Context context) {
         final LocalDate today = LocalDate.now();
         if (needsToBeUpdated(today)) {
             // Snapshot rows before SQLite deletes them, then retire their OS
