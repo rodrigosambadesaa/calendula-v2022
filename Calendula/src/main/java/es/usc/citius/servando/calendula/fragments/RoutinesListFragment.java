@@ -47,6 +47,7 @@ import org.greenrobot.eventbus.Subscribe;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -54,6 +55,7 @@ import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.events.PersistenceEvents;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Routine;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.RepeatType;
@@ -67,6 +69,8 @@ public class RoutinesListFragment extends Fragment {
 
     private static final String TAG = "RoutinesListFragment";
     private static final ExecutorService RELOAD_EXECUTOR = Executors.newSingleThreadExecutor();
+    private final AtomicLong reloadGeneration = new AtomicLong();
+    private Long displayedPatientId;
     List<Routine> mRoutines;
     OnRoutineSelectedListener mRoutineSelectedCallback;
     ArrayAdapter adapter;
@@ -114,25 +118,94 @@ public class RoutinesListFragment extends Fragment {
     public void onStart() {
         super.onStart();
         CalendulaApp.eventBus().register(this);
+        Context context = getContext();
+        Patient active = context == null ? null : DB.patients().getActive(context);
+        if (active == null || active.getId() == null
+                || !active.getId().equals(displayedPatientId)
+                || !ownsEveryRoutine(active, mRoutines)) {
+            clearVisibleRoutines();
+        }
+        reloadItemsAsync();
     }
 
     @Override
     public void onStop() {
+        reloadGeneration.incrementAndGet();
         CalendulaApp.eventBus().unregister(this);
         super.onStop();
+    }
+
+    @Override
+    public void onDestroyView() {
+        reloadGeneration.incrementAndGet();
+        displayedPatientId = null;
+        super.onDestroyView();
     }
 
     // Method called from the event bus
     @SuppressWarnings("unused")
     @Subscribe
     public void handleActiveUserChange(final PersistenceEvents.ActiveUserChangeEvent event) {
-        notifyDataChange();
+        reloadGeneration.incrementAndGet();
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (getView() == null || !isAdded()) {
+                return;
+            }
+            clearVisibleRoutines();
+            reloadItemsAsync();
+        });
+    }
+
+    private void clearVisibleRoutines() {
+        displayedPatientId = null;
+        if (mRoutines != null) {
+            mRoutines.clear();
+        }
+        if (adapter != null) {
+            adapter.clear();
+        }
+    }
+
+    /** Only the current persisted owner may see or navigate a routine. */
+    static boolean ownsRoutine(Routine routine, Patient active) {
+        return routine != null && routine.getId() != null && routine.getId() > 0L
+                && routine.getTime() != null && routine.getName() != null
+                && routine.getPatient() != null && routine.getPatient().getId() != null
+                && active != null && active.getId() != null && active.getId() > 0L
+                && active.getId().equals(routine.getPatient().getId());
+    }
+
+    static boolean ownsEveryRoutine(Patient active, List<Routine> rows) {
+        if (active == null || active.getId() == null || active.getId() <= 0L
+                || rows == null) {
+            return false;
+        }
+        for (Routine routine : rows) {
+            if (!ownsRoutine(routine, active)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static boolean mayApplyRoutineReload(long requestedGeneration,
+                                         long currentGeneration, Patient requested,
+                                         Patient selected, List<Routine> rows) {
+        return requestedGeneration == currentGeneration
+                && requested != null && selected != null
+                && requested.getId() != null && requested.getId() > 0L
+                && requested.getId().equals(selected.getId())
+                && ownsEveryRoutine(requested, rows);
     }
 
     void showDeleteConfirmationDialog(final Routine r) {
-
+        Context context = getContext();
+        if (context == null || !ownsRoutine(r, DB.patients().getActive(context))) {
+            LogUtil.w(TAG, "Rejecting routine dialog from another patient");
+            return;
+        }
         RepeatType repeatType = r.dailyEventType();
-        if (!repeatType.equals(RepeatType.TIME_OF_DAY)) {
+        if (repeatType != RepeatType.TIME_OF_DAY) {
             Toast.makeText(getContext(), R.string.mandatory_routine_msg, Toast.LENGTH_SHORT).show();
             return;
         }
@@ -218,7 +291,12 @@ public class RoutinesListFragment extends Fragment {
             @Override
             public void onClick(View view) {
                 Routine r = (Routine) view.getTag();
-                if (mRoutineSelectedCallback != null && r != null) {
+                Context context = getContext();
+                if (context == null || !ownsRoutine(r, DB.patients().getActive(context))) {
+                    LogUtil.w(TAG, "Ignoring stale routine selection");
+                    return;
+                }
+                if (mRoutineSelectedCallback != null) {
                     // User-defined routine labels may disclose treatment context.
                     LogUtil.d(TAG, "Routine selected");
                     mRoutineSelectedCallback.onRoutineSelected(r);
@@ -268,18 +346,45 @@ public class RoutinesListFragment extends Fragment {
         if (context == null) {
             return;
         }
-
         final Context applicationContext = context.getApplicationContext();
+        final Patient requested = DB.patients().getActive(applicationContext);
+        final long generation = reloadGeneration.incrementAndGet();
         final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+        // Do not expose the previous patient's routine labels while a new
+        // background query is pending.
+        if (requested == null || requested.getId() == null
+                || !requested.getId().equals(displayedPatientId)) {
+            clearVisibleRoutines();
+        }
         RELOAD_EXECUTOR.execute(() -> {
-            final List<Routine> routines =
-                    DB.routines().findAllWithNameForActivePatient(applicationContext);
+            final List<Routine> routines;
+            try {
+                routines = DB.routines().findAllWithNameForActivePatient(applicationContext);
+            } catch (RuntimeException unavailable) {
+                LogUtil.w(TAG, "Unable to verify routine list");
+                mainHandler.post(() -> {
+                    if (generation == reloadGeneration.get()
+                            && isAdded() && getView() != null) {
+                        clearVisibleRoutines();
+                    }
+                });
+                return;
+            }
             mainHandler.post(() -> {
-                if (!isAdded()) {
+                if (!isAdded() || getView() == null
+                        || generation != reloadGeneration.get()) {
+                    return;
+                }
+                Patient current = DB.patients().getActive(applicationContext);
+                if (!mayApplyRoutineReload(generation, reloadGeneration.get(),
+                        requested, current, routines)) {
+                    clearVisibleRoutines();
                     return;
                 }
                 mRoutines.clear();
                 mRoutines.addAll(routines);
+                displayedPatientId = requested.getId();
                 adapter.clear();
                 adapter.addAll(mRoutines);
             });
