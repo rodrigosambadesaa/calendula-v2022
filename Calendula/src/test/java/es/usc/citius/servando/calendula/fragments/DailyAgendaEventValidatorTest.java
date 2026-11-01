@@ -89,6 +89,40 @@ public class DailyAgendaEventValidatorTest {
     }
 
     @Test
+    public void invalidPersistedIdsNeverShowAnApparentlyVerifiedDose() {
+        Patient patient = patient(100001L);
+        Medicine medicine = new Medicine("Synthetic unchanged dose", Presentation.PILLS);
+        medicine.setPatient(patient);
+        EventInstance e = event(patient);
+        Schedule s = schedule(patient, medicine);
+        assertEquals(Double.valueOf(1.5d), DailyAgendaEventValidator.verifiedDose(e, s));
+
+        e.setId(0L);
+        assertNull(DailyAgendaEventValidator.verifiedDose(e, s));
+        e.setId(-1L);
+        assertNull(DailyAgendaEventValidator.verifiedDose(e, s));
+        e.setId(4567890L);
+
+        e.setRef(0L);
+        s.setId(0L);
+        assertNull(DailyAgendaEventValidator.verifiedDose(e, s));
+        e.setRef(1234567L);
+        s.setId(1234567L);
+
+        e.setPatient(patient(0L));
+        s.setPatient(patient(0L));
+        assertNull(DailyAgendaEventValidator.verifiedDose(e, s));
+        e.setPatient(patient(-9L));
+        s.setPatient(patient(-9L));
+        assertNull(DailyAgendaEventValidator.verifiedDose(e, s));
+
+        e.setPatient(patient);
+        s.setPatient(patient);
+        assertEquals("Restoring positive owner identities allows only the original verified dose",
+                Double.valueOf(1.5d), DailyAgendaEventValidator.verifiedDose(e, s));
+    }
+
+    @Test
     public void invalidOrMissingNumericDoseIsNeverShown() {
         Patient a = patient(100001L);
         Medicine med = new Medicine("Synthetic tablet", Presentation.PILLS);
