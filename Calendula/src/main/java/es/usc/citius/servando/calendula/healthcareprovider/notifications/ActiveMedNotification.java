@@ -34,6 +34,7 @@ import org.joda.time.DateTime;
 
 import es.usc.citius.servando.calendula.HomePagerActivity;
 import es.usc.citius.servando.calendula.R;
+import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.notifications.NotificationHelper;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.healthcareprovider.jobs.UpdateSummary;
@@ -55,7 +56,12 @@ public class ActiveMedNotification {
     private static final String DELETE_SYMBOL = "x";
 
     public static void show(Context context, Patient p, UpdateSummary summary) {
-
+        // The provider callback may return after a profile/account switch.
+        // Do not reveal the previous patient's medication names on an
+        // unlocked device or overwrite the active profile's summary.
+        if (summary == null || !isActiveOwner(context, p)) {
+            return;
+        }
         boolean insistentNotifications = configuredInsistentNotifications();
 
         Intent intent = new Intent(context, HomePagerActivity.class);
@@ -157,7 +163,35 @@ public class ActiveMedNotification {
         n.ledOnMS = 1000;
         n.ledOffMS = 2000;
 
-        notify(context, n);
+        // Loading the avatar, formatting the change list and persisting its
+        // patient-scoped summary can take time. Check again immediately
+        // before handing a private notification to Android.
+        if (isActiveOwner(context, p)) {
+            notify(context, n);
+        }
+    }
+
+    static boolean sameOwner(Patient intended, Patient active) {
+        if (intended == null || active == null) {
+            return false;
+        }
+        String expected = ProviderRevisionGuard.ownerKey(
+                intended.getId(), intended.getCode());
+        String selected = ProviderRevisionGuard.ownerKey(
+                active.getId(), active.getCode());
+        return expected != null && expected.equals(selected);
+    }
+
+    static boolean isActiveOwner(Context context, Patient intended) {
+        if (context == null) {
+            return false;
+        }
+        try {
+            return sameOwner(intended, DB.patients().getActive(context));
+        } catch (RuntimeException unavailable) {
+            // Invalid/restored patient state is not authority to publish PHI.
+            return false;
+        }
     }
 
     /**
