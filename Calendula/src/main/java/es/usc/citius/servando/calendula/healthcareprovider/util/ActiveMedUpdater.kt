@@ -36,7 +36,6 @@ import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMed
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.DosageType
 import es.usc.citius.servando.calendula.healthcareprovider.util.ScheduleComparator.compare
 import es.usc.citius.servando.calendula.util.LogUtil
-import es.usc.citius.servando.calendula.util.PreferenceKeys
 import es.usc.citius.servando.calendula.util.PreferenceUtils
 import es.usc.citius.servando.calendula.util.ProviderRevisionGuard
 import org.joda.time.DateTime
