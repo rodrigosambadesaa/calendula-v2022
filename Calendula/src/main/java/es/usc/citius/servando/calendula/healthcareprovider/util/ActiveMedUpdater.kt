@@ -184,14 +184,10 @@ object ActiveMedUpdater {
         // update the stored hash
         // Couple revision and its authoritative patient in one preference edit;
         // a legacy unowned hash must never authorize another profile's 304.
-        PreferenceUtils.edit()
-            .putString(PreferenceKeys.REMOTE_LAST_HASH_OWNER.key(), revisionOwner)
-            .putString(PreferenceKeys.REMOTE_LAST_HASH.key(), newHash)
-            // Never reuse the previous patient's textual medication change
-            // summary after a switch, or a stale summary after a no-op sync.
-            .putString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY.key(), "")
-            .putString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY_OWNER.key(), null)
-            .apply()
+        // SQLite has committed. Do not acknowledge this owner-specific
+        // remote revision until its metadata reaches durable preferences.
+        // A failed preference write makes the next provider check retryable.
+        RemoteRevisionCommitter.commit(PreferenceUtils.edit(), revisionOwner, newHash)
         // show a notification if necessary
         if (notify && summary.hasChanges()) {
             ActiveMedNotification.show(ctx, patient, summary)
