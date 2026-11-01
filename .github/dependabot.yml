@@ -8,6 +8,11 @@ updates:
     ignore:
       # Keep major AndroidX/UI migrations explicit. The project now has a modern
       # SDK/toolchain baseline, but these jumps can still require coordinated source changes.
+      # palette-ktx 1.1.0 depends on palette 1.1.0, which requires API 24.
+      # This app still runs on API 23; Actions confirmed a manifest merge failure
+      # in #919. Ignore the incompatible release without blocking a future fix.
+      - dependency-name: "androidx.palette:palette-ktx"
+        versions: ["1.1.0"]
       - dependency-name: "androidx.constraintlayout:constraintlayout"
         update-types: ["version-update:semver-major"]
       - dependency-name: "androidx.preference:preference"
