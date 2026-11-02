@@ -67,7 +67,7 @@ public class ReminderLivePatientDeliveryTest {
     }
 
     @Test
-    public void orphanWithPendingEventMustNotBePublishedOrDeleteItsSqliteRow() {
+    public void orphanWithPendingEventMustNotBePublishedOrDeleteItsSqliteRow() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
         EventReminder r = reminder(880119L);
         PatientDao patients = mock(PatientDao.class);
