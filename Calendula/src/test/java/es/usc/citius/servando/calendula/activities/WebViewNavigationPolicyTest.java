@@ -105,6 +105,30 @@ public class WebViewNavigationPolicyTest {
     }
 
     @Test
+    public void navigationNeverLoadsCredentialedOrInvalidPortRemoteUrls() {
+        String credentialed = "https://user:pass@www.aemps.gob.es/document";
+        assertFalse(WebViewNavigationPolicy.isRemoteHttpUrl(credentialed));
+        assertFalse(WebViewNavigationPolicy.isSameOrigin(TRUSTED, credentialed));
+        assertFalse(WebViewNavigationPolicy.shouldOpenInsideWebView(
+                TRUSTED, credentialed, false));
+        assertFalse("Even explicitly enabled external links must not accept credentials",
+                WebViewNavigationPolicy.shouldOpenInsideWebView(
+                        TRUSTED, "https://user:pass@external.example/path", true));
+        assertFalse(WebViewNavigationPolicy.isRemoteHttpUrl(
+                "https://www.aemps.gob.es:65536/document"));
+        assertFalse(WebViewNavigationPolicy.isRemoteHttpUrl(
+                "https://www.aemps.gob.es:0/document"));
+        assertFalse(WebViewNavigationPolicy.isSafeInitialDocumentUrl(
+                "https://www.aemps.gob.es:65536/document"));
+
+        assertTrue("An ordinary documented HTTPS port must remain valid",
+                WebViewNavigationPolicy.shouldOpenInsideWebView(
+                        TRUSTED, "https://www.aemps.gob.es:443/document", false));
+        assertTrue(WebViewNavigationPolicy.shouldOpenInsideWebView(
+                TRUSTED, "https://www.accessdata.fda.gov/spl/", true));
+    }
+
+    @Test
     public void malformedUrlsAreNeverRemoteHttpUrls() {
         assertFalse(WebViewNavigationPolicy.isRemoteHttpUrl("https://exa mple.com"));
         assertFalse(WebViewNavigationPolicy.isRemoteHttpUrl("not a url"));
