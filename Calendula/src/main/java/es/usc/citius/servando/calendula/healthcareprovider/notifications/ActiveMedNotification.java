@@ -126,14 +126,6 @@ public class ActiveMedNotification {
         // The private summary cannot be safely displayed from a global
         // preference unless it is bound to the exact patient+account owner.
         // An unowned legacy summary must never be surfaced in another profile.
-        String summaryOwner = ProviderRevisionGuard.ownerKey(p.getId(), p.getCode());
-        PreferenceUtils.edit()
-                .putString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY.key(),
-                        summaryOwner == null ? "" : summaryStr.toString())
-                .putString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY_OWNER.key(),
-                        summaryOwner)
-                .apply();
-
         final NotificationCompat.Builder builder = new NotificationCompat.Builder(context, NotificationHelper.CHANNEL_MEDS_ID)
 
                 .setDefaults(Notification.DEFAULT_ALL)
@@ -166,9 +158,30 @@ public class ActiveMedNotification {
         // Loading the avatar, formatting the change list and persisting its
         // patient-scoped summary can take time. Check again immediately
         // before handing a private notification to Android.
-        if (isActiveOwner(context, p)) {
+        if (persistSummaryForActiveOwner(context, p, summaryStr.toString())
+                && isActiveOwner(context, p)) {
             notify(context, n);
         }
+    }
+
+    /**
+     * A profile may switch during formatting. Never replace the current
+     * patient's summary with a different owner's private medicine names.
+     * Check immediately before writing, not merely at method entry.
+     */
+    static boolean persistSummaryForActiveOwner(Context context, Patient owner, String summary) {
+        if (!isActiveOwner(context, owner) || summary == null) {
+            return false;
+        }
+        String key = ProviderRevisionGuard.ownerKey(owner.getId(), owner.getCode());
+        if (key == null) {
+            return false;
+        }
+        PreferenceUtils.edit()
+                .putString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY.key(), summary)
+                .putString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY_OWNER.key(), key)
+                .apply();
+        return true;
     }
 
     static boolean sameOwner(Patient intended, Patient active) {

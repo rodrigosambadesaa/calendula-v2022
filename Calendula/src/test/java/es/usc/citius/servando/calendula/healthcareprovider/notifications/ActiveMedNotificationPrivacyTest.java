@@ -20,6 +20,10 @@ import org.mockito.MockedStatic;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.persistence.Patient;
+import es.usc.citius.servando.calendula.database.DB;
+import es.usc.citius.servando.calendula.database.PatientDao;
+import android.content.SharedPreferences;
+import static org.mockito.Mockito.*;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 28)
@@ -81,6 +85,35 @@ public class ActiveMedNotificationPrivacyTest {
         assertFalse(ActiveMedNotification.sameOwner(null, opened));
         assertFalse(ActiveMedNotification.sameOwner(
                 patient(11001L, " "), opened));
+    }
+
+    @Test
+    public void staleNotificationCannotOverwriteAnotherPatientsSummary() {
+        Context context = RuntimeEnvironment.getApplication();
+        Patient intended = patient(11001L, "provider-a");
+        Patient switchedTo = patient(11002L, "provider-b");
+        PatientDao patients = mock(PatientDao.class);
+        SharedPreferences.Editor editor = mock(SharedPreferences.Editor.class);
+        when(editor.putString(anyString(), nullable(String.class))).thenReturn(editor);
+        try (MockedStatic<DB> db = mockStatic(DB.class);
+             MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
+            db.when(DB::patients).thenReturn(patients);
+            prefs.when(PreferenceUtils::edit).thenReturn(editor);
+            when(patients.getActive(context)).thenReturn(switchedTo);
+
+            assertFalse(ActiveMedNotification.persistSummaryForActiveOwner(
+                    context, intended, "Sensitive medicine A"));
+            verifyNoInteractions(editor);
+
+            when(patients.getActive(context)).thenReturn(patient(11001L, "provider-a"));
+            assertTrue(ActiveMedNotification.persistSummaryForActiveOwner(
+                    context, intended, "Synthetic owned summary"));
+            verify(editor).putString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY.key(),
+                    "Synthetic owned summary");
+            verify(editor).putString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY_OWNER.key(),
+                    "11001:provider-a");
+            verify(editor, times(1)).apply();
+        }
     }
 
     @Test
