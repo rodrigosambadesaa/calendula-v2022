@@ -1,0 +1,2 @@
+# Cover concurrent shortage of shared stock for two distinct synthetic doses.
+es.usc.citius.servando.calendula.scheduling.ConcurrentSharedStockShortageSmokeTest
