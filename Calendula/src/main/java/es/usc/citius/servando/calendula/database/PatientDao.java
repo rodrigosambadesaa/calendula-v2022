@@ -27,6 +27,7 @@ import java.sql.SQLException;
 
 import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.events.PersistenceEvents;
+import es.usc.citius.servando.calendula.healthcareprovider.notifications.ActiveMedNotification;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.PatientAllergen;
@@ -134,9 +135,29 @@ public class PatientDao extends GenericDao<Patient, Long> {
         if (persisted == null) {
             throw new IllegalArgumentException("Cannot activate a missing patient");
         }
+        // Existing posted provider update notifications may contain the
+        // previous patient's medicine names even when new callbacks are
+        // already guarded. Retire only that notification on a real switch.
+        long previousId;
+        try {
+            previousId = PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1L);
+        } catch (ClassCastException invalidPreference) {
+            previousId = -1L;
+        }
         PreferenceUtils.edit()
                 .putLong(PreferenceKeys.PATIENTS_ACTIVE.key(), id)
                 .apply();
+        if (previousId != id) {
+            Context application = CalendulaApp.getContext();
+            if (application != null) {
+                try {
+                    ActiveMedNotification.cancel(application);
+                } catch (RuntimeException notificationUnavailable) {
+                    // Profile activation and its model events must still
+                    // complete if NotificationManager is unavailable.
+                }
+            }
+        }
         // A stale UI model may carry outdated attributes even if the ID still
         // exists. Notify listeners with SQLite's authoritative patient record.
         CalendulaApp.eventBus().post(new PersistenceEvents.ActiveUserChangeEvent(persisted));
