@@ -282,7 +282,8 @@ public class PublicReminderPostCommitSmokeTest {
             // orphan delivery rather than valid repeat behavior.
             owner.setCode("ci-valid-repeat-" + System.nanoTime());
             owner.setName("Synthetic legitimate reminder owner");
-            assertEquals(1, DB.patients().create(owner));
+            DB.patients().save(owner);
+            assertNotNull(owner.getId());
             event.setPatient(owner);
             reminder.setPatient(owner);
             reminder.setNextTime(due);
