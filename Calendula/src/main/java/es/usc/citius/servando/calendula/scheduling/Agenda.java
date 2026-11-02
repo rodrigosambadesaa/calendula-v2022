@@ -1133,12 +1133,36 @@ public class Agenda {
                         persisted.getPatient());
     }
 
+    /** Safe delivery requires a positive and currently persisted patient ID. */
+    static boolean hasLiveReminderOwner(EventReminder reminder) {
+        if (reminder == null || reminder.getPatient() == null
+                || reminder.getPatient().getId() == null
+                || reminder.getPatient().getId() <= 0L) {
+            return false;
+        }
+        try {
+            Patient stored = DB.patients().findById(reminder.getPatient().getId());
+            return stored != null && reminder.getPatient().getId().equals(stored.getId());
+        } catch (RuntimeException unavailable) {
+            // Missing/inaccessible SQLite state cannot authorize PHI delivery.
+            return false;
+        }
+    }
+
     private void sendReminderToReceiver(Context ctx, EventReminder r) {
         // Do not deliver a reminder for another patient or inactive intake.
         boolean eventExist = DB.eventInstances().existsPending(
                 r.getEventType(), r.getDateTime(), r.getPatient());
         LogUtil.d(TAG, "There are events to remind!");
         if (eventExist) {
+            // A deleted or corrupted patient may leave an orphan reminder
+            // with pending event rows. Never display their medication on a
+            // notification or run its repeat path without a live SQL owner.
+            if (!hasLiveReminderOwner(r)) {
+                LogUtil.w(TAG, "Reminder delivery rejected: missing persisted owner");
+                cancelAlarm(ctx, r);
+                return;
+            }
             // Persisted legacy reminder types may outlive the module that
             // registered their delivery handler. An absent receiver must not
             // crash AlarmIntentService or mutate unrelated medication data.
