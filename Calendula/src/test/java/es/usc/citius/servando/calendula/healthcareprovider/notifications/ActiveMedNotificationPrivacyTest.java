@@ -19,6 +19,7 @@ import static org.mockito.Mockito.mockStatic;
 import org.mockito.MockedStatic;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
+import es.usc.citius.servando.calendula.persistence.Patient;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 28)
@@ -53,6 +54,33 @@ public class ActiveMedNotificationPrivacyTest {
                 " METFORMIN ", unknown));
         assertEquals(unknown, ActiveMedNotification.providerDisplayName(null, unknown));
         assertEquals(unknown, ActiveMedNotification.providerDisplayName("  ", unknown));
+    }
+
+    private static Patient patient(Long id, String code) {
+        Patient patient = new Patient();
+        patient.setId(id);
+        patient.setCode(code);
+        return patient;
+    }
+
+    @Test
+    public void staleProfileCannotPublishPreviousPatientsOfficialMedicines() {
+        Patient opened = patient(11001L, "provider-a");
+        assertTrue(ActiveMedNotification.sameOwner(
+                opened, patient(11001L, "provider-a")));
+        assertFalse(ActiveMedNotification.sameOwner(
+                opened, patient(11002L, "provider-b")));
+        assertFalse("A changed authenticated subject is a different account",
+                ActiveMedNotification.sameOwner(
+                        opened, patient(11001L, "provider-b")));
+        assertFalse(ActiveMedNotification.sameOwner(
+                opened, patient(0L, "provider-a")));
+        assertFalse(ActiveMedNotification.sameOwner(
+                patient(null, "provider-a"), opened));
+        assertFalse(ActiveMedNotification.sameOwner(opened, null));
+        assertFalse(ActiveMedNotification.sameOwner(null, opened));
+        assertFalse(ActiveMedNotification.sameOwner(
+                patient(11001L, " "), opened));
     }
 
     @Test
