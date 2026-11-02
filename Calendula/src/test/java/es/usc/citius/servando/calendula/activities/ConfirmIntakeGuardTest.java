@@ -156,6 +156,45 @@ public class ConfirmIntakeGuardTest {
     }
 
     @Test
+    public void nonpersistedMatchingIdsCannotAuthorizeAnIntakeAction() {
+        Patient owner = owner(800100L);
+        DateTime at = DateTime.now();
+        EventInstance selected = intake(owner, at);
+        EventInstance stored = intake(owner(800100L), at);
+        assertTrue(ConfirmIntakeGuard.matchesPersistedEvent(selected, stored));
+
+        selected.setId(0L);
+        stored.setId(0L);
+        assertFalse("Zero event IDs are never persisted clinical authority",
+                ConfirmIntakeGuard.matchesPersistedEvent(selected, stored));
+        selected.setId(810002L);
+        stored.setId(810002L);
+
+        selected.setRef(-1L);
+        stored.setRef(-1L);
+        assertFalse("Negative schedule references are not actionable",
+                ConfirmIntakeGuard.matchesPersistedEvent(selected, stored));
+        selected.setRef(800001L);
+        stored.setRef(800001L);
+
+        selected.setPatient(owner(0L));
+        stored.setPatient(owner(0L));
+        assertFalse("Matching unsaved patient objects do not authorize a dose",
+                ConfirmIntakeGuard.matchesPersistedEvent(selected, stored));
+
+        selected.setPatient(owner);
+        stored.setPatient(owner(800100L));
+        selected.setTime(null);
+        stored.setTime(null);
+        assertFalse("Missing appointment time cannot authorize a dose",
+                ConfirmIntakeGuard.matchesPersistedEvent(selected, stored));
+
+        selected.setTime(at);
+        stored.setTime(at);
+        assertTrue(ConfirmIntakeGuard.matchesPersistedEvent(selected, stored));
+    }
+
+    @Test
     public void staleSelectionCannotSubstituteChangedClinicalEvent() {
         Patient p = owner(800100L);
         DateTime date = DateTime.now();
