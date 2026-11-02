@@ -1,0 +1,2 @@
+# Verify two simultaneous dose confirmations never debit tracked stock twice.
+es.usc.citius.servando.calendula.scheduling.ConcurrentIntakeStockSmokeTest
