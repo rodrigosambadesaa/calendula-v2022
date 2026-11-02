@@ -23,6 +23,7 @@ import org.robolectric.annotation.Config;
 import java.sql.SQLException;
 
 import es.usc.citius.servando.calendula.CalendulaApp;
+import es.usc.citius.servando.calendula.healthcareprovider.notifications.ActiveMedNotification;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
@@ -168,6 +169,41 @@ public class PatientActiveSelectionSafetyTest {
     }
 
 
+
+    @Test
+    public void switchingProfilesCancelsOnlyTheOldProviderNotification() throws Exception {
+        Dao<Patient, Long> raw = rawDao();
+        PatientDao subject = createSubject(raw);
+        Context context = ApplicationProvider.getApplicationContext();
+        Patient newPatient = new Patient();
+        newPatient.setId(98435L);
+        when(raw.queryForId(98435L)).thenReturn(newPatient);
+        SharedPreferences.Editor editor = mock(SharedPreferences.Editor.class);
+        when(editor.putLong(anyString(), eq(98435L))).thenReturn(editor);
+        EventBus bus = mock(EventBus.class);
+
+        try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class);
+             MockedStatic<CalendulaApp> app = mockStatic(CalendulaApp.class);
+             MockedStatic<ActiveMedNotification> notification =
+                     mockStatic(ActiveMedNotification.class)) {
+            prefs.when(PreferenceUtils::edit).thenReturn(editor);
+            prefs.when(() -> PreferenceUtils.getLong(
+                    PreferenceKeys.PATIENTS_ACTIVE, -1L)).thenReturn(98434L, 98435L);
+            app.when(CalendulaApp::getContext).thenReturn(context);
+            app.when(CalendulaApp::eventBus).thenReturn(bus);
+
+            subject.setActive(newPatient);
+            notification.verify(() -> ActiveMedNotification.cancel(context), times(1));
+            verify(editor).putLong(PreferenceKeys.PATIENTS_ACTIVE.key(), 98435L);
+            // Selecting the same profile again must not dismiss its own
+            // newly delivered provider notification.
+            subject.setActive(newPatient);
+            notification.verify(() -> ActiveMedNotification.cancel(context), times(1));
+            verify(bus, times(2)).post(
+                    org.mockito.ArgumentMatchers.any(
+                            es.usc.citius.servando.calendula.events.PersistenceEvents.ActiveUserChangeEvent.class));
+        }
+    }
 
     @Test
     public void corruptedActivePatientPreferenceCannotImpersonateAnOwner() throws Exception {
