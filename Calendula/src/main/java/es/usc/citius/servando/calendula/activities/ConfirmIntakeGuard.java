@@ -26,12 +26,16 @@ public final class ConfirmIntakeGuard {
 
     public static boolean matchesPersistedEvent(EventInstance selected, EventInstance stored) {
         return selected != null && stored != null
-                && selected.getId() != null && selected.getId().equals(stored.getId())
-                && Objects.equals(selected.getRef(), stored.getRef())
-                && Objects.equals(selected.getTime(), stored.getTime())
+                && selected.getId() != null && selected.getId() > 0L
+                && selected.getId().equals(stored.getId())
+                && selected.getRef() != null && selected.getRef() > 0L
+                && selected.getRef().equals(stored.getRef())
+                && selected.getTime() != null && selected.getTime().equals(stored.getTime())
                 && selected.getPatient() != null && stored.getPatient() != null
                 && selected.getPatient().getId() != null
+                && selected.getPatient().getId() > 0L
                 && selected.getPatient().getId().equals(stored.getPatient().getId())
+                && selected.getType() == es.usc.citius.servando.calendula.scheduling.model.EventType.MEDICATION_INTAKE
                 && selected.getType() == stored.getType()
                 && selected.completed() == stored.completed()
                 && selected.cancelled() == stored.cancelled()
