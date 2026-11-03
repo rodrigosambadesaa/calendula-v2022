@@ -48,6 +48,23 @@ final class WebViewNavigationPolicy {
     }
 
     /**
+     * An invalid HTTP(S) URL must never be treated as an arbitrary external
+     * or local WebView scheme. This includes user-info, bad ports and broken
+     * authority syntax that Java's URI parser correctly refuses.
+     */
+    static boolean isMalformedRemoteHttpUrl(String targetUrl) {
+        return targetUrl != null
+                && (startsWithScheme(targetUrl, "http:")
+                    || startsWithScheme(targetUrl, "https:"))
+                && !isRemoteHttpUrl(targetUrl);
+    }
+
+    /** Before first load, only internal WebView URLs and valid HTTP(S) are safe. */
+    static boolean blockNonRemoteUrlBeforePageLoad(String targetUrl) {
+        return !isRemoteHttpUrl(targetUrl) && !isWebViewLocalUrl(targetUrl);
+    }
+
+    /**
      * Initial requests come from persisted intents and catalog lookups.
      * Never allow local filesystem, script, relative or credential-bearing
      * URLs to enter a privileged WebView that may inject CSS or cache HTML.
