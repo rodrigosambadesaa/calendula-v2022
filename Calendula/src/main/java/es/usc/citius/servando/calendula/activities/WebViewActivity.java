@@ -572,6 +572,12 @@ public class WebViewActivity extends CalendulaActivity {
             if (WebViewNavigationPolicy.isWebViewLocalUrl(targetUrl)) {
                 return false;
             }
+            // Invalid network URLs must not bypass the strict remote policy
+            // through the legacy non-HTTP handling branch, even during load.
+            if (WebViewNavigationPolicy.isMalformedRemoteHttpUrl(targetUrl)) {
+                LogUtil.w(TAG, "Rejected malformed remote document navigation");
+                return true;
+            }
 
             if (WebViewNavigationPolicy.shouldOpenInsideWebView(
                     originalUrl,
@@ -587,8 +593,11 @@ public class WebViewActivity extends CalendulaActivity {
             // Preserve legacy handling for non-HTTP navigation that occurs while the
             // initial document is still loading. Once a page is visible, delegate
             // external schemes and cross-origin HTTP(S) links to another app.
-            if (!pageLoaded && !WebViewNavigationPolicy.isRemoteHttpUrl(targetUrl)) {
-                return false;
+            if (!pageLoaded
+                    && WebViewNavigationPolicy.blockNonRemoteUrlBeforePageLoad(targetUrl)) {
+                // An early file:, content:, intent: or invalid custom URL
+                // must not be loaded directly by the privileged WebView.
+                return true;
             }
 
             Intent externalIntent = new Intent(Intent.ACTION_VIEW, targetUri);
@@ -620,6 +629,12 @@ public class WebViewActivity extends CalendulaActivity {
         }
 
         private WebResourceResponse preflightWebResource(String targetUrl) {
+            if (WebViewNavigationPolicy.isMalformedRemoteHttpUrl(targetUrl)) {
+                // Invalid remote subresources must not skip connectivity
+                // checks and reach the WebView network stack directly.
+                return new WebResourceResponse("text/plain", "UTF-8",
+                        new ByteArrayInputStream(new byte[0]));
+            }
             if (!WebViewNavigationPolicy.isRemoteHttpUrl(targetUrl)) {
                 return null;
             }
