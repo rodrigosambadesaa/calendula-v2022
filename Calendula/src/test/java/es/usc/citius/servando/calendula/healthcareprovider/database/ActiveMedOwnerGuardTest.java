@@ -22,6 +22,31 @@ public class ActiveMedOwnerGuardTest {
     }
 
     @Test
+    public void stalePatientObjectWithRecycledDatabaseIdIsNotAuthorized() {
+        es.usc.citius.servando.calendula.persistence.Patient saved =
+                new es.usc.citius.servando.calendula.persistence.Patient();
+        saved.setId(4242L);
+        saved.setCode("synthetic-current-profile");
+        es.usc.citius.servando.calendula.persistence.Patient stale =
+                new es.usc.citius.servando.calendula.persistence.Patient();
+        stale.setId(4242L);
+        stale.setCode("synthetic-old-profile");
+
+        assertFalse(ActiveMedOwnerGuard.samePersistedPatient(stale, saved));
+        assertTrue(ActiveMedOwnerGuard.samePersistedPatient(saved, saved));
+        stale.setCode("synthetic-current-profile");
+        assertTrue(ActiveMedOwnerGuard.samePersistedPatient(stale, saved));
+        stale.setCode(null);
+        assertFalse(ActiveMedOwnerGuard.samePersistedPatient(stale, saved));
+        stale.setCode(" ");
+        assertFalse(ActiveMedOwnerGuard.samePersistedPatient(stale, saved));
+        stale.setCode("synthetic-current-profile");
+        stale.setId(0L);
+        assertFalse(ActiveMedOwnerGuard.samePersistedPatient(stale, saved));
+        assertFalse(ActiveMedOwnerGuard.samePersistedPatient(null, saved));
+    }
+
+    @Test
     public void localMedicineCanOnlyJoinItsExactProviderEntry() {
         assertTrue(ActiveMedOwnerGuard.sameProviderLink(511L, 511L));
         assertFalse(ActiveMedOwnerGuard.sameProviderLink(511L, 512L));
