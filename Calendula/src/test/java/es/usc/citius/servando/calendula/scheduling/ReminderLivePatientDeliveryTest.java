@@ -76,6 +76,10 @@ public class ReminderLivePatientDeliveryTest {
         EventReminderDao reminders = mock(EventReminderDao.class);
         EventInstanceDao events = mock(EventInstanceDao.class);
         EventReminder persisted = reminder(45L);
+        // A reassigned owner is the only difference. Keep the rest of the
+        // reminder revision byte-for-byte equivalent to catch ID reuse.
+        persisted.setDateTime(stale.getDateTime());
+        persisted.setNextTime(stale.getNextTime());
         persisted.getPatient().setCode("synthetic-new-patient");
 
         try (MockedStatic<DB> db = mockStatic(DB.class)) {
