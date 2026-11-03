@@ -64,7 +64,7 @@ public class ActiveMedDao extends GenericDao<ActiveMedEntity, Long> {
         }
         Patient persistedPatient = es.usc.citius.servando.calendula.database.DB
                 .patients().findById(patient.getId());
-        if (persistedPatient == null) {
+        if (!ActiveMedOwnerGuard.samePersistedPatient(patient, persistedPatient)) {
             return null;
         }
         try {
@@ -100,7 +100,7 @@ public class ActiveMedDao extends GenericDao<ActiveMedEntity, Long> {
         // before returning any clinical dosage/dispensation by provider ID.
         Patient persisted = es.usc.citius.servando.calendula.database.DB
                 .patients().findById(patient.getId());
-        if (persisted == null) {
+        if (!ActiveMedOwnerGuard.samePersistedPatient(patient, persisted)) {
             return null;
         }
         ActiveMedEntity result = findById(id);
@@ -119,7 +119,7 @@ public class ActiveMedDao extends GenericDao<ActiveMedEntity, Long> {
         }
         Patient persisted = es.usc.citius.servando.calendula.database.DB
                 .patients().findById(patient.getId());
-        if (persisted == null) {
+        if (!ActiveMedOwnerGuard.samePersistedPatient(patient, persisted)) {
             return null;
         }
         try {
