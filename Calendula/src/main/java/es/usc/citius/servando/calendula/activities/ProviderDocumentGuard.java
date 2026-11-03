@@ -34,4 +34,14 @@ final class ProviderDocumentGuard {
         return canAcceptResponse(opened, active, responseOwner)
                 && expectedJobId > 0 && expectedJobId == responseJobId;
     }
+
+    /** Apply the stable profile identity gate before accepting a PDF job reply. */
+    static boolean canAcceptResponse(Long openedId, String openedCode,
+                                     Long activeId, String activeCode,
+                                     Long responseOwner, int expectedJobId,
+                                     int responseJobId) {
+        return samePatient(openedId, openedCode, activeId, activeCode)
+                && canAcceptResponse(openedId, activeId, responseOwner,
+                        expectedJobId, responseJobId);
+    }
 }
