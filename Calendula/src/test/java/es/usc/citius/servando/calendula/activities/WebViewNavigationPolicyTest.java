@@ -129,6 +129,31 @@ public class WebViewNavigationPolicyTest {
     }
 
     @Test
+    public void invalidHttpUrlsNeverFallBackToPreloadOrExternalSchemeHandling() {
+        String credentialed = "https://username:password@www.aemps.gob.es/leaflet";
+        assertTrue(WebViewNavigationPolicy.isMalformedRemoteHttpUrl(credentialed));
+        assertTrue(WebViewNavigationPolicy.isMalformedRemoteHttpUrl(
+                "HTTPS://www.aemps.gob.es:65536/leaflet"));
+        assertTrue(WebViewNavigationPolicy.isMalformedRemoteHttpUrl(
+                "http://host with space/leaflet"));
+        assertTrue(WebViewNavigationPolicy.blockNonRemoteUrlBeforePageLoad(credentialed));
+        assertTrue(WebViewNavigationPolicy.blockNonRemoteUrlBeforePageLoad("file:///private"));
+        assertTrue(WebViewNavigationPolicy.blockNonRemoteUrlBeforePageLoad(
+                "content://private/leaflet"));
+        assertTrue(WebViewNavigationPolicy.blockNonRemoteUrlBeforePageLoad(
+                "intent://other-app/leaflet"));
+
+        assertFalse(WebViewNavigationPolicy.isMalformedRemoteHttpUrl(TRUSTED));
+        assertFalse(WebViewNavigationPolicy.isMalformedRemoteHttpUrl(
+                "https://www.aemps.gob.es:443/document"));
+        assertFalse(WebViewNavigationPolicy.blockNonRemoteUrlBeforePageLoad(TRUSTED));
+        assertFalse(WebViewNavigationPolicy.blockNonRemoteUrlBeforePageLoad("about:blank"));
+        assertFalse(WebViewNavigationPolicy.blockNonRemoteUrlBeforePageLoad(
+                "javascript:document.title"));
+        assertFalse(WebViewNavigationPolicy.isMalformedRemoteHttpUrl("mailto:test@example.test"));
+    }
+
+    @Test
     public void malformedUrlsAreNeverRemoteHttpUrls() {
         assertFalse(WebViewNavigationPolicy.isRemoteHttpUrl("https://exa mple.com"));
         assertFalse(WebViewNavigationPolicy.isRemoteHttpUrl("not a url"));
