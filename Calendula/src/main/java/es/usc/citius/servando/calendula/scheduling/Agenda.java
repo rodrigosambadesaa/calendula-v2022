@@ -98,11 +98,26 @@ public class Agenda {
      * Keep the legacy save behavior for explicitly persisted model updates
      * and event types without medication schedule identity.
      */
-    private static boolean sameEventPatientIdentity(
+    static boolean sameEventPatientIdentity(
             EventInstance incoming, EventInstance stored) {
-        Long first = incoming.getPatient() == null ? null : incoming.getPatient().getId();
-        Long second = stored.getPatient() == null ? null : stored.getPatient().getId();
-        return first == null ? second == null : first.equals(second);
+        if (incoming == null || stored == null) {
+            return false;
+        }
+        Patient first = incoming.getPatient();
+        Patient second = stored.getPatient();
+        if (first == null || second == null) {
+            // Retain the legacy behavior for unassigned, non-clinical rows.
+            return first == null && second == null;
+        }
+        if (first.getId() == null || first.getId() <= 0L
+                || !first.getId().equals(second.getId())) {
+            return false;
+        }
+        // A database restore can recycle a numeric owner ID. Comparing only
+        // that number would silently deduplicate the *new* patient's intake
+        // against an event belonging to the previous owner of this ID.
+        return first.getCode() == null || second.getCode() == null
+                || first.getCode().equals(second.getCode());
     }
 
     public void addEvents(Collection<EventInstance> evts) {
