@@ -16,6 +16,9 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -148,6 +151,72 @@ public class WebViewRequestTest {
             } finally {
                 parcel.recycle();
             }
+        }
+    }
+
+    @Test
+    public void overLimitLocalCssRequestsFailBeforeProducingAnUnreadableParcel() {
+        WebViewRequest request = new WebViewRequest("https://example.test/synthetic");
+        java.util.List<String> css = new ArrayList<>();
+        for (int i = 0; i < 33; i++) {
+            css.add("css-" + i + ".css");
+        }
+        try {
+            request.setCustomCss(css);
+            org.junit.Assert.fail("Setter must reject a CSS list the parcel reader cannot accept");
+        } catch (IllegalArgumentException expected) {
+            assertNull(request.getCustomCss());
+        }
+
+        Map<String, String> overrides = new HashMap<>();
+        for (int i = 0; i < 129; i++) {
+            overrides.put("key" + i, "value" + i);
+        }
+        try {
+            request.setCustomCssOverrides(overrides);
+            org.junit.Assert.fail("Setter must reject override maps too large to restore");
+        } catch (IllegalArgumentException expected) {
+            assertEquals(0, request.getCustomCssOverrides().size());
+        }
+
+        // The getter remains mutable for compatibility with older callers:
+        // serialization must still reject a mutated oversized map.
+        request.getCustomCssOverrides().putAll(overrides);
+        Parcel parcel = Parcel.obtain();
+        try {
+            try {
+                request.writeToParcel(parcel, 0);
+                org.junit.Assert.fail("Cannot write a parcel its reader will reject");
+            } catch (BadParcelableException expected) {
+                assertEquals("Reject before writing a partially valid parcel", 0, parcel.dataSize());
+            }
+        } finally {
+            parcel.recycle();
+        }
+    }
+
+    @Test
+    public void atLimitCssAndOverrideCollectionsStillSurviveRoundTrip() {
+        WebViewRequest request = new WebViewRequest("https://example.test/synthetic");
+        java.util.List<String> css = new ArrayList<>();
+        Map<String, String> overrides = new HashMap<>();
+        for (int i = 0; i < 32; i++) {
+            css.add("synthetic-" + i + ".css");
+        }
+        for (int i = 0; i < 128; i++) {
+            overrides.put("selector-" + i, "style-" + i);
+        }
+        request.setCustomCss(css);
+        request.setCustomCssOverrides(overrides);
+        Parcel parcel = Parcel.obtain();
+        try {
+            request.writeToParcel(parcel, 0);
+            parcel.setDataPosition(0);
+            WebViewRequest restored = WebViewRequest.CREATOR.createFromParcel(parcel);
+            assertEquals(css, restored.getCustomCss());
+            assertEquals(overrides, restored.getCustomCssOverrides());
+        } finally {
+            parcel.recycle();
         }
     }
 

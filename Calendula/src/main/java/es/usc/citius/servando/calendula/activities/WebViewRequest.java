@@ -108,6 +108,15 @@ public class WebViewRequest implements Parcelable {
 
     @Override
     public void writeToParcel(Parcel dest, int flags) {
+        // Own getters expose mutable collections; reject an over-limit
+        // request BEFORE writing a parcel the reader would later reject.
+        if (customCss != null && customCss.size() > MAX_RESTORED_CSS_FILES) {
+            throw new BadParcelableException("Too many CSS files in WebView request");
+        }
+        if (customCssOverrides != null
+                && customCssOverrides.size() > MAX_RESTORED_CSS_OVERRIDES) {
+            throw new BadParcelableException("Too many CSS overrides in WebView request");
+        }
         dest.writeString(url);
         dest.writeString(title);
         dest.writeString(loadingMessage);
@@ -227,6 +236,9 @@ public class WebViewRequest implements Parcelable {
     }
 
     public void setCustomCss(List<String> customCss) {
+        if (customCss != null && customCss.size() > MAX_RESTORED_CSS_FILES) {
+            throw new IllegalArgumentException("Too many CSS files in WebView request");
+        }
         this.customCss = customCss == null || customCss.isEmpty()
                 ? null
                 : new ArrayList<>(customCss);
@@ -288,6 +300,10 @@ public class WebViewRequest implements Parcelable {
 
 
     public void setCustomCssOverrides(Map<String, String> customCssOverrides) {
+        if (customCssOverrides != null
+                && customCssOverrides.size() > MAX_RESTORED_CSS_OVERRIDES) {
+            throw new IllegalArgumentException("Too many CSS overrides in WebView request");
+        }
         this.customCssOverrides = customCssOverrides == null
                 ? new HashMap<String, String>()
                 : new HashMap<>(customCssOverrides);
