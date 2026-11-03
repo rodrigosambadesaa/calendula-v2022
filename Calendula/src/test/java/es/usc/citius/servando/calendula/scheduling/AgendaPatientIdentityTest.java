@@ -6,6 +6,9 @@ package es.usc.citius.servando.calendula.scheduling;
 
 import org.joda.time.DateTime;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
 
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
@@ -15,6 +18,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /** Synthetic event snapshots only; no patient or medication DB is modified. */
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = 28)
 public class AgendaPatientIdentityTest {
     private static Patient patient(Long id, String code) {
         Patient p = new Patient();
