@@ -27,6 +27,24 @@ public class ProviderDocumentGuardTest {
     }
 
     @Test
+    public void medicalViewerRejectsRecycledRowIdsWithChangedStablePatientCode() {
+        assertTrue(ProviderDocumentGuard.samePatient(
+                321L, "synthetic-first", 321L, "synthetic-first"));
+        assertFalse(ProviderDocumentGuard.samePatient(
+                321L, "synthetic-first", 321L, "synthetic-replacement"));
+        assertFalse(ProviderDocumentGuard.samePatient(
+                321L, "synthetic-first", 322L, "synthetic-first"));
+        assertFalse(ProviderDocumentGuard.samePatient(
+                321L, "synthetic-first", 321L, null));
+        assertFalse(ProviderDocumentGuard.samePatient(
+                321L, null, 321L, "synthetic-first"));
+        assertFalse(ProviderDocumentGuard.samePatient(
+                321L, "  ", 321L, "  "));
+        assertFalse(ProviderDocumentGuard.samePatient(
+                0L, "synthetic-first", 0L, "synthetic-first"));
+    }
+
+    @Test
     public void twoConcurrentViewersForSamePatientMustNotReceiveEachOthersResult() {
         assertTrue(ProviderDocumentGuard.canAcceptResponse(42L, 42L, 42L, 15, 15));
         assertFalse(ProviderDocumentGuard.canAcceptResponse(42L, 42L, 42L, 15, 16));
