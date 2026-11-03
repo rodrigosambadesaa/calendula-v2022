@@ -67,6 +67,49 @@ public class ReminderLivePatientDeliveryTest {
     }
 
     @Test
+    public void recycledPatientIdWithDifferentCodeCannotDeliverOrReviveAnOldReminder() {
+        EventReminder stale = reminder(45L);
+        stale.getPatient().setCode("synthetic-old-patient");
+        Patient newOwner = owner(45L);
+        newOwner.setCode("synthetic-new-patient");
+        PatientDao patients = mock(PatientDao.class);
+        EventReminderDao reminders = mock(EventReminderDao.class);
+        EventInstanceDao events = mock(EventInstanceDao.class);
+        EventReminder persisted = reminder(45L);
+        // A reassigned owner is the only difference. Keep the rest of the
+        // reminder revision byte-for-byte equivalent to catch ID reuse.
+        persisted.setDateTime(stale.getDateTime());
+        persisted.setNextTime(stale.getNextTime());
+        persisted.getPatient().setCode("synthetic-new-patient");
+
+        try (MockedStatic<DB> db = mockStatic(DB.class)) {
+            db.when(DB::patients).thenReturn(patients);
+            db.when(DB::eventReminders).thenReturn(reminders);
+            db.when(DB::eventInstances).thenReturn(events);
+            when(patients.findById(45L)).thenReturn(newOwner);
+            when(reminders.findById(stale.getId())).thenReturn(persisted);
+            when(events.existsPending(stale.getEventType(), stale.getDateTime(),
+                    persisted.getPatient())).thenReturn(true);
+
+            assertFalse("An old profile must not authorize its successor's notification",
+                    Agenda.hasLiveReminderOwner(stale));
+            assertFalse("An old button must not modify a reminder reassigned to another code",
+                    Agenda.instance().isCurrentPendingReminder(stale));
+
+            // Legitimate same-code reloads remain accepted.
+            newOwner.setCode("synthetic-old-patient");
+            persisted.getPatient().setCode("synthetic-old-patient");
+            assertTrue(Agenda.hasLiveReminderOwner(stale));
+            assertTrue(Agenda.instance().isCurrentPendingReminder(stale));
+
+            // A legacy reminder with no patient code keeps the previous
+            // persisted-ID behavior until its metadata can be reconciled.
+            stale.getPatient().setCode(null);
+            assertTrue(Agenda.hasLiveReminderOwner(stale));
+        }
+    }
+
+    @Test
     public void orphanWithPendingEventMustNotBePublishedOrDeleteItsSqliteRow() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
         EventReminder r = reminder(880119L);
