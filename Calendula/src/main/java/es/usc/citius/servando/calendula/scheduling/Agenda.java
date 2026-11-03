@@ -716,7 +716,12 @@ public class Agenda {
             return a == null && b == null;
         }
         return a.getId() != null && a.getId() > 0
-                && a.getId().equals(b.getId());
+                && a.getId().equals(b.getId())
+                // Imported/restored profiles can reuse a numeric row ID.
+                // When both identities are available, a changed stable code
+                // must invalidate a stale reminder, delay or dose action.
+                && (a.getCode() == null || b.getCode() == null
+                    || a.getCode().equals(b.getCode()));
     }
 
     /**
@@ -1142,7 +1147,12 @@ public class Agenda {
         }
         try {
             Patient stored = DB.patients().findById(reminder.getPatient().getId());
-            return stored != null && reminder.getPatient().getId().equals(stored.getId());
+            return stored != null && reminder.getPatient().getId().equals(stored.getId())
+                    // A current row with the same ID is not proof of the
+                    // same patient after an import, deletion or restore.
+                    // Preserve legacy rows without a populated code.
+                    && (reminder.getPatient().getCode() == null || stored.getCode() == null
+                        || reminder.getPatient().getCode().equals(stored.getCode()));
         } catch (RuntimeException unavailable) {
             // Missing/inaccessible SQLite state cannot authorize PHI delivery.
             return false;
