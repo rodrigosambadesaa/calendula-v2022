@@ -25,6 +25,7 @@ import java.lang.reflect.Field;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminderReceiver;
 
 import es.usc.citius.servando.calendula.database.DB;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
@@ -271,10 +272,20 @@ public class PublicReminderPostCommitSmokeTest {
     private static final class RepeatFixture {
         final Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         final DateTime due = DateTime.now().plusMinutes(2).withMillisOfSecond(0);
+        final Patient owner = new Patient();
         final EventInstance event = new EventInstance(due, EventType.MEDICATION_INTAKE);
         final EventReminder reminder = new EventReminder(due, EventType.MEDICATION_INTAKE);
 
         RepeatFixture() {
+            // Alarm delivery now requires a real persisted owner. The prior
+            // synthetic fixture was unassigned, unintentionally exercising
+            // orphan delivery rather than valid repeat behavior.
+            owner.setCode("ci-valid-repeat-" + System.nanoTime());
+            owner.setName("Synthetic legitimate reminder owner");
+            DB.patients().save(owner);
+            assertNotNull(owner.getId());
+            event.setPatient(owner);
+            reminder.setPatient(owner);
             reminder.setNextTime(due);
             reminder.setAutoRepeat(true);
             DB.eventInstances().save(event);
@@ -295,6 +306,9 @@ public class PublicReminderPostCommitSmokeTest {
             }
             if (DB.eventInstances().findById(event.getId()) != null) {
                 DB.eventInstances().remove(event);
+            }
+            if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().remove(owner);
             }
         }
     }
