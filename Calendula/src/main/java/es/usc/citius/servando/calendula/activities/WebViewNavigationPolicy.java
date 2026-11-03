@@ -82,6 +82,14 @@ final class WebViewNavigationPolicy {
             if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
                 return null;
             }
+            // Apply the same restriction to redirected and clicked links as
+            // to the original clinical document URL. A trusted hostname
+            // with user-info can still embed credentials in a navigation.
+            // Port 0 and ports outside TCP's range are not remote endpoints.
+            if (uri.getRawUserInfo() != null || uri.getPort() == 0
+                    || uri.getPort() > 65535) {
+                return null;
+            }
             return uri;
         } catch (URISyntaxException ignored) {
             return null;
