@@ -60,6 +60,25 @@ public class ProviderDocumentGuardTest {
     }
 
     @Test
+    public void aPdfJobMustNotDisplayAfterPatientIdReuseOrProfileSwitch() {
+        assertTrue(ProviderDocumentGuard.canAcceptResponse(
+                812L, "synthetic-a", 812L, "synthetic-a", 812L, 41, 41));
+        assertFalse("Same row ID but changed profile code is not the same patient",
+                ProviderDocumentGuard.canAcceptResponse(
+                        812L, "synthetic-a", 812L, "synthetic-b", 812L, 41, 41));
+        assertFalse(ProviderDocumentGuard.canAcceptResponse(
+                812L, "synthetic-a", 813L, "synthetic-a", 812L, 41, 41));
+        assertFalse(ProviderDocumentGuard.canAcceptResponse(
+                812L, "synthetic-a", 812L, "synthetic-a", 813L, 41, 41));
+        assertFalse(ProviderDocumentGuard.canAcceptResponse(
+                812L, "synthetic-a", 812L, "synthetic-a", 812L, 41, 42));
+        assertFalse(ProviderDocumentGuard.canAcceptResponse(
+                812L, "synthetic-a", 812L, "synthetic-a", 812L, -1, 41));
+        assertFalse(ProviderDocumentGuard.canAcceptResponse(
+                812L, "synthetic-a", 812L, null, 812L, 41, 41));
+    }
+
+    @Test
     public void eventPreservesTheOwnerAndLegacyUnknownOwnerFailsClosed() {
         GetExtraInfoEvent scoped =
                 new GetExtraInfoEvent(GetExtraInfoEvent.Status.SUCCESS, "/cache/example.pdf", 42L);
