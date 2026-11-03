@@ -760,6 +760,66 @@ public class PendingDoseSelectionSmokeTest {
     }
 
     @Test
+    public void agendaReplayWithRecycledPatientIdMustNotEraseNewOwnersDose() {
+        assertTrue(DB.initialized);
+        Patient persistedOwner = new Patient();
+        persistedOwner.setCode("ci-replay-original-owner-" + System.nanoTime());
+        persistedOwner.setName("Synthetic old owner");
+        Patient newOwnerSnapshot = new Patient();
+        newOwnerSnapshot.setCode("ci-replay-reused-owner-" + System.nanoTime());
+        newOwnerSnapshot.setName("Synthetic replacement owner");
+        DateTime when = DateTime.now().plusDays(5).withMillisOfSecond(0);
+        long ref = -System.nanoTime();
+        EventInstance completed = new EventInstance(when, EventType.MEDICATION_INTAKE);
+        completed.setRef(ref);
+        completed.setCompleted(true);
+        completed.setCompletedAt(when.minusMinutes(2));
+        completed.addParam(EventInstance.PARAM_DOSE, 1.0d);
+        EventInstance incoming = new EventInstance(when, EventType.MEDICATION_INTAKE);
+        incoming.setRef(ref);
+        incoming.addParam(EventInstance.PARAM_DOSE, 2.0d);
+        try {
+            assertEquals(1, DB.patients().create(persistedOwner));
+            completed.setPatient(persistedOwner);
+            assertEquals(1, DB.eventInstances().create(completed));
+            // The incoming stale/foreign snapshot reuses the original
+            // SQLite ID but carries a different stable patient identity.
+            newOwnerSnapshot.setId(persistedOwner.getId());
+            incoming.setPatient(newOwnerSnapshot);
+            boolean rejected = false;
+            try {
+                Agenda.instance().addEvents(java.util.Collections.singletonList(incoming));
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("A mismatched stable owner must not be silently skipped", rejected);
+            assertEquals("A failed replay must not insert a new dose", null, incoming.getId());
+            EventInstance retained = DB.eventInstances().findById(completed.getId());
+            assertNotNull(retained);
+            assertTrue(retained.completed());
+            assertEquals(completed.completedAt(), retained.completedAt());
+            assertEquals(1.0d, retained.getDoubleParam(EventInstance.PARAM_DOSE), 0.0001d);
+            // A valid replay under the actual persisted patient stays idempotent.
+            incoming.setPatient(persistedOwner);
+            Agenda.instance().addEvents(java.util.Collections.singletonList(incoming));
+            assertEquals(null, incoming.getId());
+        } finally {
+            if (completed.getId() != null
+                    && DB.eventInstances().findById(completed.getId()) != null) {
+                DB.eventInstances().remove(completed);
+            }
+            if (incoming.getId() != null
+                    && DB.eventInstances().findById(incoming.getId()) != null) {
+                DB.eventInstances().remove(incoming);
+            }
+            if (persistedOwner.getId() != null
+                    && DB.patients().findById(persistedOwner.getId()) != null) {
+                DB.patients().remove(persistedOwner);
+            }
+        }
+    }
+
+    @Test
     public void agendaEventBatchFailureRollsBackPreviouslyInsertedRows() {
         assertTrue(DB.initialized);
         DateTime slot = DateTime.now().plusHours(19).withMillisOfSecond(0);
