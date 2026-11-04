@@ -88,6 +88,81 @@ public class PatientDeletionScopeSmokeTest {
     }
 
     @Test
+    public void recycledPatientIdCannotDeleteTheReplacementPatientsClinicalRecords()
+            throws Exception {
+        assertTrue(DB.initialized);
+        String unique = Long.toString(System.nanoTime());
+        Patient replacement = new Patient();
+        replacement.setCode("ci-erasure-replacement-" + unique);
+        replacement.setName("Synthetic replacement profile");
+        Medicine protectedMed = new Medicine("Synthetic protected therapy", Presentation.PILLS);
+        EventInstance decidedDose = new EventInstance(
+                DateTime.now().minusHours(6), EventType.MEDICATION_INTAKE);
+        decidedDose.setCompleted(true);
+        decidedDose.setCompletedAt(DateTime.now().minusHours(5));
+        decidedDose.setRef(-System.nanoTime());
+        decidedDose.addParam(EventInstance.PARAM_DOSE, 2.5d);
+        try {
+            assertEquals(1, DB.patients().create(replacement));
+            protectedMed.setPatient(replacement);
+            assertEquals(1, DB.medicines().create(protectedMed));
+            decidedDose.setPatient(replacement);
+            assertEquals(1, DB.eventInstances().create(decidedDose));
+
+            Patient stale = new Patient();
+            stale.setId(replacement.getId());
+            stale.setCode("ci-erasure-original-" + unique);
+            Patient unknown = new Patient();
+            unknown.setId(replacement.getId());
+            Patient whitespace = new Patient();
+            whitespace.setId(replacement.getId());
+            whitespace.setCode(" ");
+
+            for (Patient unauthorized : new Patient[]{stale, unknown, whitespace}) {
+                boolean cascadeRejected = false;
+                try {
+                    DB.patients().removeCascade(unauthorized);
+                } catch (IllegalArgumentException expected) {
+                    cascadeRejected = true;
+                }
+                assertTrue("Recycled row ID cannot authorize clinical erasure",
+                        cascadeRejected);
+                boolean partialRejected = false;
+                try {
+                    DB.patients().removeAllStuff(unauthorized);
+                } catch (IllegalArgumentException expected) {
+                    partialRejected = true;
+                }
+                assertTrue("Partial erasure must verify stable owner identity",
+                        partialRejected);
+            }
+
+            assertNotNull("Replacement profile must survive", DB.patients()
+                    .findById(replacement.getId()));
+            assertNotNull("Replacement therapy must survive",
+                    DB.medicines().findById(protectedMed.getId()));
+            EventInstance retained = DB.eventInstances().findById(decidedDose.getId());
+            assertNotNull("Decision history must survive a stale erasure", retained);
+            assertTrue(retained.completed());
+            assertEquals(2.5d, retained.getDoubleParam(EventInstance.PARAM_DOSE),
+                    0.0001d);
+        } finally {
+            if (decidedDose.getId() != null && DB.eventInstances()
+                    .findById(decidedDose.getId()) != null) {
+                DB.eventInstances().remove(decidedDose);
+            }
+            if (protectedMed.getId() != null && DB.medicines()
+                    .findById(protectedMed.getId()) != null) {
+                DB.medicines().remove(protectedMed);
+            }
+            if (replacement.getId() != null && DB.patients()
+                    .findById(replacement.getId()) != null) {
+                DB.patients().remove(replacement);
+            }
+        }
+    }
+
+    @Test
     public void patientReminderDeletionMustRollbackAllRowsOnSqlFailure() throws Exception {
         assertTrue(DB.initialized);
         Patient first = new Patient();
