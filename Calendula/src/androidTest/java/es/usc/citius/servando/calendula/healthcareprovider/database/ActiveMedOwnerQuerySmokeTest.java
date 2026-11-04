@@ -70,6 +70,27 @@ public class ActiveMedOwnerQuerySmokeTest {
                     .findByCodeForPatient(code, null));
             assertNull(DB.healthcareProviderDB().activeMeds()
                     .findByCodeForPatient(null, a));
+            // A restored/imported profile may reuse A's numeric row ID
+            // for someone else. A stale Patient object with that ID must
+            // never read provider treatment, dispensing or update metadata.
+            Patient staleA = patient("old-profile-reassigned");
+            staleA.setId(a.getId());
+            assertNotEquals(a.getCode(), staleA.getCode());
+            assertNull(DB.healthcareProviderDB().activeMeds()
+                    .findByCodeForPatient(code, staleA));
+            assertNull(DB.healthcareProviderDB().activeMeds()
+                    .findByIdForPatient(aMed.getId(), staleA));
+            assertNull(DB.healthcareProviderDB().activeMeds()
+                    .findLastUpdateDate(staleA));
+            Patient noCode = new Patient();
+            noCode.setId(a.getId());
+            assertNull(DB.healthcareProviderDB().activeMeds()
+                    .findByCodeForPatient(code, noCode));
+            assertNull(DB.healthcareProviderDB().activeMeds()
+                    .findByIdForPatient(aMed.getId(), noCode));
+            assertNull(DB.healthcareProviderDB().activeMeds()
+                    .findLastUpdateDate(noCode));
+
             // Provider update metadata is just as patient-sensitive as dosage.
             assertEquals(aUpdated, DB.healthcareProviderDB().activeMeds()
                     .findLastUpdateDate(a));
