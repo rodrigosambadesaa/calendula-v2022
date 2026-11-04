@@ -184,6 +184,15 @@ public class PatientDao extends GenericDao<Patient, Long> {
         if (live == null) {
             throw new IllegalArgumentException("Cannot erase an already deleted patient");
         }
+        // A restored/imported database may reuse the numeric ID of an
+        // already-deleted profile. A stale UI object must never erase the
+        // replacement patient's medicines, allergies or intake history.
+        // Unidentified legacy objects cannot authorize destructive erasure.
+        String expectedCode = candidate.getCode();
+        if (expectedCode == null || expectedCode.trim().isEmpty()
+                || !expectedCode.equals(live.getCode())) {
+            throw new IllegalArgumentException("Patient identity changed before erasure");
+        }
         return live;
     }
 
