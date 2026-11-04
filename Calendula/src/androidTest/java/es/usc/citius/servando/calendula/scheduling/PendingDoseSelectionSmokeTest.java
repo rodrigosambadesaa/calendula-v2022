@@ -760,7 +760,7 @@ public class PendingDoseSelectionSmokeTest {
     }
 
     @Test
-    public void agendaReplayWithRecycledPatientIdMustNotEraseNewOwnersDose() {
+    public void agendaReplayWithRecycledPatientIdMustNotEraseNewOwnersDose() throws Exception {
         assertTrue(DB.initialized);
         Patient persistedOwner = new Patient();
         persistedOwner.setCode("ci-replay-original-owner-" + System.nanoTime());
