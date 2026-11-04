@@ -6,6 +6,8 @@
 package es.usc.citius.servando.calendula.database;
 
 import android.database.sqlite.SQLiteDatabase;
+import android.content.Context;
+import android.content.SharedPreferences;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
@@ -24,6 +26,8 @@ import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
+import es.usc.citius.servando.calendula.util.PreferenceKeys;
+import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -37,6 +41,58 @@ import static org.junit.Assert.assertTrue;
  */
 @RunWith(AndroidJUnit4.class)
 public class PatientDeletionScopeSmokeTest {
+    @Test
+    public void newAndLegacyLocalDefaultProfilesReceiveDurableStableIdentities()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        SharedPreferences prefs = PreferenceUtils.instance().preferences();
+        String key = PreferenceKeys.PATIENTS_ACTIVE.key();
+        Object previousSelection = prefs.getAll().get(key);
+        Patient fresh = null;
+        Patient legacy = new Patient();
+        legacy.setDefault(true);
+        legacy.setName("Synthetic local legacy default");
+        try {
+            fresh = DB.helper().createDefaultPatient();
+            assertNotNull(fresh.getId());
+            assertTrue("New local default requires stable patient code",
+                    fresh.getCode() != null && fresh.getCode().startsWith("local-"));
+            assertEquals(fresh.getCode(), DB.patients().findById(fresh.getId()).getCode());
+
+            assertEquals(1, DB.patients().create(legacy));
+            assertNull("Legacy default has no code before safe migration",
+                    DB.patients().findById(legacy.getId()).getCode());
+            assertTrue(prefs.edit().putLong(key, legacy.getId()).commit());
+
+            Patient firstRead = DB.patients().getActive(context);
+            assertNotNull(firstRead);
+            assertEquals(legacy.getId(), firstRead.getId());
+            assertTrue("First use migrates local default identity",
+                    firstRead.getCode() != null
+                            && firstRead.getCode().startsWith("local-"));
+            assertEquals(firstRead.getCode(),
+                    DB.patients().findById(legacy.getId()).getCode());
+            assertEquals("Subsequent reads must not rotate patient identity",
+                    firstRead.getCode(), DB.patients().getActive(context).getCode());
+        } finally {
+            SharedPreferences.Editor editor = prefs.edit();
+            if (previousSelection == null) editor.remove(key);
+            else if (previousSelection instanceof Long) editor.putLong(key, (Long) previousSelection);
+            else if (previousSelection instanceof String) editor.putString(key, (String) previousSelection);
+            else if (previousSelection instanceof Integer) editor.putInt(key, (Integer) previousSelection);
+            else if (previousSelection instanceof Boolean) editor.putBoolean(key, (Boolean) previousSelection);
+            else throw new AssertionError("Unexpected synthetic preference type");
+            assertTrue(editor.commit());
+            for (Patient p : new Patient[]{legacy, fresh}) {
+                if (p != null && p.getId() != null
+                        && DB.patients().findById(p.getId()) != null) {
+                    DB.patients().remove(DB.patients().findById(p.getId()));
+                }
+            }
+        }
+    }
+
     @Test
     public void missingOrUnsavedPatientCannotBeginCascadeErasure() throws Exception {
         assertTrue(DB.initialized);
