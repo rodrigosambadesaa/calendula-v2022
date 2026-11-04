@@ -195,6 +195,42 @@ public class HtmlCacheManagerTest {
     }
 
     @Test
+    public void restoredPatientIdCannotReadOldPatientsCachedMedicalHtml() {
+        HtmlCacheManager cache = HtmlCacheManager.getInstance();
+        String url = "https://example.test/synthetic-sensitive-leaflet";
+        Duration ttl = Duration.standardMinutes(10);
+        long reusedId = 20011L;
+
+        // Both old unscoped and ID-only v1 entries must be invisible to the
+        // clinical viewer using stable-code-scoped v2 cache keys.
+        assertTrue(cache.put(url, "Unscoped legacy document", ttl));
+        assertTrue(cache.putForPatient(reusedId, url, "Legacy ID-only document", ttl));
+        assertNull(cache.getForPatient(reusedId, "synthetic-a", url));
+        assertFalse(cache.isCachedForPatient(reusedId, "synthetic-a", url));
+
+        assertTrue(cache.putForPatient(reusedId, "synthetic-a", url,
+                "Patient A private leaflet", ttl));
+        assertEquals("Patient A private leaflet",
+                cache.getForPatient(reusedId, "synthetic-a", url));
+        assertNull("Reused numeric ID must not authorize patient A's HTML",
+                cache.getForPatient(reusedId, "synthetic-b", url));
+        assertTrue(cache.putForPatient(reusedId, "synthetic-b", url,
+                "Patient B private leaflet", ttl));
+        assertEquals("Patient B private leaflet",
+                cache.getForPatient(reusedId, "synthetic-b", url));
+        assertEquals("Patient A private leaflet",
+                cache.getForPatient(reusedId, "synthetic-a", url));
+        assertNull(cache.getForPatient(reusedId + 1, "synthetic-a", url));
+
+        String v2Key = HtmlCacheManager.patientCacheKey(reusedId, "synthetic-a", url);
+        assertFalse("Raw stable clinical code must not be persisted in the key",
+                v2Key.contains("synthetic-a"));
+        assertTrue(v2Key.startsWith("patient:v2:"));
+        assertFalse(cache.putForPatient(reusedId, null, url, "Unowned HTML", ttl));
+        assertNull(cache.getForPatient(reusedId, " ", url));
+    }
+
+    @Test
     public void malformedScopedPatientKeysAreRejectedBeforeSql() {
         assertNull(HtmlCacheManager.patientCacheKey(null, "https://example.test/leaflet"));
         assertNull(HtmlCacheManager.patientCacheKey(0L, "https://example.test/leaflet"));

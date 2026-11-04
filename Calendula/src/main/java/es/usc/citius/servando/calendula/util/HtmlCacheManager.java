@@ -26,6 +26,9 @@ import org.joda.time.DateTime;
 import org.joda.time.Duration;
 
 import java.sql.SQLException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -69,6 +72,55 @@ public class HtmlCacheManager {
         return "patient:" + patientId + ":" + url;
     }
 
+    /**
+     * Version-2 owner key: both the persisted row ID and a stable patient
+     * identity are required. A restored database can reuse row IDs, so never
+     * read an older ID-only cache as authoritative clinical content.
+     *
+     * Persist only SHA-256 of the stable code, not a raw clinical identifier.
+     */
+    static String patientCacheKey(Long patientId, String patientCode, String url) {
+        if (patientId == null || patientId <= 0L
+                || patientCode == null || patientCode.trim().isEmpty()
+                || url == null || url.isEmpty()) {
+            return null;
+        }
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(patientCode.getBytes(StandardCharsets.UTF_8));
+            final char[] hexDigits = "0123456789abcdef".toCharArray();
+            StringBuilder hex = new StringBuilder(digest.length * 2);
+            for (byte value : digest) {
+                int unsigned = value & 0xff;
+                hex.append(hexDigits[unsigned >>> 4]);
+                hex.append(hexDigits[unsigned & 0xf]);
+            }
+            return "patient:v2:" + patientId + ":" + hex + ":" + url;
+        } catch (NoSuchAlgorithmException unavailable) {
+            // SHA-256 is guaranteed on supported Android runtimes; fail
+            // closed rather than creating an ambiguous clinical cache key.
+            throw new IllegalStateException("SHA-256 is unavailable", unavailable);
+        }
+    }
+
+    public boolean isCachedForPatient(Long patientId, String patientCode, String url) {
+        String key = patientCacheKey(patientId, patientCode, url);
+        return key != null && isCached(key);
+    }
+
+    public String getForPatient(Long patientId, String patientCode, String url) {
+        String key = patientCacheKey(patientId, patientCode, url);
+        return key == null ? null : get(key);
+    }
+
+    public boolean putForPatient(Long patientId, String patientCode, String url,
+                                 String data, Duration ttlDuration) {
+        String key = patientCacheKey(patientId, patientCode, url);
+        return key != null && put(key, data, ttlDuration);
+    }
+
+    // Legacy ID-only entries remain readable by older internal callers
+    // but are never consulted by the clinical viewer using the v2 overloads.
     public boolean isCachedForPatient(Long patientId, String url) {
         String key = patientCacheKey(patientId, url);
         return key != null && isCached(key);

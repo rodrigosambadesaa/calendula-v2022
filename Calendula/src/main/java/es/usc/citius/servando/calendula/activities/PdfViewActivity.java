@@ -67,7 +67,41 @@ public class PdfViewActivity extends CalendulaActivity {
     private WebView webView;
     private String url;
     private Long openedPatientId;
+    private String openedPatientCode;
     private int requestedJobId = -1;
+
+    /** Do not trust a reused numeric patient ID after SQLite restoration. */
+    private boolean sameOpeningPatient() {
+        try {
+            Patient active = DB.patients().getActive(this);
+            return ProviderDocumentGuard.samePatient(openedPatientId, openedPatientCode,
+                    active == null ? null : active.getId(),
+                    active == null ? null : active.getCode());
+        } catch (RuntimeException unavailableDatabase) {
+            return false;
+        }
+    }
+
+    /** Only called on the main thread: hide any private preview immediately. */
+    private boolean rejectChangedPatient() {
+        if (sameOpeningPatient()) {
+            return false;
+        }
+        if (webView != null) {
+            webView.setVisibility(View.INVISIBLE);
+            webView.stopLoading();
+        }
+        finish();
+        return true;
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (openedPatientId != null) {
+            rejectChangedPatient();
+        }
+    }
 
     @Override
     protected void onDestroy() {
@@ -86,17 +120,24 @@ public class PdfViewActivity extends CalendulaActivity {
         if (event == null || event.getStatus() == null || isFinishing() || isDestroyed()) {
             return;
         }
-        Patient currentPatient = DB.patients().getActive(this);
+        Patient currentPatient;
+        try {
+            currentPatient = DB.patients().getActive(this);
+        } catch (RuntimeException unavailableDatabase) {
+            currentPatient = null;
+        }
         Long activeId = currentPatient == null ? null : currentPatient.getId();
-        if (!ProviderDocumentGuard.samePatient(openedPatientId, activeId)) {
+        String activeCode = currentPatient == null ? null : currentPatient.getCode();
+        if (!ProviderDocumentGuard.samePatient(openedPatientId, openedPatientCode,
+                activeId, activeCode)) {
             // The patient was removed or switched while a provider request was
             // running. Never keep the old medical document visible.
-            handler.post(this::finish);
+            handler.post(this::rejectChangedPatient);
             return;
         }
         if (!ProviderDocumentGuard.canAcceptResponse(
-                openedPatientId, activeId, event.getPatientId(),
-                requestedJobId, event.getJobId())) {
+                openedPatientId, openedPatientCode, activeId, activeCode,
+                event.getPatientId(), requestedJobId, event.getJobId())) {
             // Global event bus: another viewer's response is not ours.
             return;
         }
@@ -202,11 +243,7 @@ public class PdfViewActivity extends CalendulaActivity {
                 if (imageDataUrl != null) {
                     final String previewUrl = imageDataUrl;
                     handler.post(() -> {
-                        Patient active = DB.patients().getActive(this);
-                        if (isFinishing() || isDestroyed()
-                                || !ProviderDocumentGuard.samePatient(openedPatientId,
-                                        active == null ? null : active.getId())) {
-                            finish();
+                        if (isFinishing() || isDestroyed() || rejectChangedPatient()) {
                             return;
                         }
                         webView.setWebViewClient(new PdfViewActivity.CustomWebViewClient(request));
@@ -234,13 +271,15 @@ public class PdfViewActivity extends CalendulaActivity {
         }
         Patient patient = DB.patients().getActive(this);
         if (request == null || patient == null || patient.getId() == null
-                || patient.getId() <= 0L) {
+                || patient.getId() <= 0L || patient.getCode() == null
+                || patient.getCode().trim().isEmpty()) {
             LogUtil.w(TAG, "Provider document request has no valid active patient");
             showErrorToast(null);
             finish();
             return;
         } else {
             openedPatientId = patient.getId();
+            openedPatientCode = patient.getCode();
             webView = (WebView) findViewById(R.id.webView1);
             toolbarShadow = findViewById(R.id.tabs_shadow);
 
@@ -437,6 +476,9 @@ public class PdfViewActivity extends CalendulaActivity {
             handler.postDelayed(new Runnable() {
                 @Override
                 public void run() {
+                    if (isFinishing() || isDestroyed() || rejectChangedPatient()) {
+                        return;
+                    }
                     webView.setVisibility(View.VISIBLE);
                     hideLoading();
                 }

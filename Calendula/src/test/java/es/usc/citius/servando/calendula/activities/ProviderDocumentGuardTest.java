@@ -27,6 +27,24 @@ public class ProviderDocumentGuardTest {
     }
 
     @Test
+    public void medicalViewerRejectsRecycledRowIdsWithChangedStablePatientCode() {
+        assertTrue(ProviderDocumentGuard.samePatient(
+                321L, "synthetic-first", 321L, "synthetic-first"));
+        assertFalse(ProviderDocumentGuard.samePatient(
+                321L, "synthetic-first", 321L, "synthetic-replacement"));
+        assertFalse(ProviderDocumentGuard.samePatient(
+                321L, "synthetic-first", 322L, "synthetic-first"));
+        assertFalse(ProviderDocumentGuard.samePatient(
+                321L, "synthetic-first", 321L, null));
+        assertFalse(ProviderDocumentGuard.samePatient(
+                321L, null, 321L, "synthetic-first"));
+        assertFalse(ProviderDocumentGuard.samePatient(
+                321L, "  ", 321L, "  "));
+        assertFalse(ProviderDocumentGuard.samePatient(
+                0L, "synthetic-first", 0L, "synthetic-first"));
+    }
+
+    @Test
     public void twoConcurrentViewersForSamePatientMustNotReceiveEachOthersResult() {
         assertTrue(ProviderDocumentGuard.canAcceptResponse(42L, 42L, 42L, 15, 15));
         assertFalse(ProviderDocumentGuard.canAcceptResponse(42L, 42L, 42L, 15, 16));
@@ -39,6 +57,25 @@ public class ProviderDocumentGuardTest {
                 42L, 42L, first.getPatientId(), 15, first.getJobId()));
         assertFalse(ProviderDocumentGuard.canAcceptResponse(
                 42L, 42L, first.getPatientId(), 16, first.getJobId()));
+    }
+
+    @Test
+    public void aPdfJobMustNotDisplayAfterPatientIdReuseOrProfileSwitch() {
+        assertTrue(ProviderDocumentGuard.canAcceptResponse(
+                812L, "synthetic-a", 812L, "synthetic-a", 812L, 41, 41));
+        assertFalse("Same row ID but changed profile code is not the same patient",
+                ProviderDocumentGuard.canAcceptResponse(
+                        812L, "synthetic-a", 812L, "synthetic-b", 812L, 41, 41));
+        assertFalse(ProviderDocumentGuard.canAcceptResponse(
+                812L, "synthetic-a", 813L, "synthetic-a", 812L, 41, 41));
+        assertFalse(ProviderDocumentGuard.canAcceptResponse(
+                812L, "synthetic-a", 812L, "synthetic-a", 813L, 41, 41));
+        assertFalse(ProviderDocumentGuard.canAcceptResponse(
+                812L, "synthetic-a", 812L, "synthetic-a", 812L, 41, 42));
+        assertFalse(ProviderDocumentGuard.canAcceptResponse(
+                812L, "synthetic-a", 812L, "synthetic-a", 812L, -1, 41));
+        assertFalse(ProviderDocumentGuard.canAcceptResponse(
+                812L, "synthetic-a", 812L, null, 812L, 41, 41));
     }
 
     @Test

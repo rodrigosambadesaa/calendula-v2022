@@ -101,6 +101,7 @@ public class WebViewActivity extends CalendulaActivity {
     private String url;
     private String preflightApprovedUrl;
     private Long openedPatientId;
+    private String openedPatientCode;
 
     /** Prevent a document opened by one patient from outliving their session. */
     private boolean sameOpeningPatient() {
@@ -109,8 +110,9 @@ public class WebViewActivity extends CalendulaActivity {
         }
         try {
             Patient active = DB.patients().getActive(this);
-            return ProviderDocumentGuard.samePatient(openedPatientId,
-                    active == null ? null : active.getId());
+            return ProviderDocumentGuard.samePatient(openedPatientId, openedPatientCode,
+                    active == null ? null : active.getId(),
+                    active == null ? null : active.getCode());
         } catch (RuntimeException unavailableDatabase) {
             return false;
         }
@@ -192,13 +194,17 @@ public class WebViewActivity extends CalendulaActivity {
 
             //setup toolbar and statusbar
             Patient active = DB.patients().getActive(this);
-            if (active == null || active.getId() == null || active.getId() <= 0L) {
+            if (active == null || active.getId() == null || active.getId() <= 0L
+                    || active.getCode() == null || active.getCode().trim().isEmpty()) {
                 LogUtil.w(TAG, "No active patient available for embedded-web request");
                 showErrorToast(null);
                 finish();
                 return;
             }
             openedPatientId = active.getId();
+            // Keep an immutable owner snapshot: a numeric row ID can be
+            // reused after a database restore or imported profile change.
+            openedPatientCode = active.getCode();
             color = active.getColor();
             String title = request.getTitle();
             setupToolbar(title, color);
@@ -348,7 +354,7 @@ public class WebViewActivity extends CalendulaActivity {
         if (needsHtmlAccess(request)) {
             webView.addJavascriptInterface(new SimpleJSCacheInterface(this), "HtmlCache");
         } else {
-            cachedData = HtmlCacheManager.getInstance().getForPatient(openedPatientId, originalUrl);
+            cachedData = HtmlCacheManager.getInstance().getForPatient(openedPatientId, openedPatientCode, originalUrl);
         }
 
         LogUtil.d(TAG, "setupWebView: Setting WebViewClient");
@@ -457,7 +463,7 @@ public class WebViewActivity extends CalendulaActivity {
     }
 
     private boolean isCached() {
-        return HtmlCacheManager.getInstance().isCachedForPatient(openedPatientId, url);
+        return HtmlCacheManager.getInstance().isCachedForPatient(openedPatientId, openedPatientCode, url);
     }
 
     static byte[] readFully(InputStream inputStream) throws IOException {
@@ -778,11 +784,11 @@ public class WebViewActivity extends CalendulaActivity {
                 }
                 if (request.getCacheType().equals(WebViewRequest.CacheType.DOWNLOAD_CACHE)
                         && !isFinishing() && !isDestroyed() && sameOpeningPatient()) {
-                    HtmlCacheManager.getInstance().putForPatient(openedPatientId, originalUrl, processed, ttl);
+                    HtmlCacheManager.getInstance().putForPatient(openedPatientId, openedPatientCode, originalUrl, processed, ttl);
                 }
             } else if (request.getCacheType().equals(WebViewRequest.CacheType.DOWNLOAD_CACHE)
                     && !isFinishing() && !isDestroyed() && sameOpeningPatient()) {
-                HtmlCacheManager.getInstance().putForPatient(openedPatientId, url, html, ttl);
+                HtmlCacheManager.getInstance().putForPatient(openedPatientId, openedPatientCode, url, html, ttl);
             }
 
             final String finalHtml = processed != null ? processed : html;
