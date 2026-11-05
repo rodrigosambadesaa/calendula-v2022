@@ -64,9 +64,16 @@ object StockDisplayUtils {
      * so switching profiles cannot display another patient's inventory.
      */
     internal fun ownerMatchesActivePatient(
-        emittedOwnerId: Long?, storedOwnerId: Long?, activePatientId: Long?
+        emittedOwnerId: Long?, emittedOwnerCode: String?,
+        storedOwnerId: Long?, storedOwnerCode: String?,
+        activePatientId: Long?, activePatientCode: String?
     ): Boolean = emittedOwnerId != null && emittedOwnerId > 0L
         && emittedOwnerId == storedOwnerId && emittedOwnerId == activePatientId
+        // Restored databases may reuse the same numeric patient ID. Only
+        // one stable, nonblank identity authorizes private medicine stock UI.
+        && !emittedOwnerCode.isNullOrBlank()
+        && emittedOwnerCode == storedOwnerCode
+        && emittedOwnerCode == activePatientCode
 
     /** Unsafe/disabled amounts are not suitable for an inventory warning. */
     internal fun displayableQuantity(stock: Float?): String? {
@@ -83,11 +90,14 @@ object StockDisplayUtils {
         // rehydrate a cached Medicine object during the DB read.
         val emittedStock = m.stock
         val emittedOwnerId = m.patient?.id
-        val activePatientId = DB.patients().getActive(context)?.id
+        val emittedOwnerCode = m.patient?.code
+        val activePatient = DB.patients().getActive(context)
         val stored = DB.medicines().findById(medicineId) ?: return
         if (DB.medicines().refresh(stored) != 1
             || !ownerMatchesActivePatient(
-                emittedOwnerId, stored.patient?.id, activePatientId
+                emittedOwnerId, emittedOwnerCode,
+                stored.patient?.id, stored.patient?.code,
+                activePatient?.id, activePatient?.code
             ) || emittedStock != stored.stock) {
             return
         }
@@ -119,11 +129,13 @@ object StockDisplayUtils {
                 // The patient may change WHILE this dialog is visible. An
                 // authorization check at display time is not sufficient to
                 // launch an editor for another patient's medicine later.
-                val currentPatientId = DB.patients().getActive(context)?.id
+                val currentPatient = DB.patients().getActive(context)
                 val latestMedicine = DB.medicines().findById(medicineId)
                 if (latestMedicine == null || DB.medicines().refresh(latestMedicine) != 1
                     || !ownerMatchesActivePatient(
-                        emittedOwnerId, latestMedicine.patient?.id, currentPatientId
+                        emittedOwnerId, emittedOwnerCode,
+                        latestMedicine.patient?.id, latestMedicine.patient?.code,
+                        currentPatient?.id, currentPatient?.code
                     )) {
                     return@onPositive
                 }
