@@ -545,6 +545,77 @@ public class PatientDeletionScopeSmokeTest {
     }
 
     @Test
+    public void staleOwnerCannotDirectlyEraseReplacementPatientDoseHistory()
+            throws Exception {
+        assertTrue(DB.initialized);
+        String token = Long.toString(System.nanoTime());
+        Patient replacement = new Patient();
+        replacement.setCode("ci-history-replacement-" + token);
+        replacement.setName("Synthetic current history owner");
+        Patient unrelated = new Patient();
+        unrelated.setCode("ci-history-unrelated-" + token);
+        unrelated.setName("Synthetic unrelated history owner");
+
+        DateTime at = DateTime.now().minusDays(2).withMillisOfSecond(0);
+        EventInstance decided = new EventInstance(at, EventType.MEDICATION_INTAKE);
+        decided.setCompleted(true);
+        decided.setCompletedAt(at.plusMinutes(4));
+        decided.setRef(-System.nanoTime());
+        decided.addParam(EventInstance.PARAM_DOSE, 1.25d);
+        EventInstance foreign = new EventInstance(at, EventType.MEDICATION_INTAKE);
+        foreign.setCancelled(true);
+        foreign.setRef(decided.getRef() - 1L);
+        foreign.addParam(EventInstance.PARAM_DOSE, 0.5d);
+        try {
+            assertEquals(1, DB.patients().create(replacement));
+            assertEquals(1, DB.patients().create(unrelated));
+            decided.setPatient(replacement);
+            foreign.setPatient(unrelated);
+            assertEquals(1, DB.eventInstances().create(decided));
+            assertEquals(1, DB.eventInstances().create(foreign));
+
+            Patient stale = new Patient();
+            stale.setId(replacement.getId());
+            stale.setCode("ci-history-deleted-owner-" + token);
+            Patient unidentified = new Patient();
+            unidentified.setId(replacement.getId());
+            for (Patient invalid : new Patient[]{stale, unidentified}) {
+                boolean rejected = false;
+                try {
+                    DB.eventInstances().removeAllForPatient(invalid);
+                } catch (IllegalStateException expected) {
+                    rejected = true;
+                }
+                assertTrue("Stale identity must abort before any event deletion", rejected);
+            }
+            EventInstance surviving = DB.eventInstances().findById(decided.getId());
+            assertNotNull(surviving);
+            assertTrue(surviving.completed());
+            assertEquals(decided.completedAt(), surviving.completedAt());
+            assertEquals(1.25d, surviving.getDoubleParam(
+                    EventInstance.PARAM_DOSE), 0.0001d);
+            assertNotNull(DB.eventInstances().findById(foreign.getId()));
+
+            // A verified explicit erasure retains the original contract,
+            // but must never delete an unrelated patient's historical row.
+            assertEquals(1, DB.eventInstances().removeAllForPatient(replacement));
+            assertNull(DB.eventInstances().findById(decided.getId()));
+            assertNotNull(DB.eventInstances().findById(foreign.getId()));
+        } finally {
+            for (EventInstance e : new EventInstance[]{decided, foreign}) {
+                if (e.getId() != null && DB.eventInstances().findById(e.getId()) != null) {
+                    DB.eventInstances().remove(e);
+                }
+            }
+            for (Patient p : new Patient[]{replacement, unrelated}) {
+                if (p.getId() != null && DB.patients().findById(p.getId()) != null) {
+                    DB.patients().remove(p);
+                }
+            }
+        }
+    }
+
+    @Test
     public void patientHistoryDeleteFailureRollsBackWithoutTouchingAnotherPatient()
             throws Exception {
         assertTrue(DB.initialized);
