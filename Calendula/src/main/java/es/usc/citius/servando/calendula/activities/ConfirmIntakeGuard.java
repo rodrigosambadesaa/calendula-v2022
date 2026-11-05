@@ -24,6 +24,31 @@ public final class ConfirmIntakeGuard {
     private ConfirmIntakeGuard() {
     }
 
+    /**
+     * A restored database may reuse a clinical patient's numeric row ID.
+     * A stale event/selection must therefore also carry the same stable
+     * patient code. Two fully unidentified legacy patients preserve the
+     * historical compatibility path, but one missing code may never match
+     * an identified patient.
+     */
+    public static boolean samePatientIdentity(Patient selected, Patient stored) {
+        if (selected == null || stored == null
+                || selected.getId() == null || selected.getId() <= 0L
+                || !selected.getId().equals(stored.getId())) {
+            return false;
+        }
+        String selectedCode = selected.getCode();
+        String storedCode = stored.getCode();
+        boolean selectedUnidentified = selectedCode == null
+                || selectedCode.trim().isEmpty();
+        boolean storedUnidentified = storedCode == null
+                || storedCode.trim().isEmpty();
+        if (selectedUnidentified || storedUnidentified) {
+            return selectedUnidentified && storedUnidentified;
+        }
+        return selectedCode.equals(storedCode);
+    }
+
     public static boolean matchesPersistedEvent(EventInstance selected, EventInstance stored) {
         return selected != null && stored != null
                 && selected.getId() != null && selected.getId() > 0L
@@ -31,10 +56,7 @@ public final class ConfirmIntakeGuard {
                 && selected.getRef() != null && selected.getRef() > 0L
                 && selected.getRef().equals(stored.getRef())
                 && selected.getTime() != null && selected.getTime().equals(stored.getTime())
-                && selected.getPatient() != null && stored.getPatient() != null
-                && selected.getPatient().getId() != null
-                && selected.getPatient().getId() > 0L
-                && selected.getPatient().getId().equals(stored.getPatient().getId())
+                && samePatientIdentity(selected.getPatient(), stored.getPatient())
                 && selected.getType() == es.usc.citius.servando.calendula.scheduling.model.EventType.MEDICATION_INTAKE
                 && selected.getType() == stored.getType()
                 && selected.completed() == stored.completed()
@@ -67,8 +89,8 @@ public final class ConfirmIntakeGuard {
                                    ActiveMedEntity importedSource) {
         if (selectedPatient == null || selectedPatient.getId() == null
                 || selectedPatient.getId() <= 0L || selectedTime == null
-                || event == null || event.getPatient() == null
-                || !selectedPatient.getId().equals(event.getPatient().getId())
+                || event == null
+                || !samePatientIdentity(selectedPatient, event.getPatient())
                 || !selectedTime.equals(event.getTime())
                 || DailyAgendaEventValidator.verifiedDose(event, schedule) == null) {
             return false;
