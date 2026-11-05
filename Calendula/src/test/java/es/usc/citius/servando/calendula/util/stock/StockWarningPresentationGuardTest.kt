@@ -14,13 +14,38 @@ import org.junit.Test
 class StockWarningPresentationGuardTest {
     @Test
     fun currentMedicationMustBelongToTheCurrentPatient() {
-        assertTrue(StockDisplayUtils.ownerMatchesActivePatient(21L, 21L, 21L))
-        assertFalse(StockDisplayUtils.ownerMatchesActivePatient(21L, 22L, 21L))
-        assertFalse(StockDisplayUtils.ownerMatchesActivePatient(21L, 21L, 22L))
-        assertFalse(StockDisplayUtils.ownerMatchesActivePatient(null, 21L, 21L))
-        assertFalse(StockDisplayUtils.ownerMatchesActivePatient(21L, null, 21L))
-        assertFalse(StockDisplayUtils.ownerMatchesActivePatient(21L, 21L, null))
-        assertFalse(StockDisplayUtils.ownerMatchesActivePatient(0L, 0L, 0L))
+        fun matches(
+            emittedId: Long?, emittedCode: String?,
+            storedId: Long?, storedCode: String?,
+            activeId: Long?, activeCode: String?
+        ) = StockDisplayUtils.ownerMatchesActivePatient(
+            emittedId, emittedCode, storedId, storedCode, activeId, activeCode
+        )
+        assertTrue(matches(21L, "synthetic-a", 21L, "synthetic-a", 21L, "synthetic-a"))
+        assertFalse(matches(21L, "synthetic-a", 22L, "synthetic-a", 21L, "synthetic-a"))
+        assertFalse(matches(21L, "synthetic-a", 21L, "synthetic-a", 22L, "synthetic-a"))
+        assertFalse(matches(null, "synthetic-a", 21L, "synthetic-a", 21L, "synthetic-a"))
+        assertFalse(matches(21L, "synthetic-a", null, "synthetic-a", 21L, "synthetic-a"))
+        assertFalse(matches(21L, "synthetic-a", 21L, "synthetic-a", null, "synthetic-a"))
+        assertFalse(matches(0L, "synthetic-a", 0L, "synthetic-a", 0L, "synthetic-a"))
+    }
+
+    @Test
+    fun reusedNumericOwnerIdCannotDisplayOrManageOtherPatientStock() {
+        fun matches(oldCode: String?, persistedCode: String?, activeCode: String?) =
+            StockDisplayUtils.ownerMatchesActivePatient(
+                401L, oldCode, 401L, persistedCode, 401L, activeCode
+            )
+
+        assertTrue(matches("patient-synthetic-a", "patient-synthetic-a", "patient-synthetic-a"))
+        assertFalse("Old notification cannot show replacement patient's inventory",
+            matches("patient-synthetic-a", "patient-synthetic-b", "patient-synthetic-b"))
+        assertFalse("Changed active patient code must prevent the editor launch",
+            matches("patient-synthetic-a", "patient-synthetic-a", "patient-synthetic-b"))
+        assertFalse(matches(null, "patient-synthetic-b", "patient-synthetic-b"))
+        assertFalse(matches(" ", " ", " "))
+        assertFalse(matches("patient-synthetic-a", null, "patient-synthetic-a"))
+        assertFalse(matches("patient-synthetic-a", "patient-synthetic-a", null))
     }
 
     @Test
