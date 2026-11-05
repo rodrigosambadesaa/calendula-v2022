@@ -87,11 +87,11 @@ public class LoginActivity extends AppCompatActivity {
         if (BuildConfig.DEBUG) {
             Patient patient = DB.patients().getDefault();
             if (patient == null) {
-                patient = new Patient();
-                patient.setName("Default");
-                patient.setDefault(true);
                 try {
-                    DB.patients().create(patient);
+                    // Reuse the same localized, stable-code bootstrap as
+                    // normal local accounts; a debug guest is not exempt
+                    // from patient isolation guarantees.
+                    patient = DB.helper().createDefaultPatient();
                     // Activation must succeed before allowing a debug guest
                     // session: an unsaved/deleted owner cannot own medication.
                     DB.patients().setActive(patient);

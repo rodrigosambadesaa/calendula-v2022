@@ -65,6 +65,28 @@ public class PatientDao extends GenericDao<Patient, Long> {
 
     // Manage active patient through preferences
 
+    /**
+     * Do not authorize a stale UI profile object solely because its numeric
+     * SQLite ID was reassigned after restore. Old offline default profiles
+     * had no Code; permit their original local-only behavior until the
+     * durable-code migration runs, but never accept an unknown remote owner.
+     */
+    private static boolean sameSelectedPatient(Patient candidate, Patient persisted) {
+        if (candidate == null || persisted == null
+                || candidate.getId() == null || candidate.getId() <= 0L
+                || !candidate.getId().equals(persisted.getId())) {
+            return false;
+        }
+        String submittedCode = candidate.getCode();
+        String persistedCode = persisted.getCode();
+        if (submittedCode != null && !submittedCode.trim().isEmpty()) {
+            return submittedCode.equals(persistedCode);
+        }
+        return candidate.isDefault() && persisted.isDefault()
+                && (submittedCode == null || submittedCode.trim().isEmpty())
+                && (persistedCode == null || persistedCode.trim().isEmpty());
+    }
+
     public boolean isActive(Patient p, Context ctx) {
         // An invalid saved owner must never authorize clinical UI actions
         // using a stale caller-supplied Patient object.
@@ -76,7 +98,8 @@ public class PatientDao extends GenericDao<Patient, Long> {
             // A stale preference must not authorize a deleted patient row.
             // Check persisted identity rather than trusting the caller's
             // Patient instance, which can outlive the SQLite record.
-            return selectedId == p.getId().longValue() && findById(selectedId) != null;
+            return selectedId == p.getId().longValue()
+                    && sameSelectedPatient(p, findById(selectedId));
         } catch (ClassCastException malformedSelection) {
             return false;
         }
@@ -109,24 +132,24 @@ public class PatientDao extends GenericDao<Patient, Long> {
                             .apply();
                 }
             }
-            return ensureLocalDefaultIdentity(p);
+            return ensureLocalIdentity(p);
         } else {
             return getDefault();
         }
     }
 
     /**
-     * Older offline default profiles were created with a null Code. Mint
-     * a stable local-only identity so those real users retain document
-     * viewing and safe profile erasure after upgrading, without treating a
-     * numeric SQLite ID as proof of patient identity.
+     * Older offline profiles (including manually added non-default
+     * profiles) were created with null Code. Assign stable local-only
+     * identities on authoritative reads, so these owners remain selectable,
+     * editable and removable after upgrading without relying on SQLite IDs.
      *
      * A conditional UPDATE changes only an unidentified default row; a
      * concurrent initializer or existing authenticated subject is never
      * overwritten. Failure leaves the profile unidentified (fail closed).
      */
-    private Patient ensureLocalDefaultIdentity(Patient patient) {
-        if (patient == null || !patient.isDefault()
+    private Patient ensureLocalIdentity(Patient patient) {
+        if (patient == null
                 || patient.getId() == null || patient.getId() <= 0L
                 || (patient.getCode() != null
                     && !patient.getCode().trim().isEmpty())) {
@@ -136,7 +159,6 @@ public class PatientDao extends GenericDao<Patient, Long> {
         try {
             getConcreteDao().updateRaw(
                     "UPDATE Patients SET Code = ? WHERE _id = ? "
-                            + "AND \"Default\" = 1 "
                             + "AND (Code IS NULL OR TRIM(Code) = '')",
                     localCode, patient.getId().toString());
             // Return authoritative DB state even if another initializer won.
@@ -152,9 +174,21 @@ public class PatientDao extends GenericDao<Patient, Long> {
         }
     }
 
+    /**
+     * Canonical local profile for trusted UI selection/editor routes.
+     * Unidentified existing rows acquire a durable local identity before
+     * the UI retains a Patient object. No caller-supplied code is trusted.
+     */
+    public Patient findByIdWithLocalIdentity(Long id) {
+        if (id == null || id <= 0L) {
+            return null;
+        }
+        return ensureLocalIdentity(findById(id));
+    }
+
     @Nullable
     public Patient getDefault() {
-        return ensureLocalDefaultIdentity(findOneBy(Patient.COLUMN_DEFAULT, true));
+        return ensureLocalIdentity(findOneBy(Patient.COLUMN_DEFAULT, true));
     }
 
     /**
@@ -170,8 +204,8 @@ public class PatientDao extends GenericDao<Patient, Long> {
             throw new IllegalArgumentException("Cannot activate a missing patient");
         }
         Patient persisted = findById(id);
-        if (persisted == null) {
-            throw new IllegalArgumentException("Cannot activate a missing patient");
+        if (!sameSelectedPatient(patient, persisted)) {
+            throw new IllegalArgumentException("Cannot activate a stale or mismatched patient");
         }
         // Existing posted provider update notifications may contain the
         // previous patient's medicine names even when new callbacks are
