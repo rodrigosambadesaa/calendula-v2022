@@ -10,6 +10,8 @@ import org.mockito.MockedStatic;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
+import es.usc.citius.servando.calendula.persistence.Patient;
+
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mockStatic;
 
@@ -47,6 +49,18 @@ public class LocaleHelperRestoreTest {
                     .thenThrow(new ClassCastException("restored synthetic integer"));
             assertEquals("es", LocaleHelper.getLanguage(null, "es"));
         }
+    }
+
+    @Test
+    public void languageDialogHasDeterministicColorWithoutActiveClinicalProfile() {
+        // An invalid active-patient preference must not crash language
+        // selection or implicitly create/switch to another patient.
+        assertEquals(android.graphics.Color.rgb(44, 62, 80),
+                LocaleHelper.headerColorOrFallback(null));
+
+        Patient selected = new Patient();
+        selected.setColor(android.graphics.Color.rgb(18, 90, 124));
+        assertEquals(selected.getColor(), LocaleHelper.headerColorOrFallback(selected));
     }
 
     @Test

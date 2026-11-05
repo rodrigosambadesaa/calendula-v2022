@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.Resources;
+import android.graphics.Color;
 import android.os.Build;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -88,13 +89,31 @@ public class LocaleHelper {
         }
     }
 
+    /**
+     * A damaged/removed active-profile preference is not a reason to crash
+     * the language selection dialog. This is presentation-only: never select
+     * or create a patient as a side effect of changing app language.
+     */
+    static int headerColorOrFallback(es.usc.citius.servando.calendula.persistence.Patient active) {
+        return active == null ? Color.rgb(44, 62, 80) : active.getColor();
+    }
+
+    private static int safeDialogHeaderColor(Activity context) {
+        try {
+            return headerColorOrFallback(DB.patients().getActive(context));
+        } catch (RuntimeException unavailablePatientDatabase) {
+            // SQLite may be missing or transitioning during a restored login.
+            return headerColorOrFallback(null);
+        }
+    }
+
     public static void updateLocaleFromActivity(final Activity context, final String lang) {
 
         new MaterialStyledDialog.Builder(context)
                 .setTitle(R.string.language_switch_title)
                 .setStyle(Style.HEADER_WITH_ICON)
                 .setIcon(IconUtils.icon(context, CommunityMaterial.Icon.cmd_earth, R.color.white, 48))
-                .setHeaderColorInt(DB.patients().getActive(context).getColor())
+                .setHeaderColorInt(safeDialogHeaderColor(context))
                 .withDialogAnimation(false)
                 .setDescription(context.getString(R.string.language_switch_message, getLocaleName(context, lang)))
                 .setPositiveText(R.string.ok)
