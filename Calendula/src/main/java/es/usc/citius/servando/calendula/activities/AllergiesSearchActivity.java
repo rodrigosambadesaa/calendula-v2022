@@ -122,13 +122,18 @@ public class AllergiesSearchActivity extends CalendulaActivity {
     private int searchGeneration;
     private List<AllergenVO> patientAllergies;
     private Long openedPatientId;
+    private String openedPatientFingerprint;
     private static final String STATE_OPENED_PATIENT_ID = "allergy_search_opened_patient_id";
+    private static final String STATE_OPENED_PATIENT_FINGERPRINT =
+            "allergy_search_opened_patient_fingerprint";
 
     private boolean stillOwnsSearch() {
         es.usc.citius.servando.calendula.persistence.Patient active =
                 DB.patients().getActive(this);
         return AllergenSearchOwnerGuard.samePatient(
-                openedPatientId, active == null ? null : active.getId());
+                openedPatientId, openedPatientFingerprint,
+                active == null ? null : active.getId(),
+                active == null ? null : active.getCode());
     }
 
     private void closeStaleSearch() {
@@ -145,6 +150,10 @@ public class AllergiesSearchActivity extends CalendulaActivity {
     protected void onSaveInstanceState(Bundle outState) {
         if (openedPatientId != null && openedPatientId > 0L) {
             outState.putLong(STATE_OPENED_PATIENT_ID, openedPatientId);
+            if (openedPatientFingerprint != null) {
+                outState.putString(STATE_OPENED_PATIENT_FINGERPRINT,
+                        openedPatientFingerprint);
+            }
         }
         super.onSaveInstanceState(outState);
     }
@@ -272,11 +281,21 @@ public class AllergiesSearchActivity extends CalendulaActivity {
         }
         Long savedOwner = RestoredClinicalOwnerGuard.restoredOwnerOrNull(
                 savedInstanceState, STATE_OPENED_PATIENT_ID, opened.getId());
-        if (!AllergenSearchOwnerGuard.samePatient(savedOwner, opened.getId())) {
+        String restoredFingerprint;
+        try {
+            restoredFingerprint = savedInstanceState == null
+                    ? AllergenSearchOwnerGuard.fingerprint(opened.getCode())
+                    : savedInstanceState.getString(STATE_OPENED_PATIENT_FINGERPRINT);
+        } catch (RuntimeException malformedState) {
+            restoredFingerprint = null;
+        }
+        if (!AllergenSearchOwnerGuard.samePatient(
+                savedOwner, restoredFingerprint, opened.getId(), opened.getCode())) {
             closeStaleSearch();
             return;
         }
         openedPatientId = savedOwner;
+        openedPatientFingerprint = restoredFingerprint;
         int color = opened.getColor();
         searchLayout.setBackgroundColor(color);
         setupStatusBar(color);
