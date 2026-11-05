@@ -159,7 +159,7 @@ public class PatientDao extends GenericDao<Patient, Long> {
         try {
             getConcreteDao().updateRaw(
                     "UPDATE Patients SET Code = ? WHERE _id = ? "
-                            + "AND (Code IS NULL OR TRIM(Code) = '')"
+                            + "AND (Code IS NULL OR TRIM(Code) = '')",
                     localCode, patient.getId().toString());
             // Return authoritative DB state even if another initializer won.
             // Never return the synthetic code merely because it was generated.
