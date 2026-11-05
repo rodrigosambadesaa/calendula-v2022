@@ -310,6 +310,17 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
         try {
             return com.j256.ormlite.misc.TransactionManager.callInTransaction(
                     dbHelper.getConnectionSource(), () -> {
+                        // This DAO is callable directly, independently of
+                        // PatientDao.removeCascade. A previously deleted owner's
+                        // object must never erase a replacement profile's full
+                        // clinical history after the numeric row ID is reused.
+                        Patient persistedOwner = DB.patients().findById(patient.getId());
+                        String expectedCode = patient.getCode();
+                        if (persistedOwner == null
+                                || expectedCode == null || expectedCode.trim().isEmpty()
+                                || !expectedCode.equals(persistedOwner.getCode())) {
+                            throw new SQLException("Patient identity changed before history erasure");
+                        }
                         QueryBuilder<EventInstance, Long> query = dao.queryBuilder();
                         query.where().eq(EventInstance.COLUMN_PATIENT, patient);
                         // Deterministic delete order makes rollback fault
@@ -320,7 +331,8 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
                         for (EventInstance event : query.query()) {
                             if (event == null || event.getId() == null
                                     || event.getPatient() == null
-                                    || !patient.getId().equals(event.getPatient().getId())) {
+                                    || !patient.getId().equals(event.getPatient().getId())
+                                    || !expectedCode.equals(event.getPatient().getCode())) {
                                 throw new SQLException("Patient history scope changed during erasure");
                             }
                             if (dao.deleteById(event.getId()) != 1) {
