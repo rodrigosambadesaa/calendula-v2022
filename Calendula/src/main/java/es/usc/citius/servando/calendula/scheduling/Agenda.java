@@ -602,6 +602,18 @@ public class Agenda {
     }
 
     public void cleanReminderIfPossible(Context context, Patient patient, EventType type, DateTime time) {
+        // This public entry point is also called directly from a schedule
+        // decision, not only from the guarded provider-cleanup path. A stale
+        // Patient from before SQLite ID reuse must not delete another user's
+        // reminder or cancel its Android PendingIntent.
+        if (patient != null
+                && (patient.getId() == null || patient.getId() <= 0L
+                    || !samePersistedReminderOwner(patient,
+                            DB.patients().findById(patient.getId())))) {
+            return;
+        }
+        // Keep the historical null-owner cleanup path for orphaned legacy
+        // tokens. It cannot authorize any other patient's persisted row.
         // A cancelled dose is not pending, even when completed is false.
         if (!DB.eventInstances().existsPending(type, time, patient)) {
             EventReminder r = DB.eventReminders().findBy(type, time, patient);
@@ -740,6 +752,15 @@ public class Agenda {
      */
     public boolean onDelayReminder(Context context, EventType type, DateTime time,
                                    Patient p, int delay) {
+        // The lookup by (type, time, patient ID) can resolve a different
+        // patient's reminder if a restored database recycled the same row
+        // number. Validate the *caller's* stable identity before retrieving
+        // a reminder; downstream delayReminder() only sees the DB row.
+        if (p == null || p.getId() == null || p.getId() <= 0L
+                || !samePersistedReminderOwner(p,
+                        DB.patients().findById(p.getId()))) {
+            return false;
+        }
         EventReminder reminder = DB.eventReminders().findBy(type, time, p);
         return delayReminder(context, reminder, delay);
     }

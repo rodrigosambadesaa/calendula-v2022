@@ -40,6 +40,62 @@ public class ReminderCleanupSmokeTest {
     }
 
     @Test
+    public void staleOwnerWithReusedIdCannotCancelAnotherPatientsReminder() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        assertTrue(DB.initialized);
+        DateTime time = DateTime.now().plusHours(9).withMillisOfSecond(0);
+        String suffix = Long.toString(System.nanoTime());
+        Patient current = new Patient();
+        current.setCode("synthetic-reminder-current-" + suffix);
+        current.setName("Current synthetic profile");
+        EventReminder reminder = new EventReminder(time, EventType.MEDICATION_INTAKE);
+        reminder.setNextTime(time);
+        try {
+            DB.patients().save(current);
+            assertNotNull(current.getId());
+            reminder.setPatient(current);
+            DB.eventReminders().save(reminder);
+            assertNotNull(reminder.getId());
+            Agenda.instance().setAlarm(context, reminder);
+            assertNotNull(existing(context, reminder));
+
+            Patient stale = new Patient();
+            stale.setId(current.getId());
+            stale.setCode("synthetic-reminder-prior-" + suffix);
+            Agenda.instance().cleanReminderIfPossible(
+                    context, stale, EventType.MEDICATION_INTAKE, time);
+            assertNotNull("Same numeric ID is not authorization to delete current row",
+                    DB.eventReminders().findById(reminder.getId()));
+            assertNotNull("The current owner's Android token must survive",
+                    existing(context, reminder));
+
+            Patient unknown = new Patient();
+            unknown.setId(current.getId());
+            Agenda.instance().cleanReminderIfPossible(
+                    context, unknown, EventType.MEDICATION_INTAKE, time);
+            assertNotNull(DB.eventReminders().findById(reminder.getId()));
+            assertNotNull(existing(context, reminder));
+
+            // Correct persisted stable identity still permits ordinary cleanup.
+            Agenda.instance().cleanReminderIfPossible(
+                    context, current, EventType.MEDICATION_INTAKE, time);
+            assertNull(DB.eventReminders().findById(reminder.getId()));
+            assertNull(existing(context, reminder));
+        } finally {
+            if (reminder.getId() != null) {
+                Agenda.instance().cancelAlarm(context, reminder);
+                if (DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().remove(reminder);
+                }
+            }
+            if (current.getId() != null
+                    && DB.patients().findById(current.getId()) != null) {
+                DB.patients().remove(current);
+            }
+        }
+    }
+
+    @Test
     public void cleanupRemovesPersistedSyntheticReminderAndItsAlarm() {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         assertTrue("Emulator test app must have initialized its database", DB.initialized);

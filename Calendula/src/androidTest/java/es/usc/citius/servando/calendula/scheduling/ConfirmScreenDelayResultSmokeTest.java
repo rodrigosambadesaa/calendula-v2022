@@ -64,6 +64,66 @@ public class ConfirmScreenDelayResultSmokeTest {
     }
 
     @Test
+    public void recycledIdStalePatientCannotSnoozeAnotherPatientsIntake() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime when = DateTime.now().plusHours(5).withMillisOfSecond(0);
+        String unique = Long.toString(System.nanoTime());
+        Patient owner = new Patient();
+        owner.setCode("ci-delay-current-" + unique);
+        owner.setName("Synthetic valid patient");
+        EventInstance pending = new EventInstance(when, EventType.MEDICATION_INTAKE);
+        EventReminder reminder = new EventReminder(when, EventType.MEDICATION_INTAKE);
+        reminder.setNextTime(when);
+        try {
+            DB.patients().save(owner);
+            assertNotNull(owner.getId());
+            pending.setPatient(owner);
+            reminder.setPatient(owner);
+            DB.eventInstances().save(pending);
+            DB.eventReminders().save(reminder);
+            assertNotNull(pending.getId());
+            assertNotNull(reminder.getId());
+
+            Patient former = new Patient();
+            former.setId(owner.getId());
+            former.setCode("ci-delay-previous-" + unique);
+            assertFalse("A stale owner must not postpone the new patient's dose",
+                    ScheduleUtils.instance().delayIntake(context, former, when, 2));
+            assertEquals(when, DB.eventReminders()
+                    .findById(reminder.getId()).getNextTime());
+            assertFalse(DB.eventInstances().findById(pending.getId()).completed());
+
+            Patient unidentified = new Patient();
+            unidentified.setId(owner.getId());
+            assertFalse(ScheduleUtils.instance().delayIntake(
+                    context, unidentified, when, 2));
+            assertEquals(when, DB.eventReminders()
+                    .findById(reminder.getId()).getNextTime());
+
+            // Valid original patient still can postpone the real reminder.
+            assertTrue(ScheduleUtils.instance().delayIntake(context, owner, when, 2));
+            assertTrue(DB.eventReminders().findById(reminder.getId())
+                    .getNextTime().isAfter(DateTime.now().plusMinutes(1)));
+        } finally {
+            if (reminder.getId() != null) {
+                Agenda.instance().cancelAlarm(context, reminder);
+                if (DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().remove(reminder);
+                }
+            }
+            if (pending.getId() != null
+                    && DB.eventInstances().findById(pending.getId()) != null) {
+                DB.eventInstances().remove(pending);
+            }
+            if (owner.getId() != null
+                    && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().remove(owner);
+            }
+        }
+    }
+
+    @Test
     public void successIsReportedOnlyAfterRealSqliteDelayAndAndroidAlarm() {
         assertTrue(DB.initialized);
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
