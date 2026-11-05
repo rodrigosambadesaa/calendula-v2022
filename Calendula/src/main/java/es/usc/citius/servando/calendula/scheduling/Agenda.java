@@ -623,15 +623,38 @@ public class Agenda {
      * belonging to another patient. Call after the SQLite reconciliation has
      * committed so rollback cannot restore an intake with a cancelled alarm.
      */
-    public void cleanRemindersForPatient(Context context, Patient patient) {
-        if (context == null || patient == null || patient.getId() == null
-                || patient.getId() <= 0L
-                || DB.patients().findById(patient.getId()) == null) {
-            throw new IllegalArgumentException("A persisted patient and context are required for alarm cleanup");
+    /**
+     * A restored database can reuse the same numeric row ID for an entirely
+     * different patient. Never use a stale caller-supplied owner as authority
+     * to cancel or erase that new patient's Android alarms and SQL reminders.
+     */
+    static boolean samePersistedReminderOwner(Patient requested, Patient current) {
+        if (requested == null || current == null
+                || requested.getId() == null || requested.getId() <= 0L
+                || !requested.getId().equals(current.getId())) {
+            return false;
         }
+        String code = requested.getCode();
+        return code != null && !code.trim().isEmpty()
+                && code.equals(current.getCode());
+    }
+
+    private static void requirePersistedReminderOwner(Context context, Patient patient) {
+        if (context == null || patient == null
+                || !samePersistedReminderOwner(patient,
+                        DB.patients().findById(patient.getId()))) {
+            throw new IllegalArgumentException("A current, identifiable patient is required for reminder cleanup");
+        }
+    }
+
+    public void cleanRemindersForPatient(Context context, Patient patient) {
+        requirePersistedReminderOwner(context, patient);
         final Long ownerId = patient.getId();
         for (EventReminder reminder : DB.eventReminders()
                 .findBy(EventReminder.COLUMN_PATIENT, ownerId)) {
+            // Revalidate immediately before the potentially destructive
+            // SQL/platform step, not just before listing owned reminders.
+            requirePersistedReminderOwner(context, patient);
             if (reminder == null || reminder.getId() == null
                     || reminder.getPatient() == null
                     || !ownerId.equals(reminder.getPatient().getId())) {
@@ -657,11 +680,7 @@ public class Agenda {
      * reminder at the same time.
      */
     public void removeRemindersForPatient(Context context, Patient patient) {
-        if (context == null || patient == null || patient.getId() == null
-                || patient.getId() <= 0L
-                || DB.patients().findById(patient.getId()) == null) {
-            throw new IllegalArgumentException("A live persisted patient is required to erase reminders");
-        }
+        requirePersistedReminderOwner(context, patient);
         final Long ownerId = patient.getId();
         // Query by owner in SQLite rather than loading every patient's
         // medical reminders. Capture tokens before deleting their SQL rows.
@@ -670,6 +689,12 @@ public class Agenda {
         try {
             TransactionManager.callInTransaction(DB.helper().getConnectionSource(),
                     (Callable<Void>) () -> {
+                        // The caller's profile can become stale after the
+                        // initial check but before this transaction begins.
+                        if (!samePersistedReminderOwner(patient,
+                                DB.patients().findById(ownerId))) {
+                            throw new SQLException("Reminder owner changed before SQL erasure");
+                        }
                         for (EventReminder reminder : owned) {
                             if (reminder == null || reminder.getId() == null
                                     || reminder.getPatient() == null

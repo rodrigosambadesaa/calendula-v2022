@@ -219,6 +219,76 @@ public class PatientDeletionScopeSmokeTest {
     }
 
     @Test
+    public void stalePatientWithReusedIdCannotCancelOrDeleteAnotherPatientsReminders()
+            throws Exception {
+        assertTrue(DB.initialized);
+        String nonce = Long.toString(System.nanoTime());
+        Patient owner = new Patient();
+        owner.setCode("ci-reminder-current-owner-" + nonce);
+        owner.setName("Synthetic current reminder owner");
+        Patient other = new Patient();
+        other.setCode("ci-reminder-other-owner-" + nonce);
+        other.setName("Synthetic unrelated reminder owner");
+        DateTime time = DateTime.now().plusHours(12).withMillisOfSecond(0);
+        EventReminder protectedReminder = new EventReminder(time, EventType.MEDICATION_INTAKE);
+        protectedReminder.setNextTime(time);
+        EventReminder unrelated = new EventReminder(time.plusMinutes(1), EventType.MEDICATION_INTAKE);
+        unrelated.setNextTime(time.plusMinutes(1));
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            assertEquals(1, DB.patients().create(other));
+            protectedReminder.setPatient(owner);
+            unrelated.setPatient(other);
+            assertEquals(1, DB.eventReminders().create(protectedReminder));
+            assertEquals(1, DB.eventReminders().create(unrelated));
+
+            Patient stale = new Patient();
+            stale.setId(owner.getId());
+            stale.setCode("ci-reminder-previous-owner-" + nonce);
+            Patient unidentified = new Patient();
+            unidentified.setId(owner.getId());
+            for (Patient invalid : new Patient[]{stale, unidentified}) {
+                boolean cleanupRejected = false;
+                try {
+                    es.usc.citius.servando.calendula.scheduling.Agenda.instance()
+                            .cleanRemindersForPatient(
+                                    InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                                    invalid);
+                } catch (IllegalArgumentException expected) {
+                    cleanupRejected = true;
+                }
+                assertTrue("A stale patient cannot cancel a current patient's alarms",
+                        cleanupRejected);
+                boolean deletionRejected = false;
+                try {
+                    es.usc.citius.servando.calendula.scheduling.Agenda.instance()
+                            .removeRemindersForPatient(
+                                    InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                                    invalid);
+                } catch (IllegalArgumentException expected) {
+                    deletionRejected = true;
+                }
+                assertTrue("A stale patient cannot delete current reminders",
+                        deletionRejected);
+                assertNotNull(DB.eventReminders().findById(protectedReminder.getId()));
+                assertNotNull(DB.eventReminders().findById(unrelated.getId()));
+            }
+        } finally {
+            for (EventReminder reminder : new EventReminder[]{protectedReminder, unrelated}) {
+                if (reminder.getId() != null &&
+                        DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().remove(reminder);
+                }
+            }
+            for (Patient patient : new Patient[]{owner, other}) {
+                if (patient.getId() != null && DB.patients().findById(patient.getId()) != null) {
+                    DB.patients().remove(patient);
+                }
+            }
+        }
+    }
+
+    @Test
     public void patientReminderDeletionMustRollbackAllRowsOnSqlFailure() throws Exception {
         assertTrue(DB.initialized);
         Patient first = new Patient();
