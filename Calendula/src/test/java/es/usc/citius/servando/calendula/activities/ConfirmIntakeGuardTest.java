@@ -62,6 +62,34 @@ public class ConfirmIntakeGuardTest {
     }
 
     @Test
+    public void reusedSqliteIdCannotAuthorizeAnotherProfilesDose() {
+        Patient oldOwner = owner(800100L);
+        oldOwner.setCode("ci-synthetic-previous-owner");
+        Patient newOwner = owner(800100L);
+        newOwner.setCode("ci-synthetic-replacement-owner");
+        Patient noCode = owner(800100L);
+        DateTime when = DateTime.now();
+
+        assertFalse(ConfirmIntakeGuard.samePatientIdentity(oldOwner, newOwner));
+        assertFalse(ConfirmIntakeGuard.samePatientIdentity(oldOwner, noCode));
+        assertFalse(ConfirmIntakeGuard.samePatientIdentity(noCode, newOwner));
+        assertTrue(ConfirmIntakeGuard.samePatientIdentity(newOwner, newOwner));
+        assertTrue("Unidentified legacy profiles retain compatibility only together",
+                ConfirmIntakeGuard.samePatientIdentity(noCode, owner(800100L)));
+
+        EventInstance staleView = intake(oldOwner, when);
+        EventInstance persisted = intake(newOwner, when);
+        assertFalse(ConfirmIntakeGuard.matchesPersistedEvent(staleView, persisted));
+        assertFalse(ConfirmIntakeGuard.verified(staleView, newOwner, when,
+                schedule(newOwner), null));
+
+        EventInstance validView = intake(newOwner, when);
+        assertTrue(ConfirmIntakeGuard.matchesPersistedEvent(validView, persisted));
+        assertTrue(ConfirmIntakeGuard.verified(validView, newOwner, when,
+                schedule(newOwner), null));
+    }
+
+    @Test
     public void validEventAndDoseBelongToSelectedPatient() {
         Patient p = owner(800100L);
         DateTime date = DateTime.now();
