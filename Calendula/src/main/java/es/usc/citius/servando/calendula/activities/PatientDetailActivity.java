@@ -352,7 +352,7 @@ public class PatientDetailActivity extends CalendulaActivity implements GridView
         patientId = requestedPatientId;
 
         if (patientId != -1) {
-            patient = patientId > 0L ? DB.patients().findById(patientId) : null;
+            patient = patientId > 0L ? DB.patients().findByIdWithLocalIdentity(patientId) : null;
             if (!PatientDetailEntryGuard.canOpen(patientId,
                     patient == null ? null : patient.getId())) {
                 // The caller may hold a stale/deleted patient ID. Never
