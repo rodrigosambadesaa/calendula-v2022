@@ -383,6 +383,14 @@ public class ScheduleUtils {
             committed = TransactionManager.callInTransaction(
                     DB.helper().getConnectionSource(), (Callable<List<CommittedIntake>>) () -> {
                         List<CommittedIntake> changes = new ArrayList<>();
+                        // A stale confirmation screen or notification may carry
+                        // the same numeric ID as a replacement SQLite profile.
+                        // Reject before any stock or intake write, including
+                        // legacy check-all actions without an event snapshot.
+                        if (!ConfirmIntakeGuard.samePatientIdentity(patient,
+                                DB.patients().findById(patient.getId()))) {
+                            throw new SQLException("Medication confirmation patient identity changed");
+                        }
                         if (expectedEvents != null || notificationFingerprint != null) {
                             if (DB.patients().findById(patient.getId()) == null) {
                                 throw new SQLException("Confirmation patient is no longer present");
@@ -400,7 +408,8 @@ public class ScheduleUtils {
                                         .findById(notificationReminderId);
                                 if (reminder == null
                                         || reminder.getPatient() == null
-                                        || !patient.getId().equals(reminder.getPatient().getId())
+                                        || !ConfirmIntakeGuard.samePatientIdentity(
+                                                patient, reminder.getPatient())
                                         || reminder.getEventType() != EventType.MEDICATION_INTAKE
                                         || !dateTime.equals(reminder.getDateTime())) {
                                     throw new SQLException("Notification reminder identity changed");
@@ -432,7 +441,8 @@ public class ScheduleUtils {
                             if (stored == null
                                     || stored.getType() != EventType.MEDICATION_INTAKE
                                     || stored.getPatient() == null
-                                    || !patient.getId().equals(stored.getPatient().getId())
+                                    || !ConfirmIntakeGuard.samePatientIdentity(
+                                            patient, stored.getPatient())
                                     || !dateTime.equals(stored.getTime())
                                     || !isPendingIntake(stored)) {
                                 throw new SQLException("Pending dose changed during confirmation");
@@ -605,6 +615,12 @@ public class ScheduleUtils {
                                 || !samePatientIdentity(event.getPatient(), stored.getPatient())) {
                             throw new SQLException("Intake identity changed during confirmation");
                         }
+                        if (stored.getPatient() != null
+                                && !ConfirmIntakeGuard.samePatientIdentity(
+                                        stored.getPatient(), DB.patients().findById(
+                                                stored.getPatient().getId()))) {
+                            throw new SQLException("Intake persisted owner identity changed");
+                        }
                         if (requireClinicalVerification) {
                             if (stored.getPatient() == null
                                     || stored.getPatient().getId() == null
@@ -678,8 +694,7 @@ public class ScheduleUtils {
         if (caller == null || persisted == null) {
             return caller == null && persisted == null;
         }
-        return caller.getId() != null && caller.getId() > 0
-                && caller.getId().equals(persisted.getId());
+        return ConfirmIntakeGuard.samePatientIdentity(caller, persisted);
     }
 
     /** Never perform platform side effects while a SQLite transaction is open. */
