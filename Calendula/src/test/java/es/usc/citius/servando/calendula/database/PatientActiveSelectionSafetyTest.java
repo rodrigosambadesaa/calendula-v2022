@@ -111,6 +111,7 @@ public class PatientActiveSelectionSafetyTest {
         PatientDao subject = createSubject(raw);
         Patient sameIdDifferentBox = new Patient();
         sameIdDifferentBox.setId(Long.valueOf("98434"));
+        sameIdDifferentBox.setCode("ci-active-synthetic-98434");
         when(raw.queryForId(98434L)).thenReturn(sameIdDifferentBox);
         Patient unsaved = new Patient();
         try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
@@ -121,6 +122,58 @@ public class PatientActiveSelectionSafetyTest {
             assertFalse(subject.isActive(null, null));
         }
     }
+    @Test
+    public void recycledPatientIdCannotAuthorizeActivationOrActiveProfileCheck()
+            throws Exception {
+        Dao<Patient, Long> raw = rawDao();
+        PatientDao subject = createSubject(raw);
+        Patient persisted = new Patient();
+        persisted.setId(98441L);
+        persisted.setCode("ci-replacement-profile");
+        Patient stale = new Patient();
+        stale.setId(98441L);
+        stale.setCode("ci-deleted-previous-profile");
+        Patient missingCode = new Patient();
+        missingCode.setId(98441L);
+        when(raw.queryForId(98441L)).thenReturn(persisted);
+
+        try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
+            prefs.when(() -> PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1))
+                    .thenReturn(98441L);
+            assertFalse("Reused ID with changed owner code is not active",
+                    subject.isActive(stale, null));
+            assertFalse("Unknown patient identity is not active",
+                    subject.isActive(missingCode, null));
+            assertTrue(subject.isActive(persisted, null));
+            assertThrows(IllegalArgumentException.class, () -> subject.setActive(stale));
+            assertThrows(IllegalArgumentException.class, () -> subject.setActive(missingCode));
+            // Neither rejected selection may modify the active preference.
+            prefs.verify(PreferenceUtils::edit, org.mockito.Mockito.never());
+        }
+    }
+
+    @Test
+    public void legacyLocalDefaultCanBeRecognizedUntilStableCodeMigration()
+            throws Exception {
+        Dao<Patient, Long> raw = rawDao();
+        PatientDao subject = createSubject(raw);
+        Patient offlineDefault = new Patient();
+        offlineDefault.setId(98442L);
+        offlineDefault.setDefault(true);
+        Patient reloaded = new Patient();
+        reloaded.setId(98442L);
+        reloaded.setDefault(true);
+        when(raw.queryForId(98442L)).thenReturn(offlineDefault);
+
+        try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
+            prefs.when(() -> PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1))
+                    .thenReturn(98442L);
+            assertTrue(subject.isActive(reloaded, null));
+            reloaded.setCode("ci-stale-code");
+            assertFalse(subject.isActive(reloaded, null));
+        }
+    }
+
     @Test
     public void deletedPatientIsNotActiveEvenWhenStalePreferenceStillMatches() throws Exception {
         Dao<Patient, Long> raw = rawDao();
@@ -143,9 +196,11 @@ public class PatientActiveSelectionSafetyTest {
         Context context = ApplicationProvider.getApplicationContext();
         Patient existing = new Patient();
         existing.setId(98435L);
+        existing.setCode("ci-existing-profile");
         existing.setName("Canonical synthetic profile");
         Patient staleFromUi = new Patient();
         staleFromUi.setId(98435L);
+        staleFromUi.setCode("ci-existing-profile");
         staleFromUi.setName("Outdated synthetic profile");
         when(raw.queryForId(98435L)).thenReturn(existing);
         SharedPreferences.Editor editor = mock(SharedPreferences.Editor.class);
@@ -178,6 +233,7 @@ public class PatientActiveSelectionSafetyTest {
         Context context = ApplicationProvider.getApplicationContext();
         Patient newPatient = new Patient();
         newPatient.setId(98435L);
+        newPatient.setCode("ci-switch-profile");
         when(raw.queryForId(98435L)).thenReturn(newPatient);
         SharedPreferences.Editor editor = mock(SharedPreferences.Editor.class);
         when(editor.putLong(anyString(), eq(98435L))).thenReturn(editor);
