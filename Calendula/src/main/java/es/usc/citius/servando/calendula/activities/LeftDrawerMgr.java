@@ -278,7 +278,11 @@ public class LeftDrawerMgr implements Drawer.OnDrawerItemClickListener, AccountH
             return true;
         } else {
             Long id = (long) profile.getIdentifier();
-            Patient p = DB.patients().findById(id);
+            Patient p = DB.patients().findByIdWithLocalIdentity(id);
+            if (p == null) {
+                // A removed profile must not be selected from an old drawer.
+                return false;
+            }
             boolean isActive = DB.patients().isActive(p, homeActivity);
             if (isActive) {
                 Intent intent = new Intent(homeActivity, PatientDetailActivity.class);
