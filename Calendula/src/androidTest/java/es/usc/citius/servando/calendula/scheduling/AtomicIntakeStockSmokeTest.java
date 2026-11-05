@@ -201,6 +201,59 @@ public class AtomicIntakeStockSmokeTest {
     }
 
     @Test
+    public void stalePatientCodeWithReusedIdCannotConfirmAnotherProfilesStock()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Fixture x = new Fixture();
+        try {
+            Patient stale = new Patient();
+            stale.setId(x.patient.getId());
+            stale.setCode("ci-stale-owner-" + System.nanoTime());
+            EventInstance staleIntake = new EventInstance(
+                    x.when, EventType.MEDICATION_INTAKE);
+            staleIntake.setId(x.event.getId());
+            staleIntake.setRef(x.schedule.getId());
+            staleIntake.setPatient(stale);
+            staleIntake.addParam(EventInstance.PARAM_DOSE, (double) DOSE);
+
+            try {
+                ScheduleUtils.instance().checkIntakeEvents(x.context, stale, x.when);
+                fail("Bulk action with recycled patient ID must be rejected");
+            } catch (RuntimeException expected) {
+                // No intake or stock writes can precede patient revalidation.
+            }
+            try {
+                ScheduleUtils.instance().setIntakeCompleted(
+                        x.context, staleIntake, true);
+                fail("Single-dose action with stale owner must be rejected");
+            } catch (RuntimeException expected) {
+                // A cloned event ID is not sufficient owner authorization.
+            }
+            try {
+                ScheduleUtils.instance().setVerifiedIntakeCompleted(
+                        x.context, staleIntake, true);
+                fail("Interactive confirmation with stale owner must be rejected");
+            } catch (RuntimeException expected) {
+                // Both guarded and legacy clinical entry points fail closed.
+            }
+            assertFalse("No unauthorized intake may be recorded",
+                    x.persistedIntake().completed());
+            assertFalse("Stale in-memory action cannot be marked completed",
+                    staleIntake.completed());
+            assertEquals("The replacement patient's stock cannot be debited",
+                    INITIAL_STOCK, x.persistedStock(), 0.001f);
+
+            // Current persisted owner continues to work after rejected calls.
+            assertTrue(ScheduleUtils.instance().setIntakeCompleted(
+                    x.context, x.event, true));
+            assertTrue(x.persistedIntake().completed());
+            assertEquals(INITIAL_STOCK - DOSE, x.persistedStock(), 0.001f);
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
     public void confirmingAndUndoingIntakeAdjustsInventoryExactlyOnce() throws Exception {
         assertTrue(DB.initialized);
         Fixture x = new Fixture();
