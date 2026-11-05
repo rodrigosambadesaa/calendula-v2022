@@ -65,6 +65,28 @@ public class PatientDao extends GenericDao<Patient, Long> {
 
     // Manage active patient through preferences
 
+    /**
+     * Do not authorize a stale UI profile object solely because its numeric
+     * SQLite ID was reassigned after restore. Old offline default profiles
+     * had no Code; permit their original local-only behavior until the
+     * durable-code migration runs, but never accept an unknown remote owner.
+     */
+    private static boolean sameSelectedPatient(Patient candidate, Patient persisted) {
+        if (candidate == null || persisted == null
+                || candidate.getId() == null || candidate.getId() <= 0L
+                || !candidate.getId().equals(persisted.getId())) {
+            return false;
+        }
+        String submittedCode = candidate.getCode();
+        String persistedCode = persisted.getCode();
+        if (submittedCode != null && !submittedCode.trim().isEmpty()) {
+            return submittedCode.equals(persistedCode);
+        }
+        return candidate.isDefault() && persisted.isDefault()
+                && (submittedCode == null || submittedCode.trim().isEmpty())
+                && (persistedCode == null || persistedCode.trim().isEmpty());
+    }
+
     public boolean isActive(Patient p, Context ctx) {
         // An invalid saved owner must never authorize clinical UI actions
         // using a stale caller-supplied Patient object.
@@ -76,7 +98,8 @@ public class PatientDao extends GenericDao<Patient, Long> {
             // A stale preference must not authorize a deleted patient row.
             // Check persisted identity rather than trusting the caller's
             // Patient instance, which can outlive the SQLite record.
-            return selectedId == p.getId().longValue() && findById(selectedId) != null;
+            return selectedId == p.getId().longValue()
+                    && sameSelectedPatient(p, findById(selectedId));
         } catch (ClassCastException malformedSelection) {
             return false;
         }
@@ -170,8 +193,8 @@ public class PatientDao extends GenericDao<Patient, Long> {
             throw new IllegalArgumentException("Cannot activate a missing patient");
         }
         Patient persisted = findById(id);
-        if (persisted == null) {
-            throw new IllegalArgumentException("Cannot activate a missing patient");
+        if (!sameSelectedPatient(patient, persisted)) {
+            throw new IllegalArgumentException("Cannot activate a stale or mismatched patient");
         }
         // Existing posted provider update notifications may contain the
         // previous patient's medicine names even when new callbacks are
