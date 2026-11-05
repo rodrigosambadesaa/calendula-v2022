@@ -17,6 +17,123 @@ import static org.junit.Assert.*;
 @RunWith(AndroidJUnit4.class)
 public class PatientProfilePersistenceSmokeTest {
     @Test
+    public void newManualProfileGetsStableCodeAndStaleEditorCannotOverwriteIt()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        Patient draft = new Patient();
+        draft.setName("Synthetic manual offline profile");
+        try {
+            PatientProfilePersistence.save(draft, context, false);
+            assertNotNull(draft.getId());
+            assertNotNull(draft.getCode());
+            assertTrue(draft.getCode().startsWith("local-"));
+            assertEquals(draft.getCode(), DB.patients().findById(draft.getId()).getCode());
+
+            draft.setName("Synthetic manual profile edited");
+            PatientProfilePersistence.save(draft, context, false);
+            assertEquals("Synthetic manual profile edited",
+                    DB.patients().findById(draft.getId()).getName());
+
+            Patient stale = new Patient();
+            stale.setId(draft.getId());
+            stale.setCode("synthetic-deleted-owner");
+            stale.setName("Another patient's malicious replacement");
+            boolean rejected = false;
+            try {
+                PatientProfilePersistence.save(stale, context, false);
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("Editor with reused row ID cannot overwrite another profile", rejected);
+            assertEquals("Synthetic manual profile edited",
+                    DB.patients().findById(draft.getId()).getName());
+            assertEquals(draft.getCode(), DB.patients().findById(draft.getId()).getCode());
+        } finally {
+            if (draft.getId() != null && DB.patients().findById(draft.getId()) != null) {
+                DB.patients().remove(draft);
+            }
+        }
+    }
+
+    @Test
+    public void legacyNonDefaultManualProfileCanBeMigratedWithoutChangingItsId()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        Patient original = new Patient();
+        original.setName("Synthetic legacy nondefault profile");
+        try {
+            assertEquals(1, DB.patients().create(original));
+            assertNull(original.getCode());
+            Patient canonical = DB.patients()
+                    .findByIdWithLocalIdentity(original.getId());
+            assertNotNull(canonical);
+            assertEquals(original.getId(), canonical.getId());
+            assertNotNull(canonical.getCode());
+            assertTrue(canonical.getCode().startsWith("local-"));
+            assertEquals(canonical.getCode(),
+                    DB.patients().findByIdWithLocalIdentity(original.getId()).getCode());
+            canonical.setName("Migrated local profile edited");
+            PatientProfilePersistence.save(canonical, context, false);
+            assertEquals("Migrated local profile edited",
+                    DB.patients().findById(original.getId()).getName());
+
+            original.setName("Old editor must be rejected");
+            boolean rejected = false;
+            try {
+                PatientProfilePersistence.save(original, context, false);
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("Stale anonymous editor must not overwrite migrated identity", rejected);
+            assertEquals("Migrated local profile edited",
+                    DB.patients().findById(original.getId()).getName());
+        } finally {
+            if (original.getId() != null && DB.patients().findById(original.getId()) != null) {
+                DB.patients().remove(DB.patients().findById(original.getId()));
+            }
+        }
+    }
+
+    @Test
+    public void failedOfflineProfileCreationRestoresTheDraftCodeForSafeRetry()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        Patient draft = new Patient();
+        draft.setName("Synthetic retryable offline profile");
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        String trigger = "ci_local_profile_identity_retry";
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE INSERT ON Patients"
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic profile insert failure'); END;");
+            boolean failed = false;
+            try {
+                PatientProfilePersistence.save(draft, context, false);
+            } catch (RuntimeException expected) {
+                failed = true;
+            }
+            assertTrue(failed);
+            assertNull(draft.getId());
+            assertNull("Failed insert must not lock a fresh identity into UI draft", draft.getCode());
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            PatientProfilePersistence.save(draft, context, false);
+            assertNotNull(draft.getId());
+            assertNotNull(draft.getCode());
+            assertTrue(draft.getCode().startsWith("local-"));
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            if (draft.getId() != null && DB.patients().findById(draft.getId()) != null) {
+                DB.patients().remove(draft);
+            }
+        }
+    }
+
+    @Test
     public void failedOptionalMealInsertionRollsBackPatientAndAllowsSameEditorRetry()
             throws Exception {
         assertTrue(DB.initialized);
