@@ -305,6 +305,12 @@ public class DatabaseHelper extends OrmLiteSqliteOpenHelper {
         Patient p = new Patient();
         p.setName(ctx.getString(R.string.default_user_name));
         p.setDefault(true);
+        // Local profiles need a durable identity as well as a SQLite row ID.
+        // Without one, deleting/restoring a database can recycle the row ID,
+        // defeating clinical isolation checks in reminders and document caches.
+        // The prefix cannot be mistaken for an OAuth provider subject: remote
+        // medication access still requires the authenticated subject to match.
+        p.setCode("local-" + java.util.UUID.randomUUID().toString());
         getPatientDao().create(p);
         return p;
     }

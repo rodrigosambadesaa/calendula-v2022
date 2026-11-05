@@ -24,6 +24,7 @@ import androidx.annotation.Nullable;
 import com.j256.ormlite.dao.Dao;
 
 import java.sql.SQLException;
+import java.util.UUID;
 
 import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.events.PersistenceEvents;
@@ -108,15 +109,52 @@ public class PatientDao extends GenericDao<Patient, Long> {
                             .apply();
                 }
             }
-            return p;
+            return ensureLocalDefaultIdentity(p);
         } else {
             return getDefault();
         }
     }
 
+    /**
+     * Older offline default profiles were created with a null Code. Mint
+     * a stable local-only identity so those real users retain document
+     * viewing and safe profile erasure after upgrading, without treating a
+     * numeric SQLite ID as proof of patient identity.
+     *
+     * A conditional UPDATE changes only an unidentified default row; a
+     * concurrent initializer or existing authenticated subject is never
+     * overwritten. Failure leaves the profile unidentified (fail closed).
+     */
+    private Patient ensureLocalDefaultIdentity(Patient patient) {
+        if (patient == null || !patient.isDefault()
+                || patient.getId() == null || patient.getId() <= 0L
+                || (patient.getCode() != null
+                    && !patient.getCode().trim().isEmpty())) {
+            return patient;
+        }
+        String localCode = "local-" + UUID.randomUUID().toString();
+        try {
+            getConcreteDao().updateRaw(
+                    "UPDATE Patients SET Code = ? WHERE _id = ? "
+                            + "AND \"Default\" = 1 "
+                            + "AND (Code IS NULL OR TRIM(Code) = '')",
+                    localCode, patient.getId().toString());
+            // Return authoritative DB state even if another initializer won.
+            // Never return the synthetic code merely because it was generated.
+            Patient refreshed = findById(patient.getId());
+            return refreshed == null ? null : refreshed;
+        } catch (SQLException failure) {
+            // Viewing/removing this unidentified legacy profile remains
+            // blocked instead of pretending an unsuccessful write succeeded.
+            es.usc.citius.servando.calendula.util.LogUtil.w(
+                    TAG, "Could not install stable local patient identity");
+            return patient;
+        }
+    }
+
     @Nullable
     public Patient getDefault() {
-        return findOneBy(Patient.COLUMN_DEFAULT, true);
+        return ensureLocalDefaultIdentity(findOneBy(Patient.COLUMN_DEFAULT, true));
     }
 
     /**
@@ -183,6 +221,15 @@ public class PatientDao extends GenericDao<Patient, Long> {
         Patient live = findById(id);
         if (live == null) {
             throw new IllegalArgumentException("Cannot erase an already deleted patient");
+        }
+        // A restored/imported database may reuse the numeric ID of an
+        // already-deleted profile. A stale UI object must never erase the
+        // replacement patient's medicines, allergies or intake history.
+        // Unidentified legacy objects cannot authorize destructive erasure.
+        String expectedCode = candidate.getCode();
+        if (expectedCode == null || expectedCode.trim().isEmpty()
+                || !expectedCode.equals(live.getCode())) {
+            throw new IllegalArgumentException("Patient identity changed before erasure");
         }
         return live;
     }

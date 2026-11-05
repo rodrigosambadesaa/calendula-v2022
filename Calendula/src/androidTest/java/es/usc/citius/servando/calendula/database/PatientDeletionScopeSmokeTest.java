@@ -6,6 +6,8 @@
 package es.usc.citius.servando.calendula.database;
 
 import android.database.sqlite.SQLiteDatabase;
+import android.content.Context;
+import android.content.SharedPreferences;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
@@ -24,6 +26,8 @@ import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
+import es.usc.citius.servando.calendula.util.PreferenceKeys;
+import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -37,6 +41,58 @@ import static org.junit.Assert.assertTrue;
  */
 @RunWith(AndroidJUnit4.class)
 public class PatientDeletionScopeSmokeTest {
+    @Test
+    public void newAndLegacyLocalDefaultProfilesReceiveDurableStableIdentities()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        SharedPreferences prefs = PreferenceUtils.instance().preferences();
+        String key = PreferenceKeys.PATIENTS_ACTIVE.key();
+        Object previousSelection = prefs.getAll().get(key);
+        Patient fresh = null;
+        Patient legacy = new Patient();
+        legacy.setDefault(true);
+        legacy.setName("Synthetic local legacy default");
+        try {
+            fresh = DB.helper().createDefaultPatient();
+            assertNotNull(fresh.getId());
+            assertTrue("New local default requires stable patient code",
+                    fresh.getCode() != null && fresh.getCode().startsWith("local-"));
+            assertEquals(fresh.getCode(), DB.patients().findById(fresh.getId()).getCode());
+
+            assertEquals(1, DB.patients().create(legacy));
+            assertNull("Legacy default has no code before safe migration",
+                    DB.patients().findById(legacy.getId()).getCode());
+            assertTrue(prefs.edit().putLong(key, legacy.getId()).commit());
+
+            Patient firstRead = DB.patients().getActive(context);
+            assertNotNull(firstRead);
+            assertEquals(legacy.getId(), firstRead.getId());
+            assertTrue("First use migrates local default identity",
+                    firstRead.getCode() != null
+                            && firstRead.getCode().startsWith("local-"));
+            assertEquals(firstRead.getCode(),
+                    DB.patients().findById(legacy.getId()).getCode());
+            assertEquals("Subsequent reads must not rotate patient identity",
+                    firstRead.getCode(), DB.patients().getActive(context).getCode());
+        } finally {
+            SharedPreferences.Editor editor = prefs.edit();
+            if (previousSelection == null) editor.remove(key);
+            else if (previousSelection instanceof Long) editor.putLong(key, (Long) previousSelection);
+            else if (previousSelection instanceof String) editor.putString(key, (String) previousSelection);
+            else if (previousSelection instanceof Integer) editor.putInt(key, (Integer) previousSelection);
+            else if (previousSelection instanceof Boolean) editor.putBoolean(key, (Boolean) previousSelection);
+            else throw new AssertionError("Unexpected synthetic preference type");
+            assertTrue(editor.commit());
+            for (Patient p : new Patient[]{legacy, fresh}) {
+                if (p != null && p.getId() != null
+                        && DB.patients().findById(p.getId()) != null) {
+                    DB.patients().remove(DB.patients().findById(p.getId()));
+                }
+            }
+        }
+    }
+
     @Test
     public void missingOrUnsavedPatientCannotBeginCascadeErasure() throws Exception {
         assertTrue(DB.initialized);
@@ -83,6 +139,81 @@ public class PatientDeletionScopeSmokeTest {
             if (survivor.getId() != null
                     && DB.patients().findById(survivor.getId()) != null) {
                 DB.patients().remove(survivor);
+            }
+        }
+    }
+
+    @Test
+    public void recycledPatientIdCannotDeleteTheReplacementPatientsClinicalRecords()
+            throws Exception {
+        assertTrue(DB.initialized);
+        String unique = Long.toString(System.nanoTime());
+        Patient replacement = new Patient();
+        replacement.setCode("ci-erasure-replacement-" + unique);
+        replacement.setName("Synthetic replacement profile");
+        Medicine protectedMed = new Medicine("Synthetic protected therapy", Presentation.PILLS);
+        EventInstance decidedDose = new EventInstance(
+                DateTime.now().minusHours(6), EventType.MEDICATION_INTAKE);
+        decidedDose.setCompleted(true);
+        decidedDose.setCompletedAt(DateTime.now().minusHours(5));
+        decidedDose.setRef(-System.nanoTime());
+        decidedDose.addParam(EventInstance.PARAM_DOSE, 2.5d);
+        try {
+            assertEquals(1, DB.patients().create(replacement));
+            protectedMed.setPatient(replacement);
+            assertEquals(1, DB.medicines().create(protectedMed));
+            decidedDose.setPatient(replacement);
+            assertEquals(1, DB.eventInstances().create(decidedDose));
+
+            Patient stale = new Patient();
+            stale.setId(replacement.getId());
+            stale.setCode("ci-erasure-original-" + unique);
+            Patient unknown = new Patient();
+            unknown.setId(replacement.getId());
+            Patient whitespace = new Patient();
+            whitespace.setId(replacement.getId());
+            whitespace.setCode(" ");
+
+            for (Patient unauthorized : new Patient[]{stale, unknown, whitespace}) {
+                boolean cascadeRejected = false;
+                try {
+                    DB.patients().removeCascade(unauthorized);
+                } catch (IllegalArgumentException expected) {
+                    cascadeRejected = true;
+                }
+                assertTrue("Recycled row ID cannot authorize clinical erasure",
+                        cascadeRejected);
+                boolean partialRejected = false;
+                try {
+                    DB.patients().removeAllStuff(unauthorized);
+                } catch (IllegalArgumentException expected) {
+                    partialRejected = true;
+                }
+                assertTrue("Partial erasure must verify stable owner identity",
+                        partialRejected);
+            }
+
+            assertNotNull("Replacement profile must survive", DB.patients()
+                    .findById(replacement.getId()));
+            assertNotNull("Replacement therapy must survive",
+                    DB.medicines().findById(protectedMed.getId()));
+            EventInstance retained = DB.eventInstances().findById(decidedDose.getId());
+            assertNotNull("Decision history must survive a stale erasure", retained);
+            assertTrue(retained.completed());
+            assertEquals(2.5d, retained.getDoubleParam(EventInstance.PARAM_DOSE),
+                    0.0001d);
+        } finally {
+            if (decidedDose.getId() != null && DB.eventInstances()
+                    .findById(decidedDose.getId()) != null) {
+                DB.eventInstances().remove(decidedDose);
+            }
+            if (protectedMed.getId() != null && DB.medicines()
+                    .findById(protectedMed.getId()) != null) {
+                DB.medicines().remove(protectedMed);
+            }
+            if (replacement.getId() != null && DB.patients()
+                    .findById(replacement.getId()) != null) {
+                DB.patients().remove(replacement);
             }
         }
     }
