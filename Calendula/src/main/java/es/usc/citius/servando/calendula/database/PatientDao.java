@@ -132,24 +132,24 @@ public class PatientDao extends GenericDao<Patient, Long> {
                             .apply();
                 }
             }
-            return ensureLocalDefaultIdentity(p);
+            return ensureLocalIdentity(p);
         } else {
             return getDefault();
         }
     }
 
     /**
-     * Older offline default profiles were created with a null Code. Mint
-     * a stable local-only identity so those real users retain document
-     * viewing and safe profile erasure after upgrading, without treating a
-     * numeric SQLite ID as proof of patient identity.
+     * Older offline profiles (including manually added non-default
+     * profiles) were created with null Code. Assign stable local-only
+     * identities on authoritative reads, so these owners remain selectable,
+     * editable and removable after upgrading without relying on SQLite IDs.
      *
      * A conditional UPDATE changes only an unidentified default row; a
      * concurrent initializer or existing authenticated subject is never
      * overwritten. Failure leaves the profile unidentified (fail closed).
      */
-    private Patient ensureLocalDefaultIdentity(Patient patient) {
-        if (patient == null || !patient.isDefault()
+    private Patient ensureLocalIdentity(Patient patient) {
+        if (patient == null
                 || patient.getId() == null || patient.getId() <= 0L
                 || (patient.getCode() != null
                     && !patient.getCode().trim().isEmpty())) {
@@ -159,8 +159,7 @@ public class PatientDao extends GenericDao<Patient, Long> {
         try {
             getConcreteDao().updateRaw(
                     "UPDATE Patients SET Code = ? WHERE _id = ? "
-                            + "AND \"Default\" = 1 "
-                            + "AND (Code IS NULL OR TRIM(Code) = '')",
+                            + "AND (Code IS NULL OR TRIM(Code) = '')"
                     localCode, patient.getId().toString());
             // Return authoritative DB state even if another initializer won.
             // Never return the synthetic code merely because it was generated.
@@ -175,9 +174,21 @@ public class PatientDao extends GenericDao<Patient, Long> {
         }
     }
 
+    /**
+     * Canonical local profile for trusted UI selection/editor routes.
+     * Unidentified existing rows acquire a durable local identity before
+     * the UI retains a Patient object. No caller-supplied code is trusted.
+     */
+    public Patient findByIdWithLocalIdentity(Long id) {
+        if (id == null || id <= 0L) {
+            return null;
+        }
+        return ensureLocalIdentity(findById(id));
+    }
+
     @Nullable
     public Patient getDefault() {
-        return ensureLocalDefaultIdentity(findOneBy(Patient.COLUMN_DEFAULT, true));
+        return ensureLocalIdentity(findOneBy(Patient.COLUMN_DEFAULT, true));
     }
 
     /**
