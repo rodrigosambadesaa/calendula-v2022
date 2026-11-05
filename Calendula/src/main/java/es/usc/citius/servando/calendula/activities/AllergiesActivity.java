@@ -109,19 +109,28 @@ public class AllergiesActivity extends CalendulaActivity {
 
     private int color;
     private Long openedPatientId;
+    private String openedPatientFingerprint;
     private static final String STATE_OPENED_PATIENT_ID = "allergies_original_patient_id";
+    private static final String STATE_OPENED_PATIENT_FINGERPRINT =
+            "allergies_original_patient_fingerprint";
     private FastItemAdapter allergiesAdapter;
 
     private boolean isOriginalPatientActive() {
         Patient active = DB.patients().getActive(this);
-        return AllergenSearchOwnerGuard.samePatient(openedPatientId,
-                active == null ? null : active.getId());
+        return AllergenSearchOwnerGuard.samePatient(
+                openedPatientId, openedPatientFingerprint,
+                active == null ? null : active.getId(),
+                active == null ? null : active.getCode());
     }
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         if (openedPatientId != null && openedPatientId > 0L) {
             outState.putLong(STATE_OPENED_PATIENT_ID, openedPatientId);
+            if (openedPatientFingerprint != null) {
+                outState.putString(STATE_OPENED_PATIENT_FINGERPRINT,
+                        openedPatientFingerprint);
+            }
         }
         super.onSaveInstanceState(outState);
     }
@@ -184,11 +193,21 @@ public class AllergiesActivity extends CalendulaActivity {
         }
         Long savedOwner = RestoredClinicalOwnerGuard.restoredOwnerOrNull(
                 savedInstanceState, STATE_OPENED_PATIENT_ID, patient.getId());
-        if (!AllergenSearchOwnerGuard.samePatient(savedOwner, patient.getId())) {
+        String restoredFingerprint;
+        try {
+            restoredFingerprint = savedInstanceState == null
+                    ? AllergenSearchOwnerGuard.fingerprint(patient.getCode())
+                    : savedInstanceState.getString(STATE_OPENED_PATIENT_FINGERPRINT);
+        } catch (RuntimeException malformedState) {
+            restoredFingerprint = null;
+        }
+        if (!AllergenSearchOwnerGuard.samePatient(
+                savedOwner, restoredFingerprint, patient.getId(), patient.getCode())) {
             finish();
             return;
         }
         openedPatientId = savedOwner;
+        openedPatientFingerprint = restoredFingerprint;
         color = patient.getColor();
         final String name = patient.getName();
         setupToolbar(getString(R.string.relation_user_possession_thing, name, getString(R.string.title_activity_allergies)), color);
@@ -467,6 +486,7 @@ public class AllergiesActivity extends CalendulaActivity {
         }
 
         private Long loadedPatientId;
+        private String loadedPatientFingerprint;
 
         /**
          * All database deletes in a group COMMIT together. Clinical alert and
@@ -476,7 +496,8 @@ public class AllergiesActivity extends CalendulaActivity {
         private int deleteVerifiedAllergens(final List<PatientAllergen> candidates,
                                             boolean notify) {
             if (candidates == null || candidates.isEmpty() || context == null
-                    || loadedPatientId == null || loadedPatientId <= 0L) {
+                    || loadedPatientId == null || loadedPatientId <= 0L
+                    || loadedPatientFingerprint == null) {
                 return -2;
             }
             final List<PatientAllergen> deleted;
@@ -484,6 +505,14 @@ public class AllergiesActivity extends CalendulaActivity {
                 deleted = (List<PatientAllergen>) DB.transaction(() -> {
                     Patient active = DB.patients().getActive(context);
                     Long activeId = active == null ? null : active.getId();
+                    String activeCode = active == null ? null : active.getCode();
+                    if (!AllergenSearchOwnerGuard.samePatient(
+                            loadedPatientId, loadedPatientFingerprint, activeId, activeCode)
+                            || !AllergenSearchOwnerGuard.samePatient(
+                                    openedPatientId, openedPatientFingerprint, activeId,
+                                    activeCode)) {
+                        throw new SQLException("Allergen deletion patient identity changed");
+                    }
                     List<PatientAllergen> live = new ArrayList<>(candidates.size());
                     java.util.Set<Long> seen = new java.util.HashSet<>();
                     for (PatientAllergen candidate : candidates) {
@@ -496,6 +525,14 @@ public class AllergiesActivity extends CalendulaActivity {
                                 candidate.getId());
                         if (stored == null || DB.patientAllergens().refresh(stored) != 1
                                 || stored.getPatient() == null
+                                || !AllergenSearchOwnerGuard.samePatient(
+                                        loadedPatientId, loadedPatientFingerprint,
+                                        candidate.getPatient().getId(),
+                                        candidate.getPatient().getCode())
+                                || !AllergenSearchOwnerGuard.samePatient(
+                                        loadedPatientId, loadedPatientFingerprint,
+                                        stored.getPatient().getId(),
+                                        stored.getPatient().getCode())
                                 || !AllergenDeletionGuard.isSamePersistedOwner(
                                     loadedPatientId, activeId,
                                     candidate.getId(), candidate.getPatient().getId(),
@@ -508,7 +545,9 @@ public class AllergiesActivity extends CalendulaActivity {
                     }
                     // Recheck profile immediately before the first SQL write.
                     Patient current = DB.patients().getActive(context);
-                    if (current == null || !loadedPatientId.equals(current.getId())) {
+                    if (current == null || !AllergenSearchOwnerGuard.samePatient(
+                            loadedPatientId, loadedPatientFingerprint,
+                            current.getId(), current.getCode())) {
                         throw new SQLException("Active patient changed while deleting allergens");
                     }
                     for (PatientAllergen stored : live) {
@@ -570,13 +609,16 @@ public class AllergiesActivity extends CalendulaActivity {
             context = ctx;
             Patient opened = DB.patients().getActive(ctx);
             loadedPatientId = opened == null ? null : opened.getId();
+            loadedPatientFingerprint = opened == null ? null
+                    : AllergenSearchOwnerGuard.fingerprint(opened.getCode());
             reload();
         }
 
         public void reload() {
             Patient active = context == null ? null : DB.patients().getActive(context);
-            if (loadedPatientId == null || active == null
-                    || !loadedPatientId.equals(active.getId())) {
+            if (active == null || !AllergenSearchOwnerGuard.samePatient(
+                    loadedPatientId, loadedPatientFingerprint,
+                    active.getId(), active.getCode())) {
                 currentAllergies = new ArrayList<>();
                 return;
             }
@@ -590,6 +632,18 @@ public class AllergiesActivity extends CalendulaActivity {
         }
 
         public SaveResult storeAllergen(PatientAllergen allergen) {
+            // This public path can be called outside storeAllergens(). Verify
+            // the original stable identity before touching any allergy row.
+            Patient active = context == null ? null : DB.patients().getActive(context);
+            if (allergen == null || allergen.getPatient() == null
+                    || !AllergenSearchOwnerGuard.canStore(
+                            loadedPatientId, loadedPatientFingerprint,
+                            active == null ? null : active.getId(),
+                            active == null ? null : active.getCode(),
+                            allergen.getPatient().getId(),
+                            allergen.getPatient().getCode())) {
+                return SaveResult.ERROR;
+            }
             int rows;
             try {
                 rows = DB.patientAllergens().create(allergen);
@@ -618,14 +672,22 @@ public class AllergiesActivity extends CalendulaActivity {
                     // has switched to patient B.
                     Patient active = DB.patients().getActive(context);
                     Long current = active == null ? null : active.getId();
-                    if (!AllergenSearchOwnerGuard.samePatient(openedPatientId, current)
-                            || !AllergenSearchOwnerGuard.samePatient(loadedPatientId, current)) {
+                    String currentCode = active == null ? null : active.getCode();
+                    if (!AllergenSearchOwnerGuard.samePatient(
+                            openedPatientId, openedPatientFingerprint,
+                            current, currentCode)
+                            || !AllergenSearchOwnerGuard.samePatient(
+                                    loadedPatientId, loadedPatientFingerprint,
+                                    current, currentCode)) {
                         throw new SQLException("Active patient changed during allergen save");
                     }
                     for (PatientAllergen allergen : allergens) {
                         if (allergen == null || allergen.getPatient() == null
                                 || !AllergenSearchOwnerGuard.canStore(
-                                loadedPatientId, current, allergen.getPatient().getId())) {
+                                loadedPatientId, loadedPatientFingerprint,
+                                current, currentCode,
+                                allergen.getPatient().getId(),
+                                allergen.getPatient().getCode())) {
                             throw new SQLException("Allergen belongs to a different patient");
                         }
                     }
@@ -713,7 +775,10 @@ public class AllergiesActivity extends CalendulaActivity {
             final List<AbstractItem> items = getAllergyItems();
 
             runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) {
+                if (isFinishing() || isDestroyed() || !isOriginalPatientActive()) {
+                    if (!isFinishing()) {
+                        finish();
+                    }
                     return;
                 }
                 allergiesAdapter.add(items);
@@ -732,8 +797,10 @@ public class AllergiesActivity extends CalendulaActivity {
         ALLERGY_EXECUTOR.execute(() -> {
             final Collection<PatientAllergen> patientAllergens = new ArrayList<>(items.size());
             final Patient patient = DB.patients().getActive(AllergiesActivity.this);
-            if (!AllergenSearchOwnerGuard.samePatient(openedPatientId,
-                    patient == null ? null : patient.getId())) {
+            if (!AllergenSearchOwnerGuard.samePatient(
+                    openedPatientId, openedPatientFingerprint,
+                    patient == null ? null : patient.getId(),
+                    patient == null ? null : patient.getCode())) {
                 runOnUiThread(() -> {
                     if (!isFinishing() && !isDestroyed()) finish();
                 });
