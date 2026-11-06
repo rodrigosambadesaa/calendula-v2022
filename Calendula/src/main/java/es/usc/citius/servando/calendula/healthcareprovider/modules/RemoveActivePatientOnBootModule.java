@@ -60,6 +60,7 @@ public class RemoveActivePatientOnBootModule extends CalendulaModule {
             PreferenceUtils.edit()
                     .remove(PreferenceKeys.PATIENTS_ACTIVE.key())
                     .remove(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key())
+                    .remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key())
                     .remove(PreferenceKeys.PATIENTS_REMOVE_ACTIVE_ON_BOOT.key())
                     .commit();
         }
