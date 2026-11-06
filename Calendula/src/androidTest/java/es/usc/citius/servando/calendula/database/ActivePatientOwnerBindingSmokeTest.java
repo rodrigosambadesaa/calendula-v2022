@@ -70,6 +70,16 @@ public class ActivePatientOwnerBindingSmokeTest {
             DB.patients().setActive(replacement);
             assertEquals(replacement.getId(), DB.patients().getActive(ctx).getId());
             assertNotEquals(digestA, prefs.getString(bindingKey, null));
+
+            // A subsequently deleted selected row must not silently fall
+            // back to the other local patient on the very next read.
+            DB.patients().remove(replacement);
+            assertNull(DB.patients().getActive(ctx));
+            assertFalse(prefs.contains(idKey));
+            assertFalse(prefs.contains(bindingKey));
+            assertTrue(prefs.getBoolean(markerKey, false));
+            assertNull("An invalidated selection remains invalid after recreation",
+                    DB.patients().getActive(ctx));
         } finally {
             SharedPreferences.Editor edit = prefs.edit();
             restore(edit, idKey, priorId);
