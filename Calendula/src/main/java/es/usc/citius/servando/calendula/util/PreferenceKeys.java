@@ -62,6 +62,7 @@ public enum PreferenceKeys {
     // Patients
     PATIENTS_ACTIVE(R.string.prefkey_patients_active),
     PATIENTS_ACTIVE_OWNER(R.string.prefkey_patients_active_owner),
+    PATIENTS_RESELECTION_REQUIRED(R.string.prefkey_patients_reselection_required),
     PATIENTS_REMOVE_ACTIVE_ON_BOOT(R.string.prefkey_patients_remove_active_on_boot),
     // Remote
     /**
