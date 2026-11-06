@@ -286,6 +286,48 @@ public class PatientActiveSelectionSafetyTest {
     }
 
     @Test
+    public void sameRecycledNumericIdWithDifferentBindingCancelsOldProviderNotification()
+            throws Exception {
+        Dao<Patient, Long> raw = rawDao();
+        PatientDao subject = createSubject(raw);
+        Context context = ApplicationProvider.getApplicationContext();
+        Patient replacement = new Patient();
+        replacement.setId(98603L);
+        replacement.setCode("local-ci-new-owner");
+        when(raw.queryForId(98603L)).thenReturn(replacement);
+        SharedPreferences.Editor editor = mock(SharedPreferences.Editor.class);
+        when(editor.putLong(eq(PreferenceKeys.PATIENTS_ACTIVE.key()), eq(98603L)))
+                .thenReturn(editor);
+        when(editor.putString(eq(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key()), anyString()))
+                .thenReturn(editor);
+        when(editor.remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key()))
+                .thenReturn(editor);
+        EventBus bus = mock(EventBus.class);
+        String oldDigest = PatientDao.stablePatientDigest("local-ci-old-owner");
+        String newDigest = PatientDao.stablePatientDigest(replacement.getCode());
+
+        try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class);
+             MockedStatic<CalendulaApp> app = mockStatic(CalendulaApp.class);
+             MockedStatic<ActiveMedNotification> notification =
+                     mockStatic(ActiveMedNotification.class)) {
+            prefs.when(() -> PreferenceUtils.getLong(
+                    PreferenceKeys.PATIENTS_ACTIVE, -1L)).thenReturn(98603L);
+            prefs.when(() -> PreferenceUtils.getString(
+                    PreferenceKeys.PATIENTS_ACTIVE_OWNER, null)).thenReturn(oldDigest);
+            prefs.when(PreferenceUtils::edit).thenReturn(editor);
+            app.when(CalendulaApp::getContext).thenReturn(context);
+            app.when(CalendulaApp::eventBus).thenReturn(bus);
+
+            subject.setActive(replacement);
+            verify(editor).putString(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key(),
+                    newDigest);
+            verify(editor).remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key());
+            verify(editor).apply();
+            notification.verify(() -> ActiveMedNotification.cancel(context), times(1));
+        }
+    }
+
+    @Test
     public void corruptedActivePatientPreferenceCannotImpersonateAnOwner() throws Exception {
         PatientDao subject = createSubject(rawDao());
         Patient previouslySelected = new Patient();
