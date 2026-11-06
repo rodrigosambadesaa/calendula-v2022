@@ -341,6 +341,40 @@ public class PatientActiveSelectionSafetyTest {
     }
 
     @Test
+    public void deletedSelectionMarkerForcesExplicitRecoveryEvenWithoutSavedId()
+            throws Exception {
+        PatientDao subject = spy(createSubject(rawDao()));
+        Context context = ApplicationProvider.getApplicationContext();
+        try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
+            prefs.when(() -> PreferenceUtils.getLong(
+                    PreferenceKeys.PATIENTS_ACTIVE, -1L)).thenReturn(-1L);
+            prefs.when(() -> PreferenceUtils.getBoolean(
+                    PreferenceKeys.PATIENTS_RESELECTION_REQUIRED, false))
+                    .thenReturn(true);
+            assertNull(subject.getActive(context));
+            org.mockito.Mockito.verify(subject, org.mockito.Mockito.never()).getDefault();
+        }
+    }
+
+    @Test
+    public void corruptOrphanedBindingCannotSelectFallbackDefault()
+            throws Exception {
+        PatientDao subject = spy(createSubject(rawDao()));
+        Context context = ApplicationProvider.getApplicationContext();
+        try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
+            prefs.when(() -> PreferenceUtils.getLong(
+                    PreferenceKeys.PATIENTS_ACTIVE, -1L)).thenReturn(-1L);
+            prefs.when(() -> PreferenceUtils.getBoolean(
+                    PreferenceKeys.PATIENTS_RESELECTION_REQUIRED, false)).thenReturn(false);
+            prefs.when(() -> PreferenceUtils.getString(
+                    PreferenceKeys.PATIENTS_ACTIVE_OWNER, null))
+                    .thenThrow(new ClassCastException("Synthetic corrupted digest type"));
+            assertNull(subject.getActive(context));
+            org.mockito.Mockito.verify(subject, org.mockito.Mockito.never()).getDefault();
+        }
+    }
+
+    @Test
     public void corruptSelectionDoesNotImplicitlySwitchToAnotherPatient()
             throws Exception {
         PatientDao subject = spy(createSubject(rawDao()));
