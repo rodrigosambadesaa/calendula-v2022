@@ -87,6 +87,7 @@ public class PatientActiveSelectionSafetyTest {
         Context context = ApplicationProvider.getApplicationContext();
         SharedPreferences.Editor editor = mock(SharedPreferences.Editor.class);
         when(editor.remove(anyString())).thenReturn(editor);
+        when(editor.putBoolean(eq(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key()), eq(true))).thenReturn(editor);
         when(raw.queryForId(98433L)).thenReturn(null);
         doReturn(null).when(subject).getDefault();
 
@@ -103,6 +104,7 @@ public class PatientActiveSelectionSafetyTest {
             assertNull(subject.getActive(context));
             verify(editor).remove(PreferenceKeys.PATIENTS_ACTIVE.key());
             verify(editor).remove(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key());
+            verify(editor).putBoolean(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key(), true);
             verify(editor).apply();
             prefs.verify(PreferenceUtils::edit);
         }
@@ -218,6 +220,7 @@ public class PatientActiveSelectionSafetyTest {
         when(editor.putLong(anyString(), eq(98435L))).thenReturn(editor);
         when(editor.putString(eq(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key()), anyString()))
                 .thenReturn(editor);
+        when(editor.remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key())).thenReturn(editor);
 
         try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class);
              MockedStatic<CalendulaApp> app = mockStatic(CalendulaApp.class)) {
@@ -253,6 +256,7 @@ public class PatientActiveSelectionSafetyTest {
         when(editor.putLong(anyString(), eq(98435L))).thenReturn(editor);
         when(editor.putString(eq(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key()), anyString()))
                 .thenReturn(editor);
+        when(editor.remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key())).thenReturn(editor);
         EventBus bus = mock(EventBus.class);
 
         try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class);
