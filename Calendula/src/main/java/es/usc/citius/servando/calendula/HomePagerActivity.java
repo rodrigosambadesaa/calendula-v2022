@@ -615,8 +615,11 @@ public class HomePagerActivity extends CalendulaActivity implements
         }
         Patient p = DB.patients().getActive(this);
         if (p == null) {
-            // A restore or profile switch occurred while this dashboard was
-            // suspended. Destroy stale views before showing any clinical UI.
+            // Hide cached clinical fragments immediately if a restore or
+            // patient switch invalidated the old session while suspended.
+            if (coordinatorLayout != null) {
+                coordinatorLayout.setVisibility(View.INVISIBLE);
+            }
             recreate();
             return;
         }
