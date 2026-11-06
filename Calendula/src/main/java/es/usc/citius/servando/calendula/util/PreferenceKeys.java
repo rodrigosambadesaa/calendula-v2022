@@ -61,6 +61,7 @@ public enum PreferenceKeys {
     MEDICINES_LEGACY_DB_ENABLED(R.string.prefkey_medicines_db_enabled),
     // Patients
     PATIENTS_ACTIVE(R.string.prefkey_patients_active),
+    PATIENTS_ACTIVE_OWNER(R.string.prefkey_patients_active_owner),
     PATIENTS_REMOVE_ACTIVE_ON_BOOT(R.string.prefkey_patients_remove_active_on_boot),
     // Remote
     /**
