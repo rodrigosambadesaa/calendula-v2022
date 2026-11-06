@@ -23,6 +23,8 @@ public class DeletedActivePatientSmokeTest {
         String bindingKey = PreferenceKeys.PATIENTS_ACTIVE_OWNER.key();
         Object previousSelection = prefs.getAll().get(key);
         Object previousBinding = prefs.getAll().get(bindingKey);
+        String markerKey = PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key();
+        Object previousMarker = prefs.getAll().get(markerKey);
         Patient disposable = new Patient();
         disposable.setName("Synthetic deleted patient");
         disposable.setCode("ci-deleted-active-" + System.nanoTime());
@@ -55,6 +57,14 @@ public class DeletedActivePatientSmokeTest {
             else if (previousBinding instanceof Boolean) e.putBoolean(bindingKey, (Boolean) previousBinding);
             else if (previousBinding instanceof Integer) e.putInt(bindingKey, (Integer) previousBinding);
             else throw new AssertionError("Unexpected saved active owner binding type");
+            if (previousMarker == null) e.remove(markerKey);
+            else if (previousMarker instanceof Boolean)
+                e.putBoolean(markerKey, (Boolean) previousMarker);
+            else if (previousMarker instanceof String)
+                e.putString(markerKey, (String) previousMarker);
+            else if (previousMarker instanceof Integer)
+                e.putInt(markerKey, (Integer) previousMarker);
+            else throw new AssertionError("Unexpected selection recovery marker type");
             assertTrue(e.commit());
         }
     }
