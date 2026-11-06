@@ -61,6 +61,7 @@ import org.greenrobot.eventbus.Subscribe;
 import org.joda.time.DateTime;
 
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Queue;
 
 import butterknife.BindView;
@@ -145,6 +146,7 @@ public class HomePagerActivity extends CalendulaActivity implements
     private HomePageAdapter mSectionsPagerAdapter;
     private LeftDrawerMgr drawerMgr;
     private Patient activePatient;
+    private boolean awaitingPatientReselection;
     private int pendingRefresh = -2;
     private Queue<Object> pendingEvents = new LinkedList<>();
     private Handler handler;
@@ -446,6 +448,14 @@ public class HomePagerActivity extends CalendulaActivity implements
     protected void onCreate(Bundle savedInstanceState) {
 
         super.onCreate(savedInstanceState);
+        // Do not inflate any clinical dashboard or drawer until the selected
+        // row's stable owner has been verified. Restored numeric-only legacy
+        // preferences require an explicit choice, not a default fallback.
+        activePatient = DB.patients().getActive(this);
+        if (activePatient == null) {
+            promptForPatientReselection();
+            return;
+        }
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
 
@@ -468,7 +478,6 @@ public class HomePagerActivity extends CalendulaActivity implements
         homeProfileMgr = new HomeProfileMgr();
         homeProfileMgr.init(userInfoFragment, this);
 
-        activePatient = DB.patients().getActive(this);
         updateScrim(0);
 
 
@@ -544,6 +553,55 @@ public class HomePagerActivity extends CalendulaActivity implements
         processIntent();
     }
 
+    /**
+     * Missing, legacy or mismatched active-owner preferences must never load
+     * another patient's medicines by simply reusing a SQLite row number.
+     * The chooser displays only existing profile labels and requires a tap;
+     * no medication, schedule or clinical event is modified here.
+     */
+    private void promptForPatientReselection() {
+        awaitingPatientReselection = true;
+        final List<Patient> available = DB.patients().findAll();
+        if (available == null || available.isEmpty()) {
+            startActivity(new Intent(this, StartActivity.class));
+            finish();
+            return;
+        }
+
+        String[] labels = new String[available.size()];
+        for (int i = 0; i < available.size(); i++) {
+            String name = available.get(i).getName();
+            labels[i] = name == null || name.trim().isEmpty()
+                    ? getString(R.string.patient_reselection_profile_number, i + 1)
+                    : name;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.patient_reselection_required)
+                .setCancelable(false)
+                .setItems(labels, (dialog, which) -> {
+                    if (which < 0 || which >= available.size()) {
+                        promptForPatientReselection();
+                        return;
+                    }
+                    try {
+                        Patient persisted = DB.patients().findByIdWithLocalIdentity(
+                                available.get(which).getId());
+                        if (persisted == null) {
+                            promptForPatientReselection();
+                            return;
+                        }
+                        DB.patients().setActive(persisted);
+                        recreate();
+                    } catch (RuntimeException unavailable) {
+                        // Do not present a broken/removed owner as active.
+                        LogUtil.w(TAG, "Could not restore verified patient selection");
+                        promptForPatientReselection();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, (dialog, which) -> finish())
+                .show();
+    }
+
     @Override
     protected void onPostCreate(Bundle savedInstanceState) {
         super.onPostCreate(savedInstanceState);
@@ -552,7 +610,16 @@ public class HomePagerActivity extends CalendulaActivity implements
     @Override
     protected void onResume() {
         super.onResume();
+        if (awaitingPatientReselection) {
+            return;
+        }
         Patient p = DB.patients().getActive(this);
+        if (p == null) {
+            // A restore or profile switch occurred while this dashboard was
+            // suspended. Destroy stale views before showing any clinical UI.
+            recreate();
+            return;
+        }
         drawerMgr.onActivityResume(p);
         active = true;
 
