@@ -24,6 +24,9 @@ import androidx.annotation.Nullable;
 import com.j256.ormlite.dao.Dao;
 
 import java.sql.SQLException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
 
 import es.usc.citius.servando.calendula.CalendulaApp;
@@ -87,19 +90,48 @@ public class PatientDao extends GenericDao<Patient, Long> {
                 && (persistedCode == null || persistedCode.trim().isEmpty());
     }
 
+    /**
+     * Digest is an identity *binding*, not an authentication credential.
+     * Domain separation prevents accidental reuse of an unrelated SHA-256.
+     * Never store a raw provider subject in the active-selection preferences.
+     */
+    static String stablePatientDigest(String code) {
+        if (code == null || code.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(("calendula:active-patient:v1:" + code)
+                            .getBytes(StandardCharsets.UTF_8));
+            char[] hex = new char[digest.length * 2];
+            for (int i = 0; i < digest.length; i++) {
+                hex[2 * i] = Character.forDigit((digest[i] & 0xff) >>> 4, 16);
+                hex[2 * i + 1] = Character.forDigit(digest[i] & 0x0f, 16);
+            }
+            return new String(hex);
+        } catch (NoSuchAlgorithmException impossibleOnAndroid) {
+            throw new IllegalStateException("SHA-256 unavailable", impossibleOnAndroid);
+        }
+    }
+
+    private static String selectedOwnerBinding() {
+        try {
+            return PreferenceUtils.getString(PreferenceKeys.PATIENTS_ACTIVE_OWNER, null);
+        } catch (ClassCastException restoredInvalidType) {
+            return null;
+        }
+    }
+
     public boolean isActive(Patient p, Context ctx) {
-        // An invalid saved owner must never authorize clinical UI actions
-        // using a stale caller-supplied Patient object.
+        // Even a caller bearing the current row's code must not turn an old,
+        // unbound numeric selection into authorization for that owner.
         if (p == null || p.getId() == null || p.getId() <= 0L) {
             return false;
         }
         try {
-            final long selectedId = PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1);
-            // A stale preference must not authorize a deleted patient row.
-            // Check persisted identity rather than trusting the caller's
-            // Patient instance, which can outlive the SQLite record.
+            long selectedId = PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1L);
             return selectedId == p.getId().longValue()
-                    && sameSelectedPatient(p, findById(selectedId));
+                    && sameSelectedPatient(p, getActive(ctx));
         } catch (ClassCastException malformedSelection) {
             return false;
         }
@@ -109,33 +141,43 @@ public class PatientDao extends GenericDao<Patient, Long> {
     public Patient getActive(Context ctx) {
         final long id;
         try {
-            id = PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1);
+            id = PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1L);
         } catch (ClassCastException malformedSelection) {
-            // A restored String/Boolean is not an active patient identity.
-            // Do not silently select a different default profile, persist a
-            // replacement or expose its clinical records in this session.
             return null;
         }
-        Patient p;
-        if (id != -1) {
-            p = findById(id);
-            if (p == null) {
-                p = getDefault();
-                if (p != null) {
-                    setActive(p);
-                } else {
-                    // The selected account was removed, and there is no
-                    // default to select. Never retain a dangling patient ID
-                    // that could be reused by a different SQLite record.
-                    PreferenceUtils.edit()
-                            .remove(PreferenceKeys.PATIENTS_ACTIVE.key())
-                            .apply();
-                }
-            }
-            return ensureLocalIdentity(p);
-        } else {
+        if (id == -1L) {
+            // Fresh offline setup and explicit logout historically use the
+            // default profile. A *saved* ID without a binding is different:
+            // its previous owner cannot be inferred after a restore.
             return getDefault();
         }
+        if (id <= 0L) {
+            return null;
+        }
+
+        String binding = selectedOwnerBinding();
+        if (binding == null) {
+            // Legacy selections must be explicitly reselected in the profile
+            // UI; silently binding a restored numeric ID would be unsafe.
+            return null;
+        }
+        Patient persisted = findById(id);
+        if (persisted == null) {
+            // Remove both coordinates together so a future recycled ID cannot
+            // inherit a dangling preference. Never switch to another owner.
+            PreferenceUtils.edit()
+                    .remove(PreferenceKeys.PATIENTS_ACTIVE.key())
+                    .remove(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key())
+                    .apply();
+            return null;
+        }
+        String liveDigest = stablePatientDigest(persisted.getCode());
+        if (liveDigest == null || !liveDigest.equals(binding)) {
+            // No fallback or migration by row ID: leave the mismatched state
+            // inert until an explicit, persisted-profile selection.
+            return null;
+        }
+        return persisted;
     }
 
     /**
@@ -207,19 +249,24 @@ public class PatientDao extends GenericDao<Patient, Long> {
         if (!sameSelectedPatient(patient, persisted)) {
             throw new IllegalArgumentException("Cannot activate a stale or mismatched patient");
         }
-        // Existing posted provider update notifications may contain the
-        // previous patient's medicine names even when new callbacks are
-        // already guarded. Retire only that notification on a real switch.
+        String ownerDigest = stablePatientDigest(persisted.getCode());
+        if (ownerDigest == null) {
+            throw new IllegalArgumentException("Cannot activate an unidentified patient");
+        }
+        // Existing posted provider notifications may expose an old owner's
+        // medication even when SQLite reuses the same numeric patient ID.
         long previousId;
         try {
             previousId = PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1L);
         } catch (ClassCastException invalidPreference) {
             previousId = -1L;
         }
+        String previousBinding = selectedOwnerBinding();
         PreferenceUtils.edit()
                 .putLong(PreferenceKeys.PATIENTS_ACTIVE.key(), id)
+                .putString(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key(), ownerDigest)
                 .apply();
-        if (previousId != id) {
+        if (previousId != id || !ownerDigest.equals(previousBinding)) {
             Context application = CalendulaApp.getContext();
             if (application != null) {
                 try {
@@ -243,7 +290,7 @@ public class PatientDao extends GenericDao<Patient, Long> {
             throw new IllegalArgumentException("Cannot activate a missing patient");
         }
         // Centralize the persisted-record guard and change notification.
-        setActive(findById(id));
+        setActive(findByIdWithLocalIdentity(id));
     }
 
 
@@ -282,7 +329,22 @@ public class PatientDao extends GenericDao<Patient, Long> {
         es.usc.citius.servando.calendula.scheduling.Agenda.instance()
                 .removeRemindersForPatient(CalendulaApp.getContext(), persisted);
         DB.patients().remove(persisted);
-
+        // Once erasure completes, drop both coordinates of the old active
+        // selection. Do not reset them before deletion succeeds.
+        try {
+            if (PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1L)
+                    == persisted.getId().longValue()) {
+                PreferenceUtils.edit()
+                        .remove(PreferenceKeys.PATIENTS_ACTIVE.key())
+                        .remove(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key())
+                        .apply();
+            }
+        } catch (ClassCastException invalidSavedId) {
+            PreferenceUtils.edit()
+                    .remove(PreferenceKeys.PATIENTS_ACTIVE.key())
+                    .remove(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key())
+                    .apply();
+        }
     }
 
     public void removeAllStuff(Patient p) {
