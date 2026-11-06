@@ -37,6 +37,8 @@ public class ActivePatientOwnerBindingSmokeTest {
         String bindingKey = PreferenceKeys.PATIENTS_ACTIVE_OWNER.key();
         Object priorId = prefs.getAll().get(idKey);
         Object priorBinding = prefs.getAll().get(bindingKey);
+        String markerKey = PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key();
+        Object priorMarker = prefs.getAll().get(markerKey);
 
         Patient first = new Patient();
         first.setCode("local-ci-owner-A-" + System.nanoTime());
@@ -72,6 +74,7 @@ public class ActivePatientOwnerBindingSmokeTest {
             SharedPreferences.Editor edit = prefs.edit();
             restore(edit, idKey, priorId);
             restore(edit, bindingKey, priorBinding);
+            restore(edit, markerKey, priorMarker);
             assertTrue(edit.commit());
             if (first.getId() != null && DB.patients().findById(first.getId()) != null)
                 DB.patients().remove(first);
