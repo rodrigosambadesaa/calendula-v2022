@@ -118,7 +118,8 @@ public class PatientDao extends GenericDao<Patient, Long> {
         try {
             return PreferenceUtils.getString(PreferenceKeys.PATIENTS_ACTIVE_OWNER, null);
         } catch (ClassCastException restoredInvalidType) {
-            return null;
+            // Non-null sentinel: a malformed orphaned digest is not a clean install.
+            return "invalid";
         }
     }
 
@@ -145,11 +146,20 @@ public class PatientDao extends GenericDao<Patient, Long> {
         } catch (ClassCastException malformedSelection) {
             return null;
         }
+        final boolean reselectionRequired;
+        try {
+            reselectionRequired = PreferenceUtils.getBoolean(
+                    PreferenceKeys.PATIENTS_RESELECTION_REQUIRED, false);
+        } catch (ClassCastException malformedRecoveryMarker) {
+            return null;
+        }
+        if (reselectionRequired) {
+            return null;
+        }
         if (id == -1L) {
-            // Fresh offline setup and explicit logout historically use the
-            // default profile. A *saved* ID without a binding is different:
-            // its previous owner cannot be inferred after a restore.
-            return getDefault();
+            // A fresh install can still use its local default; an orphaned
+            // digest after partial preference restore must not select anyone.
+            return selectedOwnerBinding() == null ? getDefault() : null;
         }
         if (id <= 0L) {
             return null;
@@ -168,6 +178,7 @@ public class PatientDao extends GenericDao<Patient, Long> {
             PreferenceUtils.edit()
                     .remove(PreferenceKeys.PATIENTS_ACTIVE.key())
                     .remove(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key())
+                    .putBoolean(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key(), true)
                     .apply();
             return null;
         }
@@ -265,6 +276,7 @@ public class PatientDao extends GenericDao<Patient, Long> {
         PreferenceUtils.edit()
                 .putLong(PreferenceKeys.PATIENTS_ACTIVE.key(), id)
                 .putString(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key(), ownerDigest)
+                .remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key())
                 .apply();
         if (previousId != id || !ownerDigest.equals(previousBinding)) {
             Context application = CalendulaApp.getContext();
@@ -337,12 +349,14 @@ public class PatientDao extends GenericDao<Patient, Long> {
                 PreferenceUtils.edit()
                         .remove(PreferenceKeys.PATIENTS_ACTIVE.key())
                         .remove(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key())
+                        .putBoolean(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key(), true)
                         .apply();
             }
         } catch (ClassCastException invalidSavedId) {
             PreferenceUtils.edit()
                     .remove(PreferenceKeys.PATIENTS_ACTIVE.key())
                     .remove(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key())
+                    .putBoolean(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key(), true)
                     .apply();
         }
     }
