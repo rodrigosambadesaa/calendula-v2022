@@ -59,6 +59,7 @@ public class RemoveActivePatientOnBootModule extends CalendulaModule {
             LogUtil.d(TAG, "onApplicationStartup: Key is set, removing active patient");
             PreferenceUtils.edit()
                     .remove(PreferenceKeys.PATIENTS_ACTIVE.key())
+                    .remove(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key())
                     .remove(PreferenceKeys.PATIENTS_REMOVE_ACTIVE_ON_BOOT.key())
                     .commit();
         }
