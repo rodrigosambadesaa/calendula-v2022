@@ -42,13 +42,17 @@ import static org.junit.Assert.assertTrue;
 @RunWith(AndroidJUnit4.class)
 public class PatientDeletionScopeSmokeTest {
     @Test
-    public void newAndLegacyLocalDefaultProfilesReceiveDurableStableIdentities()
+    public void legacyLocalDefaultRequiresExplicitReselectionAfterIdentityMigration()
             throws Exception {
         assertTrue(DB.initialized);
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         SharedPreferences prefs = PreferenceUtils.instance().preferences();
         String key = PreferenceKeys.PATIENTS_ACTIVE.key();
+        String bindingKey = PreferenceKeys.PATIENTS_ACTIVE_OWNER.key();
+        String markerKey = PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key();
         Object previousSelection = prefs.getAll().get(key);
+        Object previousBinding = prefs.getAll().get(bindingKey);
+        Object previousMarker = prefs.getAll().get(markerKey);
         Patient fresh = null;
         Patient legacy = new Patient();
         legacy.setDefault(true);
@@ -63,26 +67,40 @@ public class PatientDeletionScopeSmokeTest {
             assertEquals(1, DB.patients().create(legacy));
             assertNull("Legacy default has no code before safe migration",
                     DB.patients().findById(legacy.getId()).getCode());
-            assertTrue(prefs.edit().putLong(key, legacy.getId()).commit());
+            assertTrue(prefs.edit()
+                    .putLong(key, legacy.getId())
+                    .remove(bindingKey)
+                    .remove(markerKey)
+                    .commit());
 
+            // A numeric-only selection does not prove ownership after restore.
+            // The migration can issue a durable code, but must not silently
+            // authorize clinical access to the row with the retained ID.
+            assertNull("Legacy unbound selection requires explicit profile choice",
+                    DB.patients().getActive(context));
+            Patient migrated = DB.patients().findByIdWithLocalIdentity(legacy.getId());
+            assertNotNull(migrated);
+            assertTrue("Explicit recovery migrates local identity",
+                    migrated.getCode() != null
+                            && migrated.getCode().startsWith("local-"));
+            assertEquals(migrated.getCode(),
+                    DB.patients().findById(legacy.getId()).getCode());
+            assertNull("Code migration alone must not activate a profile",
+                    DB.patients().getActive(context));
+
+            // Simulate the user's explicit profile selection.
+            DB.patients().setActive(migrated);
             Patient firstRead = DB.patients().getActive(context);
             assertNotNull(firstRead);
             assertEquals(legacy.getId(), firstRead.getId());
-            assertTrue("First use migrates local default identity",
-                    firstRead.getCode() != null
-                            && firstRead.getCode().startsWith("local-"));
-            assertEquals(firstRead.getCode(),
-                    DB.patients().findById(legacy.getId()).getCode());
+            assertEquals(migrated.getCode(), firstRead.getCode());
             assertEquals("Subsequent reads must not rotate patient identity",
                     firstRead.getCode(), DB.patients().getActive(context).getCode());
         } finally {
             SharedPreferences.Editor editor = prefs.edit();
-            if (previousSelection == null) editor.remove(key);
-            else if (previousSelection instanceof Long) editor.putLong(key, (Long) previousSelection);
-            else if (previousSelection instanceof String) editor.putString(key, (String) previousSelection);
-            else if (previousSelection instanceof Integer) editor.putInt(key, (Integer) previousSelection);
-            else if (previousSelection instanceof Boolean) editor.putBoolean(key, (Boolean) previousSelection);
-            else throw new AssertionError("Unexpected synthetic preference type");
+            restoreSyntheticPreference(editor, key, previousSelection);
+            restoreSyntheticPreference(editor, bindingKey, previousBinding);
+            restoreSyntheticPreference(editor, markerKey, previousMarker);
             assertTrue(editor.commit());
             for (Patient p : new Patient[]{legacy, fresh}) {
                 if (p != null && p.getId() != null
@@ -91,6 +109,17 @@ public class PatientDeletionScopeSmokeTest {
                 }
             }
         }
+    }
+
+    private static void restoreSyntheticPreference(
+            SharedPreferences.Editor editor, String key, Object previous) {
+        if (previous == null) editor.remove(key);
+        else if (previous instanceof Long) editor.putLong(key, (Long) previous);
+        else if (previous instanceof String) editor.putString(key, (String) previous);
+        else if (previous instanceof Integer) editor.putInt(key, (Integer) previous);
+        else if (previous instanceof Boolean) editor.putBoolean(key, (Boolean) previous);
+        else if (previous instanceof Float) editor.putFloat(key, (Float) previous);
+        else throw new AssertionError("Unexpected synthetic preference type");
     }
 
     @Test

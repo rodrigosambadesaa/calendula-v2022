@@ -95,7 +95,11 @@ public class ProviderRevisionOwnershipSmokeTest {
                     && DB.patients().findById(previous.getId()) != null) {
                 DB.patients().setActive(previous);
             } else {
-                PreferenceUtils.edit().remove(PreferenceKeys.PATIENTS_ACTIVE.key()).commit();
+                PreferenceUtils.edit()
+                        .remove(PreferenceKeys.PATIENTS_ACTIVE.key())
+                        .remove(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key())
+                        .remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key())
+                        .commit();
             }
             if (a.getId() != null && DB.patients().findById(a.getId()) != null) {
                 DB.patients().remove(a);

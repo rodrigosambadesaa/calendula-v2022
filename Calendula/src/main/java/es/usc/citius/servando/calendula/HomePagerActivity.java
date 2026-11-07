@@ -60,7 +60,9 @@ import com.mikepenz.iconics.IconicsDrawable;
 import org.greenrobot.eventbus.Subscribe;
 import org.joda.time.DateTime;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Queue;
 
 import butterknife.BindView;
@@ -145,6 +147,7 @@ public class HomePagerActivity extends CalendulaActivity implements
     private HomePageAdapter mSectionsPagerAdapter;
     private LeftDrawerMgr drawerMgr;
     private Patient activePatient;
+    private boolean awaitingPatientReselection;
     private int pendingRefresh = -2;
     private Queue<Object> pendingEvents = new LinkedList<>();
     private Handler handler;
@@ -446,6 +449,14 @@ public class HomePagerActivity extends CalendulaActivity implements
     protected void onCreate(Bundle savedInstanceState) {
 
         super.onCreate(savedInstanceState);
+        // Do not inflate any clinical dashboard or drawer until the selected
+        // row's stable owner has been verified. Restored numeric-only legacy
+        // preferences require an explicit choice, not a default fallback.
+        activePatient = DB.patients().getActive(this);
+        if (activePatient == null) {
+            promptForPatientReselection();
+            return;
+        }
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
 
@@ -468,7 +479,6 @@ public class HomePagerActivity extends CalendulaActivity implements
         homeProfileMgr = new HomeProfileMgr();
         homeProfileMgr.init(userInfoFragment, this);
 
-        activePatient = DB.patients().getActive(this);
         updateScrim(0);
 
 
@@ -544,6 +554,74 @@ public class HomePagerActivity extends CalendulaActivity implements
         processIntent();
     }
 
+    /**
+     * Missing, legacy or mismatched active-owner preferences must never load
+     * another patient's medicines by simply reusing a SQLite row number.
+     * The chooser displays only existing profile labels and requires a tap;
+     * no medication, schedule or clinical event is modified here.
+     */
+    private void promptForPatientReselection() {
+        awaitingPatientReselection = true;
+        // Capture stable identities BEFORE showing a label. A database
+        // restore may recycle an SQLite ID while this dialog is displayed;
+        // reloading that ID alone after a tap could select a different owner.
+        final List<Patient> available = new ArrayList<>();
+        List<Patient> discovered = DB.patients().findAll();
+        if (discovered != null) {
+            for (Patient candidate : discovered) {
+                if (candidate == null || candidate.getId() == null) {
+                    continue;
+                }
+                Patient verified = DB.patients().findByIdWithLocalIdentity(candidate.getId());
+                if (verified == null || verified.getCode() == null
+                        || verified.getCode().trim().isEmpty()) {
+                    continue;
+                }
+                // A previously identified patient changing between the list
+                // query and its canonical read must not enter the chooser.
+                if (candidate.getCode() != null && !candidate.getCode().trim().isEmpty()
+                        && !candidate.getCode().equals(verified.getCode())) {
+                    continue;
+                }
+                available.add(verified);
+            }
+        }
+        if (available.isEmpty()) {
+            startActivity(new Intent(this, StartActivity.class));
+            finish();
+            return;
+        }
+
+        String[] labels = new String[available.size()];
+        for (int i = 0; i < available.size(); i++) {
+            String name = available.get(i).getName();
+            labels[i] = name == null || name.trim().isEmpty()
+                    ? getString(R.string.patient_reselection_profile_number, i + 1)
+                    : name;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.patient_reselection_required)
+                .setCancelable(false)
+                .setItems(labels, (dialog, which) -> {
+                    if (which < 0 || which >= available.size()) {
+                        promptForPatientReselection();
+                        return;
+                    }
+                    try {
+                        // setActive rechecks the displayed snapshot's ID AND
+                        // stable code against SQLite at selection time.
+                        DB.patients().setActive(available.get(which));
+                        recreate();
+                    } catch (RuntimeException unavailable) {
+                        // Do not present a broken/removed owner as active.
+                        LogUtil.w(TAG, "Could not restore verified patient selection");
+                        promptForPatientReselection();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, (dialog, which) -> finish())
+                .show();
+    }
+
     @Override
     protected void onPostCreate(Bundle savedInstanceState) {
         super.onPostCreate(savedInstanceState);
@@ -552,7 +630,23 @@ public class HomePagerActivity extends CalendulaActivity implements
     @Override
     protected void onResume() {
         super.onResume();
+        if (awaitingPatientReselection) {
+            return;
+        }
         Patient p = DB.patients().getActive(this);
+        if (p == null || activePatient == null
+                || p.getId() == null || activePatient.getId() == null
+                || !p.getId().equals(activePatient.getId())
+                || !java.util.Objects.equals(p.getCode(), activePatient.getCode())) {
+            // A different owner can become active while this activity is paused.
+            // Even if the SQLite ID is unchanged, never resume cached clinical
+            // fragments belonging to the previous stable identity.
+            if (coordinatorLayout != null) {
+                coordinatorLayout.setVisibility(View.INVISIBLE);
+            }
+            recreate();
+            return;
+        }
         drawerMgr.onActivityResume(p);
         active = true;
 
