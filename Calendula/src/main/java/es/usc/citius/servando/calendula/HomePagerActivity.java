@@ -60,6 +60,7 @@ import com.mikepenz.iconics.IconicsDrawable;
 import org.greenrobot.eventbus.Subscribe;
 import org.joda.time.DateTime;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
@@ -561,8 +562,31 @@ public class HomePagerActivity extends CalendulaActivity implements
      */
     private void promptForPatientReselection() {
         awaitingPatientReselection = true;
-        final List<Patient> available = DB.patients().findAll();
-        if (available == null || available.isEmpty()) {
+        // Capture stable identities BEFORE showing a label. A database
+        // restore may recycle an SQLite ID while this dialog is displayed;
+        // reloading that ID alone after a tap could select a different owner.
+        final List<Patient> available = new ArrayList<>();
+        List<Patient> discovered = DB.patients().findAll();
+        if (discovered != null) {
+            for (Patient candidate : discovered) {
+                if (candidate == null || candidate.getId() == null) {
+                    continue;
+                }
+                Patient verified = DB.patients().findByIdWithLocalIdentity(candidate.getId());
+                if (verified == null || verified.getCode() == null
+                        || verified.getCode().trim().isEmpty()) {
+                    continue;
+                }
+                // A previously identified patient changing between the list
+                // query and its canonical read must not enter the chooser.
+                if (candidate.getCode() != null && !candidate.getCode().trim().isEmpty()
+                        && !candidate.getCode().equals(verified.getCode())) {
+                    continue;
+                }
+                available.add(verified);
+            }
+        }
+        if (available.isEmpty()) {
             startActivity(new Intent(this, StartActivity.class));
             finish();
             return;
@@ -584,13 +608,9 @@ public class HomePagerActivity extends CalendulaActivity implements
                         return;
                     }
                     try {
-                        Patient persisted = DB.patients().findByIdWithLocalIdentity(
-                                available.get(which).getId());
-                        if (persisted == null) {
-                            promptForPatientReselection();
-                            return;
-                        }
-                        DB.patients().setActive(persisted);
+                        // setActive rechecks the displayed snapshot's ID AND
+                        // stable code against SQLite at selection time.
+                        DB.patients().setActive(available.get(which));
                         recreate();
                     } catch (RuntimeException unavailable) {
                         // Do not present a broken/removed owner as active.
