@@ -634,9 +634,13 @@ public class HomePagerActivity extends CalendulaActivity implements
             return;
         }
         Patient p = DB.patients().getActive(this);
-        if (p == null) {
-            // Hide cached clinical fragments immediately if a restore or
-            // patient switch invalidated the old session while suspended.
+        if (p == null || activePatient == null
+                || p.getId() == null || activePatient.getId() == null
+                || !p.getId().equals(activePatient.getId())
+                || !java.util.Objects.equals(p.getCode(), activePatient.getCode())) {
+            // A different owner can become active while this activity is paused.
+            // Even if the SQLite ID is unchanged, never resume cached clinical
+            // fragments belonging to the previous stable identity.
             if (coordinatorLayout != null) {
                 coordinatorLayout.setVisibility(View.INVISIBLE);
             }
