@@ -155,6 +155,28 @@ public class PatientActiveSelectionSafetyTest {
     }
 
     @Test
+    public void idOnlyActivationCannotBypassExplicitReselectionMarker() throws Exception {
+        Dao<Patient, Long> raw = rawDao();
+        PatientDao subject = createSubject(raw);
+        Patient replacement = new Patient();
+        replacement.setId(98524L);
+        replacement.setCode("local-ci-reselection-required");
+        when(raw.queryForId(98524L)).thenReturn(replacement);
+        String digest = PatientDao.stablePatientDigest(replacement.getCode());
+        try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
+            prefs.when(() -> PreferenceUtils.getLong(
+                    PreferenceKeys.PATIENTS_ACTIVE, -1L)).thenReturn(98524L);
+            prefs.when(() -> PreferenceUtils.getString(
+                    PreferenceKeys.PATIENTS_ACTIVE_OWNER, null)).thenReturn(digest);
+            prefs.when(() -> PreferenceUtils.getBoolean(
+                    PreferenceKeys.PATIENTS_RESELECTION_REQUIRED, false)).thenReturn(true);
+            assertThrows(IllegalArgumentException.class,
+                    () -> subject.setActiveById(98524L));
+            prefs.verify(PreferenceUtils::edit, org.mockito.Mockito.never());
+        }
+    }
+
+    @Test
     public void bareRowIdMayRefreshOnlyItsAlreadyBoundActiveOwner() throws Exception {
         Dao<Patient, Long> raw = rawDao();
         PatientDao subject = createSubject(raw);
