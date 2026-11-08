@@ -178,6 +178,11 @@ public class HomePagerActivity extends CalendulaActivity implements
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
+        // The recovery chooser has no clinical dashboard or pager yet.
+        // Action-bar callbacks must not dereference uninitialized views.
+        if (awaitingPatientReselection || mViewPager == null) {
+            return false;
+        }
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.home, menu);
         menuItems = new SparseArray<>(menu.size());
@@ -191,6 +196,9 @@ public class HomePagerActivity extends CalendulaActivity implements
 
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
+        if (awaitingPatientReselection || mViewPager == null || menuItems == null) {
+            return false;
+        }
 
         final int pageNum = mViewPager.getCurrentItem();
         final HomePages page = HomePages.getPage(pageNum);
@@ -686,6 +694,11 @@ public class HomePagerActivity extends CalendulaActivity implements
     }//onActivityResult
 
     private void processIntent() {
+        // Deep links can arrive while a restored owner is still unverified.
+        // Do not open a medication tab before the explicit profile choice.
+        if (awaitingPatientReselection || mViewPager == null || getIntent() == null) {
+            return;
+        }
         final String action = getIntent().getStringExtra(IntentParams.EXTRA_ACTION);
         if (action != null && action.equals(IntentParams.ACTION_SHOW_ACTIVE_MEDS)) {
             mViewPager.setCurrentItem(HomePages.ACTIVE_MEDICATION.ordinal());
