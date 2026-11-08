@@ -298,11 +298,32 @@ public class PatientDao extends GenericDao<Patient, Long> {
      * @see #setActive(Patient)
      */
     public void setActiveById(Long id) {
-        if (id == null) {
+        // A bare numeric ID can never explicitly select a NEW profile: a
+        // database restore can recycle that ID for another patient. This
+        // compatibility entry point may only refresh an ALREADY verified
+        // binding. New selections must use setActive(Patient) with a stable
+        // owner snapshot obtained from the profile chooser.
+        if (id == null || id <= 0L) {
             throw new IllegalArgumentException("Cannot activate a missing patient");
         }
-        // Centralize the persisted-record guard and change notification.
-        setActive(findByIdWithLocalIdentity(id));
+        Patient persisted = findById(id);
+        if (persisted == null) {
+            throw new IllegalArgumentException("Cannot activate a deleted patient");
+        }
+        String binding = selectedOwnerBinding();
+        final long savedId;
+        try {
+            savedId = PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1L);
+        } catch (ClassCastException invalidSavedSelection) {
+            throw new IllegalArgumentException("Cannot activate an invalid saved selection",
+                    invalidSavedSelection);
+        }
+        String currentDigest = stablePatientDigest(persisted.getCode());
+        if (savedId != id.longValue() || currentDigest == null
+                || !currentDigest.equals(binding)) {
+            throw new IllegalArgumentException("Numeric ID lacks a verified active-owner binding");
+        }
+        setActive(persisted);
     }
 
 
