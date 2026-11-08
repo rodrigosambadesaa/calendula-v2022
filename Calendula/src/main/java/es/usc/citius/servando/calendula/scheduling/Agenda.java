@@ -734,6 +734,36 @@ public class Agenda {
         }
     }
 
+    /**
+     * Revoke only the OS tokens captured in a successfully COMMITTED patient
+     * erasure. Do not cancel an ID that a concurrent writer has reused for a
+     * new persisted reminder. A crash leaves only a harmless stale token:
+     * onReceiveAlarm checks SQLite before delivering a medication event.
+     */
+    public void cancelDeletedPatientReminderTokens(Context context,
+                                                    List<EventReminder> removed) {
+        if (context == null || removed == null) {
+            return; // Retryable OS cleanup; never undo committed clinical SQL.
+        }
+        for (EventReminder reminder : removed) {
+            if (reminder == null || reminder.getId() == null
+                    || reminder.getId() <= 0L || reminder.getPatient() == null) {
+                continue;
+            }
+            try {
+                if (DB.eventReminders().findById(reminder.getId()) != null) {
+                    continue;
+                }
+                cancelAlarm(context, reminder);
+                IntakeNotificationMgr.cancel(context, reminder);
+            } catch (RuntimeException cleanupFailure) {
+                // A platform failure must not falsely report that the SQL
+                // erasure rolled back, or trigger deletion of another owner.
+                LogUtil.w(TAG, "Patient erasure committed; OS cleanup deferred");
+            }
+        }
+    }
+
     public void deleteAllReminders(Context context) {
         List<EventReminder> eventReminders = DB.eventReminders().findAll();
         for (EventReminder r : eventReminders) {

@@ -25,6 +25,7 @@ import com.j256.ormlite.dao.Dao;
 
 import java.sql.SQLException;
 import java.util.UUID;
+import java.util.List;
 
 import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.events.PersistenceEvents;
@@ -33,6 +34,7 @@ import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.PatientAllergen;
 import es.usc.citius.servando.calendula.persistence.Routine;
+import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
@@ -268,21 +270,79 @@ public class PatientDao extends GenericDao<Patient, Long> {
         return live;
     }
 
-    public void removeCascade(Patient p) {
-        // Verify the owner before touching ANY medication, reminders or
-        // historical decisions. Missing/deleted/stale ID is not permission to
-        // run a destructive partial cleanup.
-        Patient persisted = requirePersistedPatientForErasure(p);
-        // Removing a schedule retains decided intake history by design.
-        // Explicit deletion of a patient must not: scrub their remaining
-        // completed/cancelled event snapshots and alarm tokens before removing
-        // their identity. The patient is retained if either cleanup fails.
-        removeAllStuff(persisted);
-        DB.eventInstances().removeAllForPatient(persisted);
-        es.usc.citius.servando.calendula.scheduling.Agenda.instance()
-                .removeRemindersForPatient(CalendulaApp.getContext(), persisted);
-        DB.patients().remove(persisted);
+    /**
+     * Erase one verified owner's entire clinical graph atomically. Every
+     * database write below participates in the SAME outer transaction.
+     * AlarmManager, notifications and EventBus cannot roll back with SQLite:
+     * those operations must run only after the outer COMMIT succeeds.
+     */
+    @SuppressWarnings("unchecked")
+    public void removeCascade(Patient candidate) {
+        final Patient original = requirePersistedPatientForErasure(candidate);
+        final Long ownerId = original.getId();
+        final List<EventReminder> retiredReminders = (List<EventReminder>) DB.transaction(() -> {
+            // Recheck the stable identity inside the SQL transaction. A stale
+            // object must never authorize another owner under a reused row ID.
+            Patient current = requirePersistedPatientForErasure(candidate);
+            if (!ownerId.equals(current.getId())) {
+                throw new SQLException("Patient identity changed during erasure");
+            }
+            removeAllStuffSql(current);
+            DB.eventInstances().removeAllForPatient(current);
 
+            // Snapshot the exact OS reminder tokens while rows still exist.
+            // Delete only named patient rows; checked counts force a full
+            // rollback on a failed/partial SQL statement.
+            List<EventReminder> owned = DB.eventReminders().findBy(
+                    EventReminder.COLUMN_PATIENT, ownerId);
+            for (EventReminder reminder : owned) {
+                if (reminder == null || reminder.getId() == null
+                        || reminder.getPatient() == null
+                        || !ownerId.equals(reminder.getPatient().getId())) {
+                    throw new SQLException("Patient reminder owner mismatch");
+                }
+                if (DB.eventReminders().delete(reminder) != 1) {
+                    throw new SQLException("Could not remove patient reminder");
+                }
+            }
+            if (DB.patients().delete(current) != 1) {
+                throw new SQLException("Could not remove persisted patient");
+            }
+            return owned;
+        });
+
+        // On interruption after COMMIT, SQLite rows are already absent and
+        // stale PendingIntents cannot authorize delivery. Cleanup is best
+        // effort; it must not retroactively report an SQL rollback.
+        es.usc.citius.servando.calendula.scheduling.Agenda.instance()
+                .cancelDeletedPatientReminderTokens(CalendulaApp.getContext(), retiredReminders);
+        DB.medicines().fireEvent();
+    }
+
+    /** SQL-only graph deletion used exclusively by the enclosing erasure. */
+    private void removeAllStuffSql(Patient patient) throws SQLException {
+        final Long ownerId = requirePersistedPatientForErasure(patient).getId();
+        for (Medicine medicine : DB.medicines().findAll(ownerId)) {
+            if (medicine == null || medicine.getPatient() == null
+                    || !ownerId.equals(medicine.getPatient().getId())) {
+                throw new SQLException("Patient medicine owner mismatch");
+            }
+            DB.medicines().deleteCascadeSql(medicine);
+        }
+        for (Routine routine : DB.routines().findAll(ownerId)) {
+            if (routine == null || routine.getPatient() == null
+                    || !ownerId.equals(routine.getPatient().getId())
+                    || DB.routines().delete(routine) != 1) {
+                throw new SQLException("Could not remove patient routine");
+            }
+        }
+        for (PatientAllergen allergen : DB.patientAllergens().findAll(ownerId)) {
+            if (allergen == null || allergen.getPatient() == null
+                    || !ownerId.equals(allergen.getPatient().getId())
+                    || DB.patientAllergens().delete(allergen) != 1) {
+                throw new SQLException("Could not remove patient allergen");
+            }
+        }
     }
 
     public void removeAllStuff(Patient p) {

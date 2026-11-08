@@ -360,6 +360,104 @@ public class PatientDeletionScopeSmokeTest {
     }
 
     @Test
+    public void explicitPatientErasureRollsBackEntireClinicalGraphOnLateSqlFailure()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Patient owner = new Patient();
+        owner.setCode("ci-atomic-erasure-A-" + System.nanoTime());
+        owner.setName("Synthetic owner A");
+        Patient other = new Patient();
+        other.setCode("ci-atomic-erasure-B-" + System.nanoTime());
+        other.setName("Synthetic owner B");
+        Medicine medicine = new Medicine("Synthetic dose", Presentation.PILLS);
+        Medicine protectedMedicine = new Medicine("Protected synthetic dose", Presentation.PILLS);
+        Routine routine = null;
+        PatientAllergen allergy = null;
+        DateTime due = DateTime.now().plusHours(11).withMillisOfSecond(0);
+        EventInstance completed = new EventInstance(due, EventType.MEDICATION_INTAKE);
+        EventReminder reminder = new EventReminder(due, EventType.MEDICATION_INTAKE);
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        String trigger = "ci_atomic_patient_erasure_abort";
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            assertEquals(1, DB.patients().create(other));
+            medicine.setPatient(owner);
+            protectedMedicine.setPatient(other);
+            assertEquals(1, DB.medicines().create(medicine));
+            assertEquals(1, DB.medicines().create(protectedMedicine));
+            routine = new Routine(owner, new LocalTime(6, 20), "Synthetic morning");
+            assertEquals(1, DB.routines().create(routine));
+            allergy = new PatientAllergen("Synthetic ingredient",
+                    AllergenType.ACTIVE_INGREDIENT, "SYNTHETIC-ATOMIC-ID", owner);
+            assertEquals(1, DB.patientAllergens().create(allergy));
+            completed.setPatient(owner);
+            completed.setRef(-91000001L);
+            completed.addParam(EventInstance.PARAM_DOSE, 1.5d);
+            completed.setCompleted(true);
+            completed.setCompletedAt(DateTime.now().minusMinutes(3));
+            assertEquals(1, DB.eventInstances().create(completed));
+            reminder.setPatient(owner);
+            reminder.setNextTime(due);
+            assertEquals(1, DB.eventReminders().create(reminder));
+
+            // The patient DELETE is deliberately last. Every preceding graph
+            // deletion must roll back, including medicine, history and alarms.
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE DELETE ON Patients WHEN OLD._id = " + owner.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic late patient erase failure'); END;");
+            boolean failed = false;
+            try {
+                DB.patients().removeCascade(owner);
+            } catch (RuntimeException expected) {
+                failed = true;
+            }
+            assertTrue("A failed final patient DELETE must abort the erasure", failed);
+            assertNotNull("Patient was not partly erased", DB.patients().findById(owner.getId()));
+            assertNotNull("Medicine must roll back", DB.medicines().findById(medicine.getId()));
+            assertNotNull("Routine must roll back", DB.routines().findById(routine.getId()));
+            assertNotNull("Allergy must roll back", DB.patientAllergens().findById(allergy.getId()));
+            assertNotNull("Decided intake must roll back",
+                    DB.eventInstances().findById(completed.getId()));
+            assertNotNull("Reminder must roll back, not lose its OS token",
+                    DB.eventReminders().findById(reminder.getId()));
+            assertNotNull("Other patient remains", DB.patients().findById(other.getId()));
+            assertNotNull("Other medicine remains",
+                    DB.medicines().findById(protectedMedicine.getId()));
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            DB.patients().removeCascade(owner);
+            assertNull(DB.patients().findById(owner.getId()));
+            assertNull(DB.medicines().findById(medicine.getId()));
+            assertNull(DB.routines().findById(routine.getId()));
+            assertNull(DB.patientAllergens().findById(allergy.getId()));
+            assertNull(DB.eventInstances().findById(completed.getId()));
+            assertNull(DB.eventReminders().findById(reminder.getId()));
+            assertNotNull(DB.medicines().findById(protectedMedicine.getId()));
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            if (reminder.getId() != null && DB.eventReminders().findById(reminder.getId()) != null)
+                DB.eventReminders().remove(reminder);
+            if (completed.getId() != null && DB.eventInstances().findById(completed.getId()) != null)
+                DB.eventInstances().remove(completed);
+            if (allergy != null && allergy.getId() != null
+                    && DB.patientAllergens().findById(allergy.getId()) != null)
+                DB.patientAllergens().remove(allergy);
+            if (routine != null && routine.getId() != null
+                    && DB.routines().findById(routine.getId()) != null)
+                DB.routines().remove(routine);
+            for (Medicine current : new Medicine[]{medicine, protectedMedicine}) {
+                if (current.getId() != null && DB.medicines().findById(current.getId()) != null)
+                    DB.medicines().remove(current);
+            }
+            for (Patient current : new Patient[]{owner, other}) {
+                if (current.getId() != null && DB.patients().findById(current.getId()) != null)
+                    DB.patients().remove(current);
+            }
+        }
+    }
+
+    @Test
     public void deletingPatientRemovesOnlyTheirMedicationsAndRoutines() throws Exception {
         assertTrue(DB.initialized);
         final long seed = 2000000000L + (System.nanoTime() & 0x3fffffffL);
