@@ -627,6 +627,19 @@ public class HomePagerActivity extends CalendulaActivity implements
         super.onPostCreate(savedInstanceState);
     }
 
+    /**
+     * A cached clinical view belongs to a stable owner, not merely the
+     * database row number that might be recycled during a restore.
+     */
+    static boolean sameDashboardOwner(Patient displayed, Patient selected) {
+        return displayed != null && selected != null
+                && displayed.getId() != null && selected.getId() != null
+                && displayed.getId().equals(selected.getId())
+                && displayed.getCode() != null
+                && !displayed.getCode().trim().isEmpty()
+                && displayed.getCode().equals(selected.getCode());
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -634,10 +647,7 @@ public class HomePagerActivity extends CalendulaActivity implements
             return;
         }
         Patient p = DB.patients().getActive(this);
-        if (p == null || activePatient == null
-                || p.getId() == null || activePatient.getId() == null
-                || !p.getId().equals(activePatient.getId())
-                || !java.util.Objects.equals(p.getCode(), activePatient.getCode())) {
+        if (!sameDashboardOwner(activePatient, p)) {
             // A different owner can become active while this activity is paused.
             // Even if the SQLite ID is unchanged, never resume cached clinical
             // fragments belonging to the previous stable identity.
@@ -686,10 +696,7 @@ public class HomePagerActivity extends CalendulaActivity implements
         // A cached activity selection is not an authorization to display
         // provider metadata after switching profiles on another screen.
         Patient selectedNow = DB.patients().getActive(this);
-        if (activePatient == null || activePatient.getId() == null
-                || selectedNow == null || selectedNow.getId() == null
-                || !activePatient.getId().equals(selectedNow.getId())
-                || !java.util.Objects.equals(activePatient.getCode(), selectedNow.getCode())) {
+        if (!sameDashboardOwner(activePatient, selectedNow)) {
             Toast.makeText(this, R.string.active_med_no_last_updated_time,
                     Toast.LENGTH_SHORT).show();
             return;
