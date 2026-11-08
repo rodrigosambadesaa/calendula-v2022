@@ -62,6 +62,18 @@ public class ActivePatientOwnerBindingSmokeTest {
             assertNull(DB.patients().getActive(ctx));
             assertFalse(DB.patients().isActive(replacement, ctx));
 
+            // An ID-only convenience call must not silently turn a recycled
+            // SQLite ID into authorization for the replacement profile.
+            boolean rejectedIdOnly = false;
+            try {
+                DB.patients().setActiveById(replacement.getId());
+            } catch (IllegalArgumentException expected) {
+                rejectedIdOnly = true;
+            }
+            assertTrue("Recycled numeric ID cannot be used to switch owners", rejectedIdOnly);
+            assertEquals("Original binding remains intact", digestA,
+                    prefs.getString(bindingKey, null));
+
             // A legacy numeric ID with no binding cannot identify its owner.
             assertTrue(prefs.edit().remove(bindingKey).commit());
             assertNull(DB.patients().getActive(ctx));
