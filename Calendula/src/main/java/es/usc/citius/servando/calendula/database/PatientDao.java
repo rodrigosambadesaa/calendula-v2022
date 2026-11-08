@@ -318,8 +318,16 @@ public class PatientDao extends GenericDao<Patient, Long> {
             throw new IllegalArgumentException("Cannot activate an invalid saved selection",
                     invalidSavedSelection);
         }
+        final boolean recoveryRequired;
+        try {
+            recoveryRequired = PreferenceUtils.getBoolean(
+                    PreferenceKeys.PATIENTS_RESELECTION_REQUIRED, false);
+        } catch (ClassCastException invalidRecoveryMarker) {
+            throw new IllegalArgumentException("Saved patient recovery marker is invalid",
+                    invalidRecoveryMarker);
+        }
         String currentDigest = stablePatientDigest(persisted.getCode());
-        if (savedId != id.longValue() || currentDigest == null
+        if (recoveryRequired || savedId != id.longValue() || currentDigest == null
                 || !currentDigest.equals(binding)) {
             throw new IllegalArgumentException("Numeric ID lacks a verified active-owner binding");
         }
