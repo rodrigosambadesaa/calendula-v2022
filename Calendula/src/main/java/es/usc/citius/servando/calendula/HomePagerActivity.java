@@ -334,7 +334,16 @@ public class HomePagerActivity extends CalendulaActivity implements
                         // stock info may need to be updated
                         ((MedicinesListFragment) getViewPagerFragment(HomePages.MEDICINES)).notifyDataChange();
                     } else if (event instanceof PersistenceEvents.ActiveUserChangeEvent) {
-                        activePatient = ((PersistenceEvents.ActiveUserChangeEvent) event).patient;
+                        Patient selected = ((PersistenceEvents.ActiveUserChangeEvent) event).patient;
+                        if (!sameDashboardOwner(activePatient, selected)) {
+                            // Switching accounts inside the drawer must hide
+                            // every cached clinical card, not just update the
+                            // title while fragments asynchronously reload.
+                            coordinatorLayout.setVisibility(View.INVISIBLE);
+                            recreate();
+                            return;
+                        }
+                        activePatient = selected;
                         updateTitle(mViewPager.getCurrentItem());
                         toolbarLayout.setContentScrimColor(activePatient.getColor());
                         fabMgr.onPatientUpdate(activePatient);
@@ -445,6 +454,17 @@ public class HomePagerActivity extends CalendulaActivity implements
     public void onNewIntent(Intent newIntent) {
         super.onNewIntent(newIntent);
         this.setIntent(newIntent);
+        // A deep link can arrive while the activity remains visible after a
+        // different patient was selected. Recheck the stable owner before
+        // interpreting any medication navigation request.
+        if (!awaitingPatientReselection && mViewPager != null
+                && !sameDashboardOwner(activePatient, DB.patients().getActive(this))) {
+            if (coordinatorLayout != null) {
+                coordinatorLayout.setVisibility(View.INVISIBLE);
+            }
+            recreate();
+            return;
+        }
         processIntent();
     }
 
