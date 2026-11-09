@@ -133,7 +133,9 @@ public class PatientErasureAlarmAtomicitySmokeTest {
 
             // Simulate the already-committed SQL-only deletion and a process
             // interruption before the platform PendingIntent can be retired.
-            assertEquals(1, DB.eventReminders().deleteById(removedSnapshot.getId()));
+            DB.helper().getWritableDatabase().execSQL(
+                    "DELETE FROM EventReminders WHERE _id = ?",
+                    new Object[]{removedSnapshot.getId()});
             assertNull(DB.eventReminders().findById(removedSnapshot.getId()));
             assertNotNull("A SQLite commit alone cannot cancel an OS token",
                     currentToken(context, removedSnapshot));
