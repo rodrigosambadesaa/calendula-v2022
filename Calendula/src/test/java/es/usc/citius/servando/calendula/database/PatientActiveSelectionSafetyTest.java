@@ -180,6 +180,7 @@ public class PatientActiveSelectionSafetyTest {
     public void bareRowIdMayRefreshOnlyItsAlreadyBoundActiveOwner() throws Exception {
         Dao<Patient, Long> raw = rawDao();
         PatientDao subject = createSubject(raw);
+        Context context = ApplicationProvider.getApplicationContext();
         Patient current = new Patient();
         current.setId(98523L);
         current.setCode("local-ci-verified-current-owner");
@@ -199,6 +200,7 @@ public class PatientActiveSelectionSafetyTest {
             prefs.when(() -> PreferenceUtils.getString(
                     PreferenceKeys.PATIENTS_ACTIVE_OWNER, null)).thenReturn(digest);
             prefs.when(PreferenceUtils::edit).thenReturn(editor);
+            app.when(CalendulaApp::getContext).thenReturn(context);
             app.when(CalendulaApp::eventBus).thenReturn(events);
             subject.setActiveById(98523L);
             verify(editor).putString(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key(), digest);
