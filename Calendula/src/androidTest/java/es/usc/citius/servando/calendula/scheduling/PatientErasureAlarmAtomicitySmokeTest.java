@@ -16,6 +16,8 @@ import org.joda.time.DateTime;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.Collections;
+
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
@@ -37,6 +39,69 @@ public class PatientErasureAlarmAtomicitySmokeTest {
         return PendingIntent.getBroadcast(ctx, 0,
                 Agenda.reminderBroadcastIntent(ctx, reminder),
                 PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE));
+    }
+
+
+    /**
+     * A post-COMMIT alarm cleanup may be delayed while another patient
+     * acquires the same SQLite reminder row number. A stale deletion snapshot
+     * is never permission to cancel the replacement patient's OS token.
+     */
+    @Test
+    public void staleDeletionSnapshotCannotCancelReusedReminderIdAlarm()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        String nonce = Long.toString(System.nanoTime());
+        Patient retiredOwner = new Patient();
+        retiredOwner.setName("Synthetic retired reminder owner");
+        retiredOwner.setCode("ci-retired-alarm-owner-" + nonce);
+        Patient currentOwner = new Patient();
+        currentOwner.setName("Synthetic current reminder owner");
+        currentOwner.setCode("ci-current-alarm-owner-" + nonce);
+        DateTime when = DateTime.now().plusHours(8).withMillisOfSecond(0);
+        EventReminder current = new EventReminder(when, EventType.MEDICATION_INTAKE);
+        current.setPatient(currentOwner);
+        current.setNextTime(when);
+
+        try {
+            assertEquals(1, DB.patients().create(retiredOwner));
+            assertEquals(1, DB.patients().create(currentOwner));
+            assertEquals(1, DB.eventReminders().create(current));
+            assertNotNull(current.getId());
+            Agenda.instance().setAlarm(context, current);
+            assertNotNull("Current patient's synthetic alarm must exist",
+                    currentToken(context, current));
+
+            // Emulate a delayed cleanup snapshot carrying the same SQL row ID
+            // from an erased different owner. The current row and OS token
+            // belong only to currentOwner; no real patient data is involved.
+            EventReminder obsolete = new EventReminder(when, EventType.MEDICATION_INTAKE);
+            obsolete.setId(current.getId());
+            obsolete.setPatient(retiredOwner);
+            obsolete.setNextTime(when);
+            Agenda.instance().cancelDeletedPatientReminderTokens(
+                    context, Collections.singletonList(obsolete));
+
+            assertNotNull("Reused reminder ID must not cancel another owner's alarm",
+                    currentToken(context, current));
+            EventReminder persisted = DB.eventReminders().findById(current.getId());
+            assertNotNull("Replacement reminder must survive old cleanup", persisted);
+            assertEquals(currentOwner.getId(), persisted.getPatient().getId());
+            assertNotNull(DB.patients().findById(retiredOwner.getId()));
+        } finally {
+            if (current.getId() != null) {
+                Agenda.instance().cancelAlarm(context, current);
+                if (DB.eventReminders().findById(current.getId()) != null) {
+                    DB.eventReminders().remove(current);
+                }
+            }
+            for (Patient owner : new Patient[]{retiredOwner, currentOwner}) {
+                if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                    DB.patients().remove(owner);
+                }
+            }
+        }
     }
 
     @Test
