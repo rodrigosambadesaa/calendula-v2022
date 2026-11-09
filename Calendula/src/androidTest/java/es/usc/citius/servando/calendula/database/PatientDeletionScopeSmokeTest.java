@@ -375,8 +375,10 @@ public class PatientDeletionScopeSmokeTest {
         other.setCode("ci-atomic-erasure-B-" + System.nanoTime());
         other.setName("Synthetic owner B");
         Medicine medicine = new Medicine("Synthetic dose", Presentation.PILLS);
+        Medicine secondMedicine = new Medicine("Synthetic second dose", Presentation.PILLS);
         Medicine protectedMedicine = new Medicine("Protected synthetic dose", Presentation.PILLS);
         Schedule schedule = new Schedule();
+        Schedule secondSchedule = new Schedule();
         PickupInfo pickup = new PickupInfo();
         PatientAlert stockAlert = null;
         Routine routine = null;
@@ -391,12 +393,20 @@ public class PatientDeletionScopeSmokeTest {
             assertEquals(1, DB.patients().create(owner));
             assertEquals(1, DB.patients().create(other));
             medicine.setPatient(owner);
+            medicine.setStock(15.5f);
+            secondMedicine.setPatient(owner);
+            secondMedicine.setStock(6.25f);
             protectedMedicine.setPatient(other);
+            protectedMedicine.setStock(11.75f);
             assertEquals(1, DB.medicines().create(medicine));
+            assertEquals(1, DB.medicines().create(secondMedicine));
             assertEquals(1, DB.medicines().create(protectedMedicine));
             schedule.setMedicine(medicine);
             schedule.setPatient(owner);
             assertEquals(1, DB.schedules().create(schedule));
+            secondSchedule.setMedicine(secondMedicine);
+            secondSchedule.setPatient(owner);
+            assertEquals(1, DB.schedules().create(secondSchedule));
             pickup.setMedicine(medicine);
             assertEquals(1, DB.pickups().create(pickup));
             stockAlert = new StockRunningOutAlert(medicine, LocalDate.now());
@@ -430,7 +440,15 @@ public class PatientDeletionScopeSmokeTest {
             assertTrue("A failed final patient DELETE must abort the erasure", failed);
             assertNotNull("Patient was not partly erased", DB.patients().findById(owner.getId()));
             assertNotNull("Medicine must roll back", DB.medicines().findById(medicine.getId()));
+            assertNotNull("Second medicine must also roll back",
+                    DB.medicines().findById(secondMedicine.getId()));
+            assertEquals("Managed stock must roll back", 15.5f,
+                    DB.medicines().findById(medicine.getId()).getStock(), 0.0001f);
+            assertEquals("Second medicine stock must roll back", 6.25f,
+                    DB.medicines().findById(secondMedicine.getId()).getStock(), 0.0001f);
             assertNotNull("Schedule must roll back", DB.schedules().findById(schedule.getId()));
+            assertNotNull("Second schedule must roll back",
+                    DB.schedules().findById(secondSchedule.getId()));
             assertNotNull("Pickup must roll back", DB.pickups().findById(pickup.getId()));
             assertNotNull("Stock alert must roll back", DB.alerts().findById(stockAlert.id()));
             assertNotNull("Routine must roll back", DB.routines().findById(routine.getId()));
@@ -442,12 +460,16 @@ public class PatientDeletionScopeSmokeTest {
             assertNotNull("Other patient remains", DB.patients().findById(other.getId()));
             assertNotNull("Other medicine remains",
                     DB.medicines().findById(protectedMedicine.getId()));
+            assertEquals("Other patient stock must never be modified", 11.75f,
+                    DB.medicines().findById(protectedMedicine.getId()).getStock(), 0.0001f);
 
             sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
             DB.patients().removeCascade(owner);
             assertNull(DB.patients().findById(owner.getId()));
             assertNull(DB.medicines().findById(medicine.getId()));
+            assertNull(DB.medicines().findById(secondMedicine.getId()));
             assertNull(DB.schedules().findById(schedule.getId()));
+            assertNull(DB.schedules().findById(secondSchedule.getId()));
             assertNull(DB.pickups().findById(pickup.getId()));
             assertNull(DB.alerts().findById(stockAlert.id()));
             assertNull(DB.routines().findById(routine.getId()));
@@ -455,6 +477,8 @@ public class PatientDeletionScopeSmokeTest {
             assertNull(DB.eventInstances().findById(completed.getId()));
             assertNull(DB.eventReminders().findById(reminder.getId()));
             assertNotNull(DB.medicines().findById(protectedMedicine.getId()));
+            assertEquals("Unrelated stock remains unchanged after committed erase", 11.75f,
+                    DB.medicines().findById(protectedMedicine.getId()).getStock(), 0.0001f);
         } finally {
             sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
             if (stockAlert != null && stockAlert.id() != null
@@ -464,6 +488,9 @@ public class PatientDeletionScopeSmokeTest {
                 DB.pickups().deleteById(pickup.getId());
             if (schedule.getId() != null && DB.schedules().findById(schedule.getId()) != null)
                 DB.schedules().deleteById(schedule.getId());
+            if (secondSchedule.getId() != null
+                    && DB.schedules().findById(secondSchedule.getId()) != null)
+                DB.schedules().deleteById(secondSchedule.getId());
             if (reminder.getId() != null && DB.eventReminders().findById(reminder.getId()) != null)
                 DB.eventReminders().remove(reminder);
             if (completed.getId() != null && DB.eventInstances().findById(completed.getId()) != null)
@@ -474,7 +501,7 @@ public class PatientDeletionScopeSmokeTest {
             if (routine != null && routine.getId() != null
                     && DB.routines().findById(routine.getId()) != null)
                 DB.routines().remove(routine);
-            for (Medicine current : new Medicine[]{medicine, protectedMedicine}) {
+            for (Medicine current : new Medicine[]{medicine, secondMedicine, protectedMedicine}) {
                 if (current.getId() != null && DB.medicines().findById(current.getId()) != null)
                     DB.medicines().remove(current);
             }
