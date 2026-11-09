@@ -163,6 +163,82 @@ public class PatientErasureAlarmAtomicitySmokeTest {
         }
     }
 
+
+    /**
+     * Exercise the real patient-erasure entry point with two disposable owners
+     * and two actual PendingIntents. SQL deletion and OS cancellation must
+     * affect only the requested patient, not the survivor's reminder.
+     */
+    @Test
+    public void erasingOnePatientLeavesOtherPatientsAlarmUntouched()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        String nonce = Long.toString(System.nanoTime());
+        Patient erased = new Patient();
+        erased.setName("Synthetic erased alarm owner");
+        erased.setCode("ci-erased-alarm-owner-" + nonce);
+        Patient survivor = new Patient();
+        survivor.setName("Synthetic surviving alarm owner");
+        survivor.setCode("ci-surviving-alarm-owner-" + nonce);
+        DateTime when = DateTime.now().plusHours(10).withMillisOfSecond(0);
+        EventReminder removedReminder =
+                new EventReminder(when, EventType.MEDICATION_INTAKE);
+        removedReminder.setNextTime(when);
+        removedReminder.setPatient(erased);
+        EventReminder survivingReminder =
+                new EventReminder(when.plusMinutes(1), EventType.MEDICATION_INTAKE);
+        survivingReminder.setNextTime(when.plusMinutes(1));
+        survivingReminder.setPatient(survivor);
+
+        try {
+            assertEquals(1, DB.patients().create(erased));
+            assertEquals(1, DB.patients().create(survivor));
+            assertEquals(1, DB.eventReminders().create(removedReminder));
+            assertEquals(1, DB.eventReminders().create(survivingReminder));
+            assertNotNull(removedReminder.getId());
+            assertNotNull(survivingReminder.getId());
+            Agenda.instance().setAlarm(context, removedReminder);
+            Agenda.instance().setAlarm(context, survivingReminder);
+            assertNotNull("Erased owner's test alarm must exist",
+                    currentToken(context, removedReminder));
+            assertNotNull("Surviving owner's test alarm must exist",
+                    currentToken(context, survivingReminder));
+
+            DB.patients().removeCascade(erased);
+
+            assertNull("Erased owner must be gone", DB.patients().findById(erased.getId()));
+            assertNull("Erased reminder must be gone",
+                    DB.eventReminders().findById(removedReminder.getId()));
+            assertNull("Erased alarm must be cancelled only after commit",
+                    currentToken(context, removedReminder));
+            assertNotNull("Unrelated patient must survive",
+                    DB.patients().findById(survivor.getId()));
+            EventReminder remaining =
+                    DB.eventReminders().findById(survivingReminder.getId());
+            assertNotNull("Unrelated reminder must survive", remaining);
+            assertEquals(survivor.getId(), remaining.getPatient().getId());
+            assertNotNull("Unrelated OS alarm must remain scheduled",
+                    currentToken(context, survivingReminder));
+        } finally {
+            for (EventReminder reminder :
+                    new EventReminder[]{removedReminder, survivingReminder}) {
+                if (reminder.getId() != null) {
+                    Agenda.instance().cancelAlarm(context, reminder);
+                    if (DB.eventReminders().findById(reminder.getId()) != null) {
+                        DB.eventReminders().deleteById(reminder.getId());
+                    }
+                }
+            }
+            for (Patient owner : new Patient[]{erased, survivor}) {
+                if (owner.getId() != null
+                        && DB.patients().findById(owner.getId()) != null) {
+                    DB.patients().remove(owner);
+                }
+            }
+        }
+    }
+
     @Test
     public void failedFinalSqlDeleteRetainsAlarmThenCommittedEraseCancelsIt()
             throws Exception {
