@@ -12,17 +12,22 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import org.joda.time.DateTime;
+import org.joda.time.LocalDate;
 import org.joda.time.LocalTime;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import es.usc.citius.servando.calendula.allergies.AllergenType;
 import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.PatientAlert;
+import es.usc.citius.servando.calendula.persistence.PickupInfo;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.PatientAllergen;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.persistence.Routine;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
+import es.usc.citius.servando.calendula.persistence.Schedule;
+import es.usc.citius.servando.calendula.persistence.alerts.StockRunningOutAlert;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
@@ -371,6 +376,9 @@ public class PatientDeletionScopeSmokeTest {
         other.setName("Synthetic owner B");
         Medicine medicine = new Medicine("Synthetic dose", Presentation.PILLS);
         Medicine protectedMedicine = new Medicine("Protected synthetic dose", Presentation.PILLS);
+        Schedule schedule = new Schedule();
+        PickupInfo pickup = new PickupInfo();
+        PatientAlert stockAlert = null;
         Routine routine = null;
         PatientAllergen allergy = null;
         DateTime due = DateTime.now().plusHours(11).withMillisOfSecond(0);
@@ -386,6 +394,13 @@ public class PatientDeletionScopeSmokeTest {
             protectedMedicine.setPatient(other);
             assertEquals(1, DB.medicines().create(medicine));
             assertEquals(1, DB.medicines().create(protectedMedicine));
+            schedule.setMedicine(medicine);
+            schedule.setPatient(owner);
+            assertEquals(1, DB.schedules().create(schedule));
+            pickup.setMedicine(medicine);
+            assertEquals(1, DB.pickups().create(pickup));
+            stockAlert = new StockRunningOutAlert(medicine, LocalDate.now());
+            assertEquals(1, DB.alerts().create(stockAlert));
             routine = new Routine(owner, new LocalTime(6, 20), "Synthetic morning");
             assertEquals(1, DB.routines().create(routine));
             allergy = new PatientAllergen("Synthetic ingredient",
@@ -415,6 +430,9 @@ public class PatientDeletionScopeSmokeTest {
             assertTrue("A failed final patient DELETE must abort the erasure", failed);
             assertNotNull("Patient was not partly erased", DB.patients().findById(owner.getId()));
             assertNotNull("Medicine must roll back", DB.medicines().findById(medicine.getId()));
+            assertNotNull("Schedule must roll back", DB.schedules().findById(schedule.getId()));
+            assertNotNull("Pickup must roll back", DB.pickups().findById(pickup.getId()));
+            assertNotNull("Stock alert must roll back", DB.alerts().findById(stockAlert.id()));
             assertNotNull("Routine must roll back", DB.routines().findById(routine.getId()));
             assertNotNull("Allergy must roll back", DB.patientAllergens().findById(allergy.getId()));
             assertNotNull("Decided intake must roll back",
@@ -429,6 +447,9 @@ public class PatientDeletionScopeSmokeTest {
             DB.patients().removeCascade(owner);
             assertNull(DB.patients().findById(owner.getId()));
             assertNull(DB.medicines().findById(medicine.getId()));
+            assertNull(DB.schedules().findById(schedule.getId()));
+            assertNull(DB.pickups().findById(pickup.getId()));
+            assertNull(DB.alerts().findById(stockAlert.id()));
             assertNull(DB.routines().findById(routine.getId()));
             assertNull(DB.patientAllergens().findById(allergy.getId()));
             assertNull(DB.eventInstances().findById(completed.getId()));
@@ -436,6 +457,13 @@ public class PatientDeletionScopeSmokeTest {
             assertNotNull(DB.medicines().findById(protectedMedicine.getId()));
         } finally {
             sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            if (stockAlert != null && stockAlert.id() != null
+                    && DB.alerts().findById(stockAlert.id()) != null)
+                DB.alerts().deleteById(stockAlert.id());
+            if (pickup.getId() != null && DB.pickups().findById(pickup.getId()) != null)
+                DB.pickups().deleteById(pickup.getId());
+            if (schedule.getId() != null && DB.schedules().findById(schedule.getId()) != null)
+                DB.schedules().deleteById(schedule.getId());
             if (reminder.getId() != null && DB.eventReminders().findById(reminder.getId()) != null)
                 DB.eventReminders().remove(reminder);
             if (completed.getId() != null && DB.eventInstances().findById(completed.getId()) != null)
