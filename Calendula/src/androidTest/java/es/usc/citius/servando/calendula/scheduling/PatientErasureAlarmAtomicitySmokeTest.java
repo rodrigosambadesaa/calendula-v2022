@@ -104,6 +104,63 @@ public class PatientErasureAlarmAtomicitySmokeTest {
         }
     }
 
+
+    /**
+     * Simulate process termination after SQLite COMMIT but before OS cleanup.
+     * The persisted reminder has been deleted, yet AlarmManager still holds
+     * its token. Repeating post-COMMIT cleanup must be safe and idempotent.
+     */
+    @Test
+    public void postCommitAlarmCancellationCanRetryAfterProcessInterruption()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        Patient owner = new Patient();
+        owner.setCode("ci-post-commit-alarm-" + System.nanoTime());
+        owner.setName("Synthetic interrupted erasure owner");
+        DateTime when = DateTime.now().plusHours(9).withMillisOfSecond(0);
+        EventReminder removedSnapshot = new EventReminder(when, EventType.MEDICATION_INTAKE);
+        removedSnapshot.setNextTime(when);
+        removedSnapshot.setPatient(owner);
+
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            assertEquals(1, DB.eventReminders().create(removedSnapshot));
+            assertNotNull(removedSnapshot.getId());
+            Agenda.instance().setAlarm(context, removedSnapshot);
+            assertNotNull("Synthetic alarm was registered",
+                    currentToken(context, removedSnapshot));
+
+            // Simulate the already-committed SQL-only deletion and a process
+            // interruption before the platform PendingIntent can be retired.
+            assertEquals(1, DB.eventReminders().deleteById(removedSnapshot.getId()));
+            assertNull(DB.eventReminders().findById(removedSnapshot.getId()));
+            assertNotNull("A SQLite commit alone cannot cancel an OS token",
+                    currentToken(context, removedSnapshot));
+
+            Agenda.instance().cancelDeletedPatientReminderTokens(
+                    context, Collections.singletonList(removedSnapshot));
+            assertNull("Retry removes the stale committed alarm",
+                    currentToken(context, removedSnapshot));
+            Agenda.instance().cancelDeletedPatientReminderTokens(
+                    context, Collections.singletonList(removedSnapshot));
+            assertNull("Cleanup remains idempotent on a second retry",
+                    currentToken(context, removedSnapshot));
+            assertNotNull("Post-commit token cleanup never deletes a patient",
+                    DB.patients().findById(owner.getId()));
+        } finally {
+            if (removedSnapshot.getId() != null) {
+                Agenda.instance().cancelAlarm(context, removedSnapshot);
+                if (DB.eventReminders().findById(removedSnapshot.getId()) != null) {
+                    DB.eventReminders().deleteById(removedSnapshot.getId());
+                }
+            }
+            if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().remove(owner);
+            }
+        }
+    }
+
     @Test
     public void failedFinalSqlDeleteRetainsAlarmThenCommittedEraseCancelsIt()
             throws Exception {
