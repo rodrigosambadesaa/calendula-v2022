@@ -73,6 +73,24 @@ public class IntakeSnapshotPatientOwnerTest {
     }
 
     @Test
+    public void recycledReminderRowIdCannotReproducePreviousClinicalConsent() {
+        Patient owner = patient(101L);
+        EventInstance dose = event(11L, 21L, owner);
+        Map<Long, Schedule> rendered = new HashMap<>();
+        rendered.put(dose.getId(), schedule(21L, owner));
+        EventReminder before = reminder(owner);
+        EventReminder after = reminder(owner);
+        String first = IntakeSnapshot.fingerprint(
+                Collections.singletonList(dose), before, rendered);
+        String second = IntakeSnapshot.fingerprint(
+                Collections.singletonList(dose), after, rendered);
+        assertNotNull(first);
+        assertNotNull(second);
+        assertNotEquals("Even identical patient/medicine/time/row IDs must not copy consent",
+                first, second);
+    }
+
+    @Test
     public void mixedOrInvalidOwnersAndReferencesCannotCreateConsentDigest() {
         Patient a = patient(101L);
         EventInstance first = event(11L, 21L, a);

@@ -49,9 +49,12 @@ class AlarmReceiverRoutingTest {
     fun notificationConfirmationPreservesOnlyValidatedOpaqueConsent() {
         val context = RuntimeEnvironment.getApplication()
         val fingerprint = "a".repeat(64)
+        val instance = java.util.UUID.randomUUID().toString()
         val incoming = Intent(context, AlarmReceiver::class.java).apply {
             putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_CONFIRM)
             putExtra(IntentParams.EXTRA_REMINDER_ID, 123L)
+            putExtra(IntentParams.EXTRA_ALARM_INSTANCE, instance)
+            data = android.net.Uri.parse("calendula-reminder://notification/123/$instance/CONFIRM")
             putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, fingerprint)
             putExtra(IntentParams.EXTRA_PATIENT_ID, 999L)
             putExtra(IntentParams.EXTRA_DATETIME, "private clinical timestamp")
@@ -64,6 +67,8 @@ class AlarmReceiverRoutingTest {
             work.getStringExtra(IntentParams.EXTRA_ACTION))
         assertEquals(123L, work.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1L))
         assertEquals(fingerprint, work.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT))
+        assertEquals(instance, work.getStringExtra(IntentParams.EXTRA_ALARM_INSTANCE))
+        assertEquals(incoming.data, work.data)
         assertFalse("No unrelated patient identifiers in the background queue",
             work.hasExtra(IntentParams.EXTRA_PATIENT_ID))
         assertFalse("No clinical timestamp in the queued intent",
@@ -119,12 +124,19 @@ class AlarmReceiverRoutingTest {
             assertNull(AlarmReceiver.validatedServiceIntent(context, incoming))
             incoming.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, "a".repeat(64))
             incoming.putExtra(IntentParams.EXTRA_PATIENT_ID, 456L)
+            val instance = java.util.UUID.randomUUID().toString()
+            val kind = if (action == IntentParams.ACTION_ALARM_DELAY) "DELAY" else "CANCEL"
+            incoming.putExtra(IntentParams.EXTRA_ALARM_INSTANCE, instance)
+            incoming.data = android.net.Uri.parse(
+                "calendula-reminder://notification/123/$instance/$kind"
+            )
             val work = AlarmReceiver.validatedServiceIntent(context, incoming)
             assertNotNull(work)
             assertEquals(action, work!!.getStringExtra(IntentParams.EXTRA_ACTION))
             assertEquals("a".repeat(64),
                 work.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT))
             assertFalse(work.hasExtra(IntentParams.EXTRA_PATIENT_ID))
+            assertEquals(instance, work.getStringExtra(IntentParams.EXTRA_ALARM_INSTANCE))
         }
     }
 
