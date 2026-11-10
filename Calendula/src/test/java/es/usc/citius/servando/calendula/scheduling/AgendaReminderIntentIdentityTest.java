@@ -69,6 +69,23 @@ public class AgendaReminderIntentIdentityTest {
     }
 
     @Test
+    public void recycledNumericRowIdNeverReusesPlatformReminderIntent() {
+        Context context = ApplicationProvider.getApplicationContext();
+        EventReminder original = new EventReminder();
+        original.setId(701L);
+        EventReminder replacement = new EventReminder();
+        replacement.setId(701L);
+        Intent before = Agenda.reminderBroadcastIntent(context, original);
+        Intent after = Agenda.reminderBroadcastIntent(context, replacement);
+        assertFalse("A recycled ID belongs to a different immutable alarm instance",
+                before.filterEquals(after));
+        assertEquals(original.getAlarmInstance(),
+                before.getStringExtra(IntentParams.EXTRA_ALARM_INSTANCE));
+        assertEquals(replacement.getAlarmInstance(),
+                after.getStringExtra(IntentParams.EXTRA_ALARM_INSTANCE));
+    }
+
+    @Test
     public void unsavedReminderCannotBeScheduledUnderAnUnstableIdentity() {
         Context context = ApplicationProvider.getApplicationContext();
         try {
