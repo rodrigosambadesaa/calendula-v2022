@@ -116,6 +116,27 @@ public class PatientDao extends GenericDao<Patient, Long> {
         }
     }
 
+    /**
+     * Serialize in-process writes to the active-owner preference pair.
+     * Both selection and erasure must use the same lock so a concurrent
+     * patient switch cannot be erased between the comparison and edit.
+     */
+    private static final Object ACTIVE_SELECTION_WRITE_LOCK = new Object();
+
+    /**
+     * A recycled numeric patient ID is not authority to clear a new owner's
+     * selection: the saved stable digest must still belong to the erased row.
+     */
+    static boolean matchesDeletedActiveBinding(
+            Patient deleted, long savedId, String savedOwnerDigest) {
+        if (deleted == null || deleted.getId() == null || deleted.getId() <= 0L
+                || savedId != deleted.getId().longValue()) {
+            return false;
+        }
+        String deletedDigest = stablePatientDigest(deleted.getCode());
+        return deletedDigest != null && deletedDigest.equals(savedOwnerDigest);
+    }
+
     private static String selectedOwnerBinding() {
         try {
             return PreferenceUtils.getString(PreferenceKeys.PATIENTS_ACTIVE_OWNER, null);
@@ -268,18 +289,23 @@ public class PatientDao extends GenericDao<Patient, Long> {
         }
         // Existing posted provider notifications may expose an old owner's
         // medication even when SQLite reuses the same numeric patient ID.
-        long previousId;
-        try {
-            previousId = PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1L);
-        } catch (ClassCastException invalidPreference) {
-            previousId = -1L;
+        final long previousId;
+        final String previousBinding;
+        synchronized (ACTIVE_SELECTION_WRITE_LOCK) {
+            long savedId;
+            try {
+                savedId = PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1L);
+            } catch (ClassCastException invalidPreference) {
+                savedId = -1L;
+            }
+            previousId = savedId;
+            previousBinding = selectedOwnerBinding();
+            PreferenceUtils.edit()
+                    .putLong(PreferenceKeys.PATIENTS_ACTIVE.key(), id)
+                    .putString(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key(), ownerDigest)
+                    .remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key())
+                    .apply();
         }
-        String previousBinding = selectedOwnerBinding();
-        PreferenceUtils.edit()
-                .putLong(PreferenceKeys.PATIENTS_ACTIVE.key(), id)
-                .putString(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key(), ownerDigest)
-                .remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key())
-                .apply();
         if (previousId != id || !ownerDigest.equals(previousBinding)) {
             Context application = CalendulaApp.getContext();
             if (application != null) {
@@ -404,23 +430,27 @@ public class PatientDao extends GenericDao<Patient, Long> {
         // effort; it must not retroactively report an SQL rollback.
         es.usc.citius.servando.calendula.scheduling.Agenda.instance()
                 .cancelDeletedPatientReminderTokens(CalendulaApp.getContext(), retiredReminders);
-        // Only after COMMIT: clear the deleted owner's cached selection and
-        // require explicit reselection; an aborted SQL deletion preserves it.
-        try {
-            if (PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1L)
-                    == original.getId().longValue()) {
+        // Only after COMMIT: clear the deleted owner's cached selection.
+        // Never erase a replacement owner's preference after SQLite recycles
+        // the numeric patient ID, including a concurrent in-process switch.
+        synchronized (ACTIVE_SELECTION_WRITE_LOCK) {
+            final String currentBinding = selectedOwnerBinding();
+            long currentId;
+            try {
+                currentId = PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1L);
+            } catch (ClassCastException invalidSavedId) {
+                // Malformed numeric preferences cannot authorize clinical
+                // access. Only retire them if the stable binding still points
+                // to this specific erased owner.
+                currentId = original.getId().longValue();
+            }
+            if (matchesDeletedActiveBinding(original, currentId, currentBinding)) {
                 PreferenceUtils.edit()
                         .remove(PreferenceKeys.PATIENTS_ACTIVE.key())
                         .remove(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key())
                         .putBoolean(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key(), true)
                         .apply();
             }
-        } catch (ClassCastException invalidSavedId) {
-            PreferenceUtils.edit()
-                    .remove(PreferenceKeys.PATIENTS_ACTIVE.key())
-                    .remove(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key())
-                    .putBoolean(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key(), true)
-                    .apply();
         }
         DB.medicines().fireEvent();
     }
