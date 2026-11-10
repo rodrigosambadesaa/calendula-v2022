@@ -86,6 +86,18 @@ public class AgendaReminderIntentIdentityTest {
     }
 
     @Test
+    public void alarmIdentityRejectsNoncanonicalOrClinicalValues() {
+        assertTrue(IntentParams.isValidAlarmInstance(new EventReminder().getAlarmInstance()));
+        assertFalse(IntentParams.isValidAlarmInstance(null));
+        assertFalse(IntentParams.isValidAlarmInstance(""));
+        assertFalse(IntentParams.isValidAlarmInstance("patient-123"));
+        assertFalse(IntentParams.isValidAlarmInstance(
+                "00000000-0000-0000-0000-000000000000"));
+        assertFalse(IntentParams.isValidAlarmInstance(
+                "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA"));
+    }
+
+    @Test
     public void unsavedReminderCannotBeScheduledUnderAnUnstableIdentity() {
         Context context = ApplicationProvider.getApplicationContext();
         try {
