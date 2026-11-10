@@ -81,6 +81,28 @@ class AlarmIntentService : JobIntentService() {
         val action = verified.getStringExtra(IntentParams.EXTRA_ACTION)
         LogUtil.d(TAG, "AlarmIntentService request with action '$action'")
 
+        // A notification action may have been queued before a backup/restore
+        // or patient erasure. Refuse any replacement instance BEFORE invoking
+        // dose, inventory or reminder mutations. The v3 consent digest is
+        // rechecked independently inside the SQLite write transaction.
+        val clinicalAction = action == IntentParams.ACTION_ALARM_CONFIRM ||
+            action == IntentParams.ACTION_ALARM_CANCEL ||
+            action == IntentParams.ACTION_ALARM_DELAY
+        if (clinicalAction) {
+            val reminderId = verified.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1L)
+            val alarmInstance = verified.getStringExtra(IntentParams.EXTRA_ALARM_INSTANCE)
+            val current = try {
+                DB.eventReminders().findById(reminderId)
+            } catch (unavailable: RuntimeException) {
+                null
+            }
+            if (current == null || !IntentParams.isValidAlarmInstance(alarmInstance) ||
+                current.alarmInstance != alarmInstance) {
+                LogUtil.w(TAG, "Ignoring obsolete notification reminder instance")
+                return
+            }
+        }
+
         when (action) {
             IntentParams.ACTION_DAILY_UPDATE -> {
                 // Update daily agenda

@@ -36,8 +36,9 @@ delayed cleanup, forged URI/extras and stale prior-patient broadcasts.
 
 - Integrate the platform change with #955 (patient erasure, owner binding and
   pruning); all 3 Actions workflows must be green on the *combined* final head.
-- Update all notification-button PendingIntent identities and queued actions
-  to bind the exact immutable instance, retaining clinical consent snapshots.
+- Notification-button PendingIntent identities and queued actions now bind to
+  the immutable UUID; review all legacy notification and activity paths on
+  disposable emulators, including post-COMMIT and process-death races.
 - Review every stale-object deletion, cleanup, auto-repeat, backup/restore
   and multi-process race with deterministic interleaving; a transaction must
   guard any SQL row deletion against ID reuse.

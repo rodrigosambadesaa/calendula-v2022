@@ -68,14 +68,17 @@ class AlarmReceiver : BroadcastReceiver() {
                 val reminderId = incoming.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1L)
                 if (!isValidAlarmDispatch(action, reminderId)) return null
 
-                // Extras are not part of PendingIntent identity. Fail closed
-                // for legacy ID-only tokens and inconsistent/forged URI pairs,
-                // including in jobs replayed after process death.
-                val alarmInstance = if (action == IntentParams.ACTION_ALARM_REMINDER) {
-                    incoming.getStringExtra(IntentParams.EXTRA_ALARM_INSTANCE)
-                } else {
-                    null
-                }
+                // PendingIntent equality ignores extras. Both the URI and
+                // the copied UUID must identify the exact same reminder instance.
+                // Also validate replayed JobIntentService work after process death.
+                val clinicalDecision =
+                    action == IntentParams.ACTION_ALARM_CONFIRM ||
+                    action == IntentParams.ACTION_ALARM_CANCEL ||
+                    action == IntentParams.ACTION_ALARM_DELAY
+                val alarmInstance =
+                    if (action == IntentParams.ACTION_ALARM_REMINDER || clinicalDecision)
+                        incoming.getStringExtra(IntentParams.EXTRA_ALARM_INSTANCE)
+                    else null
                 if (action == IntentParams.ACTION_ALARM_REMINDER) {
                     if (!IntentParams.isValidAlarmInstance(alarmInstance)) return null
                     val expectedUri = Uri.parse(
@@ -83,11 +86,18 @@ class AlarmReceiver : BroadcastReceiver() {
                     )
                     if (incoming.data != expectedUri) return null
                 }
-
-                val clinicalDecision =
-                    action == IntentParams.ACTION_ALARM_CONFIRM ||
-                    action == IntentParams.ACTION_ALARM_CANCEL ||
-                    action == IntentParams.ACTION_ALARM_DELAY
+                if (clinicalDecision) {
+                    if (!IntentParams.isValidAlarmInstance(alarmInstance)) return null
+                    val kind = when (action) {
+                        IntentParams.ACTION_ALARM_CONFIRM -> "CONFIRM"
+                        IntentParams.ACTION_ALARM_CANCEL -> "CANCEL"
+                        else -> "DELAY"
+                    }
+                    val expectedUri = Uri.parse(
+                        "calendula-reminder://notification/$reminderId/$alarmInstance/$kind"
+                    )
+                    if (incoming.data != expectedUri) return null
+                }
                 val snapshot = if (clinicalDecision) {
                     incoming.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT)
                 } else {
