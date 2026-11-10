@@ -161,6 +161,27 @@ public class EventReminderDao extends GenericDao<EventReminder, Long> {
         }
     }
 
+    /**
+     * Delete exactly the persisted reminder instance that the caller saw.
+     * The UUID predicate and numeric ID are evaluated by one SQLite DELETE,
+     * not by a vulnerable read-then-delete-by-recycled-ID sequence.
+     *
+     * The caller owns its transaction/COMMIT and may retire only the captured
+     * UUID-bearing Android token after this call reports exactly one row.
+     */
+    public int deleteIfSameInstance(EventReminder captured) throws SQLException {
+        if (captured == null || captured.getId() == null || captured.getId() <= 0L
+                || !es.usc.citius.servando.calendula.util.IntentParams
+                        .isValidAlarmInstance(captured.getAlarmInstance())) {
+            throw new IllegalArgumentException("Valid persisted reminder instance required");
+        }
+        DeleteBuilder<EventReminder, Long> delete = dao.deleteBuilder();
+        Where<EventReminder, Long> where = delete.where();
+        where.and(where.eq(EventReminder.COLUMN_ID, captured.getId()),
+                where.eq(EventReminder.COLUMN_ALARM_INSTANCE, captured.getAlarmInstance()));
+        return delete.delete();
+    }
+
     public int removeOlderThan(DateTime dateTime) {
         if (dateTime == null) {
             throw new IllegalArgumentException("A reminder retention cutoff is required");
