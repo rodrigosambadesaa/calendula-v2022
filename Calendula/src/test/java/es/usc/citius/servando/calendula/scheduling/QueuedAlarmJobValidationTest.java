@@ -73,11 +73,12 @@ public class QueuedAlarmJobValidationTest {
         AlarmIntentService service = Robolectric.buildService(
                 AlarmIntentService.class).create().get();
         Agenda agenda = mock(Agenda.class);
+        EventReminder reminder = new EventReminder();
+        reminder.setId(99L);
+        Intent queued = Agenda.reminderBroadcastIntent(context, reminder);
         try (MockedStatic<Agenda> agendaSingleton = mockStatic(Agenda.class)) {
             agendaSingleton.when(Agenda::instance).thenReturn(agenda);
-            EventReminder reminder = new EventReminder();
-            reminder.setId(99L);
-            service.onHandleWork(Agenda.reminderBroadcastIntent(context, reminder));
+            service.onHandleWork(queued);
             verify(agenda).onReceiveAlarm(service, 99L, reminder.getAlarmInstance());
         }
     }
