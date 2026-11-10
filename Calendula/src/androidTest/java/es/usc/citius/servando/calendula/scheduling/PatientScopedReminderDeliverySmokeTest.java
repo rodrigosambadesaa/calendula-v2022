@@ -50,6 +50,60 @@ public class PatientScopedReminderDeliverySmokeTest {
     }
 
     @Test
+    public void staleAlarmInstanceCannotDeleteOrDeliverReplacementPatientsReminder() {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime future = DateTime.now().plusHours(12).withMillisOfSecond(0);
+        Patient a = new Patient();
+        a.setCode("ci-instance-old-" + System.nanoTime());
+        a.setName("Synthetic previous owner");
+        Patient b = new Patient();
+        b.setCode("ci-instance-new-" + System.nanoTime());
+        b.setName("Synthetic replacement owner");
+        EventReminder old = new EventReminder(future, EventType.MEDICATION_INTAKE);
+        old.setPatient(a);
+        EventReminder current = new EventReminder(future, EventType.MEDICATION_INTAKE);
+        current.setPatient(b);
+        current.setNextTime(future);
+        try {
+            DB.patients().save(a);
+            DB.patients().save(b);
+            DB.eventReminders().save(current);
+            assertNotNull(current.getId());
+            // Model the exact post-restore row-ID reuse with a stale broadcast.
+            old.setId(current.getId());
+            Agenda.instance().setAlarm(context, current);
+            assertNotNull(PendingIntent.getBroadcast(context, 0,
+                    Agenda.reminderBroadcastIntent(context, current),
+                    PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+
+            // Without the instance check this orphan reminder would be deleted
+            // because it has no pending intake. The stale A token must do nothing.
+            Agenda.instance().onReceiveAlarm(context, old.getId(), old.getAlarmInstance());
+            assertNotNull("Patient B's persisted reminder must remain intact",
+                    DB.eventReminders().findById(current.getId()));
+            assertNotNull("Patient B's platform alarm must still be scheduled",
+                    PendingIntent.getBroadcast(context, 0,
+                            Agenda.reminderBroadcastIntent(context, current),
+                            PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+            Agenda.instance().cancelAlarm(context, old);
+            assertNotNull("Late A cleanup must not revoke B's token",
+                    PendingIntent.getBroadcast(context, 0,
+                            Agenda.reminderBroadcastIntent(context, current),
+                            PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+        } finally {
+            if (current.getId() != null) {
+                Agenda.instance().cancelAlarm(context, current);
+                if (DB.eventReminders().findById(current.getId()) != null) {
+                    DB.eventReminders().remove(current);
+                }
+            }
+            if (a.getId() != null) DB.patients().remove(a);
+            if (b.getId() != null) DB.patients().remove(b);
+        }
+    }
+
+    @Test
     public void cancelledEventCannotAuthorizeMedicationNotification() {
         exerciseInactiveEvent(false);
     }
