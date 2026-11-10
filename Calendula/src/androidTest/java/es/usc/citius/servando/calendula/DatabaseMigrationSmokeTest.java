@@ -87,7 +87,9 @@ public class DatabaseMigrationSmokeTest {
                     old.execSQL("CREATE TABLE HtmlCache (_id INTEGER PRIMARY KEY,"
                             + " HashCode INTEGER, Data VARCHAR)");
                 }
-                old.execSQL("CREATE TABLE EventReminders (_id INTEGER PRIMARY KEY,"\n                        + " DateTime VARCHAR, NextTime VARCHAR, EventType VARCHAR, Patient BIGINT)");\n                old.setVersion(1);
+                old.execSQL("CREATE TABLE EventReminders (_id INTEGER PRIMARY KEY,"
+                        + " DateTime VARCHAR, NextTime VARCHAR, EventType VARCHAR, Patient BIGINT)");
+                old.setVersion(1);
             }
         }
 
