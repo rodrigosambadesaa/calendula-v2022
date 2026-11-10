@@ -1,6 +1,6 @@
 # Calendula v2022 — modernization status
 
-_Last reviewed: 2026-10-14. This is an unofficial development fork, not a released or medically validated product. Tests described below were verified on their respective PR revisions; do not interpret them as end-to-end certification._
+_Last reviewed: 2026-11-10. This is an unofficial development fork, not a released or medically validated product. Tests described below were verified on their respective PR revisions; do not interpret them as end-to-end certification._
 
 ## Verified build baseline
 
@@ -10,7 +10,7 @@ _Last reviewed: 2026-10-14. This is an unofficial development fork, not a releas
 | Compile / target SDK | API 36 / API 36 |
 | Android Gradle Plugin | 8.10.1 |
 | Gradle wrapper | 8.14.6 |
-| Kotlin | 2.1.21 |
+| Kotlin | 2.4.21 |
 | JDK | 17 |
 | Android 17 runtime | Isolated API 37.0 smoke workflow (SDK compile/target remain API 36) |
 
@@ -48,10 +48,12 @@ does not imply all legacy accessibility warnings have been resolved.
 
 ## Additional safeguards verified in October 2026
 
-The shared `scripts/android-smoke-tests.sh` currently names **62 isolated
-instrumentation test classes** across API 23, 33, 36 and 37. This is a
-test-configuration count, **not** an assertion that all four devices or all
-clinical workflows were validated together in a production-style release.
+The shared `scripts/android-smoke-tests.sh` enumerates isolated instrumentation
+test classes across API 23, 33, 36 and 37. The registered class count evolves
+with changes; **a registration count is not evidence** that all clinical workflows
+were validated together in a production-style release. Merged PR #953 now checks
+that each registered Java/Kotlin smoke test source exists and declares the expected
+package and class before emulators are provisioned.
 Each merged change must have green checks for the same immutable PR commit.
 
 - **Dose and intake UI:** #735 rejects zero graphical doses and #736 binds
@@ -71,11 +73,7 @@ Each merged change must have green checks for the same immutable PR commit.
   #746 rejects malformed PIN credential encodings before expensive PBKDF2
   derivation without resetting previously valid PINs.
 
-**Not yet completed:** #749 reconciles bounded OAuth token refresh with the
-new patient-scoped PDF workflow and requires live nonproduction provider testing
-before merging. #750 proposes idempotent recovery of missing current-day
-intakes and must finish actual SQLite emulator regression checks before merge.
-Neither draft should be described as shipped functionality.
+**Historical status correction (reviewed 2026-11-10):** PR #750 (idempotent recovery of missing current-day intakes) was merged on 2026-10-14. PR #749 (bounded OAuth refresh) was closed *without* merging; its proposed behavior must not be counted as shipped. End-to-end nonproduction-provider acceptance is still required for OAuth/FHIR flows.
 
 ### Open medication-integrity acceptance gates (#525 and #552)
 
@@ -86,6 +84,37 @@ open until deterministic fault injection, process-death/restart, simultaneous
 confirmation, inventory reconciliation, and representative migration tests
 cover all supported versions. Do not silently rewrite previously completed,
 cancelled or historically recorded intakes during automatic recovery.
+
+## Prerelease gates (reviewed 2026-11-10)
+
+A first GitHub **technical prerelease** is distinct from approving this app for
+real medication management. A passing debug build does not justify a clinical
+release, and there is no claim of complete defect elimination.
+
+| Workstream | Current evidence | Next acceptance gate |
+| --- | --- | --- |
+| Stable patient owner after restore (#946 / PR #950) | Three CI workflows green at PR head; draft | Independent privacy review; manual legacy selection, restore, logout and recycled-ID journeys |
+| Atomic patient erasure (#944 / PR #951) | Draft; workflow-level CI failures despite some passing emulator jobs | Reconcile with #950, investigate workflow failures, rerun complete matrix and exercise rollback, alarms and restart |
+| Recycled reminder IDs (PR #952) | Three CI workflows green at PR head; draft | Review the check-to-cancel race and integration with other reminder cleanup paths |
+| Smoke-class registration preflight (PR #953) | Merged 2026-11-10 | Run post-merge regression CI on `main` |
+| Medication decision/stock integrity (#525, #552) | Unresolved critical acceptance issues | Fault injection, concurrent actions, inventory invariants and restart recovery |
+| Legacy medical catalog replacement (#216) | Retired unsigned feed deliberately blocked | Trusted, transactional CIMA or equivalent import with migration verification |
+| Android behavior and integrations (#570) | Runtime compatibility smoke runs exist | Physical device journeys, Doze/reboot alarms, backups, OAuth/FHIR and Android 17 targetSdk audit |
+
+**Before publishing a first technical prerelease:** resolve the release-blocking
+clinical data-integrity problems or demonstrably isolate/disable unsafe features;
+validate the **combined merged main** on API 23/33/36/37 and representative real
+devices; perform backup/restore and database migration tests; verify no cross-
+patient data leakage, lost medication actions, or unsafe alarm cancellation;
+publish build provenance, correct version metadata, signing information,
+limitations and a clear **not clinically validated** warning. Do not use
+production patient records in CI or manual test fixtures.
+
+**Before calling a release fully functional:** additionally replace the retired
+medical catalog backend, validate real-world prescription and OAuth/FHIR flows
+with authorized test environments, close or explicitly disposition all P0/P1
+issues, and pass accessibility, localization and device compatibility reviews.
+Do not mark an issue complete merely because a PR's three Actions are green.
 
 ## Unresolved release blockers
 
