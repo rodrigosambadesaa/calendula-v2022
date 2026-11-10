@@ -2,6 +2,7 @@ package es.usc.citius.servando.calendula.database;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.database.sqlite.SQLiteDatabase;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import org.junit.Test;
@@ -103,6 +104,90 @@ public class ActivePatientOwnerBindingSmokeTest {
             if (replacement.getId() != null
                     && DB.patients().findById(replacement.getId()) != null)
                 DB.patients().remove(replacement);
+        }
+    }
+
+    /**
+     * Integration-only regression for the overlapping #950 / #951 change:
+     * a failed SQLite erasure must preserve the active owner binding, whereas
+     * a committed erasure must invalidate both coordinates and require explicit
+     * reselection. The fixture uses only synthetic local patient records.
+     */
+    @Test
+    public void failedErasureKeepsActiveBindingAndCommittedErasureRequiresReselection()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Context ctx = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        SharedPreferences prefs = PreferenceUtils.instance().preferences();
+        final String idKey = PreferenceKeys.PATIENTS_ACTIVE.key();
+        final String bindingKey = PreferenceKeys.PATIENTS_ACTIVE_OWNER.key();
+        final String markerKey = PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key();
+        Object priorId = prefs.getAll().get(idKey);
+        Object priorBinding = prefs.getAll().get(bindingKey);
+        Object priorMarker = prefs.getAll().get(markerKey);
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        final String trigger = "ci_owner_binding_erase_abort";
+        Patient owner = new Patient();
+        owner.setCode("ci-bound-erase-" + System.nanoTime());
+        owner.setName("Synthetic selected owner");
+        Patient survivor = new Patient();
+        survivor.setCode("ci-bound-survivor-" + System.nanoTime());
+        survivor.setName("Synthetic surviving owner");
+
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            assertEquals(1, DB.patients().create(survivor));
+            DB.patients().setActive(owner);
+            String binding = prefs.getString(bindingKey, null);
+            assertNotNull(binding);
+            assertEquals(owner.getId(), DB.patients().getActive(ctx).getId());
+            assertFalse(prefs.getBoolean(markerKey, false));
+
+            // Inject a late failure after SQL-only cascade cleanup started.
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE DELETE ON Patients WHEN OLD._id = " + owner.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic owner binding rollback'); END;");
+            boolean rejected = false;
+            try {
+                DB.patients().removeCascade(owner);
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("Late failed delete must roll back", rejected);
+            assertEquals(owner.getId(), DB.patients().getActive(ctx).getId());
+            assertEquals("Failed deletion retains the saved stable binding",
+                    binding, prefs.getString(bindingKey, null));
+            assertEquals(owner.getId().longValue(), prefs.getLong(idKey, -1L));
+            assertFalse("Failed deletion must not require reselection",
+                    prefs.getBoolean(markerKey, false));
+            assertNotNull(DB.patients().findById(survivor.getId()));
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            DB.patients().removeCascade(owner);
+            assertNull(DB.patients().findById(owner.getId()));
+            assertFalse("Committed erasure clears saved numeric identity",
+                    prefs.contains(idKey));
+            assertFalse("Committed erasure clears saved stable identity",
+                    prefs.contains(bindingKey));
+            assertTrue("Committed erasure requires an explicit owner choice",
+                    prefs.getBoolean(markerKey, false));
+            assertNull("No unrelated default owner may become active",
+                    DB.patients().getActive(ctx));
+            assertNotNull("Unrelated profile must be preserved",
+                    DB.patients().findById(survivor.getId()));
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            SharedPreferences.Editor editor = prefs.edit();
+            restore(editor, idKey, priorId);
+            restore(editor, bindingKey, priorBinding);
+            restore(editor, markerKey, priorMarker);
+            assertTrue(editor.commit());
+            for (Patient patient : new Patient[]{owner, survivor}) {
+                if (patient.getId() != null && DB.patients().findById(patient.getId()) != null) {
+                    DB.patients().remove(patient);
+                }
+            }
         }
     }
 }
