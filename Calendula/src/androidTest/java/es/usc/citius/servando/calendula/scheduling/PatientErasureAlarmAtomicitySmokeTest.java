@@ -297,4 +297,71 @@ public class PatientErasureAlarmAtomicitySmokeTest {
             }
         }
     }
+
+    /**
+     * A reminder-row DELETE failure occurs before the final patient DELETE.
+     * It must roll back the entire patient erasure and leave AlarmManager alone.
+     * This exercises the explicit checked reminder-delete path, not merely
+     * the later patient-row failure covered by the separate regression.
+     */
+    @Test
+    public void failedReminderDeleteRollsBackPatientAndKeepsAlarm() throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        final String trigger = "ci_patient_reminder_rollback_abort";
+        Patient patient = new Patient();
+        patient.setName("Synthetic reminder-delete rollback patient");
+        patient.setCode("ci-reminder-rollback-" + System.nanoTime());
+        DateTime when = DateTime.now().plusHours(11).withMillisOfSecond(0);
+        EventReminder reminder = new EventReminder(when, EventType.MEDICATION_INTAKE);
+        reminder.setNextTime(when);
+        reminder.setPatient(patient);
+
+        try {
+            assertEquals(1, DB.patients().create(patient));
+            assertEquals(1, DB.eventReminders().create(reminder));
+            assertNotNull(reminder.getId());
+            Agenda.instance().setAlarm(context, reminder);
+            assertNotNull("Test alarm must exist before erasure", currentToken(context, reminder));
+
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE DELETE ON EventReminders WHEN OLD._id = " + reminder.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'ci-only reminder erasure failure'); END;");
+
+            boolean failed = false;
+            try {
+                DB.patients().removeCascade(patient);
+            } catch (RuntimeException expected) {
+                failed = true;
+            }
+            assertTrue("Failed reminder DELETE must abort full erasure", failed);
+            assertNotNull("Patient must survive transaction rollback",
+                    DB.patients().findById(patient.getId()));
+            assertNotNull("Reminder must survive transaction rollback",
+                    DB.eventReminders().findById(reminder.getId()));
+            assertNotNull("SQL rollback must not revoke Android alarm",
+                    currentToken(context, reminder));
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            DB.patients().removeCascade(patient);
+            assertNull("Successful retry must delete patient",
+                    DB.patients().findById(patient.getId()));
+            assertNull("Successful retry must delete reminder",
+                    DB.eventReminders().findById(reminder.getId()));
+            assertNull("Successful retry must retire Android alarm",
+                    currentToken(context, reminder));
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            if (reminder.getId() != null) {
+                Agenda.instance().cancelAlarm(context, reminder);
+                if (DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().deleteById(reminder.getId());
+                }
+            }
+            if (patient.getId() != null && DB.patients().findById(patient.getId()) != null) {
+                DB.patients().remove(patient);
+            }
+        }
+    }
 }
