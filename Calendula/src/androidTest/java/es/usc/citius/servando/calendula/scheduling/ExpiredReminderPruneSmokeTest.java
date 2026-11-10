@@ -250,4 +250,56 @@ public class ExpiredReminderPruneSmokeTest {
             retainedToken.cancel();
         }
     }
+
+    @Test
+    public void dailyPruneCannotCancelNewPatientWithRecycledRowId() throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime due = DateTime.now().plusHours(6).withMillisOfSecond(0);
+        Patient replacementOwner = new Patient();
+        replacementOwner.setCode("ci-recycled-prune-" + System.nanoTime());
+        replacementOwner.setName("Synthetic replacement reminder owner");
+        EventReminder replacement = new EventReminder(due, EventType.MEDICATION_INTAKE);
+        replacement.setNextTime(due);
+        EventReminder prior = new EventReminder(due.minusDays(7), EventType.MEDICATION_INTAKE);
+        prior.setNextTime(due.minusDays(7));
+        PendingIntent priorToken = null;
+        PendingIntent currentToken = null;
+        try {
+            assertEquals(1, DB.patients().create(replacementOwner));
+            replacement.setPatient(replacementOwner);
+            assertEquals(1, DB.eventReminders().create(replacement));
+            prior.setId(replacement.getId()); // restored ID, different per-row nonce
+            priorToken = PendingIntent.getBroadcast(context, 0,
+                    Agenda.reminderBroadcastIntent(context, prior),
+                    PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+            currentToken = PendingIntent.getBroadcast(context, 0,
+                    Agenda.reminderBroadcastIntent(context, replacement),
+                    PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+            assertNotNull(priorToken);
+            assertNotNull(currentToken);
+
+            assertTrue(Agenda.instance().retirePrunedReminderToken(context, prior));
+            assertNull("The captured expired reminder token is revoked",
+                    PendingIntent.getBroadcast(context, 0,
+                            Agenda.reminderBroadcastIntent(context, prior),
+                            PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+            assertNotNull("A different patient's reused-ID token must survive",
+                    PendingIntent.getBroadcast(context, 0,
+                            Agenda.reminderBroadcastIntent(context, replacement),
+                            PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+            assertNotNull(DB.eventReminders().findById(replacement.getId()));
+        } finally {
+            if (priorToken != null) priorToken.cancel();
+            if (currentToken != null) currentToken.cancel();
+            if (replacement.getId() != null
+                    && DB.eventReminders().findById(replacement.getId()) != null) {
+                DB.eventReminders().delete(replacement);
+            }
+            if (replacementOwner.getId() != null
+                    && DB.patients().findById(replacementOwner.getId()) != null) {
+                DB.patients().delete(replacementOwner);
+            }
+        }
+    }
 }

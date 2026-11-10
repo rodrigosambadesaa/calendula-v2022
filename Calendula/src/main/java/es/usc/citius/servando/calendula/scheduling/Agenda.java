@@ -577,10 +577,9 @@ public class Agenda {
                 // The database deletion has committed: retire obsolete OS
                 // alarm tokens before reconciling surviving reminders.
                 for (EventReminder removed : expiredReminders) {
-                    if (removed.getId() != null && removed.getId() > 0) {
-                        cancelAlarm(context, removed);
-                        IntakeNotificationMgr.cancel(context, removed);
-                    }
+                    // A recycled numeric ID can now identify a different patient.
+                    // Retire only the captured UUID-bearing OS alarm instance.
+                    retirePrunedReminderToken(context, removed);
                 }
                 Agenda.instance().cleanReminders(context);
                 Agenda.instance().updateAllAlarms(context);
@@ -755,6 +754,61 @@ public class Agenda {
             cancelAlarm(context, reminder);
             IntakeNotificationMgr.cancel(context, reminder);
         }
+    }
+
+    /**
+     * Post-COMMIT patient erasure may only cancel the original captured
+     * reminder instance. A replacement patient can reuse the SQLite row ID,
+     * but never its immutable alarm UUID. Platform cleanup is retryable;
+     * it must never retroactively roll back an already committed erasure.
+     */
+    public void cancelDeletedPatientReminderTokens(Context context,
+                                                    List<EventReminder> removed) {
+        if (context == null || removed == null) {
+            return;
+        }
+        for (EventReminder reminder : removed) {
+            if (reminder == null || reminder.getId() == null
+                    || reminder.getId() <= 0L
+                    || !IntentParams.isValidAlarmInstance(reminder.getAlarmInstance())) {
+                LogUtil.w(TAG, "Skipping malformed post-erasure alarm snapshot");
+                continue;
+            }
+            try {
+                EventReminder current = DB.eventReminders().findById(reminder.getId());
+                if (current != null
+                        && reminder.getAlarmInstance().equals(current.getAlarmInstance())) {
+                    // SQL did not erase this instance; do not revoke its alarm.
+                    continue;
+                }
+                cancelAlarm(context, reminder);
+                IntakeNotificationMgr.cancel(context, reminder);
+            } catch (RuntimeException platformFailure) {
+                LogUtil.w(TAG, "Patient erasure committed; OS cleanup deferred");
+            }
+        }
+    }
+
+    /**
+     * Retire a captured daily-prune instance after SQLite COMMIT. Identity
+     * comparison remains valid even if a different owner now holds the same
+     * numeric row ID; UUID-bearing OS/notification tokens cannot alias B.
+     * Propagate unexpected database lookup failures so the agenda's durable
+     * completion marker remains retryable.
+     */
+    boolean retirePrunedReminderToken(Context context, EventReminder removed) {
+        if (context == null || removed == null || removed.getId() == null
+                || removed.getId() <= 0L
+                || !IntentParams.isValidAlarmInstance(removed.getAlarmInstance())) {
+            throw new IllegalStateException("Invalid pruned reminder instance");
+        }
+        EventReminder current = DB.eventReminders().findById(removed.getId());
+        if (current != null && removed.getAlarmInstance().equals(current.getAlarmInstance())) {
+            return false; // Still persisted; never cancel its scheduled instance.
+        }
+        cancelAlarm(context, removed);
+        IntakeNotificationMgr.cancel(context, removed);
+        return true;
     }
 
     public void deleteAllReminders(Context context) {
