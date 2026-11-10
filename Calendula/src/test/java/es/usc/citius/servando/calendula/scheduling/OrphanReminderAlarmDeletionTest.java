@@ -59,7 +59,7 @@ public class OrphanReminderAlarmDeletionTest {
         EventReminderDao reminders = mock(EventReminderDao.class);
         EventInstanceDao instances = mock(EventInstanceDao.class);
         when(reminders.findById(r.getId())).thenReturn(r);
-        when(reminders.delete(r)).thenThrow(new SQLException("Synthetic SQLite failure"));
+        when(reminders.deleteIfSameInstance(r)).thenThrow(new SQLException("Synthetic SQLite failure"));
         PendingIntent original = lookup(context, r, PendingIntent.FLAG_UPDATE_CURRENT);
         try (MockedStatic<DB> db = mockStatic(DB.class)) {
             db.when(DB::eventReminders).thenReturn(reminders);
@@ -86,7 +86,7 @@ public class OrphanReminderAlarmDeletionTest {
         EventReminderDao reminders = mock(EventReminderDao.class);
         EventInstanceDao instances = mock(EventInstanceDao.class);
         when(reminders.findById(r.getId())).thenReturn(r, null);
-        when(reminders.delete(r)).thenReturn(1);
+        when(reminders.deleteIfSameInstance(r)).thenReturn(1);
         PendingIntent original = lookup(context, r, PendingIntent.FLAG_UPDATE_CURRENT);
         try (MockedStatic<DB> db = mockStatic(DB.class)) {
             db.when(DB::eventReminders).thenReturn(reminders);
@@ -107,7 +107,7 @@ public class OrphanReminderAlarmDeletionTest {
         EventReminderDao reminders = mock(EventReminderDao.class);
         EventInstanceDao instances = mock(EventInstanceDao.class);
         when(reminders.findById(r.getId())).thenReturn(r, r);
-        when(reminders.delete(r)).thenReturn(0);
+        when(reminders.deleteIfSameInstance(r)).thenReturn(0);
         PendingIntent original = lookup(context, r, PendingIntent.FLAG_UPDATE_CURRENT);
         try (MockedStatic<DB> db = mockStatic(DB.class)) {
             db.when(DB::eventReminders).thenReturn(reminders);
@@ -133,7 +133,7 @@ public class OrphanReminderAlarmDeletionTest {
         EventReminderDao reminders = mock(EventReminderDao.class);
         EventInstanceDao instances = mock(EventInstanceDao.class);
         when(reminders.findById(r.getId())).thenReturn(r, null);
-        when(reminders.delete(r)).thenReturn(0);
+        when(reminders.deleteIfSameInstance(r)).thenReturn(0);
         PendingIntent original = lookup(context, r, PendingIntent.FLAG_UPDATE_CURRENT);
         try (MockedStatic<DB> db = mockStatic(DB.class)) {
             db.when(DB::eventReminders).thenReturn(reminders);
