@@ -615,7 +615,7 @@ public class Agenda {
         }
         final int deleted;
         try {
-            deleted = DB.eventReminders().delete(reminder);
+            deleted = DB.eventReminders().deleteIfSameInstance(reminder);
         } catch (SQLException e) {
             throw new IllegalStateException("Could not delete persisted reminder", e);
         }
@@ -736,7 +736,7 @@ public class Agenda {
                                     || !ownerId.equals(reminder.getPatient().getId())) {
                                 throw new SQLException("Invalid owner in patient reminder erase");
                             }
-                            if (DB.eventReminders().delete(reminder) != 1) {
+                            if (DB.eventReminders().deleteIfSameInstance(reminder) != 1) {
                                 throw new SQLException("Could not erase one patient reminder");
                             }
                         }
@@ -932,7 +932,7 @@ public class Agenda {
                                     reminder.getEventType(), reminder.getDateTime(),
                                     reminder.getPatient(), DateTime.now()) > 0;
                         }
-                        final int deleted = DB.eventReminders().delete(reminder);
+                        final int deleted = DB.eventReminders().deleteIfSameInstance(reminder);
                         if (deleted > 1 || DB.eventReminders().findById(reminder.getId()) != null) {
                             throw new SQLException("Reminder persisted after attempted deletion");
                         }
