@@ -67,7 +67,7 @@ public class ReminderLivePatientDeliveryTest {
     }
 
     @Test
-    public void recycledPatientIdWithDifferentCodeCannotDeliverOrReviveAnOldReminder() {
+    public void recycledPatientIdWithDifferentCodeCannotDeliverOrReviveAnOldReminder() throws Exception {
         EventReminder stale = reminder(45L);
         stale.getPatient().setCode("synthetic-old-patient");
         Patient newOwner = owner(45L);
@@ -80,6 +80,11 @@ public class ReminderLivePatientDeliveryTest {
         // reminder revision byte-for-byte equivalent to catch ID reuse.
         persisted.setDateTime(stale.getDateTime());
         persisted.setNextTime(stale.getNextTime());
+        // ORMLite reloads the immutable UUID; a second synthetic constructor
+        // generates a different one. Recreate one persisted instance here.
+        java.lang.reflect.Field field = EventReminder.class.getDeclaredField("alarmInstance");
+        field.setAccessible(true);
+        field.set(persisted, stale.getAlarmInstance());
         persisted.getPatient().setCode("synthetic-new-patient");
 
         try (MockedStatic<DB> db = mockStatic(DB.class)) {

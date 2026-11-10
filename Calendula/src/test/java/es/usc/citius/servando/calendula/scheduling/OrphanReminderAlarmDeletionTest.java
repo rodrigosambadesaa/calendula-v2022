@@ -73,7 +73,7 @@ public class OrphanReminderAlarmDeletionTest {
             }
             assertNotNull("A surviving DB reminder must retain its OS token",
                     lookup(context, r, PendingIntent.FLAG_NO_CREATE));
-            verify(reminders).delete(r);
+            verify(reminders).deleteIfSameInstance(r);
         } finally {
             original.cancel();
         }
@@ -92,7 +92,7 @@ public class OrphanReminderAlarmDeletionTest {
             db.when(DB::eventReminders).thenReturn(reminders);
             db.when(DB::eventInstances).thenReturn(instances);
             Agenda.instance().onReceiveAlarm(context, r.getId());
-            verify(reminders).delete(r);
+            verify(reminders).deleteIfSameInstance(r);
             assertNull("A deleted orphan must not leave an OS alarm token",
                     lookup(context, r, PendingIntent.FLAG_NO_CREATE));
         } finally {
@@ -118,7 +118,7 @@ public class OrphanReminderAlarmDeletionTest {
             } catch (IllegalStateException expected) {
                 // No matching row was deleted; do not actively cancel the token.
             }
-            verify(reminders).delete(r);
+            verify(reminders).deleteIfSameInstance(r);
             assertNotNull("A zero-row delete must preserve the PendingIntent token",
                     lookup(context, r, PendingIntent.FLAG_NO_CREATE));
         } finally {
@@ -139,7 +139,7 @@ public class OrphanReminderAlarmDeletionTest {
             db.when(DB::eventReminders).thenReturn(reminders);
             db.when(DB::eventInstances).thenReturn(instances);
             Agenda.instance().onReceiveAlarm(context, r.getId());
-            verify(reminders).delete(r);
+            verify(reminders).deleteIfSameInstance(r);
             assertNull("A verified absent row must not retain an obsolete OS token",
                     lookup(context, r, PendingIntent.FLAG_NO_CREATE));
         } finally {
