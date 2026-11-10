@@ -276,8 +276,14 @@ public class ExpiredReminderPruneSmokeTest {
                             PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
             assertNotNull(DB.eventReminders().findById(live.getId()));
 
-            // Once SQL really has no row with this ID, retirement is safe.
-            assertEquals(1, DB.eventReminders().delete(live));
+            // Simulate a committed deletion without relying on the ORM's
+            // affected-row count: independent agenda housekeeping can retire
+            // the same fixture before this explicit cleanup step.
+            DB.helper().getWritableDatabase().execSQL(
+                    "DELETE FROM EventReminders WHERE _id = ?",
+                    new Object[]{live.getId()});
+            assertNull("SQL row must be absent before retiring the OS token",
+                    DB.eventReminders().findById(live.getId()));
             assertTrue(Agenda.instance().retirePrunedReminderToken(context, removed));
             assertNull("A genuinely deleted reminder's OS token is retired",
                     PendingIntent.getBroadcast(context, 0,
