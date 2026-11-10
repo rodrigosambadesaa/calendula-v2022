@@ -87,7 +87,23 @@ public class DatabaseMigrationSmokeTest {
                     old.execSQL("CREATE TABLE HtmlCache (_id INTEGER PRIMARY KEY,"
                             + " HashCode INTEGER, Data VARCHAR)");
                 }
-                old.setVersion(1);
+                old.execSQL("CREATE TABLE EventReminders (_id INTEGER PRIMARY KEY,"\n                        + " DateTime VARCHAR, NextTime VARCHAR, EventType VARCHAR, Patient BIGINT)");\n                old.setVersion(1);
+            }
+        }
+
+        void seedVersionThree(boolean abortSecondRowUpdate) {
+            try (SQLiteDatabase old = SQLiteDatabase.openOrCreateDatabase(
+                    databaseFile, null)) {
+                old.execSQL("CREATE TABLE EventReminders (_id INTEGER PRIMARY KEY,"
+                        + " DateTime VARCHAR, NextTime VARCHAR, EventType VARCHAR, Patient BIGINT)");
+                old.execSQL("INSERT INTO EventReminders (_id, EventType) VALUES"
+                        + " (51, 'MEDICATION_INTAKE'), (52, 'MEDICATION_INTAKE')");
+                if (abortSecondRowUpdate) {
+                    old.execSQL("CREATE TRIGGER ci_abort_reminder_backfill"
+                            + " BEFORE UPDATE ON EventReminders WHEN OLD._id = 52"
+                            + " BEGIN SELECT RAISE(ABORT, 'synthetic migration rollback'); END;");
+                }
+                old.setVersion(3);
             }
         }
 
@@ -135,6 +151,76 @@ public class DatabaseMigrationSmokeTest {
             }
         }
         return false;
+    }
+
+
+    @Test
+    public void versionThreeReminderMigrationPreservesRowsAndCreatesDistinctTokens() {
+        Fixture fixture = new Fixture("reminder-instance-upgrade");
+        try {
+            fixture.seedVersionThree(false);
+            DatabaseHelper helper = new DatabaseHelper(fixture.context);
+            try {
+                SQLiteDatabase upgraded = helper.getWritableDatabase();
+                assertEquals(4, upgraded.getVersion());
+                assertTrue(hasColumn(upgraded, "EventReminders", "AlarmInstance"));
+                try (Cursor rows = upgraded.rawQuery(
+                        "SELECT _id, EventType, AlarmInstance FROM EventReminders ORDER BY _id",
+                        null)) {
+                    assertEquals(2, rows.getCount());
+                    assertTrue(rows.moveToFirst());
+                    assertEquals(51L, rows.getLong(0));
+                    assertEquals("MEDICATION_INTAKE", rows.getString(1));
+                    String first = rows.getString(2);
+                    assertTrue(first != null && first.matches(
+                            "[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}"));
+                    assertTrue(rows.moveToNext());
+                    assertEquals(52L, rows.getLong(0));
+                    assertEquals("MEDICATION_INTAKE", rows.getString(1));
+                    String second = rows.getString(2);
+                    assertTrue(second != null && !first.equals(second));
+                }
+            } finally {
+                helper.close();
+            }
+        } finally {
+            fixture.cleanup();
+        }
+    }
+
+    @Test
+    public void failedReminderBackfillRollsBackSchemaAndEveryPriorToken() {
+        Fixture fixture = new Fixture("reminder-instance-rollback");
+        try {
+            fixture.seedVersionThree(true);
+            DatabaseHelper helper = new DatabaseHelper(fixture.context);
+            try {
+                try {
+                    helper.getWritableDatabase();
+                    fail("A failed reminder backfill must abort the whole migration");
+                } catch (RuntimeException expected) {
+                    // Failed UPDATE on row 52 must undo row 51 and ALTER TABLE.
+                }
+            } finally {
+                helper.close();
+            }
+            try (SQLiteDatabase unchanged = SQLiteDatabase.openDatabase(
+                    fixture.databaseFile.getAbsolutePath(),
+                    null, SQLiteDatabase.OPEN_READONLY)) {
+                assertEquals(3, unchanged.getVersion());
+                assertFalse(hasColumn(unchanged, "EventReminders", "AlarmInstance"));
+                try (Cursor rows = unchanged.rawQuery(
+                        "SELECT _id, EventType FROM EventReminders ORDER BY _id", null)) {
+                    assertEquals(2, rows.getCount());
+                    assertTrue(rows.moveToFirst());
+                    assertEquals(51L, rows.getLong(0));
+                    assertTrue(rows.moveToNext());
+                    assertEquals(52L, rows.getLong(0));
+                }
+            }
+        } finally {
+            fixture.cleanup();
+        }
     }
 
     @Test
