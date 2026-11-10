@@ -90,7 +90,10 @@ class AlarmIntentService : JobIntentService() {
             IntentParams.ACTION_ALARM_REMINDER -> {
                 // send reminder to agenda
                 val reminderId = verified.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1)
-                Agenda.instance().onReceiveAlarm(this, reminderId)
+                val instance = verified.getStringExtra(IntentParams.EXTRA_ALARM_INSTANCE)
+                // Agenda compares the captured instance with the live SQLite
+                // record BEFORE any medication reminder is processed.
+                Agenda.instance().onReceiveAlarm(this, reminderId, instance)
                 LogUtil.d(TAG, "Send reminder to agenda")
             }
             IntentParams.ACTION_ALARM_CANCEL -> {
