@@ -88,7 +88,7 @@ The historical 2022 codebase is being modernized incrementally while preserving 
 - **compileSdk / targetSdk:** API 36 (Android 16)
 - **Android Gradle Plugin:** 8.10.1
 - **Gradle:** 8.14.6
-- **Kotlin:** 2.1.21
+- **Kotlin:** 2.4.21
 - **JDK:** 17
 
 GitHub Actions builds the `ciDebug` APK, validates the `developRelease` code path with R8, runs the JVM unit-test suite, builds the instrumentation-test APK, runs Android lint, and uploads the resulting reports and debug APK. The same JDK 17 toolchain is used for the Android SDK tools and Gradle build.
@@ -108,6 +108,8 @@ resolved. See the modernization status document for the current acceptance crite
 
 See [Modernization status and remaining work](docs/MODERNIZATION_STATUS.md) for
 the current roadmap, residual risks, and validation criteria.
+
+**Release readiness (10 November 2026):** This fork is **not yet ready for a clinical-use release**. A first, explicitly non-clinical technical prerelease remains conditional on resolving relevant P0 integrity gates and validating the integrated result. The current review identifies unresolved patient-identity/erasure work (#946, #944), medication/stock transaction gates (#525, #552), Android 17 runtime-vs-target SDK validation (#570), and replacement of the retired medication database feed (#216). Green CI for an individual draft PR is not a substitute for merged-branch integration tests or manual verification. The maintained criteria and pending PR audit appear in [the modernization status](docs/MODERNIZATION_STATUS.md#prerelease-gates-reviewed-2026-11-10).
 
 Dependency updates remain intentionally conservative where a new version changes library APIs, Android behavior or requires a coordinated migration. Dependabot is enabled, but major framework and library migrations should still be reviewed and validated in dedicated pull requests instead of being accepted as isolated version bumps.
 
