@@ -22,6 +22,7 @@ import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -50,7 +51,7 @@ public class PatientScopedReminderDeliverySmokeTest {
     }
 
     @Test
-    public void staleAlarmInstanceCannotDeleteOrDeliverReplacementPatientsReminder() {
+    public void staleAlarmInstanceCannotDeleteOrDeliverReplacementPatientsReminder() throws Exception {
         assertTrue(DB.initialized);
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         DateTime future = DateTime.now().plusHours(12).withMillisOfSecond(0);
@@ -77,6 +78,9 @@ public class PatientScopedReminderDeliverySmokeTest {
                     Agenda.reminderBroadcastIntent(context, current),
                     PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
 
+            assertEquals("Conditional SQL delete may only remove the captured instance",
+                    0, DB.eventReminders().deleteIfSameInstance(old));
+            assertNotNull(DB.eventReminders().findById(current.getId()));
             // Without the instance check this orphan reminder would be deleted
             // because it has no pending intake. The stale A token must do nothing.
             Agenda.instance().onReceiveAlarm(context, old.getId(), old.getAlarmInstance());
