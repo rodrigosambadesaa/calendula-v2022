@@ -80,11 +80,20 @@ public class PatientErasureAlarmAtomicitySmokeTest {
             obsolete.setId(current.getId());
             obsolete.setPatient(retiredOwner);
             obsolete.setNextTime(when);
-            Agenda.instance().cancelDeletedPatientReminderTokens(
-                    context, Collections.singletonList(obsolete));
-
-            assertNotNull("Reused reminder ID must not cancel another owner's alarm",
-                    currentToken(context, current));
+            PendingIntent retiredToken = PendingIntent.getBroadcast(context, 0,
+                    Agenda.reminderBroadcastIntent(context, obsolete),
+                    PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+            try {
+                assertNotNull("Retired owner must have an old OS token", retiredToken);
+                Agenda.instance().cancelDeletedPatientReminderTokens(
+                        context, Collections.singletonList(obsolete));
+                assertNull("Old patient's captured token must be cancelled",
+                        currentToken(context, obsolete));
+                assertNotNull("Reused reminder ID must not cancel another owner's alarm",
+                        currentToken(context, current));
+            } finally {
+                retiredToken.cancel();
+            }
             EventReminder persisted = DB.eventReminders().findById(current.getId());
             assertNotNull("Replacement reminder must survive old cleanup", persisted);
             assertEquals(currentOwner.getId(), persisted.getPatient().getId());
