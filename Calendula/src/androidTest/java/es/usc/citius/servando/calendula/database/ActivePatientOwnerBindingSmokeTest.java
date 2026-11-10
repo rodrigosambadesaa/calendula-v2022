@@ -28,6 +28,41 @@ public class ActivePatientOwnerBindingSmokeTest {
         else throw new AssertionError("Unexpected preference type in disposable test");
     }
 
+    /**
+     * Regression for the post-COMMIT erasure preference cleanup: an erased
+     * owner must not clear a newly selected patient if SQLite reuses the
+     * same row ID. Numeric equality alone is deliberately insufficient.
+     */
+    @Test
+    public void reusedNumericIdCannotInvalidateNewOwnerSelection() {
+        Patient erased = new Patient();
+        erased.setId(67890L);
+        erased.setCode("ci-erased-owner-regression");
+        Patient replacement = new Patient();
+        replacement.setId(erased.getId());
+        replacement.setCode("ci-replacement-owner-regression");
+
+        String erasedDigest = PatientDao.stablePatientDigest(erased.getCode());
+        String newDigest = PatientDao.stablePatientDigest(replacement.getCode());
+        assertNotNull(erasedDigest);
+        assertNotNull(newDigest);
+        assertNotEquals(erasedDigest, newDigest);
+
+        assertTrue("The erased owner's exact identity may be invalidated",
+                PatientDao.matchesDeletedActiveBinding(
+                        erased, erased.getId(), erasedDigest));
+        assertFalse("A replacement patient reusing the row ID must survive",
+                PatientDao.matchesDeletedActiveBinding(
+                        erased, replacement.getId(), newDigest));
+        assertFalse("A different row ID cannot authorize deletion",
+                PatientDao.matchesDeletedActiveBinding(
+                        erased, erased.getId() + 1L, erasedDigest));
+        assertFalse("A missing binding must fail closed",
+                PatientDao.matchesDeletedActiveBinding(erased, erased.getId(), null));
+        assertFalse("Malformed binding must fail closed",
+                PatientDao.matchesDeletedActiveBinding(erased, erased.getId(), "invalid"));
+    }
+
     @Test
     public void retainedDigestRejectsRecycledNumericIdAndAllowsExplicitReselection()
             throws Exception {
