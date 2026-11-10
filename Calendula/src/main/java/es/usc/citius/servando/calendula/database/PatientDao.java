@@ -415,7 +415,10 @@ public class PatientDao extends GenericDao<Patient, Long> {
                         || !ownerId.equals(reminder.getPatient().getId())) {
                     throw new SQLException("Patient reminder owner mismatch");
                 }
-                if (DB.eventReminders().delete(reminder) != 1) {
+                // The old patient snapshot and immutable alarm instance
+                // must match in the same SQL DELETE, even during a nested
+                // transaction or a restored SQLite numeric-ID collision.
+                if (DB.eventReminders().deleteIfSameInstance(reminder) != 1) {
                     throw new SQLException("Could not remove patient reminder");
                 }
             }
