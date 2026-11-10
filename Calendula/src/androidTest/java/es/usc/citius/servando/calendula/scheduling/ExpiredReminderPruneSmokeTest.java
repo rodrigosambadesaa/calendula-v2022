@@ -27,6 +27,7 @@ import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -236,6 +237,68 @@ public class ExpiredReminderPruneSmokeTest {
         } finally {
             expiredToken.cancel();
             retainedToken.cancel();
+        }
+    }
+
+    @Test
+    public void dailyPruneMustNotCancelAlarmAfterReminderIdIsReused() throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        DateTime future = DateTime.now().plusHours(6).withMillisOfSecond(0);
+        EventReminder live = new EventReminder(future, EventType.MEDICATION_INTAKE);
+        live.setNextTime(future);
+        Patient owner = new Patient();
+        owner.setCode("ci-prune-reused-id-" + System.nanoTime());
+        owner.setName("Synthetic reused reminder owner");
+        PendingIntent token = null;
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            live.setPatient(owner);
+            assertEquals(1, DB.eventReminders().create(live));
+            assertNotNull(live.getId());
+
+            // Simulate an expired reminder captured before SQLite COMMIT:
+            // its former numeric ID now belongs to a different live row.
+            EventReminder removed = new EventReminder(
+                    future.minusDays(7), EventType.MEDICATION_INTAKE);
+            removed.setNextTime(future.minusDays(7));
+            removed.setId(live.getId());
+
+            token = PendingIntent.getBroadcast(context, 0,
+                    Agenda.reminderBroadcastIntent(context, live),
+                    PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+            assertNotNull(token);
+            assertFalse("An ID still present in SQLite must not be cancelled",
+                    Agenda.instance().retirePrunedReminderToken(context, removed));
+            assertNotNull("Reused-ID alarm token must be preserved",
+                    PendingIntent.getBroadcast(context, 0,
+                            Agenda.reminderBroadcastIntent(context, live),
+                            PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+            assertNotNull(DB.eventReminders().findById(live.getId()));
+
+            // Simulate a committed deletion without relying on the ORM's
+            // affected-row count: independent agenda housekeeping can retire
+            // the same fixture before this explicit cleanup step.
+            DB.helper().getWritableDatabase().execSQL(
+                    "DELETE FROM EventReminders WHERE _id = ?",
+                    new Object[]{live.getId()});
+            assertNull("SQL row must be absent before retiring the OS token",
+                    DB.eventReminders().findById(live.getId()));
+            assertTrue(Agenda.instance().retirePrunedReminderToken(context, removed));
+            assertNull("A genuinely deleted reminder's OS token is retired",
+                    PendingIntent.getBroadcast(context, 0,
+                            Agenda.reminderBroadcastIntent(context, live),
+                            PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+        } finally {
+            if (token != null) {
+                token.cancel();
+            }
+            if (live.getId() != null && DB.eventReminders().findById(live.getId()) != null) {
+                DB.eventReminders().delete(live);
+            }
+            if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().delete(owner);
+            }
         }
     }
 }
