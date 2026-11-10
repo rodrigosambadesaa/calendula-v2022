@@ -16,6 +16,7 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
 import es.usc.citius.servando.calendula.database.DB;
+import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.util.IntentParams;
 
 import static org.mockito.Mockito.mock;
@@ -51,8 +52,10 @@ public class QueuedAlarmJobValidationTest {
                 .putExtra(IntentParams.EXTRA_ACTION, 123)
                 .putExtra(IntentParams.EXTRA_REMINDER_ID, 100L);
 
+        Intent legacyReminder = work(context, IntentParams.ACTION_ALARM_REMINDER, 104L);
         try (MockedStatic<DB> db = mockStatic(DB.class);
              MockedStatic<Agenda> agenda = mockStatic(Agenda.class)) {
+            service.onHandleWork(legacyReminder);
             service.onHandleWork(noSnapshot);
             service.onHandleWork(malformedSnapshot);
             service.onHandleWork(invalidReminder);
@@ -72,8 +75,10 @@ public class QueuedAlarmJobValidationTest {
         Agenda agenda = mock(Agenda.class);
         try (MockedStatic<Agenda> agendaSingleton = mockStatic(Agenda.class)) {
             agendaSingleton.when(Agenda::instance).thenReturn(agenda);
-            service.onHandleWork(work(context, IntentParams.ACTION_ALARM_REMINDER, 99L));
-            verify(agenda).onReceiveAlarm(service, 99L);
+            EventReminder reminder = new EventReminder();
+            reminder.setId(99L);
+            service.onHandleWork(Agenda.reminderBroadcastIntent(context, reminder));
+            verify(agenda).onReceiveAlarm(service, 99L, reminder.getAlarmInstance());
         }
     }
 
