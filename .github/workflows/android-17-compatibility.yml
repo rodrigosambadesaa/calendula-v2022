@@ -9,6 +9,7 @@ on:
       - '.github/workflows/android-17-compatibility.yml'
       - 'Calendula/**'
       - 'scripts/android-smoke-tests.sh'
+      - 'scripts/validate_android_smoke_sources.py'
       - 'scripts/android-smoke-classes.d/**'
       - 'build.gradle'
       - 'settings.gradle'
@@ -32,6 +33,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+
+      - name: Validate registered Android emulator smoke classes
+        run: python3 scripts/validate_android_smoke_sources.py
 
       - name: Set up Java 17 and Gradle cache
         uses: actions/setup-java@v6
