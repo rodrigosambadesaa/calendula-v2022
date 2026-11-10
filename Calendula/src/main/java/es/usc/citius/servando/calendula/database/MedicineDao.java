@@ -140,6 +140,23 @@ public class MedicineDao extends GenericDao<Medicine, Long> {
      * A later failure could restore the rows but not those platform effects.
      */
     public void deleteCascade(final Medicine candidate, boolean fireEvent) {
+        Medicine deleted = deleteCascadeSql(candidate);
+
+        // Only run nontransactional Android alarm cleanup and auto-routine
+        // maintenance AFTER SQLite has committed the entire cascade.
+        Agenda.instance().cleanReminders(CalendulaApp.getContext());
+        ScheduleUtils.instance().removeUnlinkedAutoRoutines(
+                deleted.getPatient(), false);
+        if (fireEvent) {
+            fireEvent();
+        }
+    }
+
+    /**
+     * SQL-only cascade for explicit patient erasure. A surrounding transaction
+     * controls COMMIT; NEVER cancel alarms or post events from this method.
+     */
+    Medicine deleteCascadeSql(final Medicine candidate) {
         if (candidate == null || candidate.getId() == null
                 || candidate.getId() <= 0L || candidate.getPatient() == null
                 || candidate.getPatient().getId() == null
@@ -149,7 +166,7 @@ public class MedicineDao extends GenericDao<Medicine, Long> {
         final Long medicineId = candidate.getId();
         final Long ownerId = candidate.getPatient().getId();
 
-        Medicine deleted = (Medicine) DB.transaction(() -> {
+        return (Medicine) DB.transaction(() -> {
             Medicine stored = DB.medicines().findById(medicineId);
             if (stored == null || DB.medicines().refresh(stored) != 1
                     || stored.getPatient() == null
@@ -222,14 +239,6 @@ public class MedicineDao extends GenericDao<Medicine, Long> {
             return stored;
         });
 
-        // Only run nontransactional Android alarm cleanup and auto-routine
-        // maintenance AFTER SQLite has committed the entire cascade.
-        Agenda.instance().cleanReminders(CalendulaApp.getContext());
-        ScheduleUtils.instance().removeUnlinkedAutoRoutines(
-                deleted.getPatient(), false);
-        if (fireEvent) {
-            fireEvent();
-        }
     }
 
     public Medicine findByGroupAndPatient(String group, Patient p) {
