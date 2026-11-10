@@ -22,8 +22,26 @@ TEST_ROOTS = (
 )
 CLASS_NAME = re.compile(r"^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+$")
 PACKAGE = re.compile(r"(?m)^[ \t]*package[ \t]+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)[ \t]*;?")
-# Java and Kotlin both use 'class'; Kotlin may also use 'object'.
-DECLARATION = r"\b(?:class|object)\s+{}\b"
+# Java and Kotlin use 'class'; Kotlin also permits a top-level 'object'.
+# A class name inside a commented-out test must not authorize a CI registration.
+DECLARATION = (
+    r"(?m)^[ \t]*(?:(?:public|protected|private|internal|final|abstract|"
+    r"open|sealed|data|enum|annotation|expect|actual|value|inner|static|strictfp)"
+    r"\s+)*(?:class|object)\s+{}\b"
+)
+# Mask comments and quoted literals without deleting line boundaries or
+# token-like strings. This is a source sanity check, not a Java/Kotlin parser.
+IGNORED_SOURCE = re.compile(
+    r"""//[^\n]*|/\*.*?\*/|\"\"\".*?\"\"\"|\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'""",
+    flags=re.DOTALL,
+)
+
+
+def mask_comments_and_literals(source: str) -> str:
+    return IGNORED_SOURCE.sub(
+        lambda match: "".join("\n" if c == "\n" else " " for c in match.group()),
+        source,
+    )
 
 
 def validate(classes: list[str], roots: tuple[Path, ...]) -> list[str]:
@@ -48,12 +66,16 @@ def validate(classes: list[str], roots: tuple[Path, ...]) -> list[str]:
             for root in roots
             for extension in (".java", ".kt")
         ]
-        source = next((candidate for candidate in candidates if candidate.is_file()), None)
-        if source is None:
+        available = [candidate for candidate in candidates if candidate.is_file()]
+        if not available:
             failures.append(f"Missing Java/Kotlin test source for {fqcn}")
             continue
+        if len(available) > 1:
+            failures.append(f"Ambiguous Java/Kotlin test sources for {fqcn}")
+            continue
 
-        body = source.read_text(encoding="utf-8")
+        source = available[0]
+        body = mask_comments_and_literals(source.read_text(encoding="utf-8"))
         package_match = PACKAGE.search(body)
         if package_match is None or package_match.group(1) != package:
             failures.append(f"Package mismatch in {source}: expected {package}")
@@ -80,6 +102,43 @@ def self_test() -> None:
         source.write_text("package org.other;\npublic class ValidSmokeTest {}\n", encoding="utf-8")
         assert any("Package mismatch" in v for v in validate(
             ["org.example.ValidSmokeTest"], (root,)))
+
+        # A deleted test name inside a comment or string is not a declaration.
+        source.write_text(
+            "package org.example;\n/*\npublic class ValidSmokeTest {}\n*/\n",
+            encoding="utf-8",
+        )
+        assert any("Missing class declaration" in v for v in validate(
+            ["org.example.ValidSmokeTest"], (root,)))
+        source.write_text(
+            'package org.example;\nString fake = "public class ValidSmokeTest";\n',
+            encoding="utf-8",
+        )
+        assert any("Missing class declaration" in v for v in validate(
+            ["org.example.ValidSmokeTest"], (root,)))
+
+        # Commented-out package names and literals containing // are ignored.
+        source.write_text(
+            '/* package org.wrong; */\npackage org.example;\n'
+            'public final class ValidSmokeTest { String url = "http://host"; }\n',
+            encoding="utf-8",
+        )
+        assert validate(["org.example.ValidSmokeTest"], (root,)) == []
+
+        kotlin = root / "org/example/KotlinSmokeTest.kt"
+        kotlin.write_text(
+            'package org.example\n/* object KotlinSmokeTest */\n'
+            'internal class KotlinSmokeTest {}\n',
+            encoding="utf-8",
+        )
+        assert validate(["org.example.KotlinSmokeTest"], (root,)) == []
+        duplicate = kotlin.with_suffix(".java")
+        duplicate.write_text(
+            "package org.example;\npublic class KotlinSmokeTest {}\n",
+            encoding="utf-8",
+        )
+        assert any("Ambiguous" in v for v in validate(
+            ["org.example.KotlinSmokeTest"], (root,)))
     print("Android smoke-registration validator self-tests passed")
 
 
