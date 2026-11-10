@@ -247,8 +247,13 @@ public class ExpiredReminderPruneSmokeTest {
         DateTime future = DateTime.now().plusHours(6).withMillisOfSecond(0);
         EventReminder live = new EventReminder(future, EventType.MEDICATION_INTAKE);
         live.setNextTime(future);
+        Patient owner = new Patient();
+        owner.setCode("ci-prune-reused-id-" + System.nanoTime());
+        owner.setName("Synthetic reused reminder owner");
         PendingIntent token = null;
         try {
+            assertEquals(1, DB.patients().create(owner));
+            live.setPatient(owner);
             assertEquals(1, DB.eventReminders().create(live));
             assertNotNull(live.getId());
 
@@ -284,6 +289,9 @@ public class ExpiredReminderPruneSmokeTest {
             }
             if (live.getId() != null && DB.eventReminders().findById(live.getId()) != null) {
                 DB.eventReminders().delete(live);
+            }
+            if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().delete(owner);
             }
         }
     }
