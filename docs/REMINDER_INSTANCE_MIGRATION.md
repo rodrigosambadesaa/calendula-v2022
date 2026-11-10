@@ -19,3 +19,30 @@ New `EventReminder` Java objects receive an instance UUID at construction; loadi
 - Validate real AlarmManager and SQLite on disposable API 23/33/36/37 emulators and physical devices; independent privacy/clinical review is mandatory. This schema PR must remain separate and draft while #955 is under review.
 
 Related: #956, #952, #955, #944, #946.
+
+## Stacked platform delivery work (draft branch)
+
+A second branch stacked on the v4 schema adds the canonical random UUID to the
+identity-bearing Android reminder broadcast URI and to the service queue. Both
+receiver and queued service reject malformed/missing UUIDs and a mismatched URI
+without querying medication records; Agenda re-reads SQLite and rejects a
+different persisted instance before handling a reminder. Cancellation uses the
+captured instance token rather than looking up a new row by its reusable ID,
+and retires pre-v4 numeric URI tokens separately. Synthetic JVM and on-device
+PendingIntent/SQLite regressions cover equal numeric IDs with distinct UUIDs,
+delayed cleanup, forged URI/extras and stale prior-patient broadcasts.
+
+**This is not a clinical release gate pass.** The following remain open:
+
+- Integrate the platform change with #955 (patient erasure, owner binding and
+  pruning); all 3 Actions workflows must be green on the *combined* final head.
+- Update all notification-button PendingIntent identities and queued actions
+  to bind the exact immutable instance, retaining clinical consent snapshots.
+- Review every stale-object deletion, cleanup, auto-repeat, backup/restore
+  and multi-process race with deterministic interleaving; a transaction must
+  guard any SQL row deletion against ID reuse.
+- Reschedule migrated reminders safely after upgrades, including overdue alarms
+  and legacy tokens already in flight; validate reboot, Doze, permission changes,
+  process death and stock/inventory behavior.
+- Run physical-device clinical/privacy acceptance. Tests use disposable,
+  synthetic patients only and cannot establish production safety on their own.
