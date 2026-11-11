@@ -12,6 +12,7 @@ import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 
 /**
  * Only verified, correctly owned doses may be presented in the home agenda.
@@ -37,11 +38,10 @@ public final class DailyAgendaEventValidator {
         }
         Patient eventPatient = event.getPatient();
         Patient schedulePatient = schedule.getPatient();
-        if (eventPatient == null || eventPatient.getId() == null
-                || eventPatient.getId() <= 0L
-                || schedulePatient == null || schedulePatient.getId() == null
-                || schedulePatient.getId() <= 0L
-                || !eventPatient.getId().equals(schedulePatient.getId())) {
+        // A restored database may reuse the numeric patient row ID.  An
+        // event and a schedule without matching stable owner identities must
+        // never disclose another patient's medicine or dosage in the agenda.
+        if (!PatientOwnerGuard.sameStableIdentity(eventPatient, schedulePatient)) {
             return null;
         }
         Medicine medicine = schedule.getMedicine();
@@ -53,8 +53,8 @@ public final class DailyAgendaEventValidator {
         Patient medicinePatient = medicine.getPatient();
         // Legacy global catalog medicines may have no owner; specifically
         // assigned medicines must belong to the same patient as the event.
-        if (medicinePatient != null && (medicinePatient.getId() == null
-                || !eventPatient.getId().equals(medicinePatient.getId()))) {
+        if (medicinePatient != null
+                && !PatientOwnerGuard.sameStableIdentity(eventPatient, medicinePatient)) {
             return null;
         }
         try {
