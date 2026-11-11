@@ -45,6 +45,15 @@ public class ScheduleListPatientReloadTest {
                 4L, 4L, null, a, Collections.emptyList()));
         assertTrue(ScheduleListFragment.mayApplyScheduleReload(
                 4L, 4L, a, a, Collections.emptyList()));
+        Patient replacement = patient(501L);
+        replacement.setCode("ci-restored-other-owner");
+        assertFalse("Old empty response cannot overwrite a newly selected patient's schedules",
+                ScheduleListFragment.mayApplyScheduleReload(
+                        4L, 4L, a, replacement, Collections.emptyList()));
+        assertFalse(ScheduleListFragment.canReviewDeleteForActivePatient(own, replacement));
+        replacement.setCode(null);
+        assertFalse(ScheduleListFragment.ownsEverySchedule(
+                replacement, Collections.singletonList(own)));
     }
 
     @Test
@@ -76,6 +85,7 @@ public class ScheduleListPatientReloadTest {
     private static Patient patient(Long id) {
         Patient p = new Patient();
         p.setId(id);
+        p.setCode("ci-schedule-list-" + id);
         return p;
     }
 
