@@ -1291,12 +1291,17 @@ public class Agenda {
         }
         try {
             Patient stored = DB.patients().findById(reminder.getPatient().getId());
+            // Numeric SQLite patient IDs may be reused by restore/import.
+            // A missing/blank Code on either side is NOT an owner match:
+            // legacy local profiles need their persisted identity migration
+            // or explicit reselection before any clinical notification.
+            // Never silently bind a reminder to a replacement patient.
+            String capturedCode = reminder.getPatient().getCode();
+            String persistedCode = stored == null ? null : stored.getCode();
             return stored != null && reminder.getPatient().getId().equals(stored.getId())
-                    // A current row with the same ID is not proof of the
-                    // same patient after an import, deletion or restore.
-                    // Preserve legacy rows without a populated code.
-                    && (reminder.getPatient().getCode() == null || stored.getCode() == null
-                        || reminder.getPatient().getCode().equals(stored.getCode()));
+                    && capturedCode != null && !capturedCode.trim().isEmpty()
+                    && persistedCode != null && !persistedCode.trim().isEmpty()
+                    && capturedCode.equals(persistedCode);
         } catch (RuntimeException unavailable) {
             // Missing/inaccessible SQLite state cannot authorize PHI delivery.
             return false;
