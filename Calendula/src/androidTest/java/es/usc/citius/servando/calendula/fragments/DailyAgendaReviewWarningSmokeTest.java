@@ -56,8 +56,10 @@ public class DailyAgendaReviewWarningSmokeTest {
     public void otherPatientsInvalidDoseNeverTriggersActiveWarning() {
         Patient a = new Patient();
         a.setId(710001L);
+        a.setCode("ci-review-visible-owner");
         Patient b = new Patient();
         b.setId(710002L);
+        b.setCode("ci-review-visible-other");
         Medicine medicine = new Medicine("CI-PATIENT confidential synthetic dose",
                 Presentation.PILLS);
         medicine.setPatient(a);
@@ -71,6 +73,25 @@ public class DailyAgendaReviewWarningSmokeTest {
         event.addParam(EventInstance.PARAM_DOSE, "Infinity");
         assertTrue(DailyAgendaReviewPolicy.needsReview(event, schedule, a));
         assertFalse(DailyAgendaReviewPolicy.needsReview(event, schedule, b));
+
+        Patient replacement = new Patient();
+        replacement.setId(a.getId());
+        replacement.setCode("ci-review-restored-replacement");
+        assertFalse("Restored patient with reused row ID must not see former owner's alert",
+                DailyAgendaReviewPolicy.needsReview(event, schedule, replacement));
+
+        EventInstance orphan = new EventInstance(event.getTime(), EventType.MEDICATION_INTAKE);
+        orphan.setId(event.getId());
+        orphan.setRef(schedule.getId());
+        orphan.addParam(EventInstance.PARAM_DOSE, "Infinity");
+        assertFalse("Ownerless row cannot warn a different stable patient",
+                DailyAgendaReviewPolicy.needsReview(orphan, schedule, replacement));
+        assertTrue("Original schedule owner may review its orphaned intake",
+                DailyAgendaReviewPolicy.needsReview(orphan, schedule, a));
+
+        replacement.setCode(null);
+        assertFalse("Legacy ID-only selection must fail closed",
+                DailyAgendaReviewPolicy.needsReview(event, schedule, replacement));
     }
 
     @Test
