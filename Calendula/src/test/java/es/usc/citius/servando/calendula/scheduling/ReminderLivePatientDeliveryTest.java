@@ -113,15 +113,25 @@ public class ReminderLivePatientDeliveryTest {
             // migration can install a new local code before later delivery.
             stale.getPatient().setCode(null);
             assertFalse(Agenda.hasLiveReminderOwner(stale));
+            assertFalse("A missing captured owner must not authorize an intake",
+                    Agenda.instance().isCurrentPendingReminder(stale));
             stale.getPatient().setCode("   ");
             assertFalse(Agenda.hasLiveReminderOwner(stale));
+            assertFalse(Agenda.instance().isCurrentPendingReminder(stale));
             stale.getPatient().setCode("synthetic-old-patient");
             newOwner.setCode(null);
             assertFalse(Agenda.hasLiveReminderOwner(stale));
+            persisted.getPatient().setCode(null);
+            assertFalse("A missing persisted owner must reject stale decisions",
+                    Agenda.instance().isCurrentPendingReminder(stale));
             newOwner.setCode("");
+            persisted.getPatient().setCode("");
             assertFalse(Agenda.hasLiveReminderOwner(stale));
+            assertFalse(Agenda.instance().isCurrentPendingReminder(stale));
             newOwner.setCode("synthetic-old-patient");
+            persisted.getPatient().setCode("synthetic-old-patient");
             assertTrue(Agenda.hasLiveReminderOwner(stale));
+            assertTrue(Agenda.instance().isCurrentPendingReminder(stale));
         }
     }
 
