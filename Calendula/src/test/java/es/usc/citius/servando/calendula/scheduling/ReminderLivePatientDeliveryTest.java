@@ -35,6 +35,7 @@ public class ReminderLivePatientDeliveryTest {
     private static Patient owner(Long id) {
         Patient p = new Patient();
         p.setId(id);
+        p.setCode("synthetic-current-owner");
         return p;
     }
 
@@ -107,9 +108,19 @@ public class ReminderLivePatientDeliveryTest {
             assertTrue(Agenda.hasLiveReminderOwner(stale));
             assertTrue(Agenda.instance().isCurrentPendingReminder(stale));
 
-            // A legacy reminder with no patient code keeps the previous
-            // persisted-ID behavior until its metadata can be reconciled.
+            // Legacy/malformed records must not trust a recycled numeric
+            // patient ID when no stable identity survives. The profile
+            // migration can install a new local code before later delivery.
             stale.getPatient().setCode(null);
+            assertFalse(Agenda.hasLiveReminderOwner(stale));
+            stale.getPatient().setCode("   ");
+            assertFalse(Agenda.hasLiveReminderOwner(stale));
+            stale.getPatient().setCode("synthetic-old-patient");
+            newOwner.setCode(null);
+            assertFalse(Agenda.hasLiveReminderOwner(stale));
+            newOwner.setCode("");
+            assertFalse(Agenda.hasLiveReminderOwner(stale));
+            newOwner.setCode("synthetic-old-patient");
             assertTrue(Agenda.hasLiveReminderOwner(stale));
         }
     }
