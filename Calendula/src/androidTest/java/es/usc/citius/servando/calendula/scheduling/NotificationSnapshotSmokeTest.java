@@ -566,10 +566,13 @@ public class NotificationSnapshotSmokeTest {
             assertEquals(other.getId(), DB.medicines()
                     .findById(x.medicines[1].getId()).getPatient().getId());
 
+            // A freshly calculated consent is now rejected outright:
+            // the medicine owner no longer matches the event, schedule
+            // and reminder. Never produce a new actionable fingerprint for
+            // a reassigned medicine, even if its numeric SQL ID is unchanged.
             String current = IntakeSnapshot.fingerprint(x.visible(2), x.reminder);
-            assertNotNull(current);
-            assertFalse("Medicine owner is part of the immutable displayed selection",
-                    shown.equals(current));
+            assertNull("A reassigned medicine must not get a new action fingerprint",
+                    current);
             try {
                 ScheduleUtils.instance().checkIntakeEventsWithSnapshot(
                         x.context, x.patient, x.when, x.reminder.getId(), shown);
@@ -580,8 +583,8 @@ public class NotificationSnapshotSmokeTest {
             x.assertUnchanged(2);
             assertNotNull(DB.eventReminders().findById(x.reminder.getId()));
 
-            // Even a freshly computed fingerprint must never authorize a
-            // current patient whose medicine belongs to somebody else.
+            // A caller must also fail closed when attempting to confirm
+            // without any fingerprint after a provider/owner change.
             try {
                 ScheduleUtils.instance().checkIntakeEventsWithSnapshot(
                         x.context, x.patient, x.when, x.reminder.getId(), current);
