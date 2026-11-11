@@ -650,7 +650,7 @@ public class PendingDoseSelectionSmokeTest {
     }
 
     @Test
-    public void replayingAgendaGenerationCannotDuplicateOrRewriteTakenDose() {
+    public void replayingAgendaGenerationCannotDuplicateOrRewriteTakenDose() throws Exception {
         assertTrue(DB.initialized);
         DateTime slot = DateTime.now().plusHours(17).withMillisOfSecond(0);
         Long syntheticRef = -System.nanoTime();
