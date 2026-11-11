@@ -75,6 +75,36 @@ class AlarmReceiverRoutingTest {
             work.hasExtra(IntentParams.EXTRA_DATETIME))
     }
 
+
+    @Test
+    fun changedConsentExtrasCannotReviveAStaleNotificationButton() {
+        val context = RuntimeEnvironment.getApplication()
+        val instance = java.util.UUID.randomUUID().toString()
+        val originalDigest = "a".repeat(64)
+        val replacementDigest = "b".repeat(64)
+        val oldClick = Intent(context, AlarmReceiver::class.java).apply {
+            putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_CONFIRM)
+            putExtra(IntentParams.EXTRA_REMINDER_ID, 900121L)
+            putExtra(IntentParams.EXTRA_ALARM_INSTANCE, instance)
+            putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, originalDigest)
+            data = android.net.Uri.parse(
+                "calendula-reminder://notification/900121/$instance/CONFIRM/$originalDigest"
+            )
+        }
+        assertNotNull(AlarmReceiver.validatedServiceIntent(context, oldClick))
+        oldClick.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, replacementDigest)
+        assertNull("Changing extras cannot change the immutable OS consent identity",
+            AlarmReceiver.validatedServiceIntent(context, oldClick))
+        oldClick.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, originalDigest)
+        assertNotNull(AlarmReceiver.validatedServiceIntent(context, oldClick))
+
+        // Old URI forms (without the fingerprint) must fail closed on upgrade.
+        oldClick.data = android.net.Uri.parse(
+            "calendula-reminder://notification/900121/$instance/CONFIRM"
+        )
+        assertNull(AlarmReceiver.validatedServiceIntent(context, oldClick))
+    }
+
     @Test
     fun legacyOrMalformedOneTapActionsCannotEnterWorkQueue() {
         val context = RuntimeEnvironment.getApplication()
