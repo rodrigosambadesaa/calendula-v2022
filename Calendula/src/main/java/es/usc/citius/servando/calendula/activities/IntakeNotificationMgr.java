@@ -425,6 +425,9 @@ public class IntakeNotificationMgr {
         final Intent defaultIntent = new Intent(context, ConfirmActivity.class);
         defaultIntent.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_REMINDER);
         defaultIntent.putExtra(IntentParams.EXTRA_PATIENT_ID, patient.getId());
+        // The OPEN tap must resolve the exact immutable persisted reminder,
+        // not a different patient after SQLite reuses either numeric row ID.
+        defaultIntent.putExtra(IntentParams.EXTRA_REMINDER_ID, reminder.getId());
         defaultIntent.putExtra(IntentParams.EXTRA_ALARM_INSTANCE, reminder.getAlarmInstance());
         defaultIntent.putExtra(IntentParams.EXTRA_DATETIME, dateTime.toString(ISODateTimeFormat.dateTimeNoMillis()));
 
