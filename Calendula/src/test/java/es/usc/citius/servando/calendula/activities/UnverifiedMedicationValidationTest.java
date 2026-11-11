@@ -48,8 +48,10 @@ public class UnverifiedMedicationValidationTest {
         EventInstance event = syntheticEvent();
         Medicine medicine = new Medicine("Synthetic test medicine", Presentation.PILLS);
         Schedule schedule = new Schedule(medicine);
+        schedule.setId(9000003301L);
         Patient patient = new Patient();
         patient.setId(9000003311L);
+        patient.setCode("ci-notice-owner-3311");
         event.setPatient(patient);
         schedule.setPatient(patient);
 
@@ -86,6 +88,7 @@ public class UnverifiedMedicationValidationTest {
         medicine.setName("Synthetic test medicine");
         Patient another = new Patient();
         another.setId(9000003312L);
+        another.setCode("ci-notice-other-3312");
         medicine.setPatient(new Patient());
         assertFalse("An ambiguous medicine owner without database identity must not render",
                 IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
@@ -108,8 +111,10 @@ public class UnverifiedMedicationValidationTest {
         EventInstance event = syntheticEvent();
         Medicine medicine = new Medicine("Synthetic verified catalog medicine", Presentation.PILLS);
         Schedule schedule = new Schedule(medicine);
+        schedule.setId(9000003301L);
         Patient patient = new Patient();
         patient.setId(9000003313L);
+        patient.setCode("ci-notice-owner-3313");
         event.setPatient(patient);
         schedule.setPatient(patient);
         schedule.addState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL);
@@ -137,11 +142,13 @@ public class UnverifiedMedicationValidationTest {
         EventInstance event = syntheticEvent();
         Patient patient = new Patient();
         patient.setId(9000003323L);
+        patient.setCode("ci-notice-owner-3323");
         event.setPatient(patient);
         event.addParam(EventInstance.PARAM_DOSE, 1.0d);
         Medicine medicine = new Medicine("Synthetic status verification medicine",
                 Presentation.PILLS);
         Schedule schedule = new Schedule(medicine);
+        schedule.setId(9000003301L);
         schedule.setPatient(patient);
 
         assertTrue(IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
