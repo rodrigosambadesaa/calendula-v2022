@@ -17,15 +17,13 @@ public final class RoutineOwnerGuard {
     }
 
     public static boolean hasActivePatient(Patient patient) {
-        return patient != null && patient.getId() != null && patient.getId() > 0L;
+        return PatientOwnerGuard.hasStableIdentity(patient);
     }
 
     public static boolean isOwnedBy(Routine routine, Patient activePatient) {
-        return hasActivePatient(activePatient)
-                && routine != null && routine.getId() != null
+        return routine != null && routine.getId() != null
                 && routine.getId() > 0L
-                && routine.getPatient() != null
-                && routine.getPatient().getId() != null
-                && activePatient.getId().equals(routine.getPatient().getId());
+                && PatientOwnerGuard.sameStableIdentity(
+                        activePatient, routine.getPatient());
     }
 }
