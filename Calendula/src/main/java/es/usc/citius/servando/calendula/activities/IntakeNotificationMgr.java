@@ -289,6 +289,23 @@ public class IntakeNotificationMgr {
                 && PatientOwnerGuard.hasStableIdentity(reminder.getPatient());
     }
 
+    /**
+     * Check the real persisted owner before reading clinical rows. A cached
+     * reminder may survive a backup restore that reuses the numeric patient
+     * ID for someone else. This probe does not access or log medication data.
+     */
+    static boolean hasLiveNotificationOwner(Patient patient) {
+        if (!PatientOwnerGuard.hasStableIdentity(patient)) {
+            return false;
+        }
+        try {
+            return PatientOwnerGuard.sameStableIdentity(
+                    patient, DB.patients().findById(patient.getId()));
+        } catch (RuntimeException unavailable) {
+            return false;
+        }
+    }
+
     public static void notify(final Context context, EventReminder reminder, boolean lost) {
 
         if (!NotificationFlagPolicy.configuredOrDefault(PreferenceKeys.SETTINGS_ALARM_NOTIFICATIONS, true)) {
@@ -320,13 +337,7 @@ public class IntakeNotificationMgr {
         // A copied reminder can outlive patient erasure and backup restore.
         // Verify the live durable owner before selecting ANY private events:
         // a recycled numeric patient ID is not authorization to display doses.
-        try {
-            if (!PatientOwnerGuard.sameStableIdentity(
-                    patient, DB.patients().findById(patient.getId()))) {
-                alertUnverifiedMedicationData(context, reminder);
-                return;
-            }
-        } catch (RuntimeException unavailable) {
+        if (!hasLiveNotificationOwner(patient)) {
             alertUnverifiedMedicationData(context, reminder);
             return;
         }
