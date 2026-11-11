@@ -10,6 +10,7 @@ on:
       - 'Calendula/**'
       - 'scripts/android-smoke-tests.sh'
       - 'scripts/validate_android_smoke_sources.py'
+      - 'scripts/ensure_disposable_android_emulator.py'
       - 'scripts/android-smoke-classes.d/**'
       - 'build.gradle'
       - 'settings.gradle'
