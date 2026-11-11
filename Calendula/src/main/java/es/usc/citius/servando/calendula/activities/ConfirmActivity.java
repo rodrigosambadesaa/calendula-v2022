@@ -379,11 +379,14 @@ public class ConfirmActivity extends CalendulaActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         if (!processIntent() || !loadItems()) {
-            // finish() alone does not stop onCreate: no view may dereference
-            // an absent patient or a malformed medication reminder timestamp.
-            Intent home = new Intent(this, HomePagerActivity.class);
-            home.putExtra("invalid_notification_error", true);
-            startActivity(home);
+            // A stale notification must NOT redirect into another patient's
+            // HomePager: simply close without rendering any clinical content.
+            // An explicit agenda list tap may still return to its home route.
+            if (isExplicitAgendaLaunch(getIntent())) {
+                Intent home = new Intent(this, HomePagerActivity.class);
+                home.putExtra("invalid_notification_error", true);
+                startActivity(home);
+            }
             finish();
             return;
         }
@@ -671,6 +674,11 @@ public class ConfirmActivity extends CalendulaActivity {
             // the raw intent, patient code or medication metadata.
             return false;
         }
+    }
+
+    static boolean isExplicitAgendaLaunch(Intent intent) {
+        IntakeLaunch launch = parseIntakeLaunch(intent);
+        return launch != null && launch.position >= 0;
     }
 
     private boolean processIntent() {
