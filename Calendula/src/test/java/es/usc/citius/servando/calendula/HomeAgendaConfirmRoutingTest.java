@@ -28,6 +28,7 @@ public class HomeAgendaConfirmRoutingTest {
                 new DailyAgendaItemStub(new LocalDate(2026, 10, 14), new LocalTime(12, 0));
         Patient patient = new Patient();
         patient.setId(owner);
+        patient.setCode("ci-agenda-confirm-" + owner);
         stub.patient = patient;
         stub.hasEvents = true;
         stub.displayable = true;
@@ -90,5 +91,19 @@ public class HomeAgendaConfirmRoutingTest {
         missingRows.meds.clear();
         assertFalse(DailyAgendaRecyclerAdapter.isCurrentConfirmRow(
                 Collections.singletonList(missingRows), missingRows, 0));
+    }
+
+    @Test
+    public void unidentifiedClinicalRowCannotLaunchHomeAgendaConfirmation() {
+        DailyAgendaItemStub missingCode = row(101L, 2001L, 1d);
+        missingCode.patient.setCode(null);
+        assertFalse(DailyAgendaRecyclerAdapter.isCurrentConfirmRow(
+                Collections.singletonList(missingCode), missingCode, 0));
+        missingCode.patient.setCode("  ");
+        assertFalse(DailyAgendaRecyclerAdapter.isCurrentConfirmRow(
+                Collections.singletonList(missingCode), missingCode, 0));
+        missingCode.patient.setCode("ci-agenda-confirm-101");
+        assertTrue(DailyAgendaRecyclerAdapter.isCurrentConfirmRow(
+                Collections.singletonList(missingCode), missingCode, 0));
     }
 }
