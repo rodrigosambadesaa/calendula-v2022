@@ -28,6 +28,7 @@ public class DailyAgendaEventValidatorTest {
     private Patient patient(long id) {
         Patient p = new Patient();
         p.setId(id);
+        p.setCode("ci-agenda-owner-" + id);
         return p;
     }
 
@@ -142,6 +143,42 @@ public class DailyAgendaEventValidatorTest {
         missing.addParam("Unrelated", "sample");
         missing.getParams().putInt(EventInstance.PARAM_DOSE, 42);
         assertNull(DailyAgendaEventValidator.verifiedDose(missing, s));
+    }
+
+    @Test
+    public void recycledPatientIdCannotExposeAFormerOwnersMedicineOrDose() {
+        Patient selected = patient(100001L);
+        Patient replacement = patient(100001L);
+        replacement.setCode("ci-replacement-with-reused-id");
+        Medicine oldMedicine = new Medicine("Synthetic old owner's tablet", Presentation.PILLS);
+        oldMedicine.setPatient(selected);
+        Schedule original = schedule(selected, oldMedicine);
+
+        assertNull("Stale event cannot be rendered as replacement owner's dose",
+                DailyAgendaEventValidator.verifiedDose(event(replacement), original));
+        EventInstance currentEvent = event(selected);
+        Schedule replacedSchedule = schedule(replacement, oldMedicine);
+        assertNull("Stale schedule cannot be rendered under old event owner",
+                DailyAgendaEventValidator.verifiedDose(currentEvent, replacedSchedule));
+        Medicine crossOwned = new Medicine("Synthetic cross-owned tablet", Presentation.PILLS);
+        crossOwned.setPatient(replacement);
+        assertNull("Recycled medicine owner ID must not expose the wrong dose",
+                DailyAgendaEventValidator.verifiedDose(currentEvent,
+                        schedule(selected, crossOwned)));
+
+        Patient noCode = patient(100001L);
+        noCode.setCode(null);
+        assertNull("An unidentified event cannot authorize clinical display",
+                DailyAgendaEventValidator.verifiedDose(event(noCode), original));
+        assertNull("An unidentified schedule cannot authorize clinical display",
+                DailyAgendaEventValidator.verifiedDose(currentEvent,
+                        schedule(noCode, oldMedicine)));
+        Medicine codeLessMedicine = new Medicine("Synthetic unidentified pill", Presentation.PILLS);
+        codeLessMedicine.setPatient(noCode);
+        assertNull(DailyAgendaEventValidator.verifiedDose(currentEvent,
+                schedule(selected, codeLessMedicine)));
+        assertEquals(Double.valueOf(1.5d),
+                DailyAgendaEventValidator.verifiedDose(currentEvent, original));
     }
 
     @Test
