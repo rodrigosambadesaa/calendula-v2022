@@ -853,13 +853,16 @@ public class Agenda {
         if (a == null || b == null) {
             return a == null && b == null;
         }
+        String capturedCode = a.getCode();
+        String persistedCode = b.getCode();
         return a.getId() != null && a.getId() > 0
                 && a.getId().equals(b.getId())
                 // Imported/restored profiles can reuse a numeric row ID.
-                // When both identities are available, a changed stable code
-                // must invalidate a stale reminder, delay or dose action.
-                && (a.getCode() == null || b.getCode() == null
-                    || a.getCode().equals(b.getCode()));
+                // Never let NULL/blank patient codes widen a clinical action
+                // to an unidentified or subsequently replaced owner.
+                && capturedCode != null && !capturedCode.trim().isEmpty()
+                && persistedCode != null && !persistedCode.trim().isEmpty()
+                && capturedCode.equals(persistedCode);
     }
 
     /**
