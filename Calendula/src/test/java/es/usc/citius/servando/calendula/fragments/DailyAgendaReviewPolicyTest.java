@@ -28,6 +28,7 @@ public class DailyAgendaReviewPolicyTest {
     private Patient patient(long id) {
         Patient p = new Patient();
         p.setId(id);
+        p.setCode("ci-review-patient-" + id);
         return p;
     }
 
@@ -74,6 +75,39 @@ public class DailyAgendaReviewPolicyTest {
         EventInstance eventOwnedByA = event(a, "1.0");
         assertTrue(DailyAgendaReviewPolicy.needsReview(eventOwnedByA, schedule(b), a));
         assertFalse(DailyAgendaReviewPolicy.needsReview(eventOwnedByA, schedule(b), b));
+    }
+
+    @Test
+    public void restoredPatientIdCannotDisplayForeignMedicationReviewWarning() {
+        Patient original = patient(100100L);
+        Patient replacement = patient(100100L);
+        replacement.setCode("ci-restored-other-owner");
+        EventInstance malformed = event(original, "NaN");
+
+        assertFalse("A recycled numeric owner ID must not reveal another person's dose",
+                DailyAgendaReviewPolicy.needsReview(
+                        malformed, schedule(original), replacement));
+        assertTrue("The actual stable owner may review the invalid dose",
+                DailyAgendaReviewPolicy.needsReview(
+                        malformed, schedule(original), original));
+
+        EventInstance unassigned = event(null, null);
+        assertFalse("An orphan referring to the prior owner cannot alert the replacement",
+                DailyAgendaReviewPolicy.needsReview(
+                        unassigned, schedule(original), replacement));
+        assertTrue("An orphan schedule may warn only its verified owner",
+                DailyAgendaReviewPolicy.needsReview(
+                        unassigned, schedule(original), original));
+
+        Patient unidentified = patient(100100L);
+        unidentified.setCode(null);
+        assertFalse("Unidentified active patient cannot see legacy clinical warnings",
+                DailyAgendaReviewPolicy.needsReview(
+                        malformed, schedule(original), unidentified));
+        malformed.setPatient(unidentified);
+        assertFalse("A legacy event with missing code cannot claim the live owner",
+                DailyAgendaReviewPolicy.needsReview(
+                        malformed, schedule(original), original));
     }
 
     @Test
