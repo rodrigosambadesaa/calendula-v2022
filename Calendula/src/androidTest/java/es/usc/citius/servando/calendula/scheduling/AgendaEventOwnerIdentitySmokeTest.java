@@ -35,6 +35,15 @@ public class AgendaEventOwnerIdentitySmokeTest {
         return event;
     }
 
+    private static int matchingCount(Long ref, DateTime when) {
+        int count = 0;
+        for (EventInstance event : DB.eventInstances().findByTypeAndTime(
+                EventType.MEDICATION_INTAKE, when)) {
+            if (ref.equals(event.getRef())) count++;
+        }
+        return count;
+    }
+
     @Test
     public void missingOrChangedOwnerCodeMustNotSilentlyDropOrOverwriteIntake()
             throws Exception {
@@ -70,9 +79,7 @@ public class AgendaEventOwnerIdentitySmokeTest {
                 assertNotNull("Existing clinical event must remain unchanged",
                         DB.eventInstances().findById(original.getId()));
                 assertEquals("No silent insertion or deletion on rejected identity",
-                        1, DB.eventInstances().findByTypeAndTime(
-                                EventType.MEDICATION_INTAKE, when).stream()
-                                .filter(event -> ref.equals(event.getRef())).count());
+                        1, matchingCount(ref, when));
             }
 
             Patient matching = new Patient();
@@ -81,9 +88,7 @@ public class AgendaEventOwnerIdentitySmokeTest {
             Agenda.instance().addEvents(Collections.singleton(
                     occurrence(matching, ref, when)));
             assertEquals("Same identified occurrence remains idempotent",
-                    1, DB.eventInstances().findByTypeAndTime(
-                            EventType.MEDICATION_INTAKE, when).stream()
-                            .filter(event -> ref.equals(event.getRef())).count());
+                    1, matchingCount(ref, when));
         } finally {
             if (original != null && original.getId() != null
                     && DB.eventInstances().findById(original.getId()) != null) {
