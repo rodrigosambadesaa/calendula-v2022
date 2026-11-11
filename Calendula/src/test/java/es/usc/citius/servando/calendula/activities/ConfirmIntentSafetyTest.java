@@ -213,4 +213,20 @@ public class ConfirmIntentSafetyTest {
         assertFalse(ConfirmActivity.matchesCurrentNotificationIntake(
                 ConfirmActivity.parseIntakeLaunch(legacy), legacy, patient, persisted));
     }
+
+    @Test
+    public void rejectedNotificationNeverRoutesToAnUnrelatedActiveHomePatient() {
+        Intent oldNotification = validLaunch();
+        assertFalse("Old notification opens must fail closed",
+                ConfirmActivity.isExplicitAgendaLaunch(oldNotification));
+        assertFalse("Malformed external routes also fail closed",
+                ConfirmActivity.isExplicitAgendaLaunch(new Intent()));
+
+        Intent realAgendaTap = validLaunch();
+        realAgendaTap.putExtra(IntentParams.EXTRA_POSITION, 2);
+        assertTrue("Only a confirmed explicit agenda row may return home",
+                ConfirmActivity.isExplicitAgendaLaunch(realAgendaTap));
+        realAgendaTap.putExtra(IntentParams.EXTRA_POSITION, -1);
+        assertFalse(ConfirmActivity.isExplicitAgendaLaunch(realAgendaTap));
+    }
 }
