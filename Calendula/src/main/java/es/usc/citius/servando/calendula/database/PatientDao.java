@@ -38,6 +38,7 @@ import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.PatientAllergen;
 import es.usc.citius.servando.calendula.persistence.Routine;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
@@ -460,24 +461,25 @@ public class PatientDao extends GenericDao<Patient, Long> {
 
     /** SQL-only graph deletion used exclusively by the enclosing erasure. */
     private void removeAllStuffSql(Patient patient) throws SQLException {
-        final Long ownerId = requirePersistedPatientForErasure(patient).getId();
+        final Patient owner = requirePersistedPatientForErasure(patient);
+        final Long ownerId = owner.getId();
         for (Medicine medicine : DB.medicines().findAll(ownerId)) {
-            if (medicine == null || medicine.getPatient() == null
-                    || !ownerId.equals(medicine.getPatient().getId())) {
+            if (medicine == null || !PatientOwnerGuard.sameStableIdentity(
+                    owner, medicine.getPatient())) {
                 throw new SQLException("Patient medicine owner mismatch");
             }
             DB.medicines().deleteCascadeSql(medicine);
         }
         for (Routine routine : DB.routines().findAll(ownerId)) {
-            if (routine == null || routine.getPatient() == null
-                    || !ownerId.equals(routine.getPatient().getId())
+            if (routine == null || !PatientOwnerGuard.sameStableIdentity(
+                    owner, routine.getPatient())
                     || DB.routines().delete(routine) != 1) {
                 throw new SQLException("Could not remove patient routine");
             }
         }
         for (PatientAllergen allergen : DB.patientAllergens().findAll(ownerId)) {
-            if (allergen == null || allergen.getPatient() == null
-                    || !ownerId.equals(allergen.getPatient().getId())
+            if (allergen == null || !PatientOwnerGuard.sameStableIdentity(
+                    owner, allergen.getPatient())
                     || DB.patientAllergens().delete(allergen) != 1) {
                 throw new SQLException("Could not remove patient allergen");
             }
