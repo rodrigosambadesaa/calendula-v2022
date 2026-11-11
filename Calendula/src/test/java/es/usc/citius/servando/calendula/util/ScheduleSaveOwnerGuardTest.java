@@ -23,6 +23,7 @@ public class ScheduleSaveOwnerGuardTest {
     private static Patient patient(long id) {
         Patient p = new Patient();
         p.setId(id);
+        p.setCode("synthetic-schedule-owner-" + id);
         return p;
     }
 
@@ -39,13 +40,13 @@ public class ScheduleSaveOwnerGuardTest {
         Patient sameReloaded = patient(900008500L);
         Patient other = patient(900008501L);
         assertTrue(ScheduleSaveOwnerGuard.canShowEditorMedicationList(
-                owner.getId(), sameReloaded, owner));
+                owner, sameReloaded, owner));
         assertFalse("Opening A and activating B hides the entire medicine list",
                 ScheduleSaveOwnerGuard.canShowEditorMedicationList(
-                        owner.getId(), other, owner));
+                        owner, other, owner));
         assertFalse("A deleted owner cannot reveal B's or A's old medicines",
                 ScheduleSaveOwnerGuard.canShowEditorMedicationList(
-                        owner.getId(), sameReloaded, null));
+                        owner, sameReloaded, null));
         assertFalse(ScheduleSaveOwnerGuard.canShowEditorMedicationList(
                 null, owner, owner));
     }
@@ -100,5 +101,37 @@ public class ScheduleSaveOwnerGuardTest {
         fromDb.setId(900008105L);
         assertFalse("Persisted schedule identity must not change",
                 ScheduleSaveOwnerGuard.canEditSchedule(opened, stale, fromDb));
+    }
+    @Test
+    public void restoredSameSqlitePatientIdNeverAuthorizesDifferentStableOwner() {
+        Patient opened = patient(900008601L);
+        Patient replacement = patient(900008601L);
+        replacement.setCode("replacement-owner-with-reused-id");
+        Patient correct = patient(900008601L);
+        Patient unidentified = patient(900008601L);
+        unidentified.setCode(null);
+        Medicine medicine = medicine(900008602L, replacement);
+        Schedule old = new Schedule(medicine);
+        old.setId(900008603L);
+        old.setPatient(opened);
+        Schedule restored = new Schedule(medicine);
+        restored.setId(old.getId());
+        restored.setPatient(replacement);
+
+        assertFalse(ScheduleSaveOwnerGuard.samePersistedPatient(opened, replacement));
+        assertFalse(ScheduleSaveOwnerGuard.samePersistedPatient(opened, unidentified));
+        assertFalse(ScheduleSaveOwnerGuard.canShowEditorMedicationList(
+                opened, replacement, replacement));
+        assertFalse(ScheduleSaveOwnerGuard.canShowEditorMedicationList(
+                opened, unidentified, correct));
+        assertFalse(ScheduleSaveOwnerGuard.canSaveForOpenedPatient(
+                opened, replacement, replacement, medicine));
+        assertFalse(ScheduleSaveOwnerGuard.canEditSchedule(opened, old, restored));
+
+        medicine.setPatient(correct);
+        assertTrue(ScheduleSaveOwnerGuard.canSaveForOpenedPatient(
+                opened, correct, correct, medicine));
+        restored.setPatient(correct);
+        assertTrue(ScheduleSaveOwnerGuard.canEditSchedule(opened, old, restored));
     }
 }
