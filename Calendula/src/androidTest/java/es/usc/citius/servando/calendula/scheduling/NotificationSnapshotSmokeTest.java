@@ -219,6 +219,7 @@ public class NotificationSnapshotSmokeTest {
         DateTime time = DateTime.now().plusHours(1);
         Patient patient = new Patient();
         patient.setId(900009900L);
+        patient.setCode("ci-oversized-consent-fixture");
         List<EventInstance> oversized = new ArrayList<>();
         for (int i = 0; i < 257; i++) {
             EventInstance event = new EventInstance(time, EventType.MEDICATION_INTAKE);
