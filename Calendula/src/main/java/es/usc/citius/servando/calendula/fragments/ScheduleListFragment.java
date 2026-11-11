@@ -64,6 +64,7 @@ import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 
 public class ScheduleListFragment extends Fragment {
 
@@ -183,8 +184,7 @@ public class ScheduleListFragment extends Fragment {
 
     /** Never apply a mixed-owner or an obsolete background schedule snapshot. */
     static boolean ownsEverySchedule(Patient expected, List<Schedule> rows) {
-        if (expected == null || expected.getId() == null || expected.getId() <= 0L
-                || rows == null) {
+        if (!PatientOwnerGuard.hasStableIdentity(expected) || rows == null) {
             return false;
         }
         for (Schedule schedule : rows) {
@@ -199,9 +199,9 @@ public class ScheduleListFragment extends Fragment {
                                           long currentGeneration, Patient requested,
                                           Patient currentlySelected, List<Schedule> rows) {
         return requestedGeneration == currentGeneration
-                && requested != null && currentlySelected != null
-                && requested.getId() != null && requested.getId() > 0L
-                && requested.getId().equals(currentlySelected.getId())
+                && PatientOwnerGuard.sameStableIdentity(requested, currentlySelected)
+                // An empty response from an old owner must not replace a new
+                // patient's schedule list after restoring a reused SQL ID.
                 && ownsEverySchedule(requested, rows);
     }
 
@@ -209,9 +209,7 @@ public class ScheduleListFragment extends Fragment {
     static boolean canReviewDeleteForActivePatient(Schedule schedule,
                                                     es.usc.citius.servando.calendula.persistence.Patient active) {
         return schedule != null && schedule.getId() != null && schedule.getId() > 0L
-                && schedule.getPatient() != null && schedule.getPatient().getId() != null
-                && active != null && active.getId() != null && active.getId() > 0L
-                && active.getId().equals(schedule.getPatient().getId());
+                && PatientOwnerGuard.sameStableIdentity(active, schedule.getPatient());
     }
 
     void showDeleteConfirmationDialog(final Schedule s) {
