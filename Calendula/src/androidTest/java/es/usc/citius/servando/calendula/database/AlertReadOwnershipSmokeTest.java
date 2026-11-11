@@ -49,6 +49,26 @@ public class AlertReadOwnershipSmokeTest {
             assertEquals("Read alert by patient, medicine and type", 1, DB.alerts().findByPatientMedicineAndType(
                     owner, medicine, warningType).size());
 
+            // A restored/imported patient can reuse the original SQLite
+            // numeric ID with a different durable code. Every read API must
+            // reject that stale selector instead of exposing an old warning.
+            Patient recycledOwner = new Patient();
+            recycledOwner.setId(owner.getId());
+            recycledOwner.setCode("ci-alert-recycled-owner-" + seed);
+            Medicine staleMedicine = new Medicine("Stale SQLite identity",
+                    Presentation.PILLS);
+            staleMedicine.setId(medicine.getId());
+            staleMedicine.setPatient(recycledOwner);
+            assertRejected(() -> DB.alerts().findByMedicineSortByLevel(staleMedicine));
+            assertRejected(() -> DB.alerts().findByMedicineAndLevel(
+                    staleMedicine, warningLevel));
+            assertRejected(() -> DB.alerts().findByMedicineAndType(
+                    staleMedicine, warningType));
+            assertRejected(() -> DB.alerts().findByPatientMedicineAndType(
+                    recycledOwner, medicine, warningType));
+            assertEquals("Original stable owner still reads the correct alert",
+                    1, DB.alerts().findByMedicineSortByLevel(medicine).size());
+
             // A damaged import can associate the same medicine with another
             // patient's alert. No reader must return that cross-owner row.
             // ORMLite update() may return zero for object-based legacy
