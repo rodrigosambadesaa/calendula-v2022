@@ -17,17 +17,19 @@ final class ScheduleEditorRoutineSource {
     private ScheduleEditorRoutineSource() {
     }
 
-    static Patient authorizedPatient(Long openedId, Patient active) {
-        if (openedId == null || openedId <= 0L) {
+    static Patient authorizedPatient(ScheduleEditorOwnerState.OwnerBinding opened,
+                                     Patient active) {
+        if (!ScheduleEditorOwnerState.stillOwnedBy(opened, active)) {
             return null;
         }
-        Patient persisted = DB.patients().findById(openedId);
-        return ScheduleSaveOwnerGuard.canShowEditorMedicationList(
-                openedId, active, persisted) ? persisted : null;
+        Patient persisted = DB.patients().findById(opened.id);
+        return ScheduleEditorOwnerState.stillOwnedBy(opened, persisted)
+                && ScheduleSaveOwnerGuard.canShowEditorMedicationList(
+                        persisted, active, persisted) ? persisted : null;
     }
 
-    static List<Routine> load(Long openedId, Patient active) {
-        Patient owner = authorizedPatient(openedId, active);
+    static List<Routine> load(ScheduleEditorOwnerState.OwnerBinding opened, Patient active) {
+        Patient owner = authorizedPatient(opened, active);
         return owner == null ? Collections.emptyList() : DB.routines().findAll(owner.getId());
     }
 }
