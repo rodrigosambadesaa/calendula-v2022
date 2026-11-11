@@ -384,7 +384,7 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
     }
 
     /** Never trust an old UI profile solely because SQLite reused its numeric ID. */
-    private static boolean isPersistedAgendaOwner(
+    static boolean isPersistedAgendaOwner(
             es.usc.citius.servando.calendula.persistence.Patient selected) {
         if (!PatientOwnerGuard.hasStableIdentity(selected)) {
             return false;
