@@ -22,6 +22,7 @@ import android.animation.Animator;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.net.Uri;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
@@ -88,6 +89,8 @@ import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.scheduling.Agenda;
 import es.usc.citius.servando.calendula.scheduling.ScheduleDisplayUtils;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
+import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
+import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.RepeatType;
 import es.usc.citius.servando.calendula.util.AvatarMgr;
@@ -623,6 +626,53 @@ public class ConfirmActivity extends CalendulaActivity {
         }
     }
 
+
+    /**
+     * A notification content tap is a clinical entry point too. A stale OS
+     * PendingIntent may survive patient deletion and a restored SQLite row ID
+     * can point at a different patient's intake. Bind the OPEN action to the
+     * exact persisted reminder instance before displaying any patient data.
+     * Normal agenda navigation (position >= 0) is validated separately.
+     */
+    static boolean matchesCurrentNotificationIntake(IntakeLaunch launch, Intent intent,
+                                                    Patient patient, EventReminder reminder) {
+        if (launch == null || launch.position != -1 || intent == null
+                || !hasValidIntakeContext(patient, launch.time) || reminder == null) {
+            return false;
+        }
+        try {
+            Bundle extras = intent.getExtras();
+            if (extras == null
+                    || !(extras.get(IntentParams.EXTRA_REMINDER_ID) instanceof Long)
+                    || !(extras.get(IntentParams.EXTRA_ALARM_INSTANCE) instanceof String)) {
+                return false;
+            }
+            long id = intent.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1L);
+            String instance = intent.getStringExtra(IntentParams.EXTRA_ALARM_INSTANCE);
+            if (id <= 0L || !IntentParams.isValidAlarmInstance(instance)
+                    || !IntentParams.ACTION_ALARM_REMINDER.equals(launch.action)
+                    || !Uri.parse("calendula-reminder://notification/" + id + "/"
+                            + instance + "/OPEN").equals(intent.getData())) {
+                return false;
+            }
+            Patient owner = reminder.getPatient();
+            return reminder.getId() != null && reminder.getId() == id
+                    && instance.equals(reminder.getAlarmInstance())
+                    && reminder.getEventType() == EventType.MEDICATION_INTAKE
+                    && reminder.getDateTime() != null
+                    && reminder.getDateTime().getMillis() / 1000L
+                            == launch.time.getMillis() / 1000L
+                    && owner != null && owner.getId() != null
+                    && owner.getId().equals(patient.getId())
+                    && patient.getCode() != null && !patient.getCode().trim().isEmpty()
+                    && patient.getCode().equals(owner.getCode());
+        } catch (RuntimeException malformed) {
+            // Legacy/wrong-typed parcelled extras must fail closed; never log
+            // the raw intent, patient code or medication metadata.
+            return false;
+        }
+    }
+
     private boolean processIntent() {
         IntakeLaunch launch = parseIntakeLaunch(getIntent());
         if (launch == null) {
@@ -636,6 +686,24 @@ public class ConfirmActivity extends CalendulaActivity {
         }
         if (!hasValidIntakeContext(patient, launch.time)) {
             return false;
+        }
+        if (launch.position == -1) {
+            try {
+                // The old content tap used only patient ID and time. Never
+                // resolve a replacement patient's record from that pair.
+                Bundle extras = getIntent().getExtras();
+                if (extras == null
+                        || !(extras.get(IntentParams.EXTRA_REMINDER_ID) instanceof Long)
+                        || !matchesCurrentNotificationIntake(launch, getIntent(), patient,
+                                DB.eventReminders().findById(
+                                        getIntent().getLongExtra(
+                                                IntentParams.EXTRA_REMINDER_ID, -1L)))) {
+                    return false;
+                }
+            } catch (RuntimeException invalid) {
+                LogUtil.w(TAG, "Ignoring obsolete medication notification launch");
+                return false;
+            }
         }
         dateTime = launch.time;
         action = launch.action;
