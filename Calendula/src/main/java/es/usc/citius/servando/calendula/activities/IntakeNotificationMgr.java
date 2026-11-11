@@ -101,8 +101,27 @@ public class IntakeNotificationMgr {
             throw new IllegalArgumentException("An immutable reminder instance is required");
         }
         identifyNotificationAction(intent, buttonKind, reminderId);
-        intent.setData(Uri.parse("calendula-reminder://notification/"
-                + reminderId + "/" + alarmInstance + "/" + buttonKind));
+        String identity = "calendula-reminder://notification/"
+                + reminderId + "/" + alarmInstance + "/" + buttonKind;
+        if ("CONFIRM".equals(buttonKind) || "CANCEL".equals(buttonKind)
+                || "DELAY".equals(buttonKind)) {
+            // FLAG_UPDATE_CURRENT modifies extras of an existing PendingIntent.
+            // If a prescription changes after a user saw a notification, the
+            // old button MUST keep its old consent, not inherit the newly
+            // displayed dose snapshot through a reused Android token.
+            final String snapshot;
+            try {
+                snapshot = intent.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT);
+            } catch (RuntimeException invalidExtras) {
+                throw new IllegalArgumentException("A valid displayed-dose digest is required",
+                        invalidExtras);
+            }
+            if (snapshot == null || !snapshot.matches("[0-9a-f]{64}")) {
+                throw new IllegalArgumentException("A valid displayed-dose digest is required");
+            }
+            identity += "/" + snapshot;
+        }
+        intent.setData(Uri.parse(identity));
         intent.putExtra(IntentParams.EXTRA_ALARM_INSTANCE, alarmInstance);
         return intent;
     }
