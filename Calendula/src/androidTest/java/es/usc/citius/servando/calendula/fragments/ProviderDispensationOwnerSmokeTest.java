@@ -10,6 +10,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
+import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedType;
 import es.usc.citius.servando.calendula.persistence.Patient;
 
 import static org.junit.Assert.assertFalse;
@@ -29,6 +30,8 @@ public class ProviderDispensationOwnerSmokeTest {
         ActiveMedEntity entity = new ActiveMedEntity();
         entity.setId(20261111L);
         entity.setPatient(owner);
+        entity.setType(ActiveMedType.DCPF);
+        entity.setCode("ci-official-synthetic-drug");
         return entity;
     }
 
@@ -51,5 +54,15 @@ public class ProviderDispensationOwnerSmokeTest {
         assertFalse("Missing stable identity must fail closed",
                 ProviderDispensationRenderGuard.canApply(
                         requested, shown, stored, patient(991001L, null)));
+        ActiveMedEntity replacedDrug = official(patient(991001L, "ci-provider-original"));
+        replacedDrug.setCode("ci-synthetic-restored-drug");
+        assertFalse("Reused provider ID with changed drug code discards stale dispensations",
+                ProviderDispensationRenderGuard.canApply(
+                        requested, shown, replacedDrug, original));
+        ActiveMedEntity changedType = official(patient(991001L, "ci-provider-original"));
+        changedType.setType(ActiveMedType.NATIONAL_CODE);
+        assertFalse("Changed official drug category cannot inherit stale async data",
+                ProviderDispensationRenderGuard.canApply(
+                        requested, shown, changedType, original));
     }
 }
