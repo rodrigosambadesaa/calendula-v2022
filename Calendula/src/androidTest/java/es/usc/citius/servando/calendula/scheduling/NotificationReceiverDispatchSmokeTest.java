@@ -92,6 +92,35 @@ public class NotificationReceiverDispatchSmokeTest {
         }
     }
 
+
+    @Test
+    public void changedActionExtrasCannotInheritNewConsentFromOlderAndroidToken() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        String original = digest('a');
+        String updated = digest('b');
+        String instance = java.util.UUID.randomUUID().toString();
+        Intent oldClick = new Intent(context, AlarmReceiver.class);
+        oldClick.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_CONFIRM);
+        oldClick.putExtra(IntentParams.EXTRA_REMINDER_ID, 731004L);
+        oldClick.putExtra(IntentParams.EXTRA_ALARM_INSTANCE, instance);
+        oldClick.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, original);
+        oldClick.setData(android.net.Uri.parse(
+                "calendula-reminder://notification/731004/" + instance
+                        + "/CONFIRM/" + original));
+        assertNotNull(AlarmReceiver.validatedServiceIntent(context, oldClick));
+
+        // PendingIntent.FLAG_UPDATE_CURRENT may mutate extras, not identity.
+        // The original Android token must not silently authorize new doses.
+        oldClick.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, updated);
+        assertNull(AlarmReceiver.validatedServiceIntent(context, oldClick));
+        oldClick.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, original);
+        assertNotNull(AlarmReceiver.validatedServiceIntent(context, oldClick));
+        oldClick.setData(android.net.Uri.parse(
+                "calendula-reminder://notification/731004/" + instance + "/CONFIRM"));
+        assertNull("Legacy ID/UUID-only clinical actions must fail closed",
+                AlarmReceiver.validatedServiceIntent(context, oldClick));
+    }
+
     @Test
     public void oldOrMalformedNotificationCannotQueueAConfirmation() {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
