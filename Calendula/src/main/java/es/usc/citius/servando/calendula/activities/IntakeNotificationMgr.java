@@ -62,6 +62,7 @@ import es.usc.citius.servando.calendula.util.AvatarMgr;
 import es.usc.citius.servando.calendula.util.IntentParams;
 import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.PendingIntentFlags;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
@@ -147,12 +148,12 @@ public class IntakeNotificationMgr {
                                        Patient expectedPatient) {
         if (event == null || event.getType() != EventType.MEDICATION_INTAKE
                 || event.completed() || event.cancelled()
-                || schedule == null || event.getRef() == null
-                || expectedPatient == null || expectedPatient.getId() == null
-                || event.getPatient() == null || event.getPatient().getId() == null
-                || schedule.getPatient() == null || schedule.getPatient().getId() == null
-                || !expectedPatient.getId().equals(event.getPatient().getId())
-                || !expectedPatient.getId().equals(schedule.getPatient().getId())) {
+                || schedule == null || event.getRef() == null || event.getRef() <= 0L
+                || schedule.getId() == null || !event.getRef().equals(schedule.getId())
+                || !PatientOwnerGuard.sameStableIdentity(
+                        expectedPatient, event.getPatient())
+                || !PatientOwnerGuard.sameStableIdentity(
+                        expectedPatient, schedule.getPatient())) {
             // A schedule for another patient must never leak medicine details.
             return false;
         }
@@ -166,8 +167,9 @@ public class IntakeNotificationMgr {
         // Preserve legacy shared catalog medicines with no patient owner, but
         // never display a specifically assigned medicine to a different user.
         Patient medicineOwner = medicine.getPatient();
-        if (medicineOwner != null && (medicineOwner.getId() == null
-                || !expectedPatient.getId().equals(medicineOwner.getId()))) {
+        if (medicineOwner != null
+                && !PatientOwnerGuard.sameStableIdentity(
+                        expectedPatient, medicineOwner)) {
             return false;
         }
         if (!schedule.hasState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL)) {
@@ -284,9 +286,7 @@ public class IntakeNotificationMgr {
                 && reminder.getId() > 0L
                 && reminder.getEventType() == EventType.MEDICATION_INTAKE
                 && reminder.getDateTime() != null
-                && reminder.getPatient() != null
-                && reminder.getPatient().getId() != null
-                && reminder.getPatient().getId() > 0L;
+                && PatientOwnerGuard.hasStableIdentity(reminder.getPatient());
     }
 
     public static void notify(final Context context, EventReminder reminder, boolean lost) {
@@ -314,6 +314,19 @@ public class IntakeNotificationMgr {
         if (!isVerifiedMedicationReminderIdentity(reminder)) {
             // Show only the existing generic review notice; never perform a
             // null/foreign type SQLite lookup or create dose-action buttons.
+            alertUnverifiedMedicationData(context, reminder);
+            return;
+        }
+        // A copied reminder can outlive patient erasure and backup restore.
+        // Verify the live durable owner before selecting ANY private events:
+        // a recycled numeric patient ID is not authorization to display doses.
+        try {
+            if (!PatientOwnerGuard.sameStableIdentity(
+                    patient, DB.patients().findById(patient.getId()))) {
+                alertUnverifiedMedicationData(context, reminder);
+                return;
+            }
+        } catch (RuntimeException unavailable) {
             alertUnverifiedMedicationData(context, reminder);
             return;
         }
