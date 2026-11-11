@@ -37,25 +37,37 @@ public class ScheduleEditorRoutineScopeSmokeTest {
             assertEquals(1, DB.routines().create(aRoutine));
             assertEquals(1, DB.routines().create(bRoutine));
 
-            List<Routine> authorized = ScheduleEditorRoutineSource.load(first.getId(), first);
+            ScheduleEditorOwnerState.OwnerBinding opened =
+                    ScheduleEditorOwnerState.restoredOwnerOrNull(null, first);
+            ScheduleEditorOwnerState.OwnerBinding secondOpened =
+                    ScheduleEditorOwnerState.restoredOwnerOrNull(null, second);
+            assertNotNull(opened);
+            List<Routine> authorized = ScheduleEditorRoutineSource.load(opened, first);
             assertEquals(1, authorized.size());
             assertEquals(aRoutine.getId(), authorized.get(0).getId());
 
             assertTrue("After switching to B, A's stale editor must show no B rows",
-                    ScheduleEditorRoutineSource.load(first.getId(), second).isEmpty());
+                    ScheduleEditorRoutineSource.load(opened, second).isEmpty());
             assertNull("Cannot create custom times for the switched profile",
-                    ScheduleEditorRoutineSource.authorizedPatient(first.getId(), second));
+                    ScheduleEditorRoutineSource.authorizedPatient(opened, second));
             assertTrue("No owner cannot reveal a default patient's routines",
                     ScheduleEditorRoutineSource.load(null, second).isEmpty());
             assertTrue("An unsaved opening editor owner cannot access routines",
-                    ScheduleEditorRoutineSource.load(-1L, first).isEmpty());
+                    ScheduleEditorRoutineSource.load(
+                            ScheduleEditorOwnerState.restoredOwnerOrNull(null,
+                                    new Patient()), first).isEmpty());
 
             assertEquals(bRoutine.getId(),
-                    ScheduleEditorRoutineSource.load(second.getId(), second).get(0).getId());
+                    ScheduleEditorRoutineSource.load(secondOpened, second).get(0).getId());
             DB.routines().remove(aRoutine);
             DB.patients().remove(first);
             assertTrue("Deleted original owner cannot be silently reassigned to active B",
-                    ScheduleEditorRoutineSource.load(first.getId(), second).isEmpty());
+                    ScheduleEditorRoutineSource.load(opened, second).isEmpty());
+            Patient recycled = new Patient();
+            recycled.setId(first.getId());
+            recycled.setCode("ci-routine-editor-restored-" + key);
+            assertTrue("Recycled SQL row ID with a new owner cannot reveal old routines",
+                    ScheduleEditorRoutineSource.load(opened, recycled).isEmpty());
             assertNotNull("B's separate routine must be untouched",
                     DB.routines().findById(bRoutine.getId()));
         } finally {
