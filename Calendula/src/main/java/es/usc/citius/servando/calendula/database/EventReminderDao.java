@@ -125,6 +125,16 @@ public class EventReminderDao extends GenericDao<EventReminder, Long> {
             throw new IllegalArgumentException(
                     "A persisted stable patient identity is required for reminder removal");
         }
+        if (patient != null) {
+            // Surface an obviously stale caller as an invalid selector. This
+            // preflight is not sufficient on its own; repeat the exact check
+            // *inside* the transaction to close the concurrent-restore race.
+            Patient current = DB.patients().findById(ownerId);
+            if (current == null || !ownerId.equals(current.getId())
+                    || !ownerCode.equals(current.getCode())) {
+                throw new IllegalArgumentException("Reminder deletion owner changed");
+            }
+        }
         try {
             return com.j256.ormlite.misc.TransactionManager.callInTransaction(
                     dbHelper.getConnectionSource(), () -> {
