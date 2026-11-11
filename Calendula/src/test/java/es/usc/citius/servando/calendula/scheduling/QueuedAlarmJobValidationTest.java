@@ -112,7 +112,7 @@ public class QueuedAlarmJobValidationTest {
                 .putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, consent)
                 .putExtra(IntentParams.EXTRA_ALARM_INSTANCE, instance)
                 .setData(android.net.Uri.parse(
-                        "calendula-reminder://notification/123/" + instance + "/DELAY"));
+                        "calendula-reminder://notification/123/" + instance + "/DELAY/" + consent));
         EventReminderDao reminders = mock(EventReminderDao.class);
         org.mockito.Mockito.when(reminders.findById(123L)).thenReturn(reminder);
         try (MockedStatic<Agenda> agendaSingleton = mockStatic(Agenda.class);
