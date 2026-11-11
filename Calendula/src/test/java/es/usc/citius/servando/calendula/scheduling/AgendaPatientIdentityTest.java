@@ -51,7 +51,14 @@ public class AgendaPatientIdentityTest {
 
     @Test
     public void unassignedLegacyRowsKeepOriginalSemanticsButBadIdsFailClosed() {
-        assertTrue(Agenda.sameEventPatientIdentity(event(null), event(null)));
+        assertFalse("Unassigned medication is not an authenticated duplicate",
+                Agenda.sameEventPatientIdentity(event(null), event(null)));
+        EventInstance unassignedPharmacy = event(null);
+        unassignedPharmacy.setType(EventType.PHARMACY_REMINDER);
+        EventInstance matchingLegacy = event(null);
+        matchingLegacy.setType(EventType.PHARMACY_REMINDER);
+        assertTrue("Legacy non-medication events keep unassigned semantics",
+                Agenda.sameEventPatientIdentity(unassignedPharmacy, matchingLegacy));
         assertFalse(Agenda.sameEventPatientIdentity(event(null),
                 event(patient(401L, "synthetic"))));
         assertFalse(Agenda.sameEventPatientIdentity(
