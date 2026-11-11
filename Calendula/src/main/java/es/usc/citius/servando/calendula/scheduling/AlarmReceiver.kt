@@ -86,18 +86,6 @@ class AlarmReceiver : BroadcastReceiver() {
                     )
                     if (incoming.data != expectedUri) return null
                 }
-                if (clinicalDecision) {
-                    if (!IntentParams.isValidAlarmInstance(alarmInstance)) return null
-                    val kind = when (action) {
-                        IntentParams.ACTION_ALARM_CONFIRM -> "CONFIRM"
-                        IntentParams.ACTION_ALARM_CANCEL -> "CANCEL"
-                        else -> "DELAY"
-                    }
-                    val expectedUri = Uri.parse(
-                        "calendula-reminder://notification/$reminderId/$alarmInstance/$kind"
-                    )
-                    if (incoming.data != expectedUri) return null
-                }
                 val snapshot = if (clinicalDecision) {
                     incoming.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT)
                 } else {
@@ -110,6 +98,21 @@ class AlarmReceiver : BroadcastReceiver() {
                     // Even cancelling or delaying an old notification can
                     // change the clinical plan the user actually saw.
                     return null
+                }
+                if (clinicalDecision) {
+                    if (!IntentParams.isValidAlarmInstance(alarmInstance)) return null
+                    val kind = when (action) {
+                        IntentParams.ACTION_ALARM_CONFIRM -> "CONFIRM"
+                        IntentParams.ACTION_ALARM_CANCEL -> "CANCEL"
+                        else -> "DELAY"
+                    }
+                    // Consent must be part of PendingIntent *identity*.
+                    // A replaced notification must not update the extras
+                    // behind an old confirm/cancel/snooze button.
+                    val expectedUri = Uri.parse(
+                        "calendula-reminder://notification/$reminderId/$alarmInstance/$kind/$snapshot"
+                    )
+                    if (incoming.data != expectedUri) return null
                 }
 
                 Intent(context, AlarmIntentService::class.java).apply {
