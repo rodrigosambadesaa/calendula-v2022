@@ -45,12 +45,14 @@ import org.joda.time.LocalDate;
 import java.util.List;
 
 import es.usc.citius.servando.calendula.fragments.HomeProfileMgr;
+import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.scheduling.ReminderTiming;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.util.AvatarMgr;
 import es.usc.citius.servando.calendula.util.DailyAgendaItemStub;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 import es.usc.citius.servando.calendula.util.ScreenUtils;
 import es.usc.citius.servando.calendula.util.view.ParallaxImageView;
 
@@ -200,7 +202,10 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
     public void onBindNormalItemViewHolder(NormalItemViewHolder viewHolder, DailyAgendaItemStub item, int i) {
 
         viewHolder.stub = item;
-        item.displayable = isDisplayable(item);
+        // A cached adapter row can outlive the underlying SQLite patient
+        // after import/restore. Check the *live* owner before rendering any
+        // medication name, dose, intake timestamp or patient avatar.
+        item.displayable = isPersistedAgendaOwner(item.patient) && isDisplayable(item);
 
         if (item.displayable) {
 
@@ -378,10 +383,25 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
                 .paddingDp(0);
     }
 
+    /** Never trust an old UI profile solely because SQLite reused its numeric ID. */
+    private static boolean isPersistedAgendaOwner(
+            es.usc.citius.servando.calendula.persistence.Patient selected) {
+        if (!PatientOwnerGuard.hasStableIdentity(selected)) {
+            return false;
+        }
+        try {
+            return PatientOwnerGuard.sameStableIdentity(
+                    selected, DB.patients().findById(selected.getId()));
+        } catch (RuntimeException unavailable) {
+            // Failed SQLite access is not authorization to show clinical data.
+            return false;
+        }
+    }
+
     private void updateStub(DailyAgendaItemStub stub) {
         // Empty timeline placeholders do not belong to a patient. Never
         // query null-owned clinical events simply to update a blank row.
-        if (stub == null || stub.patient == null || stub.patient.getId() == null
+        if (stub == null || !isPersistedAgendaOwner(stub.patient)
                 || stub.meds == null || stub.meds.isEmpty()) {
             return;
         }
@@ -392,13 +412,15 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
 
     /** Refresh only confirmed status for the same persisted event and patient. */
     static void refreshTakenStatus(DailyAgendaItemStub stub, List<EventInstance> events) {
-        if (stub == null || stub.patient == null || stub.patient.getId() == null
+        if (stub == null || !PatientOwnerGuard.hasStableIdentity(stub.patient)
                 || stub.meds == null || events == null) {
             return;
         }
         for (EventInstance event : events) {
-            if (event == null || event.getId() == null || event.getPatient() == null
-                    || !stub.patient.getId().equals(event.getPatient().getId())) {
+            if (event == null || event.getId() == null
+                    || event.getType() != es.usc.citius.servando.calendula.scheduling.model.EventType.MEDICATION_INTAKE
+                    || !PatientOwnerGuard.sameStableIdentity(
+                            stub.patient, event.getPatient())) {
                 continue;
             }
             for (DailyAgendaItemStub.DailyAgendaItemStubElement element : stub.meds) {
@@ -417,8 +439,7 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
         if (rows == null || selected == null || position < 0
                 || position >= rows.size() || rows.get(position) != selected
                 || !selected.hasEvents || !selected.displayable
-                || selected.patient == null || selected.patient.getId() == null
-                || selected.patient.getId() <= 0L
+                || !PatientOwnerGuard.hasStableIdentity(selected.patient)
                 || selected.date == null || selected.time == null
                 || selected.meds == null || selected.meds.isEmpty()) {
             return false;
@@ -548,7 +569,8 @@ public class DailyAgendaRecyclerAdapter extends RecyclerView.Adapter<RecyclerVie
         @Override
         public void onClick(View view) {
             int position = getAdapterPosition();
-            if (listener == null || !isCurrentConfirmRow(items, stub, position)) {
+            if (listener == null || !isCurrentConfirmRow(items, stub, position)
+                    || !isPersistedAgendaOwner(stub.patient)) {
                 return;
             }
             if (view.getId() == R.id.check_all_button
