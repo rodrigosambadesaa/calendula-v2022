@@ -87,7 +87,7 @@ public class ScheduleEditorOwnerStateTest {
         wrongType.putString("schedule_editor_original_patient_id",
                 String.valueOf(opened.getId()));
         wrongType.putString("schedule_editor_original_patient_fingerprint",
-                "a".repeat(64));
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         assertNull(ScheduleEditorOwnerState.restoredOwnerOrNull(wrongType, opened));
         assertNull(ScheduleEditorOwnerState.restoredOwnerOrNull(null,
                 patient(920000300L, null)));
