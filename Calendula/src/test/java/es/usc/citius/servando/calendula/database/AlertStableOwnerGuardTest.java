@@ -58,6 +58,10 @@ public class AlertStableOwnerGuardTest {
         alert.setPatient(original);
         alert.setMedicine(medicine(940000003L, original));
         assertFalse(PatientAlertDao.belongsToStableMedicineOwner(alert, medicine));
+        alert.setMedicine(medicine(940000002L,
+                owner(original.getId(), "synthetic-patient-after-restore")));
+        assertFalse("Alert's medicine snapshot cannot refer to recycled patient",
+                PatientAlertDao.belongsToStableMedicineOwner(alert, medicine));
         alert.setMedicine(medicine(940000002L, original));
         medicine.setPatient(owner(original.getId(), null));
         assertFalse(PatientAlertDao.belongsToStableMedicineOwner(alert, medicine));
