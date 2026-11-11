@@ -31,6 +31,7 @@ public class ConfirmIntakeGuardTest {
     private Patient owner(long id) {
         Patient p = new Patient();
         p.setId(id);
+        p.setCode("ci-confirm-owner-" + id);
         return p;
     }
 
@@ -68,14 +69,19 @@ public class ConfirmIntakeGuardTest {
         Patient newOwner = owner(800100L);
         newOwner.setCode("ci-synthetic-replacement-owner");
         Patient noCode = owner(800100L);
+        noCode.setCode(null);
         DateTime when = DateTime.now();
 
         assertFalse(ConfirmIntakeGuard.samePatientIdentity(oldOwner, newOwner));
         assertFalse(ConfirmIntakeGuard.samePatientIdentity(oldOwner, noCode));
         assertFalse(ConfirmIntakeGuard.samePatientIdentity(noCode, newOwner));
         assertTrue(ConfirmIntakeGuard.samePatientIdentity(newOwner, newOwner));
-        assertTrue("Unidentified legacy profiles retain compatibility only together",
-                ConfirmIntakeGuard.samePatientIdentity(noCode, owner(800100L)));
+        Patient secondUnidentified = owner(800100L);
+        secondUnidentified.setCode(null);
+        assertFalse("Two unidentified legacy profiles cannot authorize a clinical decision",
+                ConfirmIntakeGuard.samePatientIdentity(noCode, secondUnidentified));
+        secondUnidentified.setCode("  ");
+        assertFalse(ConfirmIntakeGuard.samePatientIdentity(noCode, secondUnidentified));
 
         EventInstance staleView = intake(oldOwner, when);
         EventInstance persisted = intake(newOwner, when);
@@ -87,6 +93,30 @@ public class ConfirmIntakeGuardTest {
         assertTrue(ConfirmIntakeGuard.matchesPersistedEvent(validView, persisted));
         assertTrue(ConfirmIntakeGuard.verified(validView, newOwner, when,
                 schedule(newOwner), null));
+    }
+
+    @Test
+    public void legacyOwnerWithoutStableCodeCannotConfirmOrChangeStock() {
+        Patient legacy = owner(800100L);
+        legacy.setCode(null);
+        Patient oldSnapshot = owner(800100L);
+        oldSnapshot.setCode(null);
+        DateTime date = DateTime.now();
+        EventInstance displayed = intake(legacy, date);
+        EventInstance persisted = intake(oldSnapshot, date);
+
+        assertFalse(ConfirmIntakeGuard.samePatientIdentity(legacy, oldSnapshot));
+        assertFalse(ConfirmIntakeGuard.matchesPersistedEvent(displayed, persisted));
+        assertFalse(ConfirmIntakeGuard.verified(
+                displayed, legacy, date, schedule(legacy), null));
+
+        legacy.setCode("ci-stable-local-owner");
+        oldSnapshot.setCode("ci-stable-local-owner");
+        assertTrue("Migrated matching local owner can confirm safely",
+                ConfirmIntakeGuard.samePatientIdentity(legacy, oldSnapshot));
+        assertTrue(ConfirmIntakeGuard.matchesPersistedEvent(displayed, persisted));
+        assertTrue(ConfirmIntakeGuard.verified(
+                displayed, legacy, date, schedule(legacy), null));
     }
 
     @Test
