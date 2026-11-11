@@ -204,7 +204,7 @@ public class ConfirmIntentSafetyTest {
                 launch, open, patient, differentTime));
 
         EventReminder differentKind = medicationReminder(patient, id, time);
-        differentKind.setEventType(EventType.DAILY_UPDATE);
+        differentKind.setEventType(EventType.PHARMACY_REMINDER);
         assertFalse(ConfirmActivity.matchesCurrentNotificationIntake(
                 launch, open, patient, differentKind));
 
