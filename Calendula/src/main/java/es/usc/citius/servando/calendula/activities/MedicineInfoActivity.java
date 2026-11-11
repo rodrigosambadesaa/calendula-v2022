@@ -70,9 +70,11 @@ import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.healthcareprovider.model.ActiveMedVO;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
 import es.usc.citius.servando.calendula.healthcareprovider.database.ActiveMedOwnerGuard;
+import es.usc.citius.servando.calendula.util.ClinicalScreenOwnerBinding;
 import es.usc.citius.servando.calendula.util.FragmentUtils;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 import es.usc.citius.servando.calendula.util.HealthcareProviderTypeface;
 import es.usc.citius.servando.calendula.util.Snack;
 
@@ -106,7 +108,17 @@ public class MedicineInfoActivity extends CalendulaActivity {
     IconicsImageView providerBadge;
 
     Patient activePatient;
+    private static final String DETAIL_OWNER_DOMAIN = "medicine-info";
+    private ClinicalScreenOwnerBinding originalOwnerBinding;
     private Long openedPatientId;
+
+    private boolean stillOwnsClinicalProfile(Patient snapshot) {
+        if (originalOwnerBinding == null || !originalOwnerBinding.matches(snapshot)) {
+            return false;
+        }
+        Patient persisted = DB.patients().findById(originalOwnerBinding.getId());
+        return originalOwnerBinding.matches(persisted);
+    }
     Medicine medicine;
     ActiveMedVO activeMedVO;
     PrescriptionDBMgr dbMgr;
@@ -143,7 +155,7 @@ public class MedicineInfoActivity extends CalendulaActivity {
      */
     private boolean canViewMedicine(Medicine selected) {
         if (selected == null || selected.getId() == null
-                || activePatient == null || activePatient.getId() == null) {
+                || !stillOwnsClinicalProfile(activePatient)) {
             return false;
         }
         Patient currentPatient = DB.patients().getActive(this);
@@ -151,13 +163,15 @@ public class MedicineInfoActivity extends CalendulaActivity {
         if (persisted == null || DB.medicines().refresh(persisted) != 1) {
             return false;
         }
-        return MedicineDetailsOwnerGuard.matches(
-                activePatient.getId(),
-                currentPatient == null ? null : currentPatient.getId(),
-                selected.getId(),
-                selected.getPatient() == null ? null : selected.getPatient().getId(),
-                persisted.getId(),
-                persisted.getPatient() == null ? null : persisted.getPatient().getId());
+        return stillOwnsClinicalProfile(currentPatient)
+                && originalOwnerBinding.matches(selected.getPatient())
+                && originalOwnerBinding.matches(persisted.getPatient())
+                && PatientOwnerGuard.sameStableIdentity(
+                        selected.getPatient(), persisted.getPatient())
+                && MedicineDetailsOwnerGuard.matches(
+                        activePatient.getId(), currentPatient.getId(),
+                        selected.getId(), selected.getPatient().getId(),
+                        persisted.getId(), persisted.getPatient().getId());
     }
 
     @Override
@@ -230,6 +244,11 @@ public class MedicineInfoActivity extends CalendulaActivity {
     public void handleEvent(final PersistenceEvents.ModelCreateOrUpdateEvent event) {
         Class<?> cls = event.clazz;
         Object model = event.model;
+        if (!stillOwnsClinicalProfile(DB.patients().getActive(this))
+                || (medicine != null && !canViewMedicine(medicine))) {
+            finish();
+            return;
+        }
         if (cls.equals(Medicine.class) && model != null) {
 
             Medicine med = (Medicine) model;
@@ -276,10 +295,11 @@ public class MedicineInfoActivity extends CalendulaActivity {
         setupStatusBar(Color.TRANSPARENT);
 
         activePatient = DB.patients().getActive(this);
-        openedPatientId = RestoredClinicalOwnerGuard.restoredOwnerOrNull(
-                savedInstanceState, STATE_OPENED_PATIENT_ID,
-                activePatient == null ? null : activePatient.getId());
-        if (openedPatientId == null) {
+        originalOwnerBinding = ClinicalScreenOwnerBinding.restoreOrCapture(
+                savedInstanceState, activePatient, DETAIL_OWNER_DOMAIN);
+        openedPatientId = originalOwnerBinding == null
+                ? null : originalOwnerBinding.getId();
+        if (!stillOwnsClinicalProfile(activePatient)) {
             // A restored provider-code detail must never resolve under a
             // different active patient, even when that code exists for both.
             finish();
@@ -360,8 +380,8 @@ public class MedicineInfoActivity extends CalendulaActivity {
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
-        if (openedPatientId != null && openedPatientId > 0L) {
-            outState.putLong(STATE_OPENED_PATIENT_ID, openedPatientId);
+        if (originalOwnerBinding != null) {
+            originalOwnerBinding.save(outState);
         }
         super.onSaveInstanceState(outState);
     }
@@ -375,9 +395,8 @@ public class MedicineInfoActivity extends CalendulaActivity {
     protected void onResume() {
         super.onResume();
         Patient current = DB.patients().getActive(this);
-        if (openedPatientId == null || current == null
-                || !openedPatientId.equals(current.getId())
-                || activePatient == null || !openedPatientId.equals(activePatient.getId())
+        if (!stillOwnsClinicalProfile(current)
+                || !stillOwnsClinicalProfile(activePatient)
                 || (medicine != null && !canViewMedicine(medicine))) {
             // Close rather than leave a ViewPager showing another patient's
             // medical information after the account switches.
