@@ -417,6 +417,8 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
                 || !ScheduleEditorOwnerState.stillOwnedBy(openedPatientBinding,
                         DB.patients().findById(patientIdAtEditorOpen))) {
             routineCleanupOwner = null;
+            Toast.makeText(this, R.string.patient_reselection_required,
+                    Toast.LENGTH_LONG).show();
             finish();
             return;
         }
@@ -430,6 +432,8 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
             if (s == null || !ScheduleSaveOwnerGuard.samePersistedPatient(
                     routineCleanupOwner, s.getPatient())) {
                 // Never reinterpret a stale or foreign edit link as Create.
+                Toast.makeText(this, R.string.patient_reselection_required,
+                        Toast.LENGTH_LONG).show();
                 finish();
                 return;
             }
