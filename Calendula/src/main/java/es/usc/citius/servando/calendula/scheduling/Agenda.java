@@ -113,11 +113,15 @@ public class Agenda {
                 || !first.getId().equals(second.getId())) {
             return false;
         }
-        // A database restore can recycle a numeric owner ID. Comparing only
-        // that number would silently deduplicate the *new* patient's intake
-        // against an event belonging to the previous owner of this ID.
-        return first.getCode() == null || second.getCode() == null
-                || first.getCode().equals(second.getCode());
+        // A database restore can recycle a numeric owner ID. Missing/blank
+        // codes cannot establish clinical equality, and treating them as a
+        // match would silently drop a replacement patient's pending dose.
+        // Local legacy patients must obtain their durable code first.
+        String incomingCode = first.getCode();
+        String storedCode = second.getCode();
+        return incomingCode != null && !incomingCode.trim().isEmpty()
+                && storedCode != null && !storedCode.trim().isEmpty()
+                && incomingCode.equals(storedCode);
     }
 
     public void addEvents(Collection<EventInstance> evts) {
