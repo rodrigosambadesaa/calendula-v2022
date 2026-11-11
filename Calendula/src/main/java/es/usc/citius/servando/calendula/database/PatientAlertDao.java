@@ -101,9 +101,7 @@ public class PatientAlertDao extends GenericDao<PatientAlert, Long> {
                 && alert.getMedicine() != null
                 && medicine.getId().equals(alert.getMedicine().getId())
                 && PatientOwnerGuard.sameStableIdentity(
-                        medicine.getPatient(), alert.getPatient())
-                && PatientOwnerGuard.sameStableIdentity(
-                        medicine.getPatient(), alert.getMedicine().getPatient());
+                        medicine.getPatient(), alert.getPatient());
     }
 
     private List<PatientAlert> requireSameOwner(
