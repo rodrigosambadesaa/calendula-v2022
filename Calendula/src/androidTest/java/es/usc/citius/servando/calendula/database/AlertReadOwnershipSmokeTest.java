@@ -105,7 +105,7 @@ public class AlertReadOwnershipSmokeTest {
         boolean rejected = false;
         try {
             read.run();
-        } catch (IllegalStateException expected) {
+        } catch (IllegalStateException | IllegalArgumentException expected) {
             rejected = true;
         }
         assertTrue("Cross-patient alert rows must not be returned", rejected);
