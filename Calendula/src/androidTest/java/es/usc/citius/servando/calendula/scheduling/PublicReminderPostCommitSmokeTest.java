@@ -455,7 +455,12 @@ public class PublicReminderPostCommitSmokeTest {
             assertEquals("Precondition: same persisted alarm UUID",
                     x.reminder.getAlarmInstance(), stale.getAlarmInstance());
             assertEquals(x.reminder.getId(), stale.getId());
-            stale.getPatient().setCode("ci-foreign-patient-code");
+            // A detached historic owner snapshot must not mutate the
+            // live ORM patient object used by the fixture or cached DAOs.
+            Patient staleOwner = new Patient();
+            staleOwner.setId(x.owner.getId());
+            staleOwner.setCode("ci-foreign-patient-code");
+            stale.setPatient(staleOwner);
             DateTime requested = x.due.plusMinutes(1);
             assertFalse("Stale patient identity cannot authorize auto-repeat",
                     Agenda.instance().rescheduleAutoRepeatIfCurrent(
@@ -471,7 +476,7 @@ public class PublicReminderPostCommitSmokeTest {
 
             // Missing stable owner identity also fails closed, even when all
             // numeric IDs, timestamps, UUID and event ownership match.
-            stale.getPatient().setCode(null);
+            staleOwner.setCode(null);
             assertFalse(Agenda.instance().rescheduleAutoRepeatIfCurrent(
                     x.context, stale, requested));
             assertEquals(x.due, x.persistedTime());
