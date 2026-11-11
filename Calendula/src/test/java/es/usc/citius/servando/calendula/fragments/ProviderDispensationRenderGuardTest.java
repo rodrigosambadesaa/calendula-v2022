@@ -122,6 +122,31 @@ public class ProviderDispensationRenderGuardTest {
                 ProviderDispensationRenderGuard.canApply(
                         requested, displayed, persisted, owner));
 
+        DateTime validityStart = updated.plusDays(1);
+        requested.setValidityStart(validityStart);
+        assertFalse("A changed validity window invalidates the async result",
+                ProviderDispensationRenderGuard.canApply(
+                        requested, displayed, persisted, owner));
+        displayed.setValidityStart(validityStart);
+        persisted.setValidityStart(validityStart);
+        assertTrue(ProviderDispensationRenderGuard.canApply(
+                requested, displayed, persisted, owner));
+
+        DateTime validityEnd = updated.plusDays(30);
+        persisted.setValidityEnd(validityEnd);
+        assertFalse("A new end-of-treatment date must not use stale dispensations",
+                ProviderDispensationRenderGuard.canApply(
+                        requested, displayed, persisted, owner));
+        requested.setValidityEnd(validityEnd);
+        displayed.setValidityEnd(validityEnd);
+        assertTrue(ProviderDispensationRenderGuard.canApply(
+                requested, displayed, persisted, owner));
+
+        persisted.setState(ActiveMedEntity.ActiveMedState.INACTIVE);
+        assertFalse("Changes to active/inactive status invalidate stale dispensations",
+                ProviderDispensationRenderGuard.canApply(
+                        requested, displayed, persisted, owner));
+
         requested.setCode(" ");
         assertFalse("An unidentified official drug is never a valid async match",
                 ProviderDispensationRenderGuard.canApply(

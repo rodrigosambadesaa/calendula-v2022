@@ -64,5 +64,11 @@ public class ProviderDispensationOwnerSmokeTest {
         assertFalse("Changed official drug category cannot inherit stale async data",
                 ProviderDispensationRenderGuard.canApply(
                         requested, shown, changedType, original));
+        ActiveMedEntity inactiveReplacement =
+                official(patient(991001L, "ci-provider-original"));
+        inactiveReplacement.setState(ActiveMedEntity.ActiveMedState.INACTIVE);
+        assertFalse("Inactive restored official treatment cannot inherit a pending result",
+                ProviderDispensationRenderGuard.canApply(
+                        requested, shown, inactiveReplacement, original));
     }
 }

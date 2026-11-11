@@ -47,7 +47,10 @@ public final class ProviderDispensationRenderGuard {
                 && first.getType() != null && first.getType() == second.getType()
                 && first.getCode() != null && !first.getCode().trim().isEmpty()
                 && first.getCode().equals(second.getCode())
-                && Objects.equals(first.getLastUpdated(), second.getLastUpdated());
+                && Objects.equals(first.getLastUpdated(), second.getLastUpdated())
+                && first.getState() == second.getState()
+                && Objects.equals(first.getValidityStart(), second.getValidityStart())
+                && Objects.equals(first.getValidityEnd(), second.getValidityEnd());
     }
 
     private static boolean ownsPatient(ActiveMedEntity medicine, Patient expected) {
