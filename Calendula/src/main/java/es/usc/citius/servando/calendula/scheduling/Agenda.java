@@ -106,8 +106,13 @@ public class Agenda {
         Patient first = incoming.getPatient();
         Patient second = stored.getPatient();
         if (first == null || second == null) {
-            // Retain the legacy behavior for unassigned, non-clinical rows.
-            return first == null && second == null;
+            // Unassigned legacy non-medication events can retain their old
+            // occurrence identity. A MEDICATION_INTAKE has clinical ownership:
+            // without a verified patient it must never be silently treated as
+            // an already-present dose with the same schedule ref and time.
+            return first == null && second == null
+                    && incoming.getType() != EventType.MEDICATION_INTAKE
+                    && stored.getType() != EventType.MEDICATION_INTAKE;
         }
         if (first.getId() == null || first.getId() <= 0L
                 || !first.getId().equals(second.getId())) {
