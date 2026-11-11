@@ -249,20 +249,42 @@ public class MedicineInfoActivity extends CalendulaActivity {
             finish();
             return;
         }
-        if (cls.equals(Medicine.class) && model != null) {
-
+        if (cls.equals(Medicine.class) && model instanceof Medicine
+                && medicine != null) {
+            // A provider-only page has no local medicine. Old event handlers
+            // dereferenced null here, and assumed that tab 1 was always the
+            // alert fragment (it is the provider fragment in ALL mode).
             Medicine med = (Medicine) model;
-
-            if (med.getId().equals(medicine.getId())) {
-
-                if (medicine.getCn() == null && med.getCn() != null) {
+            Patient displayedOwner = medicine.getPatient();
+            Patient eventOwner = med.getPatient();
+            if (MedicineDetailsOwnerGuard.sameMedicineUpdate(
+                    medicine.getId(),
+                    displayedOwner == null ? null : displayedOwner.getId(),
+                    displayedOwner == null ? null : displayedOwner.getCode(),
+                    med.getId(),
+                    eventOwner == null ? null : eventOwner.getId(),
+                    eventOwner == null ? null : eventOwner.getCode())) {
+                boolean newlyLinked = medicine.getCn() == null && med.getCn() != null;
+                // Always refresh the authoritative SQLite medicine BEFORE
+                // notifying a fragment or displaying any updated clinical data.
+                if (DB.medicines().refresh(medicine) != 1
+                        || !canViewMedicine(medicine)) {
+                    finish();
+                    return;
+                }
+                if (newlyLinked) {
                     Snack.show(R.string.message_med_linked_success, this, Snackbar.LENGTH_SHORT);
                 }
-                ((MedInfoFragment) getViewPagerFragment(0)).notifyDataChange();
-                ((AlertListFragment) getViewPagerFragment(1)).notifyDataChange();
-                DB.medicines().refresh(medicine);
+                Fragment info = getViewPagerFragment(0);
+                if (info instanceof MedInfoFragment) {
+                    ((MedInfoFragment) info).notifyDataChange();
+                }
+                int alertsPosition = pageSet == MedInfoPageAdapter.MedInfoPageSet.ALL ? 2 : 1;
+                Fragment alerts = getViewPagerFragment(alertsPosition);
+                if (alerts instanceof AlertListFragment) {
+                    ((AlertListFragment) alerts).notifyDataChange();
+                }
                 updateMedDetails();
-
             }
         }
         else if (cls.equals(Schedule.class)) {
