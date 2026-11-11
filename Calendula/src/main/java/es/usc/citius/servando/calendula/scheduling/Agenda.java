@@ -1409,6 +1409,13 @@ public class Agenda {
                                 || !shouldReschedule(current, nextTime)
                                 || current.getEventType() != snapshot.getEventType()
                                 || !current.getDateTime().equals(snapshot.getDateTime())
+                                // A restored/edited patient can retain the row ID and
+                                // the alarm UUID. Repetition must still verify the
+                                // captured patient's immutable identity inside SQL.
+                                || !samePersistedReminderPatient(
+                                        snapshot.getPatient(), current.getPatient())
+                                || (current.getEventType() == EventType.MEDICATION_INTAKE
+                                    && !hasLiveReminderOwner(current))
                                 || !DB.eventInstances().existsPending(
                                         current.getEventType(), current.getDateTime(),
                                         current.getPatient())) {
