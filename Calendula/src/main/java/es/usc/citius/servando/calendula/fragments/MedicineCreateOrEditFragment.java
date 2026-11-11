@@ -84,6 +84,7 @@ import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 import es.usc.citius.servando.calendula.util.DrugCatalogSelection;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
@@ -186,8 +187,16 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
 
         es.usc.citius.servando.calendula.persistence.Patient openedPatient =
                 DB.patients().getActive(getActivity());
-        editorPatientId = openedPatient == null ? null : openedPatient.getId();
-        pColor = openedPatient == null ? android.graphics.Color.DKGRAY : openedPatient.getColor();
+        MedicinesActivity hostingEditor = getActivity() instanceof MedicinesActivity
+                ? (MedicinesActivity) getActivity() : null;
+        if (hostingEditor == null || !hostingEditor.isOriginalEditorPatient(openedPatient)) {
+            if (getActivity() != null) {
+                getActivity().finish();
+            }
+            return rootView;
+        }
+        editorPatientId = openedPatient.getId();
+        pColor = openedPatient.getColor();
         setupIcons(rootView);
 
         mNameTextView.setOnClickListener(new View.OnClickListener() {
@@ -229,6 +238,7 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
                     DB.patients().getActive(getContext());
             Long activeId = activePatient == null ? null : activePatient.getId();
             if (current == null || DB.medicines().refresh(current) != 1
+                    || !hostingEditor.isOriginalEditorPatient(current.getPatient())
                     || !MedicineEditorOwnershipGuard.canEdit(
                         editorPatientId, activeId, mMedicineId,
                         current.getPatient() == null ? null : current.getPatient().getId(),
@@ -407,7 +417,10 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
         es.usc.citius.servando.calendula.persistence.Patient activePatient =
                 getContext() == null ? null : DB.patients().getActive(getContext());
         Long activePatientId = activePatient == null ? null : activePatient.getId();
-        if (!MedicineEditorOwnershipGuard.sameEditorPatient(editorPatientId, activePatientId)) {
+        if (!(getActivity() instanceof MedicinesActivity)
+                || !((MedicinesActivity) getActivity()).isOriginalEditorPatient(activePatient)
+                || !MedicineEditorOwnershipGuard.sameEditorPatient(
+                        editorPatientId, activePatientId)) {
             if (getActivity() != null) {
                 Snack.show(R.string.medicine_editor_profile_changed, getActivity());
             }
@@ -417,6 +430,10 @@ public class MedicineCreateOrEditFragment extends Fragment implements SharedPref
             Medicine persisted = mMedicine.getId() == null ? null
                     : DB.medicines().findById(mMedicine.getId());
             if (persisted == null || DB.medicines().refresh(persisted) != 1
+                    || !((MedicinesActivity) getActivity()).isOriginalEditorPatient(
+                            persisted.getPatient())
+                    || !PatientOwnerGuard.sameStableIdentity(
+                            mMedicine.getPatient(), persisted.getPatient())
                     || !MedicineEditorOwnershipGuard.canEdit(
                         editorPatientId, activePatientId,
                         mMedicine.getId(),
