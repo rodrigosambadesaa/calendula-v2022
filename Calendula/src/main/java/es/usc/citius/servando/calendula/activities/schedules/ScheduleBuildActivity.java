@@ -411,23 +411,29 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
                 savedInstanceState, selectedOnOpen);
         patientIdAtEditorOpen = openedPatientBinding == null ? null
                 : openedPatientBinding.id;
-        routineCleanupOwner = ScheduleEditorOwnerState.stillOwnedBy(
-                openedPatientBinding, selectedOnOpen) ? selectedOnOpen : null;
-        if (routineCleanupOwner != null
-                && ScheduleEditorOwnerState.stillOwnedBy(openedPatientBinding,
-                DB.patients().findById(patientIdAtEditorOpen))) {
-            ScheduleUtils.instance().removeUnlinkedAutoRoutines(routineCleanupOwner, true);
+        // A restored old draft or an unidentified profile must not display a
+        // foreign schedule, silently switch owners, or fall through to Create.
+        if (!ScheduleEditorOwnerState.stillOwnedBy(openedPatientBinding, selectedOnOpen)
+                || !ScheduleEditorOwnerState.stillOwnedBy(openedPatientBinding,
+                        DB.patients().findById(patientIdAtEditorOpen))) {
+            routineCleanupOwner = null;
+            finish();
+            return;
         }
+        routineCleanupOwner = selectedOnOpen;
+        ScheduleUtils.instance().removeUnlinkedAutoRoutines(routineCleanupOwner, true);
 
         String action = getIntent().getStringExtra(IntentParams.EXTRA_ACTION);
         Long editScheduleId = getIntent().getLongExtra(CalendulaApp.INTENT_EXTRA_SCHEDULE_ID, -1);
         if (editScheduleId != -1) {
             Schedule s = DB.schedules().findById(editScheduleId);
-            if (s != null && routineCleanupOwner != null
-                    && ScheduleSaveOwnerGuard.samePersistedPatient(
-                            routineCleanupOwner, s.getPatient())) {
-                enableEditMode(s);
+            if (s == null || !ScheduleSaveOwnerGuard.samePersistedPatient(
+                    routineCleanupOwner, s.getPatient())) {
+                // Never reinterpret a stale or foreign edit link as Create.
+                finish();
+                return;
             }
+            enableEditMode(s);
         } else if (IntentParams.ACTION_CREATE_REMINDER.equals(action)) {
             Long activeMedId = getIntent().getLongExtra(IntentParams.EXTRA_ACTIVEMED_ID, -1);
             Pair<ScheduleCreator.ScheduleMappingResult, Schedule> result = ScheduleCreator.fromActiveMed(activeMedId);
