@@ -97,6 +97,19 @@ public class DailyAgendaReviewWarningSmokeTest {
                     DB.eventInstances().hasUntimedMedicationForPatient(a));
             assertFalse("A different patient must not be warned about this medication",
                     DB.eventInstances().hasUntimedMedicationForPatient(b));
+            Patient oldSession = new Patient();
+            oldSession.setId(a.getId());
+            oldSession.setCode("synthetic-previous-owner-with-recycled-id");
+            assertFalse("A recycled numeric patient ID must not expose another owner's review flag",
+                    DB.eventInstances().hasUntimedMedicationForPatient(oldSession));
+            oldSession.setCode(null);
+            assertFalse("An unidentified legacy session cannot query clinical existence",
+                    DB.eventInstances().hasUntimedMedicationForPatient(oldSession));
+            oldSession.setCode(" ");
+            assertFalse(DB.eventInstances().hasUntimedMedicationForPatient(oldSession));
+            oldSession.setCode(a.getCode());
+            assertTrue("A fresh copy of the current stable owner remains authorized",
+                    DB.eventInstances().hasUntimedMedicationForPatient(oldSession));
             assertFalse(DB.eventInstances().hasUntimedMedicationForPatient(null));
             assertFalse(DB.eventInstances().hasUntimedMedicationForPatient(new Patient()));
 
