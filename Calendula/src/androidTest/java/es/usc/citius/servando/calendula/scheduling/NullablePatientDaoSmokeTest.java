@@ -21,6 +21,7 @@ import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /** Isolated synthetic records, never actual patient/prescription data. */
@@ -80,6 +81,70 @@ public class NullablePatientDaoSmokeTest {
             }
             if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
                 DB.patients().remove(owner);
+            }
+        }
+    }
+
+    @Test
+    public void stalePatientIdCannotDeleteReplacementOwnersReminders() throws Exception {
+        assertTrue(DB.initialized);
+        DateTime when = DateTime.now().plusHours(15).withMillisOfSecond(0);
+        Patient currentOwner = new Patient();
+        currentOwner.setCode("ci-reminder-current-owner-" + System.nanoTime());
+        currentOwner.setName("Synthetic current patient");
+        EventReminder current = new EventReminder(when, EventType.MEDICATION_INTAKE);
+        current.setNextTime(when);
+        EventReminder unassigned = new EventReminder(when, EventType.MEDICATION_INTAKE);
+        unassigned.setNextTime(when);
+        try {
+            assertEquals(1, DB.patients().create(currentOwner));
+            current.setPatient(currentOwner);
+            assertEquals(1, DB.eventReminders().create(current));
+            assertEquals(1, DB.eventReminders().create(unassigned));
+
+            Patient obsolete = new Patient();
+            obsolete.setId(currentOwner.getId());
+            obsolete.setCode("ci-prior-patient-same-row-id");
+            boolean rejected = false;
+            try {
+                DB.eventReminders().removeBy(
+                        obsolete, EventType.MEDICATION_INTAKE, when);
+            } catch (IllegalArgumentException expected) {
+                rejected = true;
+            }
+            assertTrue("Reused numeric ID cannot erase a different patient's row", rejected);
+            assertNotNull(DB.eventReminders().findById(current.getId()));
+            assertNotNull(DB.eventReminders().findById(unassigned.getId()));
+
+            obsolete.setCode(null);
+            rejected = false;
+            try {
+                DB.eventReminders().removeBy(
+                        obsolete, EventType.MEDICATION_INTAKE, when);
+            } catch (IllegalArgumentException expected) {
+                rejected = true;
+            }
+            assertTrue("Unidentified legacy object cannot authorize erasure", rejected);
+            assertNotNull(DB.eventReminders().findById(current.getId()));
+
+            assertEquals("Correct stable owner deletes only their reminder",
+                    1, DB.eventReminders().removeBy(
+                            currentOwner, EventType.MEDICATION_INTAKE, when));
+            assertNull(DB.eventReminders().findById(current.getId()));
+            assertNotNull("An unrelated unassigned reminder survives",
+                    DB.eventReminders().findById(unassigned.getId()));
+            assertEquals("Already removed reminder stays idempotent", 0,
+                    DB.eventReminders().removeBy(
+                            currentOwner, EventType.MEDICATION_INTAKE, when));
+        } finally {
+            for (EventReminder row : new EventReminder[]{current, unassigned}) {
+                if (row.getId() != null && DB.eventReminders().findById(row.getId()) != null) {
+                    DB.eventReminders().remove(row);
+                }
+            }
+            if (currentOwner.getId() != null
+                    && DB.patients().findById(currentOwner.getId()) != null) {
+                DB.patients().remove(currentOwner);
             }
         }
     }
