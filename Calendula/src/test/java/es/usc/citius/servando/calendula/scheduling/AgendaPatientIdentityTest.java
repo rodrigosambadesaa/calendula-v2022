@@ -59,9 +59,19 @@ public class AgendaPatientIdentityTest {
         assertFalse(Agenda.sameEventPatientIdentity(
                 event(patient(0L, "synthetic")), event(patient(0L, "synthetic"))));
         assertFalse(Agenda.sameEventPatientIdentity(null, event(null)));
-        // Incompletely restored legacy codes retain the prior ID-only
-        // behavior until they can be safely reconciled.
-        assertTrue(Agenda.sameEventPatientIdentity(
+        // Two unidentified patients cannot be deduplicated by recycled row
+        // ID. Preserve both records for explicit local identity migration.
+        assertFalse(Agenda.sameEventPatientIdentity(
                 event(patient(401L, null)), event(patient(401L, "synthetic"))));
+        assertFalse(Agenda.sameEventPatientIdentity(
+                event(patient(401L, "synthetic")), event(patient(401L, null))));
+        assertFalse(Agenda.sameEventPatientIdentity(
+                event(patient(401L, null)), event(patient(401L, null))));
+        assertFalse(Agenda.sameEventPatientIdentity(
+                event(patient(401L, "  ")), event(patient(401L, "synthetic"))));
+        assertFalse(Agenda.sameEventPatientIdentity(
+                event(patient(401L, "synthetic")), event(patient(401L, ""))));
+        assertTrue(Agenda.sameEventPatientIdentity(
+                event(patient(401L, "synthetic")), event(patient(401L, "synthetic"))));
     }
 }
