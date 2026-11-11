@@ -28,6 +28,7 @@ public class DailyAgendaOfficialTreatmentValidatorTest {
     private Patient patient(long id) {
         Patient p = new Patient();
         p.setId(id);
+        p.setCode("ci-provider-owner-" + id);
         return p;
     }
 
@@ -91,6 +92,59 @@ public class DailyAgendaOfficialTreatmentValidatorTest {
         linked.setActiveMedId(null);
         assertFalse(DailyAgendaOfficialTreatmentValidator.verifiedLinkForActivePatient(
                 linked, official, patient(755555L)));
+    }
+
+
+    @Test
+    public void recycledPatientIdWithDifferentStableCodeCannotClaimOfficialSource() {
+        Patient original = patient(755555L);
+        Schedule schedule = schedule(original);
+        Patient recycled = patient(755555L);
+        recycled.setCode("ci-recycled-owner");
+        ActiveMedEntity provider = provider(recycled);
+
+        assertFalse("SQL ID reuse cannot attach another patient's official medication",
+                DailyAgendaOfficialTreatmentValidator.verifiedLink(schedule, provider));
+        assertNull("Never render another patient's provider instructions",
+                DailyAgendaOfficialTreatmentValidator.firstInstruction(schedule, provider));
+        assertFalse(DailyAgendaOfficialTreatmentValidator.verifiedLinkForActivePatient(
+                schedule, provider, original));
+
+        provider.setPatient(patient(755555L));
+        assertTrue(DailyAgendaOfficialTreatmentValidator.verifiedLink(schedule, provider));
+        assertFalse("Editor must reject a selected replacement patient",
+                DailyAgendaOfficialTreatmentValidator.verifiedLinkForActivePatient(
+                        schedule, provider, recycled));
+        assertTrue(DailyAgendaOfficialTreatmentValidator.verifiedLinkForActivePatient(
+                schedule, provider, original));
+    }
+
+    @Test
+    public void unidentifiedPatientCodesCannotAuthorizeImportedTreatment() {
+        Patient identified = patient(755555L);
+        Schedule schedule = schedule(identified);
+        ActiveMedEntity provider = provider(patient(755555L));
+
+        provider.getPatient().setCode(null);
+        assertFalse(DailyAgendaOfficialTreatmentValidator.verifiedLink(schedule, provider));
+        provider.getPatient().setCode(" ");
+        assertFalse(DailyAgendaOfficialTreatmentValidator.verifiedLink(schedule, provider));
+        provider.setPatient(patient(755555L));
+
+        schedule.getPatient().setCode(null);
+        assertFalse(DailyAgendaOfficialTreatmentValidator.verifiedLink(schedule, provider));
+        schedule.getPatient().setCode("");
+        assertFalse(DailyAgendaOfficialTreatmentValidator.verifiedLink(schedule, provider));
+        schedule.getPatient().setCode("ci-provider-owner-755555");
+        assertTrue(DailyAgendaOfficialTreatmentValidator.verifiedLink(schedule, provider));
+
+        Patient active = patient(755555L);
+        active.setCode(null);
+        assertFalse(DailyAgendaOfficialTreatmentValidator.verifiedLinkForActivePatient(
+                schedule, provider, active));
+        active.setCode(" ");
+        assertFalse(DailyAgendaOfficialTreatmentValidator.verifiedLinkForActivePatient(
+                schedule, provider, active));
     }
 
     @Test
