@@ -47,9 +47,52 @@ public class ProviderDispensationRenderGuardTest {
                 medicine(201L, new Patient()), record, record, a));
     }
 
+    @Test
+    public void restoredIdWithDifferentStableOwnerCannotApplyOldDispensation() {
+        Patient original = patient(101L);
+        Patient replacement = patient(101L);
+        replacement.setCode("ci-dispensation-replacement");
+
+        ActiveMedEntity requested = medicine(201L, original);
+        ActiveMedEntity displayed = medicine(201L, patient(101L));
+        ActiveMedEntity persisted = medicine(201L, patient(101L));
+        assertFalse("A restored patient ID is not an authorization for stale dispensations",
+                ProviderDispensationRenderGuard.canApply(
+                        requested, displayed, persisted, replacement));
+        assertFalse("One replaced displayed record invalidates the async result",
+                ProviderDispensationRenderGuard.canApply(
+                        requested, medicine(201L, replacement), persisted, original));
+        assertFalse("One replaced current provider record invalidates the async result",
+                ProviderDispensationRenderGuard.canApply(
+                        requested, displayed, medicine(201L, replacement), original));
+        assertTrue(ProviderDispensationRenderGuard.canApply(
+                requested, displayed, persisted, original));
+    }
+
+    @Test
+    public void unidentifiedOwnerCannotApplyProviderDispensations() {
+        Patient owner = patient(101L);
+        ActiveMedEntity valid = medicine(201L, owner);
+        Patient missing = patient(101L);
+        missing.setCode(null);
+        assertFalse(ProviderDispensationRenderGuard.canApply(
+                valid, valid, valid, missing));
+        missing.setCode(" ");
+        assertFalse(ProviderDispensationRenderGuard.canApply(
+                valid, valid, valid, missing));
+        missing.setCode("");
+        assertFalse(ProviderDispensationRenderGuard.canApply(
+                medicine(201L, missing), valid, valid, owner));
+        assertFalse(ProviderDispensationRenderGuard.canApply(
+                valid, medicine(201L, missing), valid, owner));
+        assertFalse(ProviderDispensationRenderGuard.canApply(
+                valid, valid, medicine(201L, missing), owner));
+    }
+
     private static Patient patient(Long id) {
         Patient patient = new Patient();
         patient.setId(id);
+        patient.setCode(id == null ? null : "ci-dispensation-owner-" + id);
         return patient;
     }
 
