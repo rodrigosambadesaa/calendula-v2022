@@ -54,7 +54,7 @@ class AlarmReceiverRoutingTest {
             putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_CONFIRM)
             putExtra(IntentParams.EXTRA_REMINDER_ID, 123L)
             putExtra(IntentParams.EXTRA_ALARM_INSTANCE, instance)
-            data = android.net.Uri.parse("calendula-reminder://notification/123/$instance/CONFIRM")
+            data = android.net.Uri.parse("calendula-reminder://notification/123/$instance/CONFIRM/$fingerprint")
             putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, fingerprint)
             putExtra(IntentParams.EXTRA_PATIENT_ID, 999L)
             putExtra(IntentParams.EXTRA_DATETIME, "private clinical timestamp")
@@ -128,7 +128,7 @@ class AlarmReceiverRoutingTest {
             val kind = if (action == IntentParams.ACTION_ALARM_DELAY) "DELAY" else "CANCEL"
             incoming.putExtra(IntentParams.EXTRA_ALARM_INSTANCE, instance)
             incoming.data = android.net.Uri.parse(
-                "calendula-reminder://notification/123/$instance/$kind"
+                "calendula-reminder://notification/123/$instance/$kind/${"a".repeat(64)}"
             )
             val work = AlarmReceiver.validatedServiceIntent(context, incoming)
             assertNotNull(work)
