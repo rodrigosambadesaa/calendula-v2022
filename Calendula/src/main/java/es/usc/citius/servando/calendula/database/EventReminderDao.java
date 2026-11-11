@@ -140,6 +140,10 @@ public class EventReminderDao extends GenericDao<EventReminder, Long> {
                             }
                         }
                         QueryBuilder<EventReminder, Long> selection = dao.queryBuilder();
+                        // Stable ordering makes a late-delete failure
+                        // reproducible and ensures all earlier deletions
+                        // are exercised by the enclosing rollback tests.
+                        selection.orderBy(EventReminder.COLUMN_ID, true);
                         Where<EventReminder, Long> where = selection.where();
                         where.and(where.eq(EventReminder.COLUMN_EVENT_TYPE, eventType),
                                 where.eq(EventReminder.COLUMN_DATE_TIME, dateTime),
