@@ -100,4 +100,34 @@ public class AgendaEventOwnerIdentitySmokeTest {
             }
         }
     }
+
+    @Test
+    public void ownerlessMedicationCannotBeSilentlyDeduplicatedAsNonclinicalLegacyRow()
+            throws Exception {
+        assertTrue(DB.initialized);
+        DateTime when = DateTime.now().plusDays(8).withMillisOfSecond(0);
+        Long ref = Math.abs(System.nanoTime()) + 2000000000L;
+        EventInstance original = occurrence(null, ref, when);
+        try {
+            assertEquals(1, DB.eventInstances().create(original));
+            assertNotNull(original.getId());
+            boolean blocked = false;
+            try {
+                Agenda.instance().addEvents(Collections.singleton(
+                        occurrence(null, ref, when)));
+            } catch (IllegalStateException expected) {
+                blocked = true;
+            }
+            assertTrue("An ownerless medication intake cannot be a verified duplicate",
+                    blocked);
+            assertEquals(1, matchingCount(ref, when));
+            assertNotNull("The existing row stays available for explicit repair",
+                    DB.eventInstances().findById(original.getId()));
+        } finally {
+            if (original.getId() != null
+                    && DB.eventInstances().findById(original.getId()) != null) {
+                DB.eventInstances().remove(original);
+            }
+        }
+    }
 }
