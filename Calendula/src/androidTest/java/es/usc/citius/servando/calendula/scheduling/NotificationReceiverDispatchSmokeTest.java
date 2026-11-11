@@ -43,7 +43,7 @@ public class NotificationReceiverDispatchSmokeTest {
         clicked.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_CONFIRM);
         clicked.putExtra(IntentParams.EXTRA_ALARM_INSTANCE, instance);
         clicked.setData(android.net.Uri.parse(
-                "calendula-reminder://notification/731002/" + instance + "/CONFIRM"));
+                "calendula-reminder://notification/731002/" + instance + "/CONFIRM/" + digest));
         clicked.putExtra(IntentParams.EXTRA_REMINDER_ID, 731002L);
         clicked.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, digest);
         clicked.putExtra(IntentParams.EXTRA_PATIENT_ID, 731003L);
@@ -81,7 +81,7 @@ public class NotificationReceiverDispatchSmokeTest {
             String kind = action.equals(IntentParams.ACTION_ALARM_DELAY) ? "DELAY" : "CANCEL";
             clicked.putExtra(IntentParams.EXTRA_ALARM_INSTANCE, instance);
             clicked.setData(android.net.Uri.parse(
-                    "calendula-reminder://notification/731002/" + instance + "/" + kind));
+                    "calendula-reminder://notification/731002/" + instance + "/" + kind + "/" + shown));
             Intent work = AlarmReceiver.validatedServiceIntent(context, clicked);
             assertNotNull(work);
             assertEquals(action, work.getStringExtra(IntentParams.EXTRA_ACTION));
