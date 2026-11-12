@@ -37,6 +37,29 @@ public class ReminderNotification64BitIdentitySmokeTest {
     }
 
     @Test
+    public void sameNumericIdWithDifferentInstancesNeverSharesAndroidButton() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        long sameId = 771991L;
+        String oldInstance = java.util.UUID.randomUUID().toString();
+        String newInstance = java.util.UUID.randomUUID().toString();
+        PendingIntent before = PendingIntent.getBroadcast(context, (int) sameId,
+                IntakeNotificationMgr.identifyNotificationAction(
+                        new Intent(context, AlarmReceiver.class), "CANCEL", sameId, oldInstance),
+                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+        PendingIntent after = PendingIntent.getBroadcast(context, (int) sameId,
+                IntakeNotificationMgr.identifyNotificationAction(
+                        new Intent(context, AlarmReceiver.class), "CANCEL", sameId, newInstance),
+                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+        try {
+            assertNotEquals("Old notification must not own successor's PendingIntent",
+                    before, after);
+        } finally {
+            before.cancel();
+            after.cancel();
+        }
+    }
+
+    @Test
     public void sameLow32BitsCannotCrossWirePatientsMedicationButtons() {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         final long firstId = 1L;

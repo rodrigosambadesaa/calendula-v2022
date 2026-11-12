@@ -20,6 +20,7 @@ import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
+import es.usc.citius.servando.calendula.util.IntentParams;
 
 /**
  * An opaque digest of the exact pending doses visible in a notification.
@@ -122,6 +123,7 @@ public final class IntakeSnapshot {
                 || reminder.getPatient().getId() == null
                 || reminder.getPatient().getId() <= 0L
                 || reminder.getEventType() != EventType.MEDICATION_INTAKE
+                || !IntentParams.isValidAlarmInstance(reminder.getAlarmInstance())
                 || reminder.getDateTime() == null || reminder.getNextTime() == null) {
             return null;
         }
@@ -138,8 +140,10 @@ public final class IntakeSnapshot {
                 return null;
             }
         }
-        StringBuilder combined = new StringBuilder("reminder-snapshot-v2:");
+        StringBuilder combined = new StringBuilder("reminder-snapshot-v3:");
         append(combined, Long.toString(reminder.getId()));
+        // Recycled SQLite IDs must never recreate an old notification digest.
+        append(combined, reminder.getAlarmInstance());
         append(combined, Long.toString(reminder.getPatient().getId()));
         append(combined, reminder.getEventType().name());
         append(combined, Long.toString(reminder.getDateTime().getMillis()));

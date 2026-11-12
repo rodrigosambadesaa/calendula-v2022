@@ -16,6 +16,8 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
 import es.usc.citius.servando.calendula.database.DB;
+import es.usc.citius.servando.calendula.database.EventReminderDao;
+import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.util.IntentParams;
 
 import static org.mockito.Mockito.mock;
@@ -51,8 +53,10 @@ public class QueuedAlarmJobValidationTest {
                 .putExtra(IntentParams.EXTRA_ACTION, 123)
                 .putExtra(IntentParams.EXTRA_REMINDER_ID, 100L);
 
+        Intent legacyReminder = work(context, IntentParams.ACTION_ALARM_REMINDER, 104L);
         try (MockedStatic<DB> db = mockStatic(DB.class);
              MockedStatic<Agenda> agenda = mockStatic(Agenda.class)) {
+            service.onHandleWork(legacyReminder);
             service.onHandleWork(noSnapshot);
             service.onHandleWork(malformedSnapshot);
             service.onHandleWork(invalidReminder);
@@ -70,10 +74,13 @@ public class QueuedAlarmJobValidationTest {
         AlarmIntentService service = Robolectric.buildService(
                 AlarmIntentService.class).create().get();
         Agenda agenda = mock(Agenda.class);
+        EventReminder reminder = new EventReminder();
+        reminder.setId(99L);
+        Intent queued = Agenda.reminderBroadcastIntent(context, reminder);
         try (MockedStatic<Agenda> agendaSingleton = mockStatic(Agenda.class)) {
             agendaSingleton.when(Agenda::instance).thenReturn(agenda);
-            service.onHandleWork(work(context, IntentParams.ACTION_ALARM_REMINDER, 99L));
-            verify(agenda).onReceiveAlarm(service, 99L);
+            service.onHandleWork(queued);
+            verify(agenda).onReceiveAlarm(service, 99L, reminder.getAlarmInstance());
         }
     }
 
@@ -98,10 +105,21 @@ public class QueuedAlarmJobValidationTest {
                 AlarmIntentService.class).create().get();
         Agenda agenda = mock(Agenda.class);
         String consent = new String(new char[64]).replace((char) 0, 'b');
-        try (MockedStatic<Agenda> agendaSingleton = mockStatic(Agenda.class)) {
+        EventReminder reminder = new EventReminder();
+        reminder.setId(123L);
+        String instance = reminder.getAlarmInstance();
+        Intent click = work(context, IntentParams.ACTION_ALARM_DELAY, 123L)
+                .putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, consent)
+                .putExtra(IntentParams.EXTRA_ALARM_INSTANCE, instance)
+                .setData(android.net.Uri.parse(
+                        "calendula-reminder://notification/123/" + instance + "/DELAY"));
+        EventReminderDao reminders = mock(EventReminderDao.class);
+        org.mockito.Mockito.when(reminders.findById(123L)).thenReturn(reminder);
+        try (MockedStatic<Agenda> agendaSingleton = mockStatic(Agenda.class);
+             MockedStatic<DB> db = mockStatic(DB.class)) {
             agendaSingleton.when(Agenda::instance).thenReturn(agenda);
-            service.onHandleWork(work(context, IntentParams.ACTION_ALARM_DELAY, 123L)
-                    .putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, consent));
+            db.when(DB::eventReminders).thenReturn(reminders);
+            service.onHandleWork(click);
             // Mockito defaults Boolean return values to false, so the
             // synthetic test does not post a toast or mutate SQLite.
             verify(agenda).delayReminderWithSnapshot(service, 123L, consent);

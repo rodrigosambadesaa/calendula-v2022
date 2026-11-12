@@ -325,6 +325,7 @@ public class Agenda {
         // An older release used a mutable hash for PendingIntent identity.
         // Retire the matching old request before scheduling the stable ID.
         cancelLegacyAlarm(context, reminder, alarmManager);
+        cancelLegacyRowIdAlarm(context, reminder, alarmManager);
         scheduleAlarm(alarmManager, dateTime.getMillis(), pendingIntent);
     }
 
@@ -357,8 +358,23 @@ public class Agenda {
         }
     }
 
-    // called from broadcast receiver
+    // Trusted internal compatibility entry point used by direct callers/tests.
+    // OS/queued alarm deliveries MUST use the 3-argument authenticated variant.
     public void onReceiveAlarm(Context ctx, Long reminderId) {
+        onReceiveAlarmInternal(ctx, reminderId, null, false);
+    }
+
+    /** Reject legacy ID-only or cross-patient recycled-ID broadcasts. */
+    public void onReceiveAlarm(Context ctx, Long reminderId, String alarmInstance) {
+        if (!IntentParams.isValidAlarmInstance(alarmInstance)) {
+            LogUtil.w(TAG, "Ignoring alarm with invalid reminder-instance identity");
+            return;
+        }
+        onReceiveAlarmInternal(ctx, reminderId, alarmInstance, true);
+    }
+
+    private void onReceiveAlarmInternal(Context ctx, Long reminderId,
+                                        String alarmInstance, boolean requireIdentity) {
         // Legacy, malformed or incomplete PendingIntents may omit the stable
         // SQL row ID. Reject them before ORMLite attempts a null/invalid query.
         // Never act on a different reminder or invent a default identity.
@@ -367,6 +383,13 @@ public class Agenda {
             return;
         }
         EventReminder r = DB.eventReminders().findById(reminderId);
+        if (requireIdentity && (r == null
+                || !alarmInstance.equals(r.getAlarmInstance()))) {
+            // A stale PendingIntent may arrive after SQLite reused its row ID.
+            // Never touch an unrelated patient's reminder or notification.
+            LogUtil.w(TAG, "Ignoring stale or replaced reminder-instance alarm");
+            return;
+        }
         if (r != null) {
             if (r.getDateTime() == null || r.getEventType() == null
                     || r.getNextTime() == null) {
@@ -592,7 +615,7 @@ public class Agenda {
         }
         final int deleted;
         try {
-            deleted = DB.eventReminders().delete(reminder);
+            deleted = DB.eventReminders().deleteIfSameInstance(reminder);
         } catch (SQLException e) {
             throw new IllegalStateException("Could not delete persisted reminder", e);
         }
@@ -713,7 +736,7 @@ public class Agenda {
                                     || !ownerId.equals(reminder.getPatient().getId())) {
                                 throw new SQLException("Invalid owner in patient reminder erase");
                             }
-                            if (DB.eventReminders().delete(reminder) != 1) {
+                            if (DB.eventReminders().deleteIfSameInstance(reminder) != 1) {
                                 throw new SQLException("Could not erase one patient reminder");
                             }
                         }
@@ -822,6 +845,8 @@ public class Agenda {
                         // reminder action; do not update any unrelated intake.
                         EventReminder current = DB.eventReminders().findById(reminder.getId());
                         if (current == null
+                                || !IntentParams.isValidAlarmInstance(reminder.getAlarmInstance())
+                                || !reminder.getAlarmInstance().equals(current.getAlarmInstance())
                                 || current.getEventType() != reminder.getEventType()
                                 || !java.util.Objects.equals(current.getDateTime(),
                                         reminder.getDateTime())
@@ -907,7 +932,7 @@ public class Agenda {
                                     reminder.getEventType(), reminder.getDateTime(),
                                     reminder.getPatient(), DateTime.now()) > 0;
                         }
-                        final int deleted = DB.eventReminders().delete(reminder);
+                        final int deleted = DB.eventReminders().deleteIfSameInstance(reminder);
                         if (deleted > 1 || DB.eventReminders().findById(reminder.getId()) != null) {
                             throw new SQLException("Reminder persisted after attempted deletion");
                         }
@@ -1059,7 +1084,9 @@ public class Agenda {
                         if (current == null) {
                             throw new SQLException("Reminder was removed before delaying");
                         }
-                        if (current.getEventType() != reminder.getEventType()
+                        if (!IntentParams.isValidAlarmInstance(reminder.getAlarmInstance())
+                                || !reminder.getAlarmInstance().equals(current.getAlarmInstance())
+                                || current.getEventType() != reminder.getEventType()
                                 || !java.util.Objects.equals(current.getDateTime(),
                                         reminder.getDateTime())
                                 || !samePersistedReminderPatient(current.getPatient(),
@@ -1187,6 +1214,8 @@ public class Agenda {
         }
         EventReminder persisted = DB.eventReminders().findById(reminder.getId());
         return persisted != null
+                && IntentParams.isValidAlarmInstance(reminder.getAlarmInstance())
+                && reminder.getAlarmInstance().equals(persisted.getAlarmInstance())
                 // An old object must not be treated as current after the SQL
                 // row is reassigned to another patient, event or intake time,
                 // even when the ID and next alarm time happen to be identical.
@@ -1301,6 +1330,8 @@ public class Agenda {
                     DB.helper().getConnectionSource(), (Callable<EventReminder>) () -> {
                         EventReminder current = DB.eventReminders().findById(snapshot.getId());
                         if (current == null || !current.autoRepeat()
+                                || !IntentParams.isValidAlarmInstance(snapshot.getAlarmInstance())
+                                || !snapshot.getAlarmInstance().equals(current.getAlarmInstance())
                                 || current.getDateTime() == null || current.getNextTime() == null
                                 || !snapshot.getNextTime().equals(current.getNextTime())
                                 || !nextTime.isAfter(current.getNextTime())
@@ -1348,15 +1379,20 @@ public class Agenda {
      * and from the daily-update PendingIntent sharing AlarmReceiver.
      */
     static Intent reminderBroadcastIntent(Context context, EventReminder reminder) {
-        if (reminder == null || reminder.getId() == null || reminder.getId() <= 0) {
-            throw new IllegalArgumentException("Save a reminder before scheduling its alarm");
+        if (reminder == null || reminder.getId() == null || reminder.getId() <= 0
+                || !IntentParams.isValidAlarmInstance(reminder.getAlarmInstance())) {
+            throw new IllegalArgumentException("Persisted ID and opaque alarm instance required");
         }
         Intent intent = new Intent(context, AlarmReceiver.class);
         intent.setAction(IntentParams.ACTION_ALARM_REMINDER);
+        // PendingIntent equality excludes extras. The immutable UUID MUST be
+        // part of the URI; an old row ID must never alias a new patient's alarm.
         intent.setData(Uri.parse("content://" + context.getPackageName()
-                + "/calendula-reminders/" + reminder.getId()));
+                + "/calendula-reminders/" + reminder.getId() + "/"
+                + reminder.getAlarmInstance()));
         intent.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_REMINDER);
         intent.putExtra(IntentParams.EXTRA_REMINDER_ID, reminder.getId());
+        intent.putExtra(IntentParams.EXTRA_ALARM_INSTANCE, reminder.getAlarmInstance());
         return intent;
     }
 
@@ -1380,19 +1416,52 @@ public class Agenda {
         }
     }
 
+    /**
+     * Retire pre-v4 row-ID-only tokens. These cannot pass the new receiver's
+     * instance check, and are distinct from all v4 UUID-bearing tokens.
+     */
+    private void cancelLegacyRowIdAlarm(Context context, EventReminder reminder,
+                                        AlarmManager alarmManager) {
+        if (reminder == null || reminder.getId() == null || reminder.getId() <= 0L) {
+            return;
+        }
+        Intent oldIntent = new Intent(context, AlarmReceiver.class);
+        oldIntent.setAction(IntentParams.ACTION_ALARM_REMINDER);
+        oldIntent.setData(Uri.parse("content://" + context.getPackageName()
+                + "/calendula-reminders/" + reminder.getId()));
+        oldIntent.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_REMINDER);
+        oldIntent.putExtra(IntentParams.EXTRA_REMINDER_ID, reminder.getId());
+        PendingIntent old = PendingIntent.getBroadcast(context, 0, oldIntent,
+                PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE));
+        if (old != null) {
+            alarmManager.cancel(old);
+            old.cancel();
+        }
+    }
+
     // Package-private to verify actual PendingIntent cancellation on emulators.
     void cancelAlarm(Context context, EventReminder reminder) {
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (alarmManager != null) {
-            // FLAG_NO_CREATE must not create a new token merely to cancel it.
-            PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0,
-                    reminderBroadcastIntent(context, reminder),
-                    PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE));
-            if (pendingIntent != null) {
-                alarmManager.cancel(pendingIntent);
-                pendingIntent.cancel();
+            // Token identity is the captured UUID, not a fresh SQLite lookup.
+            // Deleting A and inserting B with the same row ID must not let
+            // A's delayed cleanup cancel B's now-scheduled platform alarm.
+            if (reminder != null && reminder.getId() != null
+                    && reminder.getId() > 0
+                    && IntentParams.isValidAlarmInstance(reminder.getAlarmInstance())) {
+                PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0,
+                        reminderBroadcastIntent(context, reminder),
+                        PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE));
+                if (pendingIntent != null) {
+                    alarmManager.cancel(pendingIntent);
+                    pendingIntent.cancel();
+                }
             }
-            cancelLegacyAlarm(context, reminder, alarmManager);
+            if (reminder != null && reminder.getId() != null
+                    && reminder.getId() > 0) {
+                cancelLegacyAlarm(context, reminder, alarmManager);
+                cancelLegacyRowIdAlarm(context, reminder, alarmManager);
+            }
         }
     }
 

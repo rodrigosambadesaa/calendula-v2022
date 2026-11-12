@@ -17,7 +17,9 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Patient;
@@ -56,6 +58,7 @@ public class ExpiredReminderPruneSmokeTest {
                 cutoff.minusHours(1), EventType.MEDICATION_INTAKE);
         atBoundary.setNextTime(cutoff);
         EventReminder[] fixture = {snoozed, expired, noNextTime, atBoundary};
+        Set<String> expectedInstances = new HashSet<>();
         Patient owner = new Patient();
         owner.setCode("ci-snoozed-prune-" + System.nanoTime());
         owner.setName("Synthetic snoozed reminder owner");
@@ -65,8 +68,17 @@ public class ExpiredReminderPruneSmokeTest {
                 reminder.setPatient(owner);
                 assertEquals(1, DB.eventReminders().create(reminder));
                 assertNotNull(reminder.getId());
-                assertNotNull("Fixture must survive its INSERT before pruning",
-                        DB.eventReminders().findById(reminder.getId()));
+                EventReminder stored = DB.eventReminders().findById(reminder.getId());
+                assertNotNull("Fixture must survive its INSERT before pruning", stored);
+                String opaqueInstance = stored.getAlarmInstance();
+                assertTrue("A new persisted reminder has a UUID alarm instance",
+                        opaqueInstance != null
+                                && opaqueInstance.matches(
+                                        "[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}"));
+                assertEquals("ORM must persist the original instance unchanged",
+                        reminder.getAlarmInstance(), opaqueInstance);
+                assertTrue("Two new reminder rows must not share an instance",
+                        expectedInstances.add(opaqueInstance));
             }
             int removedReminders = DB.eventReminders().removeOlderThan(cutoff);
             EventReminder expiredPersisted = DB.eventReminders().findById(expired.getId());

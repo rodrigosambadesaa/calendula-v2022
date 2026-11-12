@@ -63,6 +63,34 @@ public class ReminderNotificationPendingIntentIdentityTest {
     }
 
     @Test
+    public void recycledSqliteIdCannotReusePreviousNotificationButtonToken() {
+        Context context = RuntimeEnvironment.getApplication();
+        final long rowId = 9242L;
+        String originalInstance = java.util.UUID.randomUUID().toString();
+        String replacementInstance = java.util.UUID.randomUUID().toString();
+        Intent old = new Intent(context, AlarmReceiver.class);
+        Intent replacement = new Intent(context, AlarmReceiver.class);
+        PendingIntent oldToken = PendingIntent.getBroadcast(context, (int) rowId,
+                IntakeNotificationMgr.identifyNotificationAction(
+                        old, "CONFIRM", rowId, originalInstance),
+                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+        PendingIntent currentToken = PendingIntent.getBroadcast(context, (int) rowId,
+                IntakeNotificationMgr.identifyNotificationAction(
+                        replacement, "CONFIRM", rowId, replacementInstance),
+                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+        try {
+            assertNotEquals("A replaced patient must never inherit old action consent",
+                    oldToken, currentToken);
+            oldToken.cancel();
+            assertNotEquals(old.getData(), replacement.getData());
+            assertEquals(replacementInstance,
+                    replacement.getStringExtra(IntentParams.EXTRA_ALARM_INSTANCE));
+        } finally {
+            currentToken.cancel();
+        }
+    }
+
+    @Test
     public void reminderIdsThatCollideIn32BitsRemainDistinctPendingIntents() {
         Context context = RuntimeEnvironment.getApplication();
         final long first = 1L;

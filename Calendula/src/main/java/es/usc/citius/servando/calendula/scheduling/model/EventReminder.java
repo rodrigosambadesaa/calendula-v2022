@@ -21,9 +21,15 @@ public class EventReminder {
     //public static final String COLUMN_CANCELLED = "Cancelled";
     public static final String COLUMN_AUTO_REPEAT = "AutoRepeat";
     public static final String COLUMN_NEXT_TIME = "NextTime";
+    public static final String COLUMN_ALARM_INSTANCE = "AlarmInstance";
 
     @DatabaseField(columnName = COLUMN_ID, generatedId = true)
     private Long id;
+
+    /** Stable opaque identity for one reminder row across edits, snooze and reboot. */
+    @DatabaseField(columnName = COLUMN_ALARM_INSTANCE,
+            uniqueIndexName = "EventRemindersAlarmInstanceUnique")
+    private String alarmInstance = java.util.UUID.randomUUID().toString();
 
     @DatabaseField(columnName = COLUMN_DATE_TIME)
     private DateTime dateTime;
@@ -46,6 +52,7 @@ public class EventReminder {
     public EventReminder(){}
 
     public EventReminder(DateTime dateTime, EventType eventType) {
+        this();
         this.dateTime = dateTime;
         this.eventType = eventType;
     }
@@ -76,6 +83,11 @@ public class EventReminder {
 
     public Long getId() {
         return id;
+    }
+
+    /** Not a patient code, nor a schedule ID, nor a mutable time. */
+    public String getAlarmInstance() {
+        return alarmInstance;
     }
 
     public void setId(Long id) {
