@@ -554,10 +554,10 @@ public class Agenda {
                 // The database deletion has committed: retire obsolete OS
                 // alarm tokens before reconciling surviving reminders.
                 for (EventReminder removed : expiredReminders) {
-                    if (removed.getId() != null && removed.getId() > 0) {
-                        cancelAlarm(context, removed);
-                        IntakeNotificationMgr.cancel(context, removed);
-                    }
+                    // Another writer or a restored database can reuse a
+                    // deleted numeric ID after the SQL transaction commits.
+                    // Never revoke an alarm now belonging to a live row.
+                    retirePrunedReminderToken(context, removed);
                 }
                 Agenda.instance().cleanReminders(context);
                 Agenda.instance().updateAllAlarms(context);
@@ -732,6 +732,56 @@ public class Agenda {
             cancelAlarm(context, reminder);
             IntakeNotificationMgr.cancel(context, reminder);
         }
+    }
+
+    /**
+     * Revoke only the OS tokens captured in a successfully COMMITTED patient
+     * erasure. Do not cancel an ID that a concurrent writer has reused for a
+     * new persisted reminder. A crash leaves only a harmless stale token:
+     * onReceiveAlarm checks SQLite before delivering a medication event.
+     */
+    public void cancelDeletedPatientReminderTokens(Context context,
+                                                    List<EventReminder> removed) {
+        if (context == null || removed == null) {
+            return; // Retryable OS cleanup; never undo committed clinical SQL.
+        }
+        for (EventReminder reminder : removed) {
+            if (reminder == null || reminder.getId() == null
+                    || reminder.getId() <= 0L || reminder.getPatient() == null) {
+                continue;
+            }
+            try {
+                if (DB.eventReminders().findById(reminder.getId()) != null) {
+                    continue;
+                }
+                cancelAlarm(context, reminder);
+                IntakeNotificationMgr.cancel(context, reminder);
+            } catch (RuntimeException cleanupFailure) {
+                // A platform failure must not falsely report that the SQL
+                // erasure rolled back, or trigger deletion of another owner.
+                LogUtil.w(TAG, "Patient erasure committed; OS cleanup deferred");
+            }
+        }
+    }
+
+    /**
+     * Retire a post-commit daily-prune token only if its SQLite ID is still
+     * absent. PendingIntent identity is based on the numeric reminder ID;
+     * cancelling a recycled ID would revoke another owner's live alarm.
+     * A failed database read must propagate so the daily completion marker
+     * stays retryable rather than claiming successful platform cleanup.
+     */
+    boolean retirePrunedReminderToken(Context context, EventReminder removed) {
+        if (context == null || removed == null || removed.getId() == null
+                || removed.getId() <= 0L) {
+            return false;
+        }
+        if (DB.eventReminders().findById(removed.getId()) != null) {
+            return false;
+        }
+        cancelAlarm(context, removed);
+        IntakeNotificationMgr.cancel(context, removed);
+        return true;
     }
 
     public void deleteAllReminders(Context context) {
