@@ -20,6 +20,8 @@ package es.usc.citius.servando.calendula.database;
 
 
 import android.content.Context;
+import android.content.ContentValues;
+import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 
 import com.j256.ormlite.android.apptools.OrmLiteSqliteOpenHelper;
@@ -64,7 +66,7 @@ import es.usc.citius.servando.calendula.util.LogUtil;
 public class DatabaseHelper extends OrmLiteSqliteOpenHelper {
 
     // any time you make changes to your database objects, you may have to increase the database version
-    public static final int DATABASE_VERSION = 3;
+    public static final int DATABASE_VERSION = 4;
     private static final String TAG = "DatabaseHelper";
     // name of the database file for our application
     private static final String DATABASE_NAME = DB.DB_NAME;
@@ -159,6 +161,30 @@ public class DatabaseHelper extends OrmLiteSqliteOpenHelper {
                         "ALTER TABLE `HtmlCache` ADD COLUMN `"
                                 + HtmlCacheEntry.COLUMN_URL
                                 + "` VARCHAR;");
+            }
+            if (oldVersion < 4) {
+                // An SQLite row ID can be reused after erasure or restore.
+                // Assign each pre-existing reminder an opaque immutable token
+                // inside SQLiteOpenHelper's upgrade transaction; all updates
+                // and the schema bump roll back if even one row fails.
+                db.execSQL("ALTER TABLE `EventReminders` ADD COLUMN `"
+                        + EventReminder.COLUMN_ALARM_INSTANCE + "` VARCHAR;");
+                try (Cursor reminders = db.rawQuery(
+                        "SELECT `_id` FROM `EventReminders` ORDER BY `_id`", null)) {
+                    while (reminders.moveToNext()) {
+                        long id = reminders.getLong(0);
+                        ContentValues values = new ContentValues();
+                        values.put(EventReminder.COLUMN_ALARM_INSTANCE,
+                                java.util.UUID.randomUUID().toString());
+                        if (db.update("EventReminders", values, "_id=?",
+                                new String[]{Long.toString(id)}) != 1) {
+                            throw new SQLException("Cannot migrate reminder instance identity");
+                        }
+                    }
+                }
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS"
+                        + " `EventRemindersAlarmInstanceUnique` ON `EventReminders`"
+                        + " (`" + EventReminder.COLUMN_ALARM_INSTANCE + "`);");
             }
         } catch (Exception e) {
             // Never try to recover an upgrade failure by deleting user data.
