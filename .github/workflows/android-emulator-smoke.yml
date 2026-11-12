@@ -148,7 +148,7 @@ jobs:
           api-level: ${{ matrix.api-level }}
           arch: x86_64
           target: google_apis
-          script: bash scripts/android-smoke-tests.sh
+          script: CALENDULA_EXPECTED_ANDROID_API=${{ matrix.api-level }} bash scripts/android-smoke-tests.sh
 
       - name: Upload instrumented test results
         if: always()
