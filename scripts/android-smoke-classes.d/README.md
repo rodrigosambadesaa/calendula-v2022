@@ -25,3 +25,7 @@ python3 scripts/ensure_disposable_android_emulator.py --self-test
 ```
 
 To inspect the connected target without launching Gradle, run `python3 scripts/ensure_disposable_android_emulator.py`; it prints the serial only if its checks pass.
+
+On GitHub Actions, each emulator matrix job additionally supplies `CALENDULA_EXPECTED_ANDROID_API` (23, 33, 36 or 37). The runner checks the actual verified emulator's `ro.build.version.sdk` against that value and refuses to report a pass for the wrong API. Omitting the variable during manual development still requires a disposable emulator, but does not constrain it to a single OS version.
+
+After changes to Android application code or smoke infrastructure are merged, the same API 23/33/36/37 suites also run on the **integrated `main` commit**. This detects regressions from combinations of individually green PRs; documentation-only merges are excluded by workflow path filters.
