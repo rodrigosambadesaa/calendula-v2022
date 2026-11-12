@@ -108,6 +108,18 @@ if [[ -z "$DEVICE_API" ]]; then
   echo "Could not verify connected disposable Android emulator API" >&2
   exit 1
 fi
+# The CI job name is a test claim, not proof of the device actually launched.
+# A misselected emulator must fail rather than report a false API-level pass.
+if [[ -n "${CALENDULA_EXPECTED_ANDROID_API:-}" ]]; then
+  if [[ ! "$CALENDULA_EXPECTED_ANDROID_API" =~ ^(23|33|36|37)$ ]]; then
+    echo "Invalid expected Android API for the smoke suite" >&2
+    exit 1
+  fi
+  if [[ "$DEVICE_API" != "$CALENDULA_EXPECTED_ANDROID_API" ]]; then
+    echo "Android emulator API mismatch: expected $CALENDULA_EXPECTED_ANDROID_API, got $DEVICE_API" >&2
+    exit 1
+  fi
+fi
 if [[ "$DEVICE_API" == "36" ]]; then
   echo "Android API 36: retain SQLite ERROR diagnostics, suppress repetitive WARN-only legacy catalog import logs"
   adb -s "$EMULATOR_SERIAL" shell setprop log.tag.SQLiteLog ERROR
