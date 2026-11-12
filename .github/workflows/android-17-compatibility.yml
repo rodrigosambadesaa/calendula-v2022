@@ -139,7 +139,7 @@ jobs:
           target: google_apis
           script: |
             test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = "37"
-            bash scripts/android-smoke-tests.sh
+            CALENDULA_EXPECTED_ANDROID_API=37 bash scripts/android-smoke-tests.sh
 
       - name: Upload Android 17 test evidence
         if: always()
