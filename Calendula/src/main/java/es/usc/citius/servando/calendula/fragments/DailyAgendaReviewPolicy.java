@@ -9,6 +9,7 @@ import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 
 /**
  * A generic warning for the active patient's unverifiable medication rows.
@@ -20,22 +21,22 @@ public final class DailyAgendaReviewPolicy {
 
     public static boolean needsReview(EventInstance event, Schedule schedule, Patient active) {
         if (event == null || event.getType() != EventType.MEDICATION_INTAKE
-                || active == null || active.getId() == null) {
+                || !PatientOwnerGuard.hasStableIdentity(active)) {
             return false;
         }
         Patient eventOwner = event.getPatient();
-        if (eventOwner != null && eventOwner.getId() != null) {
-            // A cross-patient schedule reference is an issue for the event's
-            // actual owner, not an excuse to reveal that event to another user.
-            if (!active.getId().equals(eventOwner.getId())) {
+        if (eventOwner != null) {
+            // A restored SQLite row ID may be reassigned to a new profile.
+            // Even a generic review warning must not disclose the existence
+            // of an unrelated person's medications to the active profile.
+            if (!PatientOwnerGuard.sameStableIdentity(active, eventOwner)) {
                 return false;
             }
         } else {
-            // Unknown event owner: only warn if the referenced schedule is
-            // explicitly owned by the currently active patient.
+            // Unassigned event: warn only when the linked schedule's *stable*
+            // patient identity agrees with the active selection.
             Patient scheduleOwner = schedule == null ? null : schedule.getPatient();
-            if (scheduleOwner == null || scheduleOwner.getId() == null
-                    || !active.getId().equals(scheduleOwner.getId())) {
+            if (!PatientOwnerGuard.sameStableIdentity(active, scheduleOwner)) {
                 return false;
             }
         }

@@ -28,4 +28,26 @@ public class MedicineDetailsOwnerGuardTest {
         assertFalse(MedicineDetailsOwnerGuard.matches(0L, 0L, 22L, 0L, 22L, 0L));
         assertFalse(MedicineDetailsOwnerGuard.matches(11L, 11L, -1L, 11L, -1L, 11L));
     }
+    @Test
+    public void modelEventsRequireSameStablePatientAndExistingMedicine() {
+        assertTrue(MedicineDetailsOwnerGuard.sameMedicineUpdate(
+                22L, 11L, "synthetic-owner", 22L, 11L, "synthetic-owner"));
+        assertFalse(MedicineDetailsOwnerGuard.sameMedicineUpdate(
+                22L, 11L, "synthetic-owner", 22L, 11L, "reused-owner"));
+        assertFalse(MedicineDetailsOwnerGuard.sameMedicineUpdate(
+                22L, 11L, "synthetic-owner", 22L, 12L, "synthetic-owner"));
+        assertFalse(MedicineDetailsOwnerGuard.sameMedicineUpdate(
+                22L, 11L, "synthetic-owner", 23L, 11L, "synthetic-owner"));
+        assertFalse(MedicineDetailsOwnerGuard.sameMedicineUpdate(
+                null, 11L, "synthetic-owner", 22L, 11L, "synthetic-owner"));
+        assertFalse(MedicineDetailsOwnerGuard.sameMedicineUpdate(
+                22L, null, "synthetic-owner", 22L, 11L, "synthetic-owner"));
+        assertFalse(MedicineDetailsOwnerGuard.sameMedicineUpdate(
+                22L, 11L, null, 22L, 11L, "synthetic-owner"));
+        assertFalse(MedicineDetailsOwnerGuard.sameMedicineUpdate(
+                22L, 11L, " ", 22L, 11L, " "));
+        assertFalse(MedicineDetailsOwnerGuard.sameMedicineUpdate(
+                22L, 11L, "synthetic-owner", 22L, 11L, null));
+    }
+
 }

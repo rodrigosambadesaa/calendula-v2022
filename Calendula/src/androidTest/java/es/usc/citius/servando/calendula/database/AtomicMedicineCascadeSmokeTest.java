@@ -171,6 +171,69 @@ public class AtomicMedicineCascadeSmokeTest {
         }
     }
 
+    @Test
+    public void sameNumericPatientIdWithDifferentStableCodeNeverErasesMedicine()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Patient original = makePatient("cascade-restore-original");
+        Medicine medicine = new Medicine("Synthetic restored patient medicine", Presentation.PILLS);
+        Schedule schedule = new Schedule();
+        try {
+            assertEquals(1, DB.patients().create(original));
+            medicine.setPatient(original);
+            assertEquals(1, DB.medicines().create(medicine));
+            schedule.setPatient(original);
+            schedule.setMedicine(medicine);
+            assertEquals(1, DB.schedules().create(schedule));
+
+            // Simulate a stale editor after backup/restore recycled its
+            // original SQL row ID for an entirely different stable owner.
+            Patient replacement = new Patient();
+            replacement.setId(original.getId());
+            replacement.setCode("ci-cascade-successor-" + System.nanoTime());
+            Medicine staleRequest = new Medicine("Synthetic stale editor", Presentation.PILLS);
+            staleRequest.setId(medicine.getId());
+            staleRequest.setPatient(replacement);
+
+            boolean wrongOwnerRejected = false;
+            try {
+                DB.medicines().deleteCascade(staleRequest, false);
+            } catch (RuntimeException expected) {
+                wrongOwnerRejected = true;
+            }
+            assertTrue("Same SQL ID must not authorize a different stable owner",
+                    wrongOwnerRejected);
+            assertNotNull(DB.medicines().findById(medicine.getId()));
+            assertNotNull(DB.schedules().findById(schedule.getId()));
+
+            replacement.setCode(null);
+            boolean unidentifiedOwnerRejected = false;
+            try {
+                DB.medicines().deleteCascade(staleRequest, false);
+            } catch (RuntimeException expected) {
+                unidentifiedOwnerRejected = true;
+            }
+            assertTrue("Missing owner code cannot authorize a cascade",
+                    unidentifiedOwnerRejected);
+            assertNotNull(DB.medicines().findById(medicine.getId()));
+
+            // The verified original owner may still delete its own medicine.
+            DB.medicines().deleteCascade(medicine, false);
+            assertNull(DB.medicines().findById(medicine.getId()));
+            assertNull(DB.schedules().findById(schedule.getId()));
+        } finally {
+            if (schedule.getId() != null && DB.schedules().findById(schedule.getId()) != null) {
+                DB.schedules().deleteById(schedule.getId());
+            }
+            if (medicine.getId() != null && DB.medicines().findById(medicine.getId()) != null) {
+                DB.medicines().deleteById(medicine.getId());
+            }
+            if (original.getId() != null && DB.patients().findById(original.getId()) != null) {
+                DB.patients().deleteById(original.getId());
+            }
+        }
+    }
+
     private static Patient makePatient(String label) {
         Patient patient = new Patient();
         patient.setCode("ci-" + label + "-" + System.nanoTime());

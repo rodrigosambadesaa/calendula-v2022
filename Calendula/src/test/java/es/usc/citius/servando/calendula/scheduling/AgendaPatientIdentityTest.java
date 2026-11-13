@@ -51,7 +51,14 @@ public class AgendaPatientIdentityTest {
 
     @Test
     public void unassignedLegacyRowsKeepOriginalSemanticsButBadIdsFailClosed() {
-        assertTrue(Agenda.sameEventPatientIdentity(event(null), event(null)));
+        assertFalse("Unassigned medication is not an authenticated duplicate",
+                Agenda.sameEventPatientIdentity(event(null), event(null)));
+        EventInstance unassignedPharmacy = event(null);
+        unassignedPharmacy.setType(EventType.PHARMACY_REMINDER);
+        EventInstance matchingLegacy = event(null);
+        matchingLegacy.setType(EventType.PHARMACY_REMINDER);
+        assertTrue("Legacy non-medication events keep unassigned semantics",
+                Agenda.sameEventPatientIdentity(unassignedPharmacy, matchingLegacy));
         assertFalse(Agenda.sameEventPatientIdentity(event(null),
                 event(patient(401L, "synthetic"))));
         assertFalse(Agenda.sameEventPatientIdentity(
@@ -59,9 +66,19 @@ public class AgendaPatientIdentityTest {
         assertFalse(Agenda.sameEventPatientIdentity(
                 event(patient(0L, "synthetic")), event(patient(0L, "synthetic"))));
         assertFalse(Agenda.sameEventPatientIdentity(null, event(null)));
-        // Incompletely restored legacy codes retain the prior ID-only
-        // behavior until they can be safely reconciled.
-        assertTrue(Agenda.sameEventPatientIdentity(
+        // Two unidentified patients cannot be deduplicated by recycled row
+        // ID. Preserve both records for explicit local identity migration.
+        assertFalse(Agenda.sameEventPatientIdentity(
                 event(patient(401L, null)), event(patient(401L, "synthetic"))));
+        assertFalse(Agenda.sameEventPatientIdentity(
+                event(patient(401L, "synthetic")), event(patient(401L, null))));
+        assertFalse(Agenda.sameEventPatientIdentity(
+                event(patient(401L, null)), event(patient(401L, null))));
+        assertFalse(Agenda.sameEventPatientIdentity(
+                event(patient(401L, "  ")), event(patient(401L, "synthetic"))));
+        assertFalse(Agenda.sameEventPatientIdentity(
+                event(patient(401L, "synthetic")), event(patient(401L, ""))));
+        assertTrue(Agenda.sameEventPatientIdentity(
+                event(patient(401L, "synthetic")), event(patient(401L, "synthetic"))));
     }
 }

@@ -14,6 +14,8 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
 import es.usc.citius.servando.calendula.persistence.Patient;
+import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
+import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.util.IntentParams;
 
 import static org.junit.Assert.assertEquals;
@@ -114,5 +116,117 @@ public class ConfirmIntentSafetyTest {
         patient.setId(800190L);
         assertFalse(ConfirmActivity.hasValidIntakeContext(patient, null));
         assertTrue(ConfirmActivity.hasValidIntakeContext(patient, time));
+    }
+
+    private static Patient owner(String code) {
+        Patient patient = new Patient();
+        patient.setId(800190L);
+        patient.setCode(code);
+        return patient;
+    }
+
+    private static EventReminder medicationReminder(Patient patient, long id, DateTime time) {
+        EventReminder reminder = new EventReminder(time, EventType.MEDICATION_INTAKE);
+        reminder.setId(id);
+        reminder.setPatient(patient);
+        return reminder;
+    }
+
+    private static Intent notificationOpen(long id, String uuid, DateTime time) {
+        Intent open = new Intent()
+                .putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_REMINDER)
+                .putExtra(IntentParams.EXTRA_PATIENT_ID, 800190L)
+                .putExtra(IntentParams.EXTRA_REMINDER_ID, id)
+                .putExtra(IntentParams.EXTRA_DATETIME,
+                        time.toString(ISODateTimeFormat.dateTimeNoMillis()));
+        return IntakeNotificationMgr.identifyNotificationAction(open, "OPEN", id, uuid);
+    }
+
+    @Test
+    public void oldNotificationOpenCannotDisplayReplacementPatientAfterSqliteIdReuse() {
+        DateTime time = DateTime.now().withMillisOfSecond(0);
+        long recycledReminderId = 809091L;
+        Patient original = owner("original-synthetic-patient");
+        EventReminder old = medicationReminder(original, recycledReminderId, time);
+        Intent oldOpen = notificationOpen(recycledReminderId, old.getAlarmInstance(), time);
+        ConfirmActivity.IntakeLaunch launch = ConfirmActivity.parseIntakeLaunch(oldOpen);
+        assertNotNull(launch);
+        assertTrue(ConfirmActivity.matchesCurrentNotificationIntake(
+                launch, oldOpen, original, old));
+
+        // Both numeric row IDs and the scheduled intake time are identical.
+        // A restore must not let this old tap open the new patient's doses.
+        Patient replacement = owner("replacement-synthetic-patient");
+        EventReminder newReminder = medicationReminder(replacement, recycledReminderId, time);
+        assertFalse(ConfirmActivity.matchesCurrentNotificationIntake(
+                launch, oldOpen, replacement, newReminder));
+        assertFalse(ConfirmActivity.matchesCurrentNotificationIntake(
+                launch, oldOpen, replacement, old));
+        assertFalse(ConfirmActivity.matchesCurrentNotificationIntake(
+                launch, oldOpen, original, newReminder));
+    }
+
+    @Test
+    public void notificationOpenRequiresExactUuidUriPatientAndIntakeTime() {
+        DateTime time = DateTime.now().withMillisOfSecond(0);
+        long id = 809092L;
+        Patient patient = owner("synthetic-current-owner");
+        EventReminder persisted = medicationReminder(patient, id, time);
+        Intent open = notificationOpen(id, persisted.getAlarmInstance(), time);
+        ConfirmActivity.IntakeLaunch launch = ConfirmActivity.parseIntakeLaunch(open);
+        assertTrue(ConfirmActivity.matchesCurrentNotificationIntake(
+                launch, open, patient, persisted));
+
+        Intent missingId = new Intent(open);
+        missingId.removeExtra(IntentParams.EXTRA_REMINDER_ID);
+        assertFalse(ConfirmActivity.matchesCurrentNotificationIntake(
+                ConfirmActivity.parseIntakeLaunch(missingId), missingId, patient, persisted));
+
+        Intent wrongType = new Intent(open);
+        wrongType.putExtra(IntentParams.EXTRA_REMINDER_ID, Long.toString(id));
+        assertFalse(ConfirmActivity.matchesCurrentNotificationIntake(
+                ConfirmActivity.parseIntakeLaunch(wrongType), wrongType, patient, persisted));
+
+        Intent wrongUri = new Intent(open);
+        wrongUri.setData(android.net.Uri.parse(
+                "calendula-reminder://notification/" + id + "/malformed/OPEN"));
+        assertFalse(ConfirmActivity.matchesCurrentNotificationIntake(
+                ConfirmActivity.parseIntakeLaunch(wrongUri), wrongUri, patient, persisted));
+
+        Intent wrongAction = new Intent(open);
+        wrongAction.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_CONFIRM);
+        assertFalse(ConfirmActivity.matchesCurrentNotificationIntake(
+                ConfirmActivity.parseIntakeLaunch(wrongAction), wrongAction, patient, persisted));
+
+        EventReminder differentTime = medicationReminder(
+                patient, id, time.plusMinutes(1));
+        assertFalse(ConfirmActivity.matchesCurrentNotificationIntake(
+                launch, open, patient, differentTime));
+
+        EventReminder differentKind = medicationReminder(patient, id, time);
+        differentKind.setEventType(EventType.PHARMACY_REMINDER);
+        assertFalse(ConfirmActivity.matchesCurrentNotificationIntake(
+                launch, open, patient, differentKind));
+
+        Intent legacy = validLaunch();
+        // Old content PendingIntents contain only the patient ID and time.
+        assertFalse(ConfirmActivity.matchesCurrentNotificationIntake(
+                ConfirmActivity.parseIntakeLaunch(legacy), legacy, patient, persisted));
+    }
+
+    @Test
+    public void rejectedNotificationNeverRoutesToAnUnrelatedActiveHomePatient() {
+        Intent oldNotification = validLaunch();
+        assertFalse("Old notification opens must fail closed",
+                ConfirmActivity.isExplicitAgendaLaunch(oldNotification));
+        assertFalse("Malformed external routes also fail closed",
+                ConfirmActivity.isExplicitAgendaLaunch(new Intent()));
+
+        Intent realAgendaTap = validLaunch();
+        realAgendaTap.putExtra(IntentParams.EXTRA_POSITION, 2);
+        assertTrue("Only a confirmed explicit agenda row may return home",
+                ConfirmActivity.isExplicitAgendaLaunch(realAgendaTap));
+        realAgendaTap.putExtra(IntentParams.EXTRA_POSITION, -1);
+        assertFalse(ConfirmActivity.isExplicitAgendaLaunch(realAgendaTap));
     }
 }

@@ -75,6 +75,8 @@ public class LegacyV2MigrationFixtureTest {
                     + "_id INTEGER PRIMARY KEY AUTOINCREMENT, "
                     + "HashCode INTEGER, Timestamp VARCHAR, "
                     + "Data VARCHAR, ttl BIGINT)");
+            legacy.execSQL("CREATE TABLE EventReminders (_id INTEGER PRIMARY KEY,"
+                    + " DateTime VARCHAR, NextTime VARCHAR, EventType VARCHAR, Patient BIGINT)");
             legacy.setVersion(2);
         }
 

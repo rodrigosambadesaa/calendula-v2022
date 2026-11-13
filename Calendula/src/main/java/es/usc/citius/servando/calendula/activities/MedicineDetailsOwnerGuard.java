@@ -19,4 +19,20 @@ final class MedicineDetailsOwnerGuard {
                 && openedPatientId.equals(selectedOwnerId)
                 && openedPatientId.equals(persistedOwnerId);
     }
+    /**
+     * Ignore unrelated or stale model notifications. A medication row ID can
+     * also be recycled, so both event and displayed owner codes must match.
+     */
+    static boolean sameMedicineUpdate(Long displayedMedicineId,
+                                      Long displayedPatientId, String displayedPatientCode,
+                                      Long eventMedicineId,
+                                      Long eventPatientId, String eventPatientCode) {
+        return displayedMedicineId != null && displayedMedicineId > 0L
+                && displayedMedicineId.equals(eventMedicineId)
+                && displayedPatientId != null && displayedPatientId > 0L
+                && displayedPatientId.equals(eventPatientId)
+                && displayedPatientCode != null && !displayedPatientCode.trim().isEmpty()
+                && displayedPatientCode.equals(eventPatientCode);
+    }
+
 }

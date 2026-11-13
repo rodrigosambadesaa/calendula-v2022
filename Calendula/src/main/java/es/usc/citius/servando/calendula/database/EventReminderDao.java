@@ -114,51 +114,100 @@ public class EventReminderDao extends GenericDao<EventReminder, Long> {
     }
 
     public int removeBy(Patient patient, EventType eventType, DateTime dateTime) {
-        // Destructive reminder cleanup must never interpret a missing type or
-        // timestamp as an invitation to target malformed legacy NULL rows.
-        // A deliberately null patient is still supported for legacy events.
         if (eventType == null || dateTime == null) {
-            throw new IllegalArgumentException("Reminder removal requires an event and original time");
+            throw new IllegalArgumentException(
+                    "Reminder removal requires an event and original time");
         }
-        if (patient != null && (patient.getId() == null || patient.getId() <= 0L
-                || DB.patients().findById(patient.getId()) == null)) {
-            throw new IllegalArgumentException("Reminder owner is not persisted");
+        final Long ownerId = patient == null ? null : patient.getId();
+        final String ownerCode = patient == null ? null : patient.getCode();
+        if (patient != null && (ownerId == null || ownerId <= 0L
+                || ownerCode == null || ownerCode.trim().isEmpty())) {
+            throw new IllegalArgumentException(
+                    "A persisted stable patient identity is required for reminder removal");
         }
-
-        try {
-            if (patient == null) {
-                // Nullable foreign keys are supported in lookups, but ORM
-                // bulk DELETE WHERE on older SQLite can match zero rows.
-                // Remove by persisted row ID under a transaction instead,
-                // guaranteeing a named patient's reminders remain untouched.
-                return com.j256.ormlite.misc.TransactionManager.callInTransaction(
-                        dbHelper.getConnectionSource(), () -> {
-                            QueryBuilder<EventReminder, Long> selection = dao.queryBuilder();
-                            Where<EventReminder, Long> where = selection.where();
-                            where.and(where.eq(EventReminder.COLUMN_EVENT_TYPE, eventType),
-                                    where.isNull(EventReminder.COLUMN_PATIENT),
-                                    where.eq(EventReminder.COLUMN_DATE_TIME, dateTime));
-                            int removed = 0;
-                            for (EventReminder row : selection.query()) {
-                                if (row.getPatient() != null || row.getId() == null) {
-                                    throw new SQLException("Unexpected reminder identity during unassigned delete");
-                                }
-                                removed += dao.deleteById(row.getId());
-                            }
-                            return removed;
-                        });
+        if (patient != null) {
+            // Surface an obviously stale caller as an invalid selector. This
+            // preflight is not sufficient on its own; repeat the exact check
+            // *inside* the transaction to close the concurrent-restore race.
+            Patient current = DB.patients().findById(ownerId);
+            if (current == null || !ownerId.equals(current.getId())
+                    || !ownerCode.equals(current.getCode())) {
+                throw new IllegalArgumentException("Reminder deletion owner changed");
             }
-            DeleteBuilder<EventReminder, Long> qb = dao.deleteBuilder();
-            Where w = qb.where();
-            w.and(w.eq(EventReminder.COLUMN_EVENT_TYPE, eventType),
-                    (patient == null ? w.isNull(EventReminder.COLUMN_PATIENT) : w.eq(EventReminder.COLUMN_PATIENT, patient)),
-                    w.eq(EventReminder.COLUMN_DATE_TIME, dateTime)
-            );
-            qb.setWhere(w);
-            return qb.delete();
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
         }
+        try {
+            return com.j256.ormlite.misc.TransactionManager.callInTransaction(
+                    dbHelper.getConnectionSource(), () -> {
+                        // A caller's cached Patient may refer to a different
+                        // owner after a database restore reuses its numeric ID.
+                        // Check the stable code *inside* the deletion transaction.
+                        if (patient != null) {
+                            Patient current = DB.patients().findById(ownerId);
+                            if (current == null || !ownerId.equals(current.getId())
+                                    || !ownerCode.equals(current.getCode())) {
+                                throw new IllegalArgumentException(
+                                        "Reminder deletion owner changed");
+                            }
+                        }
+                        QueryBuilder<EventReminder, Long> selection = dao.queryBuilder();
+                        // Stable ordering makes a late-delete failure
+                        // reproducible and ensures all earlier deletions
+                        // are exercised by the enclosing rollback tests.
+                        selection.orderBy(EventReminder.COLUMN_ID, true);
+                        Where<EventReminder, Long> where = selection.where();
+                        where.and(where.eq(EventReminder.COLUMN_EVENT_TYPE, eventType),
+                                where.eq(EventReminder.COLUMN_DATE_TIME, dateTime),
+                                patient == null
+                                        ? where.isNull(EventReminder.COLUMN_PATIENT)
+                                        : where.eq(EventReminder.COLUMN_PATIENT, ownerId));
+                        int removed = 0;
+                        for (EventReminder row : selection.query()) {
+                            Patient rowOwner = row.getPatient();
+                            if (row.getId() == null || row.getId() <= 0L) {
+                                throw new SQLException("Selected reminder has no persisted ID");
+                            }
+                            if (patient == null) {
+                                if (rowOwner != null) {
+                                    throw new SQLException("Unassigned deletion selected owned reminder");
+                                }
+                            } else if (rowOwner == null
+                                    || !ownerId.equals(rowOwner.getId())
+                                    || !ownerCode.equals(rowOwner.getCode())) {
+                                throw new SQLException("Reminder owner changed during deletion");
+                            }
+                            // Never DELETE a later replacement with a recycled
+                            // numeric ID; the UUID belongs to the SQL predicate.
+                            if (deleteIfSameInstance(row) != 1) {
+                                throw new SQLException("Reminder instance changed during deletion");
+                            }
+                            removed++;
+                        }
+                        return removed;
+                    });
+        } catch (SQLException e) {
+            throw new IllegalStateException("Reminder deletion rolled back", e);
+        }
+    }
+
+    /**
+     * Delete exactly the persisted reminder instance that the caller saw.
+     * The UUID predicate and numeric ID are evaluated by one SQLite DELETE,
+     * not by a vulnerable read-then-delete-by-recycled-ID sequence.
+     *
+     * The caller owns its transaction/COMMIT and may retire only the captured
+     * UUID-bearing Android token after this call reports exactly one row.
+     */
+    public int deleteIfSameInstance(EventReminder captured) throws SQLException {
+        if (captured == null || captured.getId() == null || captured.getId() <= 0L
+                || !es.usc.citius.servando.calendula.util.IntentParams
+                        .isValidAlarmInstance(captured.getAlarmInstance())) {
+            throw new IllegalArgumentException("Valid persisted reminder instance required");
+        }
+        DeleteBuilder<EventReminder, Long> delete = dao.deleteBuilder();
+        Where<EventReminder, Long> where = delete.where();
+        where.and(where.eq(EventReminder.COLUMN_ID, captured.getId()),
+                where.eq(EventReminder.COLUMN_ALARM_INSTANCE, captured.getAlarmInstance()));
+        return delete.delete();
     }
 
     public int removeOlderThan(DateTime dateTime) {

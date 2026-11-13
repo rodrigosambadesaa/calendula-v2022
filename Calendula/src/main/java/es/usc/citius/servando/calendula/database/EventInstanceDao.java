@@ -114,7 +114,17 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
      * Count-only query: no clinical details or other patients' rows are read.
      */
     public boolean hasUntimedMedicationForPatient(Patient patient) {
-        if (patient == null || patient.getId() == null || patient.getId() <= 0L) {
+        if (patient == null || patient.getId() == null || patient.getId() <= 0L
+                || patient.getCode() == null || patient.getCode().trim().isEmpty()) {
+            return false;
+        }
+        // A profile restored with a recycled numeric SQLite ID must not
+        // observe even the presence of another patient's malformed doses.
+        // Verify stable ownership before executing the count-only SQL query.
+        Patient live = DB.patients().findById(patient.getId());
+        if (live == null || !patient.getId().equals(live.getId())
+                || live.getCode() == null || live.getCode().trim().isEmpty()
+                || !patient.getCode().equals(live.getCode())) {
             return false;
         }
         try {

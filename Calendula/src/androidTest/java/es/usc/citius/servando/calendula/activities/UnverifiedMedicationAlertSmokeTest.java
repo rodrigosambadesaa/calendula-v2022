@@ -62,6 +62,20 @@ public class UnverifiedMedicationAlertSmokeTest {
         try {
             assertEquals(1, DB.patients().create(owner));
             assertEquals(1, DB.patients().create(other));
+            assertTrue(IntakeNotificationMgr.hasLiveNotificationOwner(owner));
+            Patient recycled = new Patient();
+            recycled.setId(owner.getId());
+            recycled.setCode("ci-restored-recycled-owner");
+            assertFalse("A stale notification owner cannot read a replacement profile's doses",
+                    IntakeNotificationMgr.hasLiveNotificationOwner(recycled));
+            recycled.setCode(null);
+            assertFalse("Missing stable owner cannot authorize clinical notification",
+                    IntakeNotificationMgr.hasLiveNotificationOwner(recycled));
+            recycled.setCode(owner.getCode());
+            assertTrue("Correct persisted owner is still authorized",
+                    IntakeNotificationMgr.hasLiveNotificationOwner(recycled));
+            recycled.setCode("ci-restored-recycled-owner");
+
             for (int i = 0; i < names.length; i++) {
                 Patient patient = i == 3 ? other : owner;
                 medicines[i] = new Medicine(names[i], Presentation.PILLS);
@@ -84,6 +98,32 @@ public class UnverifiedMedicationAlertSmokeTest {
             assertEquals("Rendered notification must select only the one genuinely pending"
                     + " dose for the selected patient", 1, pending.size());
             assertEquals(events[0].getId(), pending.get(0).getId());
+
+            EventInstance oldOwnerEvent = new EventInstance(when, EventType.MEDICATION_INTAKE);
+            oldOwnerEvent.setId(events[0].getId());
+            oldOwnerEvent.setRef(schedules[0].getId());
+            oldOwnerEvent.setPatient(recycled);
+            oldOwnerEvent.addParam(EventInstance.PARAM_DOSE, 1.0d);
+            assertNull("An event from a recycled patient ID cannot show a medication",
+                    IntakeNotificationMgr.verifiedNotificationLine(
+                            context, oldOwnerEvent, schedules[0], owner));
+
+            Schedule replacedOwnerSchedule = new Schedule(medicines[0]);
+            replacedOwnerSchedule.setId(schedules[0].getId());
+            replacedOwnerSchedule.setPatient(recycled);
+            assertNull("A stale schedule owner cannot expose a dose in notification",
+                    IntakeNotificationMgr.verifiedNotificationLine(
+                            context, events[0], replacedOwnerSchedule, owner));
+
+            Medicine replacedOwnerMedicine = new Medicine(
+                    "Synthetic recycled-owner medicine", Presentation.PILLS);
+            replacedOwnerMedicine.setPatient(recycled);
+            Schedule replacedMedicineSchedule = new Schedule(replacedOwnerMedicine);
+            replacedMedicineSchedule.setId(schedules[0].getId());
+            replacedMedicineSchedule.setPatient(owner);
+            assertNull("A foreign-owned medicine cannot leak into the notification",
+                    IntakeNotificationMgr.verifiedNotificationLine(
+                            context, events[0], replacedMedicineSchedule, owner));
 
             // Exercise the same line renderer used by the production
             // notification InboxStyle, then inspect Android's actual extras.

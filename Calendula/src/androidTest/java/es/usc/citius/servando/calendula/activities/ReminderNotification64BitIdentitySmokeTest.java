@@ -7,6 +7,7 @@ package es.usc.citius.servando.calendula.activities;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import java.util.Arrays;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -25,6 +26,12 @@ import static org.junit.Assert.assertNotNull;
 /** Only creates and cancels inert PendingIntents: no broadcast is sent. */
 @RunWith(AndroidJUnit4.class)
 public class ReminderNotification64BitIdentitySmokeTest {
+    private static String digest(char ch) {
+        char[] chars = new char[64];
+        Arrays.fill(chars, ch);
+        return new String(chars);
+    }
+
     private static PendingIntent token(Context context, long reminderId, String consent) {
         Intent action = new Intent(context, AlarmReceiver.class)
                 .putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_CONFIRM)
@@ -34,6 +41,65 @@ public class ReminderNotification64BitIdentitySmokeTest {
                 IntakeNotificationMgr.identifyNotificationAction(
                         action, "CONFIRM", reminderId),
                 PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+    }
+
+    @Test
+    public void sameNumericIdWithDifferentInstancesNeverSharesAndroidButton() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        long sameId = 771991L;
+        String oldInstance = java.util.UUID.randomUUID().toString();
+        String newInstance = java.util.UUID.randomUUID().toString();
+        PendingIntent before = PendingIntent.getBroadcast(context, (int) sameId,
+                IntakeNotificationMgr.identifyNotificationAction(
+                        new Intent(context, AlarmReceiver.class)
+                                .putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, digest('a')),
+                        "CANCEL", sameId, oldInstance),
+                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+        PendingIntent after = PendingIntent.getBroadcast(context, (int) sameId,
+                IntakeNotificationMgr.identifyNotificationAction(
+                        new Intent(context, AlarmReceiver.class)
+                                .putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, digest('a')),
+                        "CANCEL", sameId, newInstance),
+                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+        try {
+            assertNotEquals("Old notification must not own successor's PendingIntent",
+                    before, after);
+        } finally {
+            before.cancel();
+            after.cancel();
+        }
+    }
+
+
+    @Test
+    public void repostWithChangedConsentCannotOverwritePreviousActionToken() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        final long id = 771992L;
+        final String instance = java.util.UUID.randomUUID().toString();
+        Intent before = new Intent(context, AlarmReceiver.class)
+                .putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, digest('a'));
+        Intent after = new Intent(context, AlarmReceiver.class)
+                .putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, digest('b'));
+        PendingIntent oldToken = PendingIntent.getBroadcast(context, (int) id,
+                IntakeNotificationMgr.identifyNotificationAction(
+                        before, "CONFIRM", id, instance),
+                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+        PendingIntent newToken = PendingIntent.getBroadcast(context, (int) id,
+                IntakeNotificationMgr.identifyNotificationAction(
+                        after, "CONFIRM", id, instance),
+                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+        try {
+            assertNotEquals("Different visible-dose fingerprints need distinct OS tokens",
+                    oldToken, newToken);
+            assertNotEquals(before.getData(), after.getData());
+            assertEquals(oldToken, PendingIntent.getBroadcast(context, (int) id,
+                    before, PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+            assertEquals(newToken, PendingIntent.getBroadcast(context, (int) id,
+                    after, PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+        } finally {
+            oldToken.cancel();
+            newToken.cancel();
+        }
     }
 
     @Test

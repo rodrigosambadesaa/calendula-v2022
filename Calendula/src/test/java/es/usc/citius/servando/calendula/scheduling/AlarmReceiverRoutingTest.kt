@@ -7,6 +7,7 @@ package es.usc.citius.servando.calendula.scheduling
 
 import android.content.Intent
 import es.usc.citius.servando.calendula.util.IntentParams
+import es.usc.citius.servando.calendula.scheduling.model.EventReminder
 import org.robolectric.RuntimeEnvironment
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -48,9 +49,12 @@ class AlarmReceiverRoutingTest {
     fun notificationConfirmationPreservesOnlyValidatedOpaqueConsent() {
         val context = RuntimeEnvironment.getApplication()
         val fingerprint = "a".repeat(64)
+        val instance = java.util.UUID.randomUUID().toString()
         val incoming = Intent(context, AlarmReceiver::class.java).apply {
             putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_CONFIRM)
             putExtra(IntentParams.EXTRA_REMINDER_ID, 123L)
+            putExtra(IntentParams.EXTRA_ALARM_INSTANCE, instance)
+            data = android.net.Uri.parse("calendula-reminder://notification/123/$instance/CONFIRM/$fingerprint")
             putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, fingerprint)
             putExtra(IntentParams.EXTRA_PATIENT_ID, 999L)
             putExtra(IntentParams.EXTRA_DATETIME, "private clinical timestamp")
@@ -63,10 +67,42 @@ class AlarmReceiverRoutingTest {
             work.getStringExtra(IntentParams.EXTRA_ACTION))
         assertEquals(123L, work.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1L))
         assertEquals(fingerprint, work.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT))
+        assertEquals(instance, work.getStringExtra(IntentParams.EXTRA_ALARM_INSTANCE))
+        assertEquals(incoming.data, work.data)
         assertFalse("No unrelated patient identifiers in the background queue",
             work.hasExtra(IntentParams.EXTRA_PATIENT_ID))
         assertFalse("No clinical timestamp in the queued intent",
             work.hasExtra(IntentParams.EXTRA_DATETIME))
+    }
+
+
+    @Test
+    fun changedConsentExtrasCannotReviveAStaleNotificationButton() {
+        val context = RuntimeEnvironment.getApplication()
+        val instance = java.util.UUID.randomUUID().toString()
+        val originalDigest = "a".repeat(64)
+        val replacementDigest = "b".repeat(64)
+        val oldClick = Intent(context, AlarmReceiver::class.java).apply {
+            putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_CONFIRM)
+            putExtra(IntentParams.EXTRA_REMINDER_ID, 900121L)
+            putExtra(IntentParams.EXTRA_ALARM_INSTANCE, instance)
+            putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, originalDigest)
+            data = android.net.Uri.parse(
+                "calendula-reminder://notification/900121/$instance/CONFIRM/$originalDigest"
+            )
+        }
+        assertNotNull(AlarmReceiver.validatedServiceIntent(context, oldClick))
+        oldClick.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, replacementDigest)
+        assertNull("Changing extras cannot change the immutable OS consent identity",
+            AlarmReceiver.validatedServiceIntent(context, oldClick))
+        oldClick.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, originalDigest)
+        assertNotNull(AlarmReceiver.validatedServiceIntent(context, oldClick))
+
+        // Old URI forms (without the fingerprint) must fail closed on upgrade.
+        oldClick.data = android.net.Uri.parse(
+            "calendula-reminder://notification/900121/$instance/CONFIRM"
+        )
+        assertNull(AlarmReceiver.validatedServiceIntent(context, oldClick))
     }
 
     @Test
@@ -118,31 +154,63 @@ class AlarmReceiverRoutingTest {
             assertNull(AlarmReceiver.validatedServiceIntent(context, incoming))
             incoming.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, "a".repeat(64))
             incoming.putExtra(IntentParams.EXTRA_PATIENT_ID, 456L)
+            val instance = java.util.UUID.randomUUID().toString()
+            val kind = if (action == IntentParams.ACTION_ALARM_DELAY) "DELAY" else "CANCEL"
+            incoming.putExtra(IntentParams.EXTRA_ALARM_INSTANCE, instance)
+            incoming.data = android.net.Uri.parse(
+                "calendula-reminder://notification/123/$instance/$kind/${"a".repeat(64)}"
+            )
             val work = AlarmReceiver.validatedServiceIntent(context, incoming)
             assertNotNull(work)
             assertEquals(action, work!!.getStringExtra(IntentParams.EXTRA_ACTION))
             assertEquals("a".repeat(64),
                 work.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT))
             assertFalse(work.hasExtra(IntentParams.EXTRA_PATIENT_ID))
+            assertEquals(instance, work.getStringExtra(IntentParams.EXTRA_ALARM_INSTANCE))
         }
     }
 
     @Test
     fun ordinaryReminderAndMidnightStillDoNotNeedClinicalConsent() {
         val context = RuntimeEnvironment.getApplication()
-        val incoming = Intent(context, AlarmReceiver::class.java).apply {
-            putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_REMINDER)
-            putExtra(IntentParams.EXTRA_REMINDER_ID, 123L)
-        }
+        val reminder = EventReminder().apply { id = 123L }
+        val incoming = Agenda.reminderBroadcastIntent(context, reminder)
         val work = AlarmReceiver.validatedServiceIntent(context, incoming)
         assertNotNull(work)
         assertFalse(work!!.hasExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT))
+        assertEquals(reminder.alarmInstance,
+            work.getStringExtra(IntentParams.EXTRA_ALARM_INSTANCE))
+        assertEquals(incoming.data, work.data)
         val daily = Intent(context, AlarmReceiver::class.java).apply {
             putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_DAILY_UPDATE)
         }
         val dailyWork = AlarmReceiver.validatedServiceIntent(context, daily)
         assertNotNull("Local-midnight recovery must not require a dose snapshot", dailyWork)
         assertFalse(dailyWork!!.hasExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT))
+    }
+
+    @Test
+    fun legacyAndForgedReminderInstancesNeverEnterClinicalQueue() {
+        val context = RuntimeEnvironment.getApplication()
+        val legacy = Intent(context, AlarmReceiver::class.java).apply {
+            putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_REMINDER)
+            putExtra(IntentParams.EXTRA_REMINDER_ID, 123L)
+        }
+        assertNull("Pre-v4 ID-only tokens cannot authorize new reminders",
+            AlarmReceiver.validatedServiceIntent(context, legacy))
+
+        val reminder = EventReminder().apply { id = 123L }
+        val valid = Agenda.reminderBroadcastIntent(context, reminder)
+        val originalInstance = reminder.alarmInstance
+        valid.putExtra(IntentParams.EXTRA_ALARM_INSTANCE,
+            java.util.UUID.randomUUID().toString())
+        assertNull("Valid URI with unrelated instance extra is rejected",
+            AlarmReceiver.validatedServiceIntent(context, valid))
+
+        valid.putExtra(IntentParams.EXTRA_ALARM_INSTANCE, originalInstance)
+        valid.data = android.net.Uri.parse("content://${context.packageName}/calendula-reminders/123")
+        assertNull("Old numeric URI cannot authorize a new instance",
+            AlarmReceiver.validatedServiceIntent(context, valid))
     }
 
     @Test

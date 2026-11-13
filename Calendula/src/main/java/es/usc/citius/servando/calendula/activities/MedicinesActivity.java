@@ -62,9 +62,11 @@ import es.usc.citius.servando.calendula.fragments.MedicineCreateOrEditFragment;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.PatientAlert;
 import es.usc.citius.servando.calendula.persistence.alerts.AllergyPatientAlert;
+import es.usc.citius.servando.calendula.util.ClinicalScreenOwnerBinding;
 import es.usc.citius.servando.calendula.util.FragmentUtils;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 import es.usc.citius.servando.calendula.util.Snack;
 import es.usc.citius.servando.calendula.util.alerts.AlertManager;
 
@@ -93,7 +95,23 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
     @BindView(R.id.add_button)
     FloatingActionButton fab;
     int color;
+    private static final String MEDICINE_EDITOR_OWNER_DOMAIN = "medicine-editor";
+    private ClinicalScreenOwnerBinding openedPatientBinding;
     private Long openedPatientId;
+
+    /**
+     * The fragment, UI callbacks and delayed writes must refer to the owner
+     * that originally opened this editor, even after restoring SQLite.
+     */
+    public boolean isOriginalEditorPatient(
+            es.usc.citius.servando.calendula.persistence.Patient candidate) {
+        if (openedPatientBinding == null || !openedPatientBinding.matches(candidate)) {
+            return false;
+        }
+        es.usc.citius.servando.calendula.persistence.Patient persisted =
+                DB.patients().findById(openedPatientBinding.getId());
+        return openedPatientBinding.matches(persisted);
+    }
 
     /**
      * Delayed allergy prompts may complete after changing patient profiles.
@@ -106,7 +124,11 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
         }
         es.usc.citius.servando.calendula.persistence.Patient active =
                 DB.patients().getActive(this);
-        Long activeId = active == null ? null : active.getId();
+        if (!isOriginalEditorPatient(active)
+                || !openedPatientBinding.matches(candidate.getPatient())) {
+            return false;
+        }
+        Long activeId = active.getId();
         Long ownerId = candidate.getPatient().getId();
         if (create) {
             return MedicineSaveOwnerGuard.canCreate(
@@ -119,10 +141,12 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
         if (persisted == null || DB.medicines().refresh(persisted) != 1) {
             return false;
         }
-        return MedicineSaveOwnerGuard.canModify(
-                openedPatientId, activeId, ownerId, candidate.getId(),
-                persisted.getPatient() == null ? null : persisted.getPatient().getId(),
-                persisted.getId());
+        return openedPatientBinding.matches(persisted.getPatient())
+                && PatientOwnerGuard.sameStableIdentity(candidate.getPatient(),
+                        persisted.getPatient())
+                && MedicineSaveOwnerGuard.canModify(
+                        openedPatientId, activeId, ownerId, candidate.getId(),
+                        persisted.getPatient().getId(), persisted.getId());
     }
 
     private void rejectStaleMedicineSave() {
@@ -136,9 +160,12 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
     private boolean canDisplaySelectedMedicine() {
         es.usc.citius.servando.calendula.persistence.Patient active =
                 DB.patients().getActive(this);
-        Long activeId = active == null ? null : active.getId();
+        if (!isOriginalEditorPatient(active) || mMedicineId == null) {
+            return false;
+        }
+        Long activeId = active.getId();
         if (openedPatientId == null || openedPatientId <= 0L
-                || !openedPatientId.equals(activeId) || mMedicineId == null) {
+                || !openedPatientId.equals(activeId)) {
             return false;
         }
         if (mMedicineId == -1L) {
@@ -151,9 +178,10 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
         if (persisted == null || DB.medicines().refresh(persisted) != 1) {
             return false;
         }
-        return MedicineSaveOwnerGuard.canOpenForEdit(
-                openedPatientId, activeId, mMedicineId, persisted.getId(),
-                persisted.getPatient() == null ? null : persisted.getPatient().getId());
+        return openedPatientBinding.matches(persisted.getPatient())
+                && MedicineSaveOwnerGuard.canOpenForEdit(
+                        openedPatientId, activeId, mMedicineId, persisted.getId(),
+                        persisted.getPatient().getId());
     }
 
     private void closeStaleMedicineEditor() {
@@ -163,7 +191,7 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
     }
 
     private static final String STATE_STARTED_SEARCH = "STATE_STARTED_SEARCH";
-    private static final String STATE_OPENED_PATIENT_ID = "STATE_OPENED_PATIENT_ID";
+    // The old ID-only restoration state deliberately cannot authorize a draft.
 
     private Prescription prescriptionToSet = null;
     private String prescriptionNameToSet = null;
@@ -308,9 +336,11 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
         // Configuration changes restore the draft editor's form state.
         // Never let it silently move from the originally opened patient to
         // whichever patient became active while the activity was paused.
-        openedPatientId = RestoredClinicalOwnerGuard.restoredOwnerOrNull(
-                savedInstanceState, STATE_OPENED_PATIENT_ID, opened.getId());
-        if (!MedicineSaveOwnerGuard.canRestoreEditor(openedPatientId, opened.getId())) {
+        openedPatientBinding = ClinicalScreenOwnerBinding.restoreOrCapture(
+                savedInstanceState, opened, MEDICINE_EDITOR_OWNER_DOMAIN);
+        openedPatientId = openedPatientBinding == null
+                ? null : openedPatientBinding.getId();
+        if (!isOriginalEditorPatient(opened)) {
             closeStaleMedicineEditor();
             return;
         }
@@ -353,8 +383,8 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         outState.putBoolean(STATE_STARTED_SEARCH, startedSearch);
-        if (openedPatientId != null && openedPatientId > 0L) {
-            outState.putLong(STATE_OPENED_PATIENT_ID, openedPatientId);
+        if (openedPatientBinding != null) {
+            openedPatientBinding.save(outState);
         }
         super.onSaveInstanceState(outState);
     }
@@ -362,7 +392,7 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
     @Override
     protected void onActivityResult(int requestCode, int resultCode, final Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (openedPatientId != null && !canDisplaySelectedMedicine()) {
+        if (!canDisplaySelectedMedicine()) {
             closeStaleMedicineEditor();
             return;
         }
@@ -487,9 +517,9 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
     private boolean oldAllergyWarningInvalidated(final Medicine m) {
         Medicine old = DB.medicines().findById(m.getId());
         if (old == null || DB.medicines().refresh(old) != 1
-                || old.getPatient() == null || old.getPatient().getId() == null
-                || m.getPatient() == null || m.getPatient().getId() == null
-                || !old.getPatient().getId().equals(m.getPatient().getId())) {
+                || !isOriginalEditorPatient(old.getPatient())
+                || !PatientOwnerGuard.sameStableIdentity(
+                        old.getPatient(), m.getPatient())) {
             throw new IllegalStateException("Medicine changed owner during allergy cleanup");
         }
         // Also handle a drug-database switch and removing a prescription.

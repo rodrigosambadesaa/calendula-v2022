@@ -26,8 +26,10 @@ public class OfficialNotificationSourceSmokeTest {
     public void boundNotificationMustNotShowAnotherPatientsOfficialTreatment() {
         Patient owner = new Patient();
         owner.setId(95011001L);
+        owner.setCode("ci-official-notification-owner");
         Patient other = new Patient();
         other.setId(95011002L);
+        other.setCode("ci-official-notification-other");
         Schedule schedule = new Schedule();
         schedule.setPatient(owner);
         schedule.setActiveMedId(95011003L);

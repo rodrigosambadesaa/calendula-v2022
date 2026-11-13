@@ -444,6 +444,55 @@ public class PublicReminderPostCommitSmokeTest {
     }
 
     @Test
+    public void stalePatientCodeCannotRescheduleAnOtherwiseMatchingReminderInstance()
+            throws Exception {
+        assertTrue(DB.initialized);
+        RepeatFixture x = new RepeatFixture();
+        try {
+            EventReminder stale = DB.eventReminders().findById(x.reminder.getId());
+            assertNotNull(stale);
+            assertNotNull(stale.getPatient());
+            assertEquals("Precondition: same persisted alarm UUID",
+                    x.reminder.getAlarmInstance(), stale.getAlarmInstance());
+            assertEquals(x.reminder.getId(), stale.getId());
+            // A detached historic owner snapshot must not mutate the
+            // live ORM patient object used by the fixture or cached DAOs.
+            Patient staleOwner = new Patient();
+            staleOwner.setId(x.owner.getId());
+            staleOwner.setCode("ci-foreign-patient-code");
+            stale.setPatient(staleOwner);
+            DateTime requested = x.due.plusMinutes(1);
+            assertFalse("Stale patient identity cannot authorize auto-repeat",
+                    Agenda.instance().rescheduleAutoRepeatIfCurrent(
+                            x.context, stale, requested));
+            assertEquals("Rejected repeat does not change persisted reminder",
+                    x.due, x.persistedTime());
+            assertEquals("Rejected repeat does not mutate the caller snapshot",
+                    x.due, stale.getNextTime());
+            assertNotNull("Rejected repeat retains original OS PendingIntent",
+                    PendingIntent.getBroadcast(x.context, 0,
+                            Agenda.reminderBroadcastIntent(x.context, x.reminder),
+                            PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+
+            // Missing stable owner identity also fails closed, even when all
+            // numeric IDs, timestamps, UUID and event ownership match.
+            staleOwner.setCode(null);
+            assertFalse(Agenda.instance().rescheduleAutoRepeatIfCurrent(
+                    x.context, stale, requested));
+            assertEquals(x.due, x.persistedTime());
+
+            EventReminder verified = DB.eventReminders().findById(x.reminder.getId());
+            assertNotNull(verified);
+            assertTrue("Original same-owner reminder can still repeat",
+                    Agenda.instance().rescheduleAutoRepeatIfCurrent(
+                            x.context, verified, requested));
+            assertEquals(requested, x.persistedTime());
+        } finally {
+            x.cleanup();
+        }
+    }
+
+    @Test
     public void staleRepeatCannotOverwriteAnIndependentlyDelayedReminder() throws Exception {
         assertTrue(DB.initialized);
         RepeatFixture x = new RepeatFixture();

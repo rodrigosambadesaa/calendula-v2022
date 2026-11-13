@@ -55,6 +55,15 @@ public class RoutineEditorOwnershipSmokeTest {
             assertFalse("B cannot open/delete A's routine",
                     RoutineOwnerGuard.isOwnedBy(persistedA, b));
             assertFalse(RoutineOwnerGuard.isOwnedBy(persistedA, new Patient()));
+            Patient recycled = new Patient();
+            recycled.setId(a.getId());
+            recycled.setCode("ci-reused-unrelated-patient");
+            assertFalse("Same SQLite ID and different code is not a valid routine owner",
+                    RoutineOwnerGuard.isOwnedBy(persistedA, recycled));
+            recycled.setCode(null);
+            assertFalse("Old unidentified profile cannot claim an editor",
+                    RoutineOwnerGuard.isOwnedBy(persistedA, recycled));
+            assertFalse(RoutineOwnerGuard.hasActivePatient(recycled));
             // No writes are performed during the authorization checks.
             assertNotNull(DB.routines().findById(routineA.getId()));
             assertNotNull(DB.routines().findById(routineB.getId()));

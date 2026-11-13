@@ -78,9 +78,9 @@ public class VerifiedAlarmCleanupSqlFailureTest {
         when(reminders.findBy(r.getEventType(), r.getDateTime(), null)).thenReturn(r);
         when(reminders.findAll()).thenReturn(Collections.singletonList(r));
         if (sqlException) {
-            when(reminders.delete(r)).thenThrow(new SQLException("Synthetic SQLite failure"));
+            when(reminders.deleteIfSameInstance(r)).thenThrow(new SQLException("Synthetic SQLite failure"));
         } else {
-            when(reminders.delete(r)).thenReturn(0);
+            when(reminders.deleteIfSameInstance(r)).thenReturn(0);
         }
 
         PendingIntent original = token(context, r, PendingIntent.FLAG_UPDATE_CURRENT);
@@ -98,7 +98,7 @@ public class VerifiedAlarmCleanupSqlFailureTest {
             } catch (IllegalStateException expected) {
                 // SQLite is authoritative. Any surviving row retains its token.
             }
-            verify(reminders).delete(r);
+            verify(reminders).deleteIfSameInstance(r);
             assertNotNull("A still-persisted reminder must retain its Android token",
                     token(context, r, PendingIntent.FLAG_NO_CREATE));
         } finally {
@@ -114,7 +114,7 @@ public class VerifiedAlarmCleanupSqlFailureTest {
         EventInstanceDao instances = mock(EventInstanceDao.class);
         when(reminders.findBy(r.getEventType(), r.getDateTime(), null)).thenReturn(r);
         when(reminders.findById(r.getId())).thenReturn(null);
-        when(reminders.delete(r)).thenReturn(0);
+        when(reminders.deleteIfSameInstance(r)).thenReturn(0);
 
         PendingIntent original = token(context, r, PendingIntent.FLAG_UPDATE_CURRENT);
         try (MockedStatic<DB> db = mockStatic(DB.class)) {
@@ -122,7 +122,7 @@ public class VerifiedAlarmCleanupSqlFailureTest {
             db.when(DB::eventInstances).thenReturn(instances);
             Agenda.instance().cleanReminderIfPossible(
                     context, null, r.getEventType(), r.getDateTime());
-            verify(reminders).delete(r);
+            verify(reminders).deleteIfSameInstance(r);
             assertNull("Verified-absent rows must not retain orphan OS tokens",
                     token(context, r, PendingIntent.FLAG_NO_CREATE));
         } finally {

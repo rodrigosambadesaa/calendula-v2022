@@ -156,7 +156,8 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
     private EditMode editMode = EditMode.CREATE;
     private ActiveMedVO activeMed;
     private Patient routineCleanupOwner;
-    // A numeric snapshot is immutable even if a stale Patient object is later mutated.
+    // Capture the stable clinical owner, not just its reusable SQLite row ID.
+    private ScheduleEditorOwnerState.OwnerBinding openedPatientBinding;
     private Long patientIdAtEditorOpen;
 
     private boolean differsFromPrescription = false;
@@ -405,19 +406,38 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
 
         // Opening one patient's schedule editor must not prune another
         // patient's unnamed routines.
-        routineCleanupOwner = DB.patients().getActive(this);
-        patientIdAtEditorOpen = routineCleanupOwner == null ? null
-                : routineCleanupOwner.getId();
-        ScheduleUtils.instance().removeUnlinkedAutoRoutines(
-                routineCleanupOwner, true);
+        Patient selectedOnOpen = DB.patients().getActive(this);
+        openedPatientBinding = ScheduleEditorOwnerState.restoredOwnerOrNull(
+                savedInstanceState, selectedOnOpen);
+        patientIdAtEditorOpen = openedPatientBinding == null ? null
+                : openedPatientBinding.id;
+        // A restored old draft or an unidentified profile must not display a
+        // foreign schedule, silently switch owners, or fall through to Create.
+        if (!ScheduleEditorOwnerState.stillOwnedBy(openedPatientBinding, selectedOnOpen)
+                || !ScheduleEditorOwnerState.stillOwnedBy(openedPatientBinding,
+                        DB.patients().findById(patientIdAtEditorOpen))) {
+            routineCleanupOwner = null;
+            Toast.makeText(this, R.string.patient_reselection_required,
+                    Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
+        routineCleanupOwner = selectedOnOpen;
+        ScheduleUtils.instance().removeUnlinkedAutoRoutines(routineCleanupOwner, true);
 
         String action = getIntent().getStringExtra(IntentParams.EXTRA_ACTION);
         Long editScheduleId = getIntent().getLongExtra(CalendulaApp.INTENT_EXTRA_SCHEDULE_ID, -1);
         if (editScheduleId != -1) {
             Schedule s = DB.schedules().findById(editScheduleId);
-            if (s != null) {
-                enableEditMode(s);
+            if (s == null || !ScheduleSaveOwnerGuard.samePersistedPatient(
+                    routineCleanupOwner, s.getPatient())) {
+                // Never reinterpret a stale or foreign edit link as Create.
+                Toast.makeText(this, R.string.patient_reselection_required,
+                        Toast.LENGTH_LONG).show();
+                finish();
+                return;
             }
+            enableEditMode(s);
         } else if (IntentParams.ACTION_CREATE_REMINDER.equals(action)) {
             Long activeMedId = getIntent().getLongExtra(IntentParams.EXTRA_ACTIVEMED_ID, -1);
             Pair<ScheduleCreator.ScheduleMappingResult, Schedule> result = ScheduleCreator.fromActiveMed(activeMedId);
@@ -937,10 +957,15 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
      * Returning an empty list is safer than displaying another user's drugs.
      */
     boolean isOpenedPatientStillActive() {
-        Long openedId = patientIdAtEditorOpen;
-        return openedId != null && ScheduleSaveOwnerGuard.canShowEditorMedicationList(
-                openedId, DB.patients().getActive(this),
-                DB.patients().findById(openedId));
+        if (openedPatientBinding == null) {
+            return false;
+        }
+        Patient active = DB.patients().getActive(this);
+        Patient persisted = DB.patients().findById(openedPatientBinding.id);
+        return ScheduleEditorOwnerState.stillOwnedBy(openedPatientBinding, active)
+                && ScheduleEditorOwnerState.stillOwnedBy(openedPatientBinding, persisted)
+                && ScheduleSaveOwnerGuard.canShowEditorMedicationList(
+                        persisted, active, persisted);
     }
 
     List<Medicine> medicinesForOpenedPatient() {
@@ -952,12 +977,12 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
 
     Patient patientForOpenedEditor() {
         return ScheduleEditorRoutineSource.authorizedPatient(
-                patientIdAtEditorOpen, DB.patients().getActive(this));
+                openedPatientBinding, DB.patients().getActive(this));
     }
 
     List<Routine> routinesForOpenedPatient() {
         return ScheduleEditorRoutineSource.load(
-                patientIdAtEditorOpen, DB.patients().getActive(this));
+                openedPatientBinding, DB.patients().getActive(this));
     }
 
 
@@ -978,20 +1003,20 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
         final Schedule existingSchedule = editingSchedule;
         // Immutable editor ownership is captured on the UI thread, not
         // looked up afresh after an arbitrarily long executor queue delay.
-        final Long openedPatientId = patientIdAtEditorOpen;
+        final ScheduleEditorOwnerState.OwnerBinding openedBinding = openedPatientBinding;
+        final Long openedPatientId = openedBinding == null ? null : openedBinding.id;
 
         SCHEDULE_SAVE_EXECUTOR.execute(() -> {
             final boolean saved = runSaveAction(() -> {
-                // Build a fresh identity from the ID captured in onCreate.
-                // No mutable model or newly selected account can change it.
-                Patient openedPatient = null;
-                if (openedPatientId != null) {
-                    openedPatient = new Patient();
-                    openedPatient.setId(openedPatientId);
-                }
                 Patient active = DB.patients().getActive(ScheduleBuildActivity.this);
                 Patient owner = openedPatientId == null
                         ? null : DB.patients().findById(openedPatientId);
+                // Neither a profile switch nor a restored row with the old
+                // numeric ID may inherit this editor's queued write.
+                if (!ScheduleEditorOwnerState.stillOwnedBy(openedBinding, active)
+                        || !ScheduleEditorOwnerState.stillOwnedBy(openedBinding, owner)) {
+                    throw new IllegalStateException("Schedule editor owner is no longer valid");
+                }
                 Medicine selected = scheduleToSave.getMedicine();
                 Medicine medicine = selected == null || selected.getId() == null
                         ? null : DB.medicines().findById(selected.getId());
@@ -1002,7 +1027,7 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
                     throw new IllegalStateException("Selected medicine disappeared");
                 }
                 if (!ScheduleSaveOwnerGuard.canSaveForOpenedPatient(
-                        openedPatient, active, owner, medicine)) {
+                        owner, active, owner, medicine)) {
                     // A profile switch or reassignment must not cause a
                     // background write into a different patient's account.
                     throw new IllegalStateException("Schedule editor ownership changed");
@@ -1088,11 +1113,22 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
     }
 
     @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        ScheduleEditorOwnerState.saveBinding(outState, openedPatientBinding);
+    }
+
+    @Override
     protected void onDestroy() {
-        // Use the patient captured when this editor opened, rather than a
-        // potentially different profile selected while it was on screen.
-        ScheduleUtils.instance().removeUnlinkedAutoRoutines(
-                routineCleanupOwner, true);
+        // A delayed cleanup must not target a replacement owner with a
+        // recycled SQLite ID. Never use the current active profile as a
+        // substitute for the owner captured at editor creation.
+        if (openedPatientBinding != null
+                && ScheduleEditorOwnerState.stillOwnedBy(openedPatientBinding,
+                DB.patients().findById(openedPatientBinding.id))) {
+            ScheduleUtils.instance().removeUnlinkedAutoRoutines(
+                    routineCleanupOwner, true);
+        }
         super.onDestroy();
     }
 }

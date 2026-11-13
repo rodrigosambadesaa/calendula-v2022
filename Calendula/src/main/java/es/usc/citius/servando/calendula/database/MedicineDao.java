@@ -40,6 +40,7 @@ import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.persistence.alerts.DrivingCautionAlert;
 import es.usc.citius.servando.calendula.persistence.alerts.StockRunningOutAlert;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 import es.usc.citius.servando.calendula.scheduling.Agenda;
@@ -140,20 +141,42 @@ public class MedicineDao extends GenericDao<Medicine, Long> {
      * A later failure could restore the rows but not those platform effects.
      */
     public void deleteCascade(final Medicine candidate, boolean fireEvent) {
+        Medicine deleted = deleteCascadeSql(candidate);
+
+        // Only run nontransactional Android alarm cleanup and auto-routine
+        // maintenance AFTER SQLite has committed the entire cascade.
+        Agenda.instance().cleanReminders(CalendulaApp.getContext());
+        ScheduleUtils.instance().removeUnlinkedAutoRoutines(
+                deleted.getPatient(), false);
+        if (fireEvent) {
+            fireEvent();
+        }
+    }
+
+    /**
+     * SQL-only cascade for explicit patient erasure. A surrounding transaction
+     * controls COMMIT; NEVER cancel alarms or post events from this method.
+     */
+    Medicine deleteCascadeSql(final Medicine candidate) {
         if (candidate == null || candidate.getId() == null
-                || candidate.getId() <= 0L || candidate.getPatient() == null
-                || candidate.getPatient().getId() == null
-                || candidate.getPatient().getId() <= 0L) {
+                || candidate.getId() <= 0L
+                || !PatientOwnerGuard.hasStableIdentity(candidate.getPatient())) {
             throw new IllegalArgumentException("A persisted medicine and owner are required");
         }
         final Long medicineId = candidate.getId();
-        final Long ownerId = candidate.getPatient().getId();
+        // Freeze the caller's owner identity before entering the transaction.
+        // A mutable/old Java Patient with a reused SQLite ID is not authority.
+        final Patient expectedOwner = new Patient();
+        expectedOwner.setId(candidate.getPatient().getId());
+        expectedOwner.setCode(candidate.getPatient().getCode());
 
-        Medicine deleted = (Medicine) DB.transaction(() -> {
+        return (Medicine) DB.transaction(() -> {
+            Patient currentOwner = DB.patients().findById(expectedOwner.getId());
             Medicine stored = DB.medicines().findById(medicineId);
-            if (stored == null || DB.medicines().refresh(stored) != 1
-                    || stored.getPatient() == null
-                    || !ownerId.equals(stored.getPatient().getId())) {
+            if (!PatientOwnerGuard.sameStableIdentity(expectedOwner, currentOwner)
+                    || stored == null || DB.medicines().refresh(stored) != 1
+                    || !PatientOwnerGuard.sameStableIdentity(
+                            expectedOwner, stored.getPatient())) {
                 throw new SQLException("Medicine owner changed before deletion");
             }
 
@@ -167,8 +190,8 @@ public class MedicineDao extends GenericDao<Medicine, Long> {
             // destroy their medical data merely because IDs were reused.
             for (Schedule schedule : schedules) {
                 if (schedule == null || schedule.getId() == null
-                        || schedule.getPatient() == null
-                        || !ownerId.equals(schedule.getPatient().getId())) {
+                        || !PatientOwnerGuard.sameStableIdentity(
+                                expectedOwner, schedule.getPatient())) {
                     throw new SQLException("Medicine schedule owner mismatch");
                 }
             }
@@ -183,8 +206,8 @@ public class MedicineDao extends GenericDao<Medicine, Long> {
                 if (alert == null || alert.id() == null
                         || alert.getMedicine() == null
                         || !medicineId.equals(alert.getMedicine().getId())
-                        || alert.getPatient() == null
-                        || !ownerId.equals(alert.getPatient().getId())) {
+                        || !PatientOwnerGuard.sameStableIdentity(
+                                expectedOwner, alert.getPatient())) {
                     throw new SQLException("Medicine alert patient mismatch");
                 }
             }
@@ -195,8 +218,8 @@ public class MedicineDao extends GenericDao<Medicine, Long> {
             for (Schedule selected : schedules) {
                 Schedule current = DB.schedules().findById(selected.getId());
                 if (current == null || DB.schedules().refresh(current) != 1
-                        || current.getPatient() == null
-                        || !ownerId.equals(current.getPatient().getId())) {
+                        || !PatientOwnerGuard.sameStableIdentity(
+                                expectedOwner, current.getPatient())) {
                     throw new SQLException("Schedule owner changed during medicine deletion");
                 }
                 DB.eventInstances().removeByRef(current.getId());
@@ -222,14 +245,6 @@ public class MedicineDao extends GenericDao<Medicine, Long> {
             return stored;
         });
 
-        // Only run nontransactional Android alarm cleanup and auto-routine
-        // maintenance AFTER SQLite has committed the entire cascade.
-        Agenda.instance().cleanReminders(CalendulaApp.getContext());
-        ScheduleUtils.instance().removeUnlinkedAutoRoutines(
-                deleted.getPatient(), false);
-        if (fireEvent) {
-            fireEvent();
-        }
     }
 
     public Medicine findByGroupAndPatient(String group, Patient p) {

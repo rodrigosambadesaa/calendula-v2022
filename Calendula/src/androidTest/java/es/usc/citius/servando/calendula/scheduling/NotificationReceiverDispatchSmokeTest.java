@@ -38,8 +38,12 @@ public class NotificationReceiverDispatchSmokeTest {
     public void oneTapActionForwardsOnlyConsentDigestAndReminderIdentity() {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         String digest = digest('f');
+        String instance = java.util.UUID.randomUUID().toString();
         Intent clicked = new Intent(context, AlarmReceiver.class);
         clicked.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_CONFIRM);
+        clicked.putExtra(IntentParams.EXTRA_ALARM_INSTANCE, instance);
+        clicked.setData(android.net.Uri.parse(
+                "calendula-reminder://notification/731002/" + instance + "/CONFIRM/" + digest));
         clicked.putExtra(IntentParams.EXTRA_REMINDER_ID, 731002L);
         clicked.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, digest);
         clicked.putExtra(IntentParams.EXTRA_PATIENT_ID, 731003L);
@@ -52,6 +56,8 @@ public class NotificationReceiverDispatchSmokeTest {
                 queued.getStringExtra(IntentParams.EXTRA_ACTION));
         assertEquals(731002L, queued.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1L));
         assertEquals(digest, queued.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT));
+        assertEquals(instance, queued.getStringExtra(IntentParams.EXTRA_ALARM_INSTANCE));
+        assertEquals(clicked.getData(), queued.getData());
         assertFalse(queued.hasExtra(IntentParams.EXTRA_PATIENT_ID));
         assertFalse(queued.hasExtra(IntentParams.EXTRA_DATETIME));
     }
@@ -71,13 +77,48 @@ public class NotificationReceiverDispatchSmokeTest {
             assertNull(AlarmReceiver.validatedServiceIntent(context, clicked));
             clicked.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, shown);
             clicked.putExtra(IntentParams.EXTRA_PATIENT_ID, 731003L);
+            String instance = java.util.UUID.randomUUID().toString();
+            String kind = action.equals(IntentParams.ACTION_ALARM_DELAY) ? "DELAY" : "CANCEL";
+            clicked.putExtra(IntentParams.EXTRA_ALARM_INSTANCE, instance);
+            clicked.setData(android.net.Uri.parse(
+                    "calendula-reminder://notification/731002/" + instance + "/" + kind + "/" + shown));
             Intent work = AlarmReceiver.validatedServiceIntent(context, clicked);
             assertNotNull(work);
             assertEquals(action, work.getStringExtra(IntentParams.EXTRA_ACTION));
             assertEquals(shown,
                     work.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT));
             assertFalse(work.hasExtra(IntentParams.EXTRA_PATIENT_ID));
+            assertEquals(instance, work.getStringExtra(IntentParams.EXTRA_ALARM_INSTANCE));
         }
+    }
+
+
+    @Test
+    public void changedActionExtrasCannotInheritNewConsentFromOlderAndroidToken() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        String original = digest('a');
+        String updated = digest('b');
+        String instance = java.util.UUID.randomUUID().toString();
+        Intent oldClick = new Intent(context, AlarmReceiver.class);
+        oldClick.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_CONFIRM);
+        oldClick.putExtra(IntentParams.EXTRA_REMINDER_ID, 731004L);
+        oldClick.putExtra(IntentParams.EXTRA_ALARM_INSTANCE, instance);
+        oldClick.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, original);
+        oldClick.setData(android.net.Uri.parse(
+                "calendula-reminder://notification/731004/" + instance
+                        + "/CONFIRM/" + original));
+        assertNotNull(AlarmReceiver.validatedServiceIntent(context, oldClick));
+
+        // PendingIntent.FLAG_UPDATE_CURRENT may mutate extras, not identity.
+        // The original Android token must not silently authorize new doses.
+        oldClick.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, updated);
+        assertNull(AlarmReceiver.validatedServiceIntent(context, oldClick));
+        oldClick.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, original);
+        assertNotNull(AlarmReceiver.validatedServiceIntent(context, oldClick));
+        oldClick.setData(android.net.Uri.parse(
+                "calendula-reminder://notification/731004/" + instance + "/CONFIRM"));
+        assertNull("Legacy ID/UUID-only clinical actions must fail closed",
+                AlarmReceiver.validatedServiceIntent(context, oldClick));
     }
 
     @Test

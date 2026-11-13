@@ -35,6 +35,7 @@ public class ReminderLivePatientDeliveryTest {
     private static Patient owner(Long id) {
         Patient p = new Patient();
         p.setId(id);
+        p.setCode("synthetic-current-owner");
         return p;
     }
 
@@ -67,7 +68,7 @@ public class ReminderLivePatientDeliveryTest {
     }
 
     @Test
-    public void recycledPatientIdWithDifferentCodeCannotDeliverOrReviveAnOldReminder() {
+    public void recycledPatientIdWithDifferentCodeCannotDeliverOrReviveAnOldReminder() throws Exception {
         EventReminder stale = reminder(45L);
         stale.getPatient().setCode("synthetic-old-patient");
         Patient newOwner = owner(45L);
@@ -80,6 +81,11 @@ public class ReminderLivePatientDeliveryTest {
         // reminder revision byte-for-byte equivalent to catch ID reuse.
         persisted.setDateTime(stale.getDateTime());
         persisted.setNextTime(stale.getNextTime());
+        // ORMLite reloads the immutable UUID; a second synthetic constructor
+        // generates a different one. Recreate one persisted instance here.
+        java.lang.reflect.Field field = EventReminder.class.getDeclaredField("alarmInstance");
+        field.setAccessible(true);
+        field.set(persisted, stale.getAlarmInstance());
         persisted.getPatient().setCode("synthetic-new-patient");
 
         try (MockedStatic<DB> db = mockStatic(DB.class)) {
@@ -102,10 +108,30 @@ public class ReminderLivePatientDeliveryTest {
             assertTrue(Agenda.hasLiveReminderOwner(stale));
             assertTrue(Agenda.instance().isCurrentPendingReminder(stale));
 
-            // A legacy reminder with no patient code keeps the previous
-            // persisted-ID behavior until its metadata can be reconciled.
+            // Legacy/malformed records must not trust a recycled numeric
+            // patient ID when no stable identity survives. The profile
+            // migration can install a new local code before later delivery.
             stale.getPatient().setCode(null);
+            assertFalse(Agenda.hasLiveReminderOwner(stale));
+            assertFalse("A missing captured owner must not authorize an intake",
+                    Agenda.instance().isCurrentPendingReminder(stale));
+            stale.getPatient().setCode("   ");
+            assertFalse(Agenda.hasLiveReminderOwner(stale));
+            assertFalse(Agenda.instance().isCurrentPendingReminder(stale));
+            stale.getPatient().setCode("synthetic-old-patient");
+            newOwner.setCode(null);
+            assertFalse(Agenda.hasLiveReminderOwner(stale));
+            persisted.getPatient().setCode(null);
+            assertFalse("A missing persisted owner must reject stale decisions",
+                    Agenda.instance().isCurrentPendingReminder(stale));
+            newOwner.setCode("");
+            persisted.getPatient().setCode("");
+            assertFalse(Agenda.hasLiveReminderOwner(stale));
+            assertFalse(Agenda.instance().isCurrentPendingReminder(stale));
+            newOwner.setCode("synthetic-old-patient");
+            persisted.getPatient().setCode("synthetic-old-patient");
             assertTrue(Agenda.hasLiveReminderOwner(stale));
+            assertTrue(Agenda.instance().isCurrentPendingReminder(stale));
         }
     }
 

@@ -39,6 +39,14 @@ public class RoutinesListPatientIsolationTest {
                 7L, 7L, a, a, Arrays.asList(aRoutine, null)));
         assertTrue(RoutinesListFragment.mayApplyRoutineReload(
                 7L, 7L, a, a, Collections.emptyList()));
+        Patient recycled = patient(1001L);
+        recycled.setCode("ci-restored-replacement-owner");
+        assertFalse("A stale empty callback cannot hide a new patient's routines",
+                RoutinesListFragment.mayApplyRoutineReload(
+                        7L, 7L, a, recycled, Collections.emptyList()));
+        assertFalse(RoutinesListFragment.ownsRoutine(aRoutine, recycled));
+        recycled.setCode(null);
+        assertFalse(RoutinesListFragment.ownsRoutine(aRoutine, recycled));
         assertFalse(RoutinesListFragment.mayApplyRoutineReload(
                 7L, 7L, a, a, null));
         assertFalse(RoutinesListFragment.mayApplyRoutineReload(
@@ -81,6 +89,7 @@ public class RoutinesListPatientIsolationTest {
     private static Patient patient(Long id) {
         Patient p = new Patient();
         p.setId(id);
+        p.setCode("ci-routine-list-" + id);
         return p;
     }
 

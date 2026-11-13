@@ -83,6 +83,36 @@ public class DailyAgendaPatientIsolationSmokeTest {
                     DailyAgendaEventValidator.verifiedDose(wrongStored, storedSchedule));
             assertNull("Nonfinite dose must never display as a valid amount",
                     DailyAgendaEventValidator.verifiedDose(invalidStored, storedSchedule));
+
+            // A restored SQLite file can assign the *same* numeric patient ID
+            // to another owner. Detached snapshots with a changed stable code
+            // must not authorize a current patient's rendered dose.
+            Patient reusedId = new Patient();
+            reusedId.setId(a.getId());
+            reusedId.setCode("ci-restored-replacement-" + seed);
+            EventInstance staleOwnerEvent = new EventInstance(validStored.getTime(),
+                    EventType.MEDICATION_INTAKE);
+            staleOwnerEvent.setId(validStored.getId());
+            staleOwnerEvent.setRef(storedSchedule.getId());
+            staleOwnerEvent.setPatient(reusedId);
+            staleOwnerEvent.addParam(EventInstance.PARAM_DOSE, 1.5d);
+            assertNull("Event snapshot with recycled patient ID cannot reveal medication",
+                    DailyAgendaEventValidator.verifiedDose(staleOwnerEvent, storedSchedule));
+
+            Schedule replacedOwnerSchedule = new Schedule(storedSchedule.getMedicine());
+            replacedOwnerSchedule.setId(storedSchedule.getId());
+            replacedOwnerSchedule.setPatient(reusedId);
+            assertNull("A schedule snapshot from another stable owner is never trusted",
+                    DailyAgendaEventValidator.verifiedDose(validStored, replacedOwnerSchedule));
+
+            Medicine replacedOwnerMedicine = new Medicine(
+                    "Synthetic replacement medication", Presentation.PILLS);
+            replacedOwnerMedicine.setPatient(reusedId);
+            Schedule substitutedMedicine = new Schedule(replacedOwnerMedicine);
+            substitutedMedicine.setId(storedSchedule.getId());
+            substitutedMedicine.setPatient(a);
+            assertNull("A medicine with an old numeric ID and wrong stable owner is rejected",
+                    DailyAgendaEventValidator.verifiedDose(validStored, substitutedMedicine));
         } finally {
             for (EventInstance event : new EventInstance[]{correct, mismatched, malformed}) {
                 if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {

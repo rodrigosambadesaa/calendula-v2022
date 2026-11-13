@@ -27,9 +27,9 @@ public final class ConfirmIntakeGuard {
     /**
      * A restored database may reuse a clinical patient's numeric row ID.
      * A stale event/selection must therefore also carry the same stable
-     * patient code. Two fully unidentified legacy patients preserve the
-     * historical compatibility path, but one missing code may never match
-     * an identified patient.
+     * patient code. Neither one nor two unidentified legacy patients can
+     * authorize intake/stock changes from a recycled numeric SQLite ID.
+     * Local-only profiles must obtain a persisted stable code first.
      */
     public static boolean samePatientIdentity(Patient selected, Patient stored) {
         if (selected == null || stored == null
@@ -39,14 +39,9 @@ public final class ConfirmIntakeGuard {
         }
         String selectedCode = selected.getCode();
         String storedCode = stored.getCode();
-        boolean selectedUnidentified = selectedCode == null
-                || selectedCode.trim().isEmpty();
-        boolean storedUnidentified = storedCode == null
-                || storedCode.trim().isEmpty();
-        if (selectedUnidentified || storedUnidentified) {
-            return selectedUnidentified && storedUnidentified;
-        }
-        return selectedCode.equals(storedCode);
+        return selectedCode != null && !selectedCode.trim().isEmpty()
+                && storedCode != null && !storedCode.trim().isEmpty()
+                && selectedCode.equals(storedCode);
     }
 
     public static boolean matchesPersistedEvent(EventInstance selected, EventInstance stored) {

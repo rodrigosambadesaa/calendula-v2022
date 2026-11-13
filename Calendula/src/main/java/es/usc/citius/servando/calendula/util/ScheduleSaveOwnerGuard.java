@@ -12,23 +12,21 @@ import es.usc.citius.servando.calendula.persistence.Schedule;
 /**
  * A schedule editor belongs to the patient who opened it, not to whichever
  * patient happens to be active when the background executor finally runs.
- * These checks compare persisted numeric identities, never Java object identity.
+ * Authorization requires both the persisted row ID and the immutable stable
+ * owner code. Numeric SQLite IDs alone may be recycled after database restore.
  */
 public final class ScheduleSaveOwnerGuard {
     private ScheduleSaveOwnerGuard() {
     }
 
     public static boolean samePersistedPatient(Patient expected, Patient candidate) {
-        return expected != null && expected.getId() != null && expected.getId() > 0L
-                && candidate != null && candidate.getId() != null
-                && expected.getId().equals(candidate.getId());
+        return PatientOwnerGuard.sameStableIdentity(expected, candidate);
     }
 
-    public static boolean canShowEditorMedicationList(Long openedId,
+    public static boolean canShowEditorMedicationList(Patient opened,
                                                        Patient active, Patient persisted) {
-        return openedId != null && openedId > 0L
-                && active != null && openedId.equals(active.getId())
-                && persisted != null && openedId.equals(persisted.getId());
+        return samePersistedPatient(opened, active)
+                && samePersistedPatient(opened, persisted);
     }
 
     public static boolean canSaveForOpenedPatient(Patient opened, Patient active,

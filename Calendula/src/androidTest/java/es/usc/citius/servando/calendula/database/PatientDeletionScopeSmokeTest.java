@@ -12,17 +12,22 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import org.joda.time.DateTime;
+import org.joda.time.LocalDate;
 import org.joda.time.LocalTime;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import es.usc.citius.servando.calendula.allergies.AllergenType;
 import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.PatientAlert;
+import es.usc.citius.servando.calendula.persistence.PickupInfo;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.PatientAllergen;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.persistence.Routine;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
+import es.usc.citius.servando.calendula.persistence.Schedule;
+import es.usc.citius.servando.calendula.persistence.alerts.StockRunningOutAlert;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
@@ -42,13 +47,17 @@ import static org.junit.Assert.assertTrue;
 @RunWith(AndroidJUnit4.class)
 public class PatientDeletionScopeSmokeTest {
     @Test
-    public void newAndLegacyLocalDefaultProfilesReceiveDurableStableIdentities()
+    public void legacyLocalDefaultRequiresExplicitReselectionAfterIdentityMigration()
             throws Exception {
         assertTrue(DB.initialized);
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         SharedPreferences prefs = PreferenceUtils.instance().preferences();
         String key = PreferenceKeys.PATIENTS_ACTIVE.key();
+        String bindingKey = PreferenceKeys.PATIENTS_ACTIVE_OWNER.key();
+        String markerKey = PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key();
         Object previousSelection = prefs.getAll().get(key);
+        Object previousBinding = prefs.getAll().get(bindingKey);
+        Object previousMarker = prefs.getAll().get(markerKey);
         Patient fresh = null;
         Patient legacy = new Patient();
         legacy.setDefault(true);
@@ -63,26 +72,40 @@ public class PatientDeletionScopeSmokeTest {
             assertEquals(1, DB.patients().create(legacy));
             assertNull("Legacy default has no code before safe migration",
                     DB.patients().findById(legacy.getId()).getCode());
-            assertTrue(prefs.edit().putLong(key, legacy.getId()).commit());
+            assertTrue(prefs.edit()
+                    .putLong(key, legacy.getId())
+                    .remove(bindingKey)
+                    .remove(markerKey)
+                    .commit());
 
+            // A numeric-only selection does not prove ownership after restore.
+            // The migration can issue a durable code, but must not silently
+            // authorize clinical access to the row with the retained ID.
+            assertNull("Legacy unbound selection requires explicit profile choice",
+                    DB.patients().getActive(context));
+            Patient migrated = DB.patients().findByIdWithLocalIdentity(legacy.getId());
+            assertNotNull(migrated);
+            assertTrue("Explicit recovery migrates local identity",
+                    migrated.getCode() != null
+                            && migrated.getCode().startsWith("local-"));
+            assertEquals(migrated.getCode(),
+                    DB.patients().findById(legacy.getId()).getCode());
+            assertNull("Code migration alone must not activate a profile",
+                    DB.patients().getActive(context));
+
+            // Simulate the user's explicit profile selection.
+            DB.patients().setActive(migrated);
             Patient firstRead = DB.patients().getActive(context);
             assertNotNull(firstRead);
             assertEquals(legacy.getId(), firstRead.getId());
-            assertTrue("First use migrates local default identity",
-                    firstRead.getCode() != null
-                            && firstRead.getCode().startsWith("local-"));
-            assertEquals(firstRead.getCode(),
-                    DB.patients().findById(legacy.getId()).getCode());
+            assertEquals(migrated.getCode(), firstRead.getCode());
             assertEquals("Subsequent reads must not rotate patient identity",
                     firstRead.getCode(), DB.patients().getActive(context).getCode());
         } finally {
             SharedPreferences.Editor editor = prefs.edit();
-            if (previousSelection == null) editor.remove(key);
-            else if (previousSelection instanceof Long) editor.putLong(key, (Long) previousSelection);
-            else if (previousSelection instanceof String) editor.putString(key, (String) previousSelection);
-            else if (previousSelection instanceof Integer) editor.putInt(key, (Integer) previousSelection);
-            else if (previousSelection instanceof Boolean) editor.putBoolean(key, (Boolean) previousSelection);
-            else throw new AssertionError("Unexpected synthetic preference type");
+            restoreSyntheticPreference(editor, key, previousSelection);
+            restoreSyntheticPreference(editor, bindingKey, previousBinding);
+            restoreSyntheticPreference(editor, markerKey, previousMarker);
             assertTrue(editor.commit());
             for (Patient p : new Patient[]{legacy, fresh}) {
                 if (p != null && p.getId() != null
@@ -91,6 +114,17 @@ public class PatientDeletionScopeSmokeTest {
                 }
             }
         }
+    }
+
+    private static void restoreSyntheticPreference(
+            SharedPreferences.Editor editor, String key, Object previous) {
+        if (previous == null) editor.remove(key);
+        else if (previous instanceof Long) editor.putLong(key, (Long) previous);
+        else if (previous instanceof String) editor.putString(key, (String) previous);
+        else if (previous instanceof Integer) editor.putInt(key, (Integer) previous);
+        else if (previous instanceof Boolean) editor.putBoolean(key, (Boolean) previous);
+        else if (previous instanceof Float) editor.putFloat(key, (Float) previous);
+        else throw new AssertionError("Unexpected synthetic preference type");
     }
 
     @Test
@@ -355,6 +389,154 @@ public class PatientDeletionScopeSmokeTest {
                 if (patient.getId() != null && DB.patients().findById(patient.getId()) != null) {
                     DB.patients().remove(patient);
                 }
+            }
+        }
+    }
+
+    @Test
+    public void explicitPatientErasureRollsBackEntireClinicalGraphOnLateSqlFailure()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Patient owner = new Patient();
+        owner.setCode("ci-atomic-erasure-A-" + System.nanoTime());
+        owner.setName("Synthetic owner A");
+        Patient other = new Patient();
+        other.setCode("ci-atomic-erasure-B-" + System.nanoTime());
+        other.setName("Synthetic owner B");
+        Medicine medicine = new Medicine("Synthetic dose", Presentation.PILLS);
+        Medicine secondMedicine = new Medicine("Synthetic second dose", Presentation.PILLS);
+        Medicine protectedMedicine = new Medicine("Protected synthetic dose", Presentation.PILLS);
+        Schedule schedule = new Schedule();
+        Schedule secondSchedule = new Schedule();
+        PickupInfo pickup = new PickupInfo();
+        PatientAlert stockAlert = null;
+        Routine routine = null;
+        PatientAllergen allergy = null;
+        DateTime due = DateTime.now().plusHours(11).withMillisOfSecond(0);
+        EventInstance completed = new EventInstance(due, EventType.MEDICATION_INTAKE);
+        EventReminder reminder = new EventReminder(due, EventType.MEDICATION_INTAKE);
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        String trigger = "ci_atomic_patient_erasure_abort";
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            assertEquals(1, DB.patients().create(other));
+            medicine.setPatient(owner);
+            medicine.setStock(15.5f);
+            secondMedicine.setPatient(owner);
+            secondMedicine.setStock(6.25f);
+            protectedMedicine.setPatient(other);
+            protectedMedicine.setStock(11.75f);
+            assertEquals(1, DB.medicines().create(medicine));
+            assertEquals(1, DB.medicines().create(secondMedicine));
+            assertEquals(1, DB.medicines().create(protectedMedicine));
+            schedule.setMedicine(medicine);
+            schedule.setPatient(owner);
+            assertEquals(1, DB.schedules().create(schedule));
+            secondSchedule.setMedicine(secondMedicine);
+            secondSchedule.setPatient(owner);
+            assertEquals(1, DB.schedules().create(secondSchedule));
+            pickup.setMedicine(medicine);
+            assertEquals(1, DB.pickups().create(pickup));
+            stockAlert = new StockRunningOutAlert(medicine, LocalDate.now());
+            assertEquals(1, DB.alerts().create(stockAlert));
+            routine = new Routine(owner, new LocalTime(6, 20), "Synthetic morning");
+            assertEquals(1, DB.routines().create(routine));
+            allergy = new PatientAllergen("Synthetic ingredient",
+                    AllergenType.ACTIVE_INGREDIENT, "SYNTHETIC-ATOMIC-ID", owner);
+            assertEquals(1, DB.patientAllergens().create(allergy));
+            completed.setPatient(owner);
+            completed.setRef(-91000001L);
+            completed.addParam(EventInstance.PARAM_DOSE, 1.5d);
+            completed.setCompleted(true);
+            completed.setCompletedAt(DateTime.now().minusMinutes(3));
+            assertEquals(1, DB.eventInstances().create(completed));
+            reminder.setPatient(owner);
+            reminder.setNextTime(due);
+            assertEquals(1, DB.eventReminders().create(reminder));
+
+            // The patient DELETE is deliberately last. Every preceding graph
+            // deletion must roll back, including medicine, history and alarms.
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE DELETE ON Patients WHEN OLD._id = " + owner.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic late patient erase failure'); END;");
+            boolean failed = false;
+            try {
+                DB.patients().removeCascade(owner);
+            } catch (RuntimeException expected) {
+                failed = true;
+            }
+            assertTrue("A failed final patient DELETE must abort the erasure", failed);
+            assertNotNull("Patient was not partly erased", DB.patients().findById(owner.getId()));
+            assertNotNull("Medicine must roll back", DB.medicines().findById(medicine.getId()));
+            assertNotNull("Second medicine must also roll back",
+                    DB.medicines().findById(secondMedicine.getId()));
+            assertEquals("Managed stock must roll back", 15.5f,
+                    DB.medicines().findById(medicine.getId()).getStock(), 0.0001f);
+            assertEquals("Second medicine stock must roll back", 6.25f,
+                    DB.medicines().findById(secondMedicine.getId()).getStock(), 0.0001f);
+            assertNotNull("Schedule must roll back", DB.schedules().findById(schedule.getId()));
+            assertNotNull("Second schedule must roll back",
+                    DB.schedules().findById(secondSchedule.getId()));
+            assertNotNull("Pickup must roll back", DB.pickups().findById(pickup.getId()));
+            assertNotNull("Stock alert must roll back", DB.alerts().findById(stockAlert.id()));
+            assertNotNull("Routine must roll back", DB.routines().findById(routine.getId()));
+            assertNotNull("Allergy must roll back", DB.patientAllergens().findById(allergy.getId()));
+            assertNotNull("Decided intake must roll back",
+                    DB.eventInstances().findById(completed.getId()));
+            assertNotNull("Reminder must roll back, not lose its OS token",
+                    DB.eventReminders().findById(reminder.getId()));
+            assertNotNull("Other patient remains", DB.patients().findById(other.getId()));
+            assertNotNull("Other medicine remains",
+                    DB.medicines().findById(protectedMedicine.getId()));
+            assertEquals("Other patient stock must never be modified", 11.75f,
+                    DB.medicines().findById(protectedMedicine.getId()).getStock(), 0.0001f);
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            DB.patients().removeCascade(owner);
+            assertNull(DB.patients().findById(owner.getId()));
+            assertNull(DB.medicines().findById(medicine.getId()));
+            assertNull(DB.medicines().findById(secondMedicine.getId()));
+            assertNull(DB.schedules().findById(schedule.getId()));
+            assertNull(DB.schedules().findById(secondSchedule.getId()));
+            assertNull(DB.pickups().findById(pickup.getId()));
+            assertNull(DB.alerts().findById(stockAlert.id()));
+            assertNull(DB.routines().findById(routine.getId()));
+            assertNull(DB.patientAllergens().findById(allergy.getId()));
+            assertNull(DB.eventInstances().findById(completed.getId()));
+            assertNull(DB.eventReminders().findById(reminder.getId()));
+            assertNotNull(DB.medicines().findById(protectedMedicine.getId()));
+            assertEquals("Unrelated stock remains unchanged after committed erase", 11.75f,
+                    DB.medicines().findById(protectedMedicine.getId()).getStock(), 0.0001f);
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            if (stockAlert != null && stockAlert.id() != null
+                    && DB.alerts().findById(stockAlert.id()) != null)
+                DB.alerts().deleteById(stockAlert.id());
+            if (pickup.getId() != null && DB.pickups().findById(pickup.getId()) != null)
+                DB.pickups().deleteById(pickup.getId());
+            if (schedule.getId() != null && DB.schedules().findById(schedule.getId()) != null)
+                DB.schedules().deleteById(schedule.getId());
+            if (secondSchedule.getId() != null
+                    && DB.schedules().findById(secondSchedule.getId()) != null)
+                DB.schedules().deleteById(secondSchedule.getId());
+            if (reminder.getId() != null && DB.eventReminders().findById(reminder.getId()) != null)
+                DB.eventReminders().remove(reminder);
+            if (completed.getId() != null && DB.eventInstances().findById(completed.getId()) != null)
+                DB.eventInstances().remove(completed);
+            if (allergy != null && allergy.getId() != null
+                    && DB.patientAllergens().findById(allergy.getId()) != null)
+                DB.patientAllergens().remove(allergy);
+            if (routine != null && routine.getId() != null
+                    && DB.routines().findById(routine.getId()) != null)
+                DB.routines().remove(routine);
+            for (Medicine current : new Medicine[]{medicine, secondMedicine, protectedMedicine}) {
+                if (current.getId() != null && DB.medicines().findById(current.getId()) != null)
+                    DB.medicines().remove(current);
+            }
+            for (Patient current : new Patient[]{owner, other}) {
+                if (current.getId() != null && DB.patients().findById(current.getId()) != null)
+                    DB.patients().remove(current);
             }
         }
     }

@@ -6,6 +6,8 @@
  */
 package es.usc.citius.servando.calendula.scheduling;
 
+import android.database.sqlite.SQLiteDatabase;
+
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import org.joda.time.DateTime;
@@ -21,6 +23,7 @@ import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /** Isolated synthetic records, never actual patient/prescription data. */
@@ -76,6 +79,128 @@ public class NullablePatientDaoSmokeTest {
                 if (reminder.getId() != null
                         && DB.eventReminders().findById(reminder.getId()) != null) {
                     DB.eventReminders().remove(reminder);
+                }
+            }
+            if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().remove(owner);
+            }
+        }
+    }
+
+    @Test
+    public void stalePatientIdCannotDeleteReplacementOwnersReminders() throws Exception {
+        assertTrue(DB.initialized);
+        DateTime when = DateTime.now().plusHours(15).withMillisOfSecond(0);
+        Patient currentOwner = new Patient();
+        currentOwner.setCode("ci-reminder-current-owner-" + System.nanoTime());
+        currentOwner.setName("Synthetic current patient");
+        EventReminder current = new EventReminder(when, EventType.MEDICATION_INTAKE);
+        current.setNextTime(when);
+        EventReminder unassigned = new EventReminder(when, EventType.MEDICATION_INTAKE);
+        unassigned.setNextTime(when);
+        try {
+            assertEquals(1, DB.patients().create(currentOwner));
+            current.setPatient(currentOwner);
+            assertEquals(1, DB.eventReminders().create(current));
+            assertEquals(1, DB.eventReminders().create(unassigned));
+
+            Patient obsolete = new Patient();
+            obsolete.setId(currentOwner.getId());
+            obsolete.setCode("ci-prior-patient-same-row-id");
+            boolean rejected = false;
+            try {
+                DB.eventReminders().removeBy(
+                        obsolete, EventType.MEDICATION_INTAKE, when);
+            } catch (IllegalArgumentException expected) {
+                rejected = true;
+            }
+            assertTrue("Reused numeric ID cannot erase a different patient's row", rejected);
+            assertNotNull(DB.eventReminders().findById(current.getId()));
+            assertNotNull(DB.eventReminders().findById(unassigned.getId()));
+
+            obsolete.setCode(null);
+            rejected = false;
+            try {
+                DB.eventReminders().removeBy(
+                        obsolete, EventType.MEDICATION_INTAKE, when);
+            } catch (IllegalArgumentException expected) {
+                rejected = true;
+            }
+            assertTrue("Unidentified legacy object cannot authorize erasure", rejected);
+            assertNotNull(DB.eventReminders().findById(current.getId()));
+
+            assertEquals("Correct stable owner deletes only their reminder",
+                    1, DB.eventReminders().removeBy(
+                            currentOwner, EventType.MEDICATION_INTAKE, when));
+            assertNull(DB.eventReminders().findById(current.getId()));
+            assertNotNull("An unrelated unassigned reminder survives",
+                    DB.eventReminders().findById(unassigned.getId()));
+            assertEquals("Already removed reminder stays idempotent", 0,
+                    DB.eventReminders().removeBy(
+                            currentOwner, EventType.MEDICATION_INTAKE, when));
+        } finally {
+            for (EventReminder row : new EventReminder[]{current, unassigned}) {
+                if (row.getId() != null && DB.eventReminders().findById(row.getId()) != null) {
+                    DB.eventReminders().remove(row);
+                }
+            }
+            if (currentOwner.getId() != null
+                    && DB.patients().findById(currentOwner.getId()) != null) {
+                DB.patients().remove(currentOwner);
+            }
+        }
+    }
+
+    @Test
+    public void lateFailedReminderDeletionRollsBackEveryEarlierOwnedRow()
+            throws Exception {
+        assertTrue(DB.initialized);
+        DateTime when = DateTime.now().plusHours(21).withMillisOfSecond(0);
+        Patient owner = new Patient();
+        owner.setCode("ci-reminder-atomic-delete-" + System.nanoTime());
+        owner.setName("Synthetic transaction owner");
+        EventReminder first = new EventReminder(when, EventType.MEDICATION_INTAKE);
+        first.setNextTime(when);
+        first.setPatient(owner);
+        EventReminder second = new EventReminder(when, EventType.MEDICATION_INTAKE);
+        second.setNextTime(when);
+        second.setPatient(owner);
+        SQLiteDatabase db = DB.helper().getWritableDatabase();
+        final String trigger = "ci_reminder_delete_second_abort";
+        db.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            assertEquals(1, DB.eventReminders().create(first));
+            assertEquals(1, DB.eventReminders().create(second));
+            assertTrue(first.getId() < second.getId());
+
+            // Selection is ordered by _id. The earlier row is deleted in
+            // the transaction, then the later DELETE must abort the batch.
+            db.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE DELETE ON EventReminders WHEN OLD._id = "
+                    + second.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'ci only rollback'); END;");
+            boolean failed = false;
+            try {
+                DB.eventReminders().removeBy(owner, EventType.MEDICATION_INTAKE, when);
+            } catch (RuntimeException expected) {
+                failed = true;
+            }
+            assertTrue("Late SQL error must abort the scoped batch", failed);
+            assertNotNull("Earlier deletion must roll back", DB.eventReminders().findById(first.getId()));
+            assertNotNull("Later deletion must also roll back", DB.eventReminders().findById(second.getId()));
+
+            db.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            assertEquals("A retry after SQL recovery must remove both instances",
+                    2, DB.eventReminders().removeBy(
+                            owner, EventType.MEDICATION_INTAKE, when));
+            assertNull(DB.eventReminders().findById(first.getId()));
+            assertNull(DB.eventReminders().findById(second.getId()));
+        } finally {
+            db.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            for (EventReminder row : new EventReminder[]{first, second}) {
+                if (row.getId() != null && DB.eventReminders().findById(row.getId()) != null) {
+                    DB.eventReminders().remove(row);
                 }
             }
             if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
