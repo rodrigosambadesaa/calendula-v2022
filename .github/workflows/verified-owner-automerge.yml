@@ -18,7 +18,9 @@ on:
         default: true
 
 permissions:
-  actions: read
+  # Explicit workflow_dispatch is needed after a GITHUB_TOKEN squash merge:
+  # GitHub suppresses ordinary push-triggered runs from that token.
+  actions: write
   contents: write
   pull-requests: write
 
@@ -114,6 +116,19 @@ jobs:
             fi
 
             echo "Squash-merging verified PR #$number at $sha"
-            gh api --method PUT "repos/$REPO/pulls/$number/merge" \
-              -f sha="$sha" -f merge_method=squash
+            merge_result=$(gh api --method PUT "repos/$REPO/pulls/$number/merge" \
+              -f sha="$sha" -f merge_method=squash)
+            merged_sha=$(jq -er 'select(.merged == true) | .sha' <<< "$merge_result")
+            # A push created with GITHUB_TOKEN does not trigger the normal
+            # push workflows. Explicit workflow_dispatch *does* trigger them.
+            # Dispatch only after a confirmed merge, and always test main,
+            # not the old PR head. CI records the actual merged SHA.
+            current_main=$(gh api "repos/$REPO/git/ref/heads/main" --jq '.object.sha')
+            if [[ "$current_main" != "$merged_sha" ]]; then
+              echo "::warning::main advanced after merging PR #$number; dispatching checks for latest main"
+            fi
+            echo "Dispatching post-merge Android checks for main (current: $current_main)"
+            gh workflow run android-ci.yml --repo "$REPO" --ref main
+            gh workflow run android-emulator-smoke.yml --repo "$REPO" --ref main
+            gh workflow run android-17-compatibility.yml --repo "$REPO" --ref main
           done
