@@ -98,15 +98,32 @@ if ! command -v adb >/dev/null 2>&1; then
   echo "Android emulator instrumentation requires adb; no tests were executed" >&2
   exit 1
 fi
-DEVICE_API="$(adb shell getprop ro.build.version.sdk | tr -d '\r')"
+# These integration tests mutate disposable SQLite records and runtime alarms.
+# Never let Gradle or adb silently select a real phone, tablet, or one of
+# several attached targets. The Python preflight is side-effect-free.
+EMULATOR_SERIAL="$(python3 scripts/ensure_disposable_android_emulator.py)" || exit 1
+export ANDROID_SERIAL="$EMULATOR_SERIAL"
+DEVICE_API="$(adb -s "$EMULATOR_SERIAL" shell getprop ro.build.version.sdk | tr -d '\r')"
 if [[ -z "$DEVICE_API" ]]; then
   echo "Could not verify connected disposable Android emulator API" >&2
   exit 1
 fi
+# The CI job name is a test claim, not proof of the device actually launched.
+# A misselected emulator must fail rather than report a false API-level pass.
+if [[ -n "${CALENDULA_EXPECTED_ANDROID_API:-}" ]]; then
+  if [[ ! "$CALENDULA_EXPECTED_ANDROID_API" =~ ^(23|33|36|37)$ ]]; then
+    echo "Invalid expected Android API for the smoke suite" >&2
+    exit 1
+  fi
+  if [[ "$DEVICE_API" != "$CALENDULA_EXPECTED_ANDROID_API" ]]; then
+    echo "Android emulator API mismatch: expected $CALENDULA_EXPECTED_ANDROID_API, got $DEVICE_API" >&2
+    exit 1
+  fi
+fi
 if [[ "$DEVICE_API" == "36" ]]; then
   echo "Android API 36: retain SQLite ERROR diagnostics, suppress repetitive WARN-only legacy catalog import logs"
-  adb shell setprop log.tag.SQLiteLog ERROR
-  if [[ "$(adb shell getprop log.tag.SQLiteLog | tr -d '\r')" != "ERROR" ]]; then
+  adb -s "$EMULATOR_SERIAL" shell setprop log.tag.SQLiteLog ERROR
+  if [[ "$(adb -s "$EMULATOR_SERIAL" shell getprop log.tag.SQLiteLog | tr -d '\r')" != "ERROR" ]]; then
     echo "Could not configure SQLiteLog diagnostic threshold on CI emulator" >&2
     exit 1
   fi

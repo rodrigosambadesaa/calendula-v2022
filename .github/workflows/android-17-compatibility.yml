@@ -10,6 +10,24 @@ on:
       - 'Calendula/**'
       - 'scripts/android-smoke-tests.sh'
       - 'scripts/validate_android_smoke_sources.py'
+      - 'scripts/ensure_disposable_android_emulator.py'
+      - 'scripts/android-smoke-classes.d/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - 'gradle/wrapper/**'
+
+  # Retest the combined main commit after a code merge, not only the PR head.
+  # Keep docs-only changes out of costly Android emulator runs.
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/android-17-compatibility.yml'
+      - 'Calendula/**'
+      - 'scripts/android-smoke-tests.sh'
+      - 'scripts/validate_android_smoke_sources.py'
+      - 'scripts/ensure_disposable_android_emulator.py'
       - 'scripts/android-smoke-classes.d/**'
       - 'build.gradle'
       - 'settings.gradle'
@@ -121,7 +139,7 @@ jobs:
           target: google_apis
           script: |
             test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = "37"
-            bash scripts/android-smoke-tests.sh
+            CALENDULA_EXPECTED_ANDROID_API=37 bash scripts/android-smoke-tests.sh
 
       - name: Upload Android 17 test evidence
         if: always()

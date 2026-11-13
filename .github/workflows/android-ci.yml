@@ -32,6 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/validate_android_smoke_sources.py --self-test
+          python3 scripts/ensure_disposable_android_emulator.py --self-test
           python3 scripts/validate_android_smoke_sources.py
           CLASSES="$(CALENDULA_SMOKE_LIST_ONLY=1 bash scripts/android-smoke-tests.sh)"
           grep -Fx 'es.usc.citius.servando.calendula.activities.PickupNotificationPrivacySmokeTest' <<< "$CLASSES"
