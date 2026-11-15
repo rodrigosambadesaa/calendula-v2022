@@ -43,7 +43,9 @@ class AlarmReceiver : BroadcastReceiver() {
          */
         @JvmStatic
         fun isValidAlarmDispatch(action: String?, reminderId: Long): Boolean {
-            if (action == IntentParams.ACTION_DAILY_UPDATE) return true
+            // Daily maintenance has no clinical row identity. Do not accept
+            // a positive medication reminder ID under its maintenance action.
+            if (action == IntentParams.ACTION_DAILY_UPDATE) return reminderId <= 0L
             if (reminderId <= 0L) return false
             return when (action) {
                 IntentParams.ACTION_ALARM_REMINDER,
@@ -67,6 +69,18 @@ class AlarmReceiver : BroadcastReceiver() {
                 val action = incoming.getStringExtra(IntentParams.EXTRA_ACTION)
                 val reminderId = incoming.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1L)
                 if (!isValidAlarmDispatch(action, reminderId)) return null
+
+                if (action == IntentParams.ACTION_DAILY_UPDATE) {
+                    // This broadcast is created only by setDailyUpdateAlarm:
+                    // it has an action, but never a medication ID, consent,
+                    // alarm UUID or clinical URI. Reject replayed/mislabelled
+                    // medication callbacks rather than converting them into
+                    // maintenance jobs on upgrade or process restart.
+                    if (incoming.hasExtra(IntentParams.EXTRA_REMINDER_ID) ||
+                        incoming.hasExtra(IntentParams.EXTRA_ALARM_INSTANCE) ||
+                        incoming.hasExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT) ||
+                        incoming.data != null) return null
+                }
 
                 // PendingIntent equality ignores extras. Both the URI and
                 // the copied UUID must identify the exact same reminder instance.
