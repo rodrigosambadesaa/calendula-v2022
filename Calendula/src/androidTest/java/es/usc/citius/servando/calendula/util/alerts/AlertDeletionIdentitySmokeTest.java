@@ -58,6 +58,20 @@ public class AlertDeletionIdentitySmokeTest {
             forged.setMedicine(first);
             assertRejected(forged, saved.id());
 
+            // A database restore can give a different patient the same
+            // numeric row ID. The old code accepted this forged snapshot and
+            // could remove the replacement patient's persisted alert.
+            Patient recycledIdOwner = new Patient();
+            recycledIdOwner.setId(owner.getId());
+            recycledIdOwner.setCode("ci-alert-recycled-other-" + suffix);
+            forged.setPatient(recycledIdOwner);
+            assertRejected(forged, saved.id());
+
+            Patient missingStableCode = new Patient();
+            missingStableCode.setId(owner.getId());
+            forged.setPatient(missingStableCode);
+            assertRejected(forged, saved.id());
+
             forged.setPatient(owner);
             forged.setMedicine(second);
             assertRejected(forged, saved.id());
