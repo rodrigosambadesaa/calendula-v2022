@@ -111,7 +111,21 @@ public class AlertManager {
             if (current == null) {
                 return null; // Already removed; never unblock anything.
             }
-            if (!sameAlertIdentity(alert, current)) {
+            // Resolve the medicine and patient on their own DAO connections,
+            // not only through possibly shallow foreign-auto-refreshed alert
+            // references. A deleted/recreated medicine ID is never authority.
+            Medicine linked = current.getMedicine() == null
+                    || current.getMedicine().getId() == null ? null
+                    : DB.medicines().findById(current.getMedicine().getId());
+            Patient persistedOwner = current.getPatient() == null
+                    || current.getPatient().getId() == null ? null
+                    : DB.patients().findById(current.getPatient().getId());
+            if (!sameAlertIdentity(alert, current)
+                    || !PatientOwnerGuard.sameStableIdentity(
+                            alert.getPatient(), persistedOwner)
+                    || linked == null
+                    || !PatientOwnerGuard.sameStableIdentity(
+                            alert.getPatient(), linked.getPatient())) {
                 throw new IllegalStateException("Alert identity changed before deletion");
             }
             if (DB.alerts().deleteById(current.id()) != 1) {
@@ -156,8 +170,6 @@ public class AlertManager {
                 && snapshot.getMedicine() != null && current.getMedicine() != null
                 && snapshot.getMedicine().getId() != null
                 && snapshot.getMedicine().getId().equals(current.getMedicine().getId())
-                && PatientOwnerGuard.sameStableIdentity(
-                        snapshot.getPatient(), current.getMedicine().getPatient())
                 && snapshot.getLevel() == current.getLevel()
                 && java.util.Objects.equals(snapshot.getType(), current.getType());
     }
