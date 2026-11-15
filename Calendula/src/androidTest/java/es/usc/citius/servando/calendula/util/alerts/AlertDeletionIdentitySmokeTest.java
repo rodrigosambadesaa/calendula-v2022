@@ -67,6 +67,23 @@ public class AlertDeletionIdentitySmokeTest {
             forged.setPatient(recycledIdOwner);
             assertRejected(forged, saved.id());
 
+            // The same restored-ID weakness must not permit creating a new
+            // HIGH clinical alert linked to another patient's medicine.
+            AllergyPatientAlert staleHigh = new AllergyPatientAlert();
+            staleHigh.setPatient(recycledIdOwner);
+            staleHigh.setMedicine(first);
+            staleHigh.setLevel(3);
+            boolean highRejected = false;
+            try {
+                AlertManager.createAlert(staleHigh);
+            } catch (RuntimeException expected) {
+                highRejected = true;
+            }
+            assertTrue("HIGH alert creation must reject a replaced stable owner",
+                    highRejected);
+            assertNull("Rejected alert must not acquire a persisted ID", staleHigh.id());
+            assertNotNull("Existing alert must be preserved", DB.alerts().findById(saved.id()));
+
             Patient missingStableCode = new Patient();
             missingStableCode.setId(owner.getId());
             forged.setPatient(missingStableCode);
