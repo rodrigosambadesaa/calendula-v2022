@@ -8,6 +8,7 @@ package es.usc.citius.servando.calendula.scheduling;
 
 import android.app.PendingIntent;
 import android.content.Context;
+import android.database.sqlite.SQLiteDatabase;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -103,6 +104,78 @@ public class ExpiredReminderPruneSmokeTest {
             assertTrue(retired.contains(noNextTime));
         } finally {
             for (EventReminder reminder : fixture) {
+                if (reminder.getId() != null
+                        && DB.eventReminders().findById(reminder.getId()) != null) {
+                    DB.eventReminders().remove(reminder);
+                }
+            }
+            if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().remove(owner);
+            }
+        }
+    }
+
+    /**
+     * The retention pass is one SQLite transaction. A late DELETE failure must
+     * undo an earlier successful DELETE, retaining the precise original UUIDs
+     * so the following retry cannot mistake a recycled row ID for that alarm.
+     * This only touches synthetic records on disposable CI emulators.
+     */
+    @Test
+    public void lateExpiredReminderDeleteFailureRollsBackEveryEarlierDeletion()
+            throws Exception {
+        assertTrue(DB.initialized);
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        final String trigger = "ci_expired_reminder_prune_abort";
+        DateTime cutoff = DateTime.now().withTimeAtStartOfDay().plusDays(2);
+        Patient owner = new Patient();
+        owner.setCode("ci-expired-prune-rollback-" + System.nanoTime());
+        owner.setName("Synthetic expired reminder rollback owner");
+        EventReminder first = new EventReminder(
+                cutoff.minusHours(8), EventType.MEDICATION_INTAKE);
+        first.setNextTime(cutoff.minusHours(7));
+        EventReminder second = new EventReminder(
+                cutoff.minusHours(4), EventType.MEDICATION_INTAKE);
+        second.setNextTime(cutoff.minusHours(3));
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            first.setPatient(owner);
+            second.setPatient(owner);
+            assertEquals(1, DB.eventReminders().create(first));
+            assertEquals(1, DB.eventReminders().create(second));
+            assertNotNull(first.getId());
+            assertNotNull(second.getId());
+            String firstInstance = first.getAlarmInstance();
+            String secondInstance = second.getAlarmInstance();
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE DELETE ON EventReminders WHEN OLD._id = "
+                    + second.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'ci-only prune rollback'); END;");
+            boolean rolledBack = false;
+            try {
+                DB.eventReminders().removeOlderThan(cutoff);
+            } catch (IllegalStateException expected) {
+                rolledBack = true;
+            }
+            assertTrue("A late SQL delete failure must abort the whole prune",
+                    rolledBack);
+            EventReminder stillFirst = DB.eventReminders().findById(first.getId());
+            EventReminder stillSecond = DB.eventReminders().findById(second.getId());
+            assertNotNull("Earlier deletion must be rolled back", stillFirst);
+            assertNotNull("Failed deletion must leave the row intact", stillSecond);
+            assertEquals(firstInstance, stillFirst.getAlarmInstance());
+            assertEquals(secondInstance, stillSecond.getAlarmInstance());
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            assertTrue("Retry must remove both original expired instances",
+                    DB.eventReminders().removeOlderThan(cutoff) >= 2);
+            assertNull(DB.eventReminders().findById(first.getId()));
+            assertNull(DB.eventReminders().findById(second.getId()));
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            for (EventReminder reminder : new EventReminder[]{first, second}) {
                 if (reminder.getId() != null
                         && DB.eventReminders().findById(reminder.getId()) != null) {
                     DB.eventReminders().remove(reminder);
