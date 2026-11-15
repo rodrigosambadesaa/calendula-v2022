@@ -52,6 +52,20 @@ public class AtomicHighAlertSmokeTest {
                 rejected = true;
             }
             assertTrue("A HIGH alert must never cross a patient boundary", rejected);
+
+            // Same-ID but different stable code models a restored SQLite row
+            // without actually replacing any real patient in the test DB.
+            Patient recycled = new Patient();
+            recycled.setId(owner.getId());
+            recycled.setCode("ci-high-recycled-" + suffix);
+            incorrect.setPatient(recycled);
+            rejected = false;
+            try {
+                AlertManager.createAlert(incorrect);
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("Recycled patient IDs must not create HIGH alerts", rejected);
             if (incorrect.id() != null) {
                 assertNull("Rejected cross-patient alert must not be stored",
                         DB.alerts().findById(incorrect.id()));
