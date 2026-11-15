@@ -185,32 +185,55 @@ public class AlertManager {
         // SQLite has committed here. Re-read each schedule before creating
         // future occurrences: a new HIGH warning or a recycled patient/row ID
         // cannot authorize another patient's reminders after the COMMIT.
+        // Attempt *every* regeneration even when one fails. A post-COMMIT
+        // failure must not silently skip the remaining patient's schedules
+        // or suppress the alert/schedule observers.
+        RuntimeException postCommitFailure = null;
         for (Schedule snapshot : result.unblocked) {
-            Schedule current = DB.schedules().findById(snapshot.getId());
-            if (current == null || DB.schedules().refresh(current) != 1
-                    || !PatientOwnerGuard.sameStableIdentity(
-                            result.deleted.getPatient(), current.getPatient())
-                    || current.getMedicine() == null
-                    || snapshot.getMedicine() == null
-                    || !snapshot.getMedicine().getId().equals(current.getMedicine().getId())
-                    || current.hasState(Schedule.ScheduleState.BLOCKED)) {
-                continue;
+            try {
+                Schedule current = DB.schedules().findById(snapshot.getId());
+                if (current == null || DB.schedules().refresh(current) != 1
+                        || !PatientOwnerGuard.sameStableIdentity(
+                                result.deleted.getPatient(), current.getPatient())
+                        || current.getMedicine() == null
+                        || snapshot.getMedicine() == null
+                        || !snapshot.getMedicine().getId().equals(current.getMedicine().getId())
+                        || current.hasState(Schedule.ScheduleState.BLOCKED)) {
+                    continue;
+                }
+                Medicine currentMedicine = DB.medicines().findById(current.getMedicine().getId());
+                if (currentMedicine == null
+                        || !PatientOwnerGuard.sameStableIdentity(
+                                result.deleted.getPatient(), currentMedicine.getPatient())
+                        || !DB.alerts().findByMedicineAndLevel(
+                                currentMedicine, Level.HIGH).isEmpty()) {
+                    continue;
+                }
+                ScheduleUtils.instance().createEventInstances(CalendulaApp.getContext(), current);
+            } catch (RuntimeException postCommitError) {
+                LogUtil.e(TAG, "Committed HIGH alert release needs agenda recovery");
+                if (postCommitFailure == null) {
+                    postCommitFailure = postCommitError;
+                }
             }
-            Medicine currentMedicine = DB.medicines().findById(current.getMedicine().getId());
-            if (currentMedicine == null
-                    || !PatientOwnerGuard.sameStableIdentity(
-                            result.deleted.getPatient(), currentMedicine.getPatient())
-                    || !DB.alerts().findByMedicineAndLevel(
-                            currentMedicine, Level.HIGH).isEmpty()) {
-                continue;
-            }
-            ScheduleUtils.instance().createEventInstances(CalendulaApp.getContext(), current);
         }
         if (!result.unblocked.isEmpty()) {
-            Agenda.instance().cleanReminders(CalendulaApp.getContext());
+            try {
+                Agenda.instance().cleanReminders(CalendulaApp.getContext());
+            } catch (RuntimeException postCommitError) {
+                LogUtil.e(TAG, "Committed HIGH alert alarm cleanup needs retry");
+                if (postCommitFailure == null) {
+                    postCommitFailure = postCommitError;
+                }
+            }
             CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT);
         }
         CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT);
+        if (postCommitFailure != null) {
+            throw new IllegalStateException(
+                    "Alert removal committed; schedule recovery is incomplete",
+                    postCommitFailure);
+        }
     }
 
     private static final class AlertRemovalResult {
