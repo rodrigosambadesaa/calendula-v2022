@@ -225,6 +225,9 @@ public class EventReminderDao extends GenericDao<EventReminder, Long> {
                         // versions. Deleting by ID also detects partial writes.
                         QueryBuilder<EventReminder, Long> query = dao.queryBuilder();
                         query.where().lt(EventReminder.COLUMN_DATE_TIME, dateTime);
+                        // Deterministic row order makes injected late failures
+                        // exercise SQLite rollback after an earlier DELETE.
+                        query.orderBy(EventReminder.COLUMN_ID, true);
                         int removed = 0;
                         for (EventReminder reminder : query.query()) {
                             if (reminder.getId() == null || reminder.getDateTime() == null) {
@@ -234,8 +237,11 @@ public class EventReminderDao extends GenericDao<EventReminder, Long> {
                                     && !reminder.getNextTime().isBefore(dateTime)) {
                                 continue; // A postponed reminder is still due.
                             }
-                            if (dao.deleteById(reminder.getId()) != 1) {
-                                throw new SQLException("Expired reminder delete was incomplete");
+                            // A numeric SQLite ID may be reused after
+                            // restore or concurrent cleanup. Never delete a
+                            // successor without the captured immutable UUID.
+                            if (deleteIfSameInstance(reminder) != 1) {
+                                throw new SQLException("Expired reminder instance changed during deletion");
                             }
                             removed++;
                         }
