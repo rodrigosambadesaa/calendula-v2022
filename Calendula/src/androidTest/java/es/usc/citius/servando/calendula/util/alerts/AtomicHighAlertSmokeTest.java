@@ -13,6 +13,10 @@ import org.junit.runner.RunWith;
 import java.util.Collections;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.PatientAlert;
+import es.usc.citius.servando.calendula.persistence.alerts.DrivingCautionAlert;
+import es.usc.citius.servando.calendula.persistence.alerts.StockRunningOutAlert;
+import org.joda.time.LocalDate;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.persistence.Schedule;
@@ -65,6 +69,82 @@ public class AtomicHighAlertSmokeTest {
             }
             for (Patient patient : new Patient[]{owner, unrelated}) {
                 if (patient.getId() != null && DB.patients().findById(patient.getId()) != null) {
+                    DB.patients().remove(patient);
+                }
+            }
+        }
+    }
+
+    @Test
+    public void lowAndMediumAlertsRejectRecycledOwnerAndKeepGoodRecords()
+            throws Exception {
+        assertTrue(DB.initialized);
+        final String suffix = Long.toString(System.nanoTime());
+        Patient owner = new Patient();
+        owner.setCode("ci-alert-all-severity-owner-" + suffix);
+        owner.setName("Synthetic severity owner");
+        Patient other = new Patient();
+        other.setCode("ci-alert-all-severity-foreign-" + suffix);
+        other.setName("Synthetic unrelated severity owner");
+        Medicine medicine = new Medicine("Synthetic alert validation med",
+                Presentation.PILLS);
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            assertEquals(1, DB.patients().create(other));
+            medicine.setPatient(owner);
+            assertEquals(1, DB.medicines().create(medicine));
+
+            // Two actual alert classes: driving is LOW, stock is MEDIUM.
+            PatientAlert[] candidates = new PatientAlert[]{
+                    new DrivingCautionAlert(medicine),
+                    new StockRunningOutAlert(medicine, LocalDate.now())};
+            Patient recycledId = new Patient();
+            recycledId.setId(owner.getId());
+            recycledId.setCode("ci-alert-recycled-code-" + suffix);
+            for (PatientAlert alert : candidates) {
+                int expectedLevel = alert.getLevel();
+                assertTrue(expectedLevel == PatientAlert.Level.LOW
+                        || expectedLevel == PatientAlert.Level.MEDIUM);
+
+                for (Patient wrong : new Patient[]{other, recycledId}) {
+                    alert.setPatient(wrong);
+                    boolean rejected = false;
+                    try {
+                        AlertManager.createAlert(alert);
+                    } catch (RuntimeException expected) {
+                        rejected = true;
+                    }
+                    assertTrue("Every alert severity must fail closed on a foreign owner",
+                            rejected);
+                    assertNull("A rejected alert must not retain a phantom DB row ID",
+                            alert.id());
+                    assertTrue("Rejected alert must not write any rows",
+                            DB.alerts().findByMedicineAndType(medicine, alert.getType())
+                                    .isEmpty());
+                }
+
+                // A valid persisted owner still works; a hardening guard must
+                // not suppress genuine inventory or driving safety warnings.
+                alert.setPatient(owner);
+                AlertManager.createAlert(alert);
+                assertNotNull(alert.id());
+                assertNotNull(DB.alerts().findById(alert.id()));
+                AlertManager.removeAlert(alert);
+                assertNull(DB.alerts().findById(alert.id()));
+            }
+        } finally {
+            if (medicine.getId() != null) {
+                for (PatientAlert alert : DB.alerts().findBy(
+                        PatientAlert.COLUMN_MEDICINE, medicine.getId())) {
+                    DB.alerts().remove(alert);
+                }
+                if (DB.medicines().findById(medicine.getId()) != null) {
+                    DB.medicines().remove(medicine);
+                }
+            }
+            for (Patient patient : new Patient[]{owner, other}) {
+                if (patient.getId() != null
+                        && DB.patients().findById(patient.getId()) != null) {
                     DB.patients().remove(patient);
                 }
             }
