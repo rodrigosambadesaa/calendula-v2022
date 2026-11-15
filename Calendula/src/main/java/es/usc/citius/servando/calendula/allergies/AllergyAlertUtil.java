@@ -29,10 +29,12 @@ import java.util.concurrent.Callable;
 
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.PatientAlert;
 import es.usc.citius.servando.calendula.persistence.PatientAllergen;
 import es.usc.citius.servando.calendula.persistence.alerts.AllergyPatientAlert;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 import es.usc.citius.servando.calendula.util.alerts.AlertManager;
 
 
@@ -86,15 +88,22 @@ public class AllergyAlertUtil {
      */
     public static void removeAllergyAlerts(final Context c, final PatientAllergen allergen)
             throws SQLException {
-        if (c == null || allergen == null || allergen.getPatient() == null
-                || allergen.getPatient().getId() == null
-                || allergen.getPatient().getId() <= 0L
+        if (c == null || allergen == null
+                || !PatientOwnerGuard.hasStableIdentity(allergen.getPatient())
                 || allergen.getType() == null || allergen.getIdentifier() == null) {
-            throw new IllegalArgumentException("Persisted patient and allergen identity required");
+            throw new IllegalArgumentException("Stable patient and allergen identity required");
         }
-        final Long ownerId = allergen.getPatient().getId();
-        if (DB.patients().findById(ownerId) == null) {
-            throw new IllegalStateException("Cannot clean allergy alerts for a deleted patient");
+        // A restored local database can reuse the exact numeric SQLite ID
+        // for a different patient. Snapshot the original nonblank code before
+        // any ORM refresh mutates an object shared with the incoming callback.
+        final Patient expectedOwner = new Patient();
+        expectedOwner.setId(allergen.getPatient().getId());
+        expectedOwner.setCode(allergen.getPatient().getCode());
+        final Long ownerId = expectedOwner.getId();
+        if (!PatientOwnerGuard.sameStableIdentity(
+                expectedOwner, DB.patients().findById(ownerId))) {
+            throw new IllegalStateException(
+                    "Cannot clean allergy alerts for a stale patient identity");
         }
         final AllergenVO removedAllergen = new AllergenVO(allergen);
         final List<PatientAlert> toRemove = new ArrayList<>();
@@ -103,22 +112,28 @@ public class AllergyAlertUtil {
         DB.transaction(new Callable<Object>() {
             @Override
             public Object call() throws Exception {
+                // Revalidate in the SAME transaction as every alert change;
+                // the preflight lookup alone is not ownership authorization.
+                if (!PatientOwnerGuard.sameStableIdentity(
+                        expectedOwner, DB.patients().findById(ownerId))) {
+                    throw new SQLException("Allergen cleanup patient changed");
+                }
                 final PreparedQuery<PatientAlert> query = DB.alerts().queryBuilder().where()
                         .eq(PatientAlert.COLUMN_TYPE, AllergyPatientAlert.class.getCanonicalName())
                         .and().eq(PatientAlert.COLUMN_PATIENT, ownerId).prepare();
                 final List<PatientAlert> alerts = DB.alerts().query(query);
                 for (PatientAlert alert : alerts) {
                     if (alert == null || alert.id() == null
-                            || alert.getPatient() == null
-                            || !ownerId.equals(alert.getPatient().getId())
+                            || !PatientOwnerGuard.sameStableIdentity(
+                                    expectedOwner, alert.getPatient())
                             || alert.getMedicine() == null
                             || alert.getMedicine().getId() == null) {
                         throw new SQLException("Allergy alert owner is incomplete");
                     }
                     Medicine stored = DB.medicines().findById(alert.getMedicine().getId());
                     if (stored == null || DB.medicines().refresh(stored) != 1
-                            || stored.getPatient() == null
-                            || !ownerId.equals(stored.getPatient().getId())) {
+                            || !PatientOwnerGuard.sameStableIdentity(
+                                    expectedOwner, stored.getPatient())) {
                         throw new SQLException("Allergy alert and medicine owners differ");
                     }
                     AllergyPatientAlert mapped = (AllergyPatientAlert) alert.map();
