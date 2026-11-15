@@ -131,7 +131,11 @@ class AlarmReceiver : BroadcastReceiver() {
 
                 Intent(context, AlarmIntentService::class.java).apply {
                     putExtra(IntentParams.EXTRA_ACTION, action)
-                    putExtra(IntentParams.EXTRA_REMINDER_ID, reminderId)
+                    // A daily maintenance job must not acquire a synthetic
+                    // medication ID (-1) while crossing the persisted queue.
+                    if (action != IntentParams.ACTION_DAILY_UPDATE) {
+                        putExtra(IntentParams.EXTRA_REMINDER_ID, reminderId)
+                    }
                     if (alarmInstance != null) {
                         data = incoming.data
                         putExtra(IntentParams.EXTRA_ALARM_INSTANCE, alarmInstance)
