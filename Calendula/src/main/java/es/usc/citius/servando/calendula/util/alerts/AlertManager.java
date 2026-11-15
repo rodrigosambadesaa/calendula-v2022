@@ -55,24 +55,27 @@ public class AlertManager {
         final Long originalId = alert.id();
         try {
             DB.transaction(() -> {
-                Medicine verifiedMedicine = null;
-                if (high) {
-                    // Never let a stale or mislinked HIGH alert mutate another
-                    // patient's schedules. The authoritative medicine owner must
-                    // match the persisted alert patient before ANY SQL write.
-                    if (alert.getPatient() == null || alert.getPatient().getId() == null
-                            || alert.getPatient().getId() <= 0L
-                            || alert.getMedicine() == null || alert.getMedicine().getId() == null
-                            || alert.getMedicine().getId() <= 0L
-                            || !sameStablePatient(alert.getPatient(),
-                                    DB.patients().findById(alert.getPatient().getId()))) {
-                        throw new SQLException("HIGH alert is missing its persisted stable owner or medicine");
-                    }
-                    verifiedMedicine = DB.medicines().findById(alert.getMedicine().getId());
-                    if (verifiedMedicine == null || !sameStablePatient(
-                            alert.getPatient(), verifiedMedicine.getPatient())) {
-                        throw new SQLException("HIGH alert patient differs from medicine owner");
-                    }
+                // Every clinical alert carries a patient/medicine link.
+                // LOW/MEDIUM driving and stock alerts must not bypass the
+                // same durable owner verification already used for HIGH.
+                // Numeric SQLite IDs can be reused after a database restore;
+                // validate both IDs and stable patient codes INSIDE SQLite
+                // before a single alert row is written.
+                Patient expected = alert.getPatient();
+                Medicine requestedMedicine = alert.getMedicine();
+                if (expected == null || expected.getId() == null
+                        || expected.getId() <= 0L
+                        || requestedMedicine == null || requestedMedicine.getId() == null
+                        || requestedMedicine.getId() <= 0L
+                        || !sameStablePatient(expected,
+                                DB.patients().findById(expected.getId()))
+                        || !sameStablePatient(expected, requestedMedicine.getPatient())) {
+                    throw new SQLException("Clinical alert is missing a persisted stable owner or medicine");
+                }
+                Medicine verifiedMedicine = DB.medicines().findById(requestedMedicine.getId());
+                if (verifiedMedicine == null
+                        || !sameStablePatient(expected, verifiedMedicine.getPatient())) {
+                    throw new SQLException("Clinical alert patient differs from persisted medicine owner");
                 }
                 DB.alerts().save(alert);
                 if (high) {
