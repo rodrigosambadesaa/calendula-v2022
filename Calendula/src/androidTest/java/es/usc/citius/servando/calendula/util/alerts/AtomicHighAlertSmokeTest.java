@@ -188,7 +188,49 @@ public class AtomicHighAlertSmokeTest {
                     .hasState(Schedule.ScheduleState.BLOCKED));
             assertNull(DB.eventInstances().findById(one.getId()));
             assertNull(DB.eventInstances().findById(two.getId()));
+
+            // A failure unblocking the SECOND schedule must roll back the
+            // alert deletion and the FIRST schedule's unblocking as well.
+            // No future occurrences may be regenerated before that commit.
+            final String unblockTrigger = "ci_unblock_second_schedule_abort";
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + unblockTrigger);
+            sqlite.execSQL("CREATE TRIGGER " + unblockTrigger
+                    + " BEFORE UPDATE ON NewSchedules WHEN OLD._id = "
+                    + second.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic unblock failure'); END;");
+            try {
+                rejected = false;
+                try {
+                    AlertManager.removeAlert(failedAlert);
+                } catch (RuntimeException expected) {
+                    rejected = true;
+                }
+                assertTrue("Partial HIGH alert deletion must fail", rejected);
+                assertNotNull("HIGH alert must survive failed schedule release",
+                        DB.alerts().findById(failedAlert.id()));
+                assertTrue("First blocked schedule must roll back",
+                        DB.schedules().findById(first.getId())
+                                .hasState(Schedule.ScheduleState.BLOCKED));
+                assertTrue("Second blocked schedule must roll back",
+                        DB.schedules().findById(second.getId())
+                                .hasState(Schedule.ScheduleState.BLOCKED));
+                assertNull("No new intake may be regenerated before COMMIT",
+                        DB.eventInstances().findById(one.getId()));
+            } finally {
+                sqlite.execSQL("DROP TRIGGER IF EXISTS " + unblockTrigger);
+            }
+
+            // Retry using the original alert object after removing the
+            // injected failure: delete and both releases must commit.
+            AlertManager.removeAlert(failedAlert);
+            assertNull("HIGH warning must be removed on successful retry",
+                    DB.alerts().findById(failedAlert.id()));
+            assertFalse(DB.schedules().findById(first.getId())
+                    .hasState(Schedule.ScheduleState.BLOCKED));
+            assertFalse(DB.schedules().findById(second.getId())
+                    .hasState(Schedule.ScheduleState.BLOCKED));
         } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS ci_unblock_second_schedule_abort");
             sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
             if (failedAlert.id() != null
                     && DB.alerts().findById(failedAlert.id()) != null) {
@@ -203,6 +245,9 @@ public class AtomicHighAlertSmokeTest {
             for (Schedule schedule : new Schedule[]{first, second}) {
                 if (schedule != null && schedule.getId() != null
                         && DB.schedules().findById(schedule.getId()) != null) {
+                    // Successful unblocking may regenerate new future
+                    // synthetic intakes. Do not leak them into later tests.
+                    DB.eventInstances().removeByRef(schedule.getId());
                     DB.schedules().remove(schedule);
                 }
             }
