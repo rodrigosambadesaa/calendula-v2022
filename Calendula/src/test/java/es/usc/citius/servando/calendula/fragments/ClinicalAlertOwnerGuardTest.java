@@ -5,6 +5,9 @@
 package es.usc.citius.servando.calendula.fragments;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
 
 import es.usc.citius.servando.calendula.persistence.Patient;
 
@@ -12,6 +15,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /** Pure identity checks, without access to Android or patients' SQLite data. */
+// Patient initializes android.graphics.Color; run its constructors with Android shadows.
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = 28)
 public class ClinicalAlertOwnerGuardTest {
     private static Patient patient(Long id, String code) {
         Patient p = new Patient();
