@@ -28,6 +28,38 @@ class AlarmReceiverRoutingTest {
     fun dailyRefreshDoesNotNeedAnIntakeRowId() {
         assertTrue(AlarmReceiver.isValidAlarmDispatch(IntentParams.ACTION_DAILY_UPDATE, -1L))
         assertTrue(AlarmReceiver.isValidAlarmDispatch(IntentParams.ACTION_DAILY_UPDATE, 0L))
+        assertFalse(AlarmReceiver.isValidAlarmDispatch(IntentParams.ACTION_DAILY_UPDATE, 123L))
+    }
+
+    @Test
+    fun dailyMaintenanceRejectsClinicalIdentityButRetainsValidRecovery() {
+        val context = RuntimeEnvironment.getApplication()
+        val clean = Intent(context, AlarmReceiver::class.java).apply {
+            putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_DAILY_UPDATE)
+        }
+        val work = AlarmReceiver.validatedServiceIntent(context, clean)
+        assertNotNull("Normal local-midnight refresh must remain actionable", work)
+        assertEquals(IntentParams.ACTION_DAILY_UPDATE,
+            work!!.getStringExtra(IntentParams.EXTRA_ACTION))
+        assertFalse(work.hasExtra(IntentParams.EXTRA_REMINDER_ID))
+        assertFalse(work.hasExtra(IntentParams.EXTRA_ALARM_INSTANCE))
+        assertNull(work.data)
+
+        // These are independent malformed input cases. A stale notification
+        // may not be disguised as an agenda-maintenance broadcast.
+        val invalid = listOf<(Intent) -> Unit>(
+            { it.putExtra(IntentParams.EXTRA_REMINDER_ID, 123L) },
+            { it.putExtra(IntentParams.EXTRA_REMINDER_ID, -1L) },
+            { it.putExtra(IntentParams.EXTRA_ALARM_INSTANCE,
+                java.util.UUID.randomUUID().toString()) },
+            { it.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, "a".repeat(64)) },
+            { it.data = android.net.Uri.parse("content://fake/calendula-reminders/123") }
+        )
+        invalid.forEach { mutate ->
+            val incoming = Intent(clean)
+            mutate(incoming)
+            assertNull(AlarmReceiver.validatedServiceIntent(context, incoming))
+        }
     }
 
     @Test
