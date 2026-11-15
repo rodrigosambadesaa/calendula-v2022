@@ -66,6 +66,22 @@ public class AtomicHighAlertSmokeTest {
                 rejected = true;
             }
             assertTrue("Recycled patient IDs must not create HIGH alerts", rejected);
+
+            // Also reject an old medicine Java object even if the alert itself
+            // claims the current patient's stable identity.
+            Medicine staleMedicine = new Medicine(
+                    "Synthetic stale medicine", Presentation.PILLS);
+            staleMedicine.setId(medicine.getId());
+            staleMedicine.setPatient(recycled);
+            incorrect.setPatient(owner);
+            incorrect.setMedicine(staleMedicine);
+            rejected = false;
+            try {
+                AlertManager.createAlert(incorrect);
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("Recycled medicine IDs must not authorize HIGH alerts", rejected);
             if (incorrect.id() != null) {
                 assertNull("Rejected cross-patient alert must not be stored",
                         DB.alerts().findById(incorrect.id()));
