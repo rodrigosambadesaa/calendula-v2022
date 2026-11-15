@@ -586,7 +586,7 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
                     alert1.setDetails(details);
                     // A failed HIGH-alert update must abort the medication
                     // operation rather than silently reporting a safe save.
-                    DB.alerts().update(alert1);
+                    AllergyAlertUtil.updateExistingAllergyWarning(alert1);
                     return true;
                 }
             default:

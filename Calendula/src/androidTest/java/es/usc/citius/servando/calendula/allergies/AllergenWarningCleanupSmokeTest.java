@@ -5,6 +5,7 @@
 package es.usc.citius.servando.calendula.allergies;
 
 import android.content.Context;
+import android.database.sqlite.SQLiteDatabase;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
@@ -26,6 +27,89 @@ import static org.junit.Assert.*;
 /** SQLite fixtures are unique synthetic medicines; no database reset. */
 @RunWith(AndroidJUnit4.class)
 public class AllergenWarningCleanupSmokeTest {
+    @Test
+    public void allergyDetailsUpdateChecksStableOwnerAndRollsBackSqlWriteFailure()
+            throws Exception {
+        assertTrue(DB.initialized);
+        String seed = Long.toString(System.nanoTime());
+        Patient owner = new Patient();
+        owner.setCode("ci-allergy-atomic-owner-" + seed);
+        owner.setName("Synthetic alert update owner");
+        Medicine medicine = new Medicine("Synthetic immutable-warning fixture",
+                Presentation.PILLS);
+        AllergenVO first = new AllergenVO(
+                AllergenType.EXCIPIENT, "Synthetic original", "CI-ORIG-" + seed);
+        AllergenVO replacement = new AllergenVO(
+                AllergenType.EXCIPIENT, "Synthetic replacement", "CI-NEW-" + seed);
+        AllergyPatientAlert saved = null;
+        final String trigger = "ci_reject_allergy_warning_detail_update";
+        final SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            medicine.setPatient(owner);
+            assertEquals(1, DB.medicines().create(medicine));
+            saved = new AllergyPatientAlert(medicine, Collections.singletonList(first));
+            assertEquals(1, DB.alerts().create(saved));
+            assertNotNull(saved.id());
+            final Long alertId = saved.id();
+            final String original = DB.alerts().findById(alertId).getJsonDetails();
+
+            AllergyPatientAlert revised =
+                    (AllergyPatientAlert) DB.alerts().findById(alertId).map();
+            revised.setDetails(new AllergyPatientAlert.AllergyAlertInfo(
+                    Collections.singletonList(replacement)));
+            Patient forged = new Patient();
+            forged.setId(owner.getId());
+            forged.setCode("ci-stale-recycled-owner-" + seed);
+            revised.setPatient(forged);
+            boolean rejected = false;
+            try {
+                AllergyAlertUtil.updateExistingAllergyWarning(revised);
+            } catch (Exception expected) {
+                rejected = true;
+            }
+            assertTrue("A recycled owner code cannot change a HIGH warning", rejected);
+            assertEquals("Rejected identity must preserve original warning",
+                    original, DB.alerts().findById(alertId).getJsonDetails());
+
+            revised.setPatient(owner);
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE UPDATE ON PatientAlerts WHEN OLD._id = " + alertId
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic allergy update failure'); END;");
+            rejected = false;
+            try {
+                AllergyAlertUtil.updateExistingAllergyWarning(revised);
+            } catch (Exception expected) {
+                rejected = true;
+            }
+            assertTrue("SQLite write failure must be propagated, not silently accepted",
+                    rejected);
+            assertEquals("Failed SQL update must not alter the original warning",
+                    original, DB.alerts().findById(alertId).getJsonDetails());
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            AllergyAlertUtil.updateExistingAllergyWarning(revised);
+            assertEquals("Successful retry must update the actual stored warning",
+                    revised.getJsonDetails(),
+                    DB.alerts().findById(alertId).getJsonDetails());
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            if (saved != null && saved.id() != null
+                    && DB.alerts().findById(saved.id()) != null) {
+                DB.alerts().deleteById(saved.id());
+            }
+            if (medicine.getId() != null
+                    && DB.medicines().findById(medicine.getId()) != null) {
+                DB.medicines().deleteById(medicine.getId());
+            }
+            if (owner.getId() != null
+                    && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().deleteById(owner.getId());
+            }
+        }
+    }
+
     @Test
     public void removingAllergenDeletesEmptyWarningButPreservesOtherWarningIngredients()
             throws Exception {
