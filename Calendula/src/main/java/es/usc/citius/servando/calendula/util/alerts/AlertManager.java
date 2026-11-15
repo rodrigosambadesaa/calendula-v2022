@@ -30,10 +30,12 @@ import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.events.PersistenceEvents;
 import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.PatientAlert;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 
 import static es.usc.citius.servando.calendula.persistence.PatientAlert.Level;
 
@@ -59,19 +61,22 @@ public class AlertManager {
                     // Never let a stale or mislinked HIGH alert mutate another
                     // patient's schedules. The authoritative medicine owner must
                     // match the persisted alert patient before ANY SQL write.
-                    if (alert.getPatient() == null || alert.getPatient().getId() == null
-                            || alert.getPatient().getId() <= 0L
+                    if (!PatientOwnerGuard.hasStableIdentity(alert.getPatient())
                             || alert.getMedicine() == null || alert.getMedicine().getId() == null
-                            || alert.getMedicine().getId() <= 0L
-                            || DB.patients().findById(alert.getPatient().getId()) == null) {
-                        throw new SQLException("HIGH alert is missing a persisted owner or medicine");
+                            || alert.getMedicine().getId() <= 0L) {
+                        throw new SQLException("HIGH alert is missing a stable owner or medicine");
                     }
+                    Patient persistedOwner = DB.patients().findById(alert.getPatient().getId());
                     verifiedMedicine = DB.medicines().findById(alert.getMedicine().getId());
-                    if (verifiedMedicine == null || verifiedMedicine.getPatient() == null
-                            || verifiedMedicine.getPatient().getId() == null
-                            || !alert.getPatient().getId().equals(
-                                    verifiedMedicine.getPatient().getId())) {
-                        throw new SQLException("HIGH alert patient differs from medicine owner");
+                    // A restored SQLite database can reuse the exact same row
+                    // numbers for a different patient. Verify the stable code
+                    // both for the stored patient and the stored medicine.
+                    if (!PatientOwnerGuard.sameStableIdentity(
+                                alert.getPatient(), persistedOwner)
+                            || verifiedMedicine == null
+                            || !PatientOwnerGuard.sameStableIdentity(
+                                alert.getPatient(), verifiedMedicine.getPatient())) {
+                        throw new SQLException("HIGH alert patient differs from persisted owner");
                     }
                 }
                 DB.alerts().save(alert);
@@ -146,12 +151,13 @@ public class AlertManager {
     static boolean sameAlertIdentity(PatientAlert snapshot, PatientAlert current) {
         return snapshot != null && current != null
                 && snapshot.id() != null && snapshot.id().equals(current.id())
-                && snapshot.getPatient() != null && current.getPatient() != null
-                && snapshot.getPatient().getId() != null
-                && snapshot.getPatient().getId().equals(current.getPatient().getId())
+                && PatientOwnerGuard.sameStableIdentity(
+                        snapshot.getPatient(), current.getPatient())
                 && snapshot.getMedicine() != null && current.getMedicine() != null
                 && snapshot.getMedicine().getId() != null
                 && snapshot.getMedicine().getId().equals(current.getMedicine().getId())
+                && PatientOwnerGuard.sameStableIdentity(
+                        snapshot.getPatient(), current.getMedicine().getPatient())
                 && snapshot.getLevel() == current.getLevel()
                 && java.util.Objects.equals(snapshot.getType(), current.getType());
     }
@@ -172,14 +178,15 @@ public class AlertManager {
             if (selected == null || selected.getId() == null
                     || selected.getPatient() == null
                     || medicine == null || medicine.getPatient() == null
-                    || !selected.getPatient().getId().equals(medicine.getPatient().getId())) {
+                    || !PatientOwnerGuard.sameStableIdentity(
+                            selected.getPatient(), medicine.getPatient())) {
                 throw new SQLException("Blocked schedule has invalid patient ownership");
             }
             Schedule persisted = new Schedule();
             persisted.setId(selected.getId());
-            if (DB.schedules().refresh(persisted) != 1 || persisted.getPatient() == null
-                    || !selected.getPatient().getId().equals(
-                            persisted.getPatient().getId())) {
+            if (DB.schedules().refresh(persisted) != 1
+                    || !PatientOwnerGuard.sameStableIdentity(
+                            selected.getPatient(), persisted.getPatient())) {
                 throw new SQLException("Blocked schedule owner changed during alert");
             }
             persisted.addState(Schedule.ScheduleState.BLOCKED);
