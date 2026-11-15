@@ -175,24 +175,37 @@ public class AlertManager {
         CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT);
     }
 
+    /**
+     * Schedules with recycled numeric patient IDs must not be blocked by a
+     * HIGH warning for a different account. Verify the medicine relationship
+     * and durable owner codes, not only the SQLite foreign-key row numbers.
+     */
+    static boolean sameStableScheduleMedicine(Medicine medicine, Schedule selected) {
+        return medicine != null && medicine.getId() != null && medicine.getId() > 0L
+                && selected != null && selected.getId() != null && selected.getId() > 0L
+                && selected.getMedicine() != null
+                && medicine.getId().equals(selected.getMedicine().getId())
+                && sameStablePatient(medicine.getPatient(), selected.getPatient())
+                && sameStablePatient(medicine.getPatient(),
+                        selected.getMedicine().getPatient());
+    }
+
     /** Caller must already be inside the HIGH-alert SQLite transaction. */
     private static void blockSchedulesForMedicineInSql(final Medicine medicine)
             throws SQLException {
         final List<Schedule> schedules = DB.schedules().findByMedicine(medicine);
         final DateTime cutoff = DateTime.now();
         for (Schedule selected : schedules) {
-            if (selected == null || selected.getId() == null
-                    || selected.getPatient() == null
-                    || medicine == null || medicine.getPatient() == null
-                    || !selected.getPatient().getId().equals(medicine.getPatient().getId())) {
-                throw new SQLException("Blocked schedule has invalid patient ownership");
+            if (!sameStableScheduleMedicine(medicine, selected)) {
+                throw new SQLException("Blocked schedule has invalid stable owner or medicine");
             }
             Schedule persisted = new Schedule();
             persisted.setId(selected.getId());
-            if (DB.schedules().refresh(persisted) != 1 || persisted.getPatient() == null
-                    || !selected.getPatient().getId().equals(
-                            persisted.getPatient().getId())) {
-                throw new SQLException("Blocked schedule owner changed during alert");
+            if (DB.schedules().refresh(persisted) != 1
+                    || !sameStableScheduleMedicine(medicine, persisted)
+                    || !sameStablePatient(selected.getPatient(),
+                            persisted.getPatient())) {
+                throw new SQLException("Blocked schedule stable owner changed during alert");
             }
             persisted.addState(Schedule.ScheduleState.BLOCKED);
             if (DB.schedules().update(persisted) != 1) {
