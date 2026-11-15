@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - '.github/workflows/android-emulator-smoke.yml'
+      - '.github/workflows/verified-owner-automerge.yml'
       - 'Calendula/**'
       - 'scripts/android-smoke-tests.sh'
       - 'scripts/validate_android_smoke_sources.py'
@@ -24,6 +25,7 @@ on:
       - main
     paths:
       - '.github/workflows/android-emulator-smoke.yml'
+      - '.github/workflows/verified-owner-automerge.yml'
       - 'Calendula/**'
       - 'scripts/android-smoke-tests.sh'
       - 'scripts/validate_android_smoke_sources.py'
