@@ -7,6 +7,7 @@ package es.usc.citius.servando.calendula.activities;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import java.util.Arrays;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -25,6 +26,12 @@ import static org.junit.Assert.assertNotEquals;
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 28)
 public class ReminderNotificationPendingIntentIdentityTest {
+    private static String digest(char ch) {
+        char[] chars = new char[64];
+        Arrays.fill(chars, ch);
+        return new String(chars);
+    }
+
     @Test
     public void notificationButtonsForSameReminderAreDistinctAndStable() {
         Context context = RuntimeEnvironment.getApplication();
@@ -60,6 +67,86 @@ public class ReminderNotificationPendingIntentIdentityTest {
                 PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
         assertNotEquals("Different reminder IDs must not collide",
                 firstDelay, otherReminder);
+    }
+
+    @Test
+    public void recycledSqliteIdCannotReusePreviousNotificationButtonToken() {
+        Context context = RuntimeEnvironment.getApplication();
+        final long rowId = 9242L;
+        String originalInstance = java.util.UUID.randomUUID().toString();
+        String replacementInstance = java.util.UUID.randomUUID().toString();
+        Intent old = new Intent(context, AlarmReceiver.class)
+                .putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, digest('a'));
+        Intent replacement = new Intent(context, AlarmReceiver.class)
+                .putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, digest('a'));
+        PendingIntent oldToken = PendingIntent.getBroadcast(context, (int) rowId,
+                IntakeNotificationMgr.identifyNotificationAction(
+                        old, "CONFIRM", rowId, originalInstance),
+                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+        PendingIntent currentToken = PendingIntent.getBroadcast(context, (int) rowId,
+                IntakeNotificationMgr.identifyNotificationAction(
+                        replacement, "CONFIRM", rowId, replacementInstance),
+                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+        try {
+            assertNotEquals("A replaced patient must never inherit old action consent",
+                    oldToken, currentToken);
+            oldToken.cancel();
+            assertNotEquals(old.getData(), replacement.getData());
+            assertEquals(replacementInstance,
+                    replacement.getStringExtra(IntentParams.EXTRA_ALARM_INSTANCE));
+        } finally {
+            currentToken.cancel();
+        }
+    }
+
+
+    @Test
+    public void changedDisplayedDoseCannotUpdatePreviousNotificationButtonConsent() {
+        Context context = RuntimeEnvironment.getApplication();
+        long id = 987600012L;
+        String instance = java.util.UUID.randomUUID().toString();
+        Intent previous = new Intent(context, AlarmReceiver.class)
+                .putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_CONFIRM)
+                .putExtra(IntentParams.EXTRA_REMINDER_ID, id)
+                .putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, digest('a'));
+        PendingIntent oldToken = PendingIntent.getBroadcast(context, (int) id,
+                IntakeNotificationMgr.identifyNotificationAction(
+                        previous, "CONFIRM", id, instance),
+                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+        Intent updated = new Intent(context, AlarmReceiver.class)
+                .putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_CONFIRM)
+                .putExtra(IntentParams.EXTRA_REMINDER_ID, id)
+                .putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, digest('b'));
+        PendingIntent newToken = PendingIntent.getBroadcast(context, (int) id,
+                IntakeNotificationMgr.identifyNotificationAction(
+                        updated, "CONFIRM", id, instance),
+                PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
+        try {
+            assertNotEquals("Updated clinical content must get a distinct Android token",
+                    oldToken, newToken);
+            assertNotEquals("Consent must be in immutable token identity",
+                    previous.getData(), updated.getData());
+            assertEquals(oldToken, PendingIntent.getBroadcast(context, (int) id,
+                    previous, PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+            assertEquals(newToken, PendingIntent.getBroadcast(context, (int) id,
+                    updated, PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+
+            Intent forged = new Intent(previous);
+            forged.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, digest('b'));
+            assertEquals("Original token URI is immutable when extras change",
+                    previous.getData(), forged.getData());
+            assertEquals(null, AlarmReceiver.validatedServiceIntent(context, forged));
+        } finally {
+            oldToken.cancel();
+            newToken.cancel();
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void clinicalButtonWithoutDisplayedDoseDigestCannotCreateToken() {
+        IntakeNotificationMgr.identifyNotificationAction(
+                new Intent(), "CONFIRM", 99L,
+                java.util.UUID.randomUUID().toString());
     }
 
     @Test

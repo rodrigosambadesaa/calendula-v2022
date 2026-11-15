@@ -7,6 +7,7 @@ package es.usc.citius.servando.calendula.healthcareprovider.util;
 import android.content.SharedPreferences;
 
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
+import es.usc.citius.servando.calendula.util.ProviderRevisionGuard;
 
 /** A remote revision is acknowledged only after its owner is durably stored. */
 public final class RemoteRevisionCommitter {
@@ -19,8 +20,9 @@ public final class RemoteRevisionCommitter {
      */
     public static void commit(SharedPreferences.Editor editor,
                               String authenticatedOwner, String revision) {
-        if (editor == null || authenticatedOwner == null
-                || authenticatedOwner.trim().isEmpty() || revision == null) {
+        if (editor == null
+                || !ProviderRevisionGuard.isValidOpaqueOwnerKey(authenticatedOwner)
+                || revision == null) {
             throw new IllegalArgumentException("Valid owner and revision are required");
         }
         boolean persisted = editor

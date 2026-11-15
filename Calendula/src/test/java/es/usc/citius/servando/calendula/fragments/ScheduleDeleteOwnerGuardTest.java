@@ -24,6 +24,12 @@ public class ScheduleDeleteOwnerGuardTest {
         assertTrue(ScheduleListFragment.canReviewDeleteForActivePatient(owned, a));
         assertTrue(ScheduleListFragment.canReviewDeleteForActivePatient(
                 owned, patient(4100L)));
+        Patient replacement = patient(4100L);
+        replacement.setCode("ci-recycled-different-owner");
+        assertFalse("Old schedule must not be shown under a recycled patient ID",
+                ScheduleListFragment.canReviewDeleteForActivePatient(owned, replacement));
+        replacement.setCode(null);
+        assertFalse(ScheduleListFragment.canReviewDeleteForActivePatient(owned, replacement));
         assertFalse(ScheduleListFragment.canReviewDeleteForActivePatient(owned, b));
         assertFalse(ScheduleListFragment.canReviewDeleteForActivePatient(owned, null));
         assertFalse(ScheduleListFragment.canReviewDeleteForActivePatient(null, a));
@@ -40,6 +46,7 @@ public class ScheduleDeleteOwnerGuardTest {
     private static Patient patient(Long id) {
         Patient p = new Patient();
         p.setId(id);
+        p.setCode("ci-schedule-owner-" + id);
         return p;
     }
 }

@@ -140,4 +140,6 @@
     <string name="aml_reminder_choose_title">Choose a reminder to edit</string>
     <string name="aml_reminder_choice_item">Reminder %1$d</string>
     <string name="aml_reminder_unavailable">This reminder cannot be opened for the selected patient.</string>
+    <string name="patient_reselection_required">Please select the correct patient profile to continue</string>
+    <string name="patient_reselection_profile_number">Patient profile %1$d</string>
 </resources>

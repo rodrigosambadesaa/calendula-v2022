@@ -27,8 +27,10 @@ public class OfficialTreatmentPatientIsolationSmokeTest {
     public void externalRecordOwnerAndIdentityMustMatchOnAndroid() {
         Patient owner = new Patient();
         owner.setId(970001L);
+        owner.setCode("ci-official-patient-one");
         Patient other = new Patient();
         other.setId(970002L);
+        other.setCode("ci-official-patient-two");
 
         Schedule schedule = new Schedule();
         schedule.setId(990001L);
@@ -45,6 +47,24 @@ public class OfficialTreatmentPatientIsolationSmokeTest {
 
         source.setPatient(owner);
         assertTrue(DailyAgendaOfficialTreatmentValidator.verifiedLink(schedule, source));
+        Patient recycled = new Patient();
+        recycled.setId(owner.getId());
+        recycled.setCode("ci-restored-different-patient");
+        source.setPatient(recycled);
+        assertFalse("A reused row ID is not the same provider patient",
+                DailyAgendaOfficialTreatmentValidator.verifiedLink(schedule, source));
+        assertNull(DailyAgendaOfficialTreatmentValidator.firstInstruction(schedule, source));
+        assertFalse(DailyAgendaOfficialTreatmentValidator.verifiedLinkForActivePatient(
+                schedule, source, owner));
+        source.setPatient(owner);
+        assertFalse("Stale active patient must not preview another patient's treatment",
+                DailyAgendaOfficialTreatmentValidator.verifiedLinkForActivePatient(
+                        schedule, source, recycled));
+        recycled.setCode(null);
+        source.setPatient(recycled);
+        assertFalse("Unidentified provider row must not be considered official",
+                DailyAgendaOfficialTreatmentValidator.verifiedLink(schedule, source));
+        source.setPatient(owner);
         source.setDosage(null);
         assertFalse(DailyAgendaOfficialTreatmentValidator.verifiedLink(schedule, source));
     }

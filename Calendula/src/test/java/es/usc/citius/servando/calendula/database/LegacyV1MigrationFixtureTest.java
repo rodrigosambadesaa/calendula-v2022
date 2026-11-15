@@ -82,6 +82,8 @@ public class LegacyV1MigrationFixtureTest {
                     + "Code VARCHAR, DefaultDisplay VARCHAR)");
             legacy.execSQL("INSERT INTO ActiveMedItems (Patient, Code, DefaultDisplay)"
                     + " VALUES (1, 'legacy-active-med', 'Legacy medicine')");
+            legacy.execSQL("CREATE TABLE EventReminders (_id INTEGER PRIMARY KEY,"
+                    + " DateTime VARCHAR, NextTime VARCHAR, EventType VARCHAR, Patient BIGINT)");
             legacy.setVersion(1);
         }
 
