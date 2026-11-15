@@ -74,6 +74,7 @@ public class AlertManager {
                 }
                 Medicine verifiedMedicine = DB.medicines().findById(requestedMedicine.getId());
                 if (verifiedMedicine == null
+                        || DB.medicines().refresh(verifiedMedicine) != 1
                         || !sameStablePatient(expected, verifiedMedicine.getPatient())) {
                     throw new SQLException("Clinical alert patient differs from persisted medicine owner");
                 }
