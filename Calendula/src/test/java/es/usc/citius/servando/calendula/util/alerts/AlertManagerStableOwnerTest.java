@@ -12,6 +12,7 @@ import org.robolectric.annotation.Config;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Presentation;
+import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.persistence.alerts.AllergyPatientAlert;
 
 import static org.junit.Assert.assertFalse;
@@ -42,6 +43,37 @@ public class AlertManagerStableOwnerTest {
         result.setMedicine(medicine);
         result.setLevel(1);
         return result;
+    }
+
+    private static Schedule schedule(long id, Medicine med, Patient owner) {
+        Schedule result = new Schedule(med);
+        result.setId(id);
+        result.setPatient(owner);
+        return result;
+    }
+
+    @Test
+    public void blockingHighAlertMustMatchScheduleMedicineAndDurableOwner() {
+        Patient original = patient(60012L, "synthetic-original-owner");
+        Patient recycled = patient(60012L, "synthetic-replacement-owner");
+        Medicine intended = medicine(original);
+        assertTrue(AlertManager.sameStableScheduleMedicine(
+                intended, schedule(90012L, medicine(original), original)));
+        assertFalse("Same numeric patient ID but different owner code",
+                AlertManager.sameStableScheduleMedicine(
+                        intended, schedule(90012L, medicine(original), recycled)));
+        assertFalse("Schedule's medicine link can carry a stale owner",
+                AlertManager.sameStableScheduleMedicine(
+                        intended, schedule(90012L, medicine(recycled), original)));
+        Medicine differentMedicine = medicine(original);
+        differentMedicine.setId(80013L);
+        assertFalse("A different linked medicine cannot be blocked",
+                AlertManager.sameStableScheduleMedicine(
+                        intended, schedule(90012L, differentMedicine, original)));
+        assertFalse(AlertManager.sameStableScheduleMedicine(
+                intended, schedule(90012L, medicine(original), null)));
+        assertFalse(AlertManager.sameStableScheduleMedicine(
+                intended, schedule(0L, medicine(original), original)));
     }
 
     @Test
