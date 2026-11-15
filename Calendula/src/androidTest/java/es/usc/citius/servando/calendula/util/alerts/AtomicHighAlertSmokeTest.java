@@ -102,6 +102,78 @@ public class AtomicHighAlertSmokeTest {
     }
 
     @Test
+    public void secondHighWarningKeepsScheduleBlockedUntilTheLastWarningIsRemoved()
+            throws Exception {
+        assertTrue(DB.initialized);
+        String suffix = Long.toString(System.nanoTime());
+        Patient owner = new Patient();
+        owner.setCode("ci-high-shared-owner-" + suffix);
+        owner.setName("Synthetic shared warning owner");
+        Medicine medicine = new Medicine("Synthetic shared warning medicine",
+                Presentation.PILLS);
+        Schedule schedule = null;
+        AllergyPatientAlert first = new AllergyPatientAlert();
+        AllergyPatientAlert second = new AllergyPatientAlert();
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            medicine.setPatient(owner);
+            assertEquals(1, DB.medicines().create(medicine));
+            RecurringEvent recur = new RecurringEvent.Builder()
+                    .from(DateTime.now().minusDays(1))
+                    .repeatEvery(12, Freq.HOURLY).build();
+            schedule = new Schedule(recur);
+            schedule.setPatient(owner);
+            schedule.setMedicine(medicine);
+            schedule.setDosage(1.0d);
+            assertEquals(1, DB.schedules().create(schedule));
+
+            for (AllergyPatientAlert warning :
+                    new AllergyPatientAlert[]{first, second}) {
+                warning.setMedicine(medicine);
+                warning.setPatient(owner);
+                warning.setLevel(3);
+                AlertManager.createAlert(warning);
+            }
+            assertTrue(DB.schedules().findById(schedule.getId())
+                    .hasState(Schedule.ScheduleState.BLOCKED));
+            AlertManager.removeAlert(first);
+            assertNull(DB.alerts().findById(first.id()));
+            assertNotNull("The remaining HIGH warning must survive",
+                    DB.alerts().findById(second.id()));
+            assertTrue("The last HIGH warning still blocks the treatment",
+                    DB.schedules().findById(schedule.getId())
+                            .hasState(Schedule.ScheduleState.BLOCKED));
+
+            AlertManager.removeAlert(second);
+            assertNull(DB.alerts().findById(second.id()));
+            assertFalse("Last HIGH warning removal releases the schedule",
+                    DB.schedules().findById(schedule.getId())
+                            .hasState(Schedule.ScheduleState.BLOCKED));
+        } finally {
+            for (AllergyPatientAlert warning :
+                    new AllergyPatientAlert[]{first, second}) {
+                if (warning.id() != null
+                        && DB.alerts().findById(warning.id()) != null) {
+                    DB.alerts().remove(warning);
+                }
+            }
+            if (schedule != null && schedule.getId() != null
+                    && DB.schedules().findById(schedule.getId()) != null) {
+                DB.eventInstances().removeByRef(schedule.getId());
+                DB.schedules().remove(schedule);
+            }
+            if (medicine.getId() != null
+                    && DB.medicines().findById(medicine.getId()) != null) {
+                DB.medicines().remove(medicine);
+            }
+            if (owner.getId() != null
+                    && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().remove(owner);
+            }
+        }
+    }
+
+    @Test
     public void failedSecondIntakeDeleteRollsBackAlertAndBothBlockedSchedules()
             throws Exception {
         assertTrue(DB.initialized);
