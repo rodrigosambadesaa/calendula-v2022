@@ -122,6 +122,42 @@ public class NotificationReceiverDispatchSmokeTest {
     }
 
     @Test
+    public void dailyMaintenanceCannotAcceptMedicationOrConsentExtrasOnAndroid() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        Intent daily = new Intent(context, AlarmReceiver.class);
+        daily.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_DAILY_UPDATE);
+
+        Intent clean = AlarmReceiver.validatedServiceIntent(context, daily);
+        assertNotNull("Real Android daily maintenance must remain supported", clean);
+        assertEquals(IntentParams.ACTION_DAILY_UPDATE,
+                clean.getStringExtra(IntentParams.EXTRA_ACTION));
+        assertFalse(clean.hasExtra(IntentParams.EXTRA_REMINDER_ID));
+        assertNull(clean.getData());
+
+        Intent withId = new Intent(daily);
+        withId.putExtra(IntentParams.EXTRA_REMINDER_ID, 731002L);
+        assertNull(AlarmReceiver.validatedServiceIntent(context, withId));
+
+        Intent withInvalidId = new Intent(daily);
+        withInvalidId.putExtra(IntentParams.EXTRA_REMINDER_ID, -1L);
+        assertNull(AlarmReceiver.validatedServiceIntent(context, withInvalidId));
+
+        Intent withConsent = new Intent(daily);
+        withConsent.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, digest('a'));
+        assertNull(AlarmReceiver.validatedServiceIntent(context, withConsent));
+
+        Intent withInstance = new Intent(daily);
+        withInstance.putExtra(IntentParams.EXTRA_ALARM_INSTANCE,
+                java.util.UUID.randomUUID().toString());
+        assertNull(AlarmReceiver.validatedServiceIntent(context, withInstance));
+
+        Intent withUri = new Intent(daily);
+        withUri.setData(android.net.Uri.parse(
+                "content://synthetic/calendula-reminders/731002"));
+        assertNull(AlarmReceiver.validatedServiceIntent(context, withUri));
+    }
+
+    @Test
     public void oldOrMalformedNotificationCannotQueueAConfirmation() {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         Intent clicked = new Intent(context, AlarmReceiver.class);
