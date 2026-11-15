@@ -8,6 +8,7 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
+import es.usc.citius.servando.calendula.util.ProviderRevisionGuard;
 
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
@@ -18,6 +19,9 @@ import static org.mockito.Mockito.*;
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 28)
 public class RemoteRevisionCommitterTest {
+    private static final String OPAQUE_OWNER =
+            ProviderRevisionGuard.ownerKey(123L, "synthetic-owner");
+
     private static SharedPreferences.Editor editor(boolean successful) {
         SharedPreferences.Editor editor = mock(SharedPreferences.Editor.class);
         when(editor.putString(any(String.class), any())).thenReturn(editor);
@@ -28,9 +32,9 @@ public class RemoteRevisionCommitterTest {
     @Test
     public void ownerAndRevisionMustBeCommittedTogetherWithoutAsyncApply() {
         SharedPreferences.Editor editor = editor(true);
-        RemoteRevisionCommitter.commit(editor, "123:synthetic-owner", "synthetic-revision");
+        RemoteRevisionCommitter.commit(editor, OPAQUE_OWNER, "synthetic-revision");
         verify(editor).putString(PreferenceKeys.REMOTE_LAST_HASH_OWNER.key(),
-                "123:synthetic-owner");
+                OPAQUE_OWNER);
         verify(editor).putString(PreferenceKeys.REMOTE_LAST_HASH.key(),
                 "synthetic-revision");
         verify(editor).putString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY.key(), "");
@@ -44,7 +48,7 @@ public class RemoteRevisionCommitterTest {
     public void failedDurableWriteMustNotBeAcknowledgedAsSuccessful() {
         SharedPreferences.Editor editor = editor(false);
         try {
-            RemoteRevisionCommitter.commit(editor, "123:synthetic-owner", "revision");
+            RemoteRevisionCommitter.commit(editor, OPAQUE_OWNER, "revision");
             fail("A failed disk write must keep the provider revision retryable");
         } catch (IllegalStateException expected) {
             // Never publish success, notifications or completion on failure.
@@ -56,7 +60,8 @@ public class RemoteRevisionCommitterTest {
     @Test
     public void absentOwnerAndMissingEditorMustFailBeforeAnyWrite() {
         SharedPreferences.Editor editor = editor(true);
-        for (String invalid : new String[]{null, "", " "}) {
+        for (String invalid : new String[]{null, "", " ",
+                "123:synthetic-owner", "sha256-v2:invalid"}) {
             try {
                 RemoteRevisionCommitter.commit(editor, invalid, "revision");
                 fail("Unowned revision must not be persisted");
@@ -65,14 +70,14 @@ public class RemoteRevisionCommitterTest {
             }
         }
         try {
-            RemoteRevisionCommitter.commit(editor, "123:synthetic-owner", null);
+            RemoteRevisionCommitter.commit(editor, OPAQUE_OWNER, null);
             fail("Missing revision must be rejected");
         } catch (IllegalArgumentException expected) {
             // Required source.
         }
         verifyNoInteractions(editor);
         try {
-            RemoteRevisionCommitter.commit(null, "123:owner", "revision");
+            RemoteRevisionCommitter.commit(null, OPAQUE_OWNER, "revision");
             fail("No editor must not be mistaken for successful persistence");
         } catch (IllegalArgumentException expected) {
             // Expected.
