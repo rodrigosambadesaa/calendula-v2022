@@ -102,18 +102,24 @@ object ActiveMedUpdater {
      * incoming update may change schedules just as a retirement would.
      * Cross-owned/ownerless records still require manual repair.
      */
-    private fun validateLinkedProviderOwners(patientId: Long) {
+    private fun validateLinkedProviderOwners(expected: Patient) {
+        val patientId = expected.id ?: throw IllegalStateException(
+            "Provider medicine owner has no persisted ID")
         DB.healthcareProviderDB().activeMeds()
             .findBy(ActiveMedEntity.COLUMN_PATIENT, patientId)
             .forEach { stored ->
-                check(stored.patient.id == patientId) {
+                check(sameStablePatient(expected, stored.patient)) {
                     "Provider medicine ownership mismatch before retirement"
                 }
                 val schedules = DB.schedules().findBy(Schedule.BOUND_TO, stored.id)
                 val medicines = DB.medicines().findBy(Medicine.COLUMN_ACTIVE_MED_ID, stored.id)
-                check(allLinksBelongToPatient(patientId, schedules.map { it.patient?.id }) &&
-                      allLinksBelongToPatient(patientId, medicines.map { it.patient?.id }) &&
-                      schedules.all { it.medicine == null || it.medicine.patient?.id == patientId }) {
+                // All foreign keys may still carry the same numeric ID after
+                // restoring a different patient. Require the original stable
+                // owner for each linked schedule, medicine and provider row.
+                check(schedules.all { sameStablePatient(expected, it.patient) } &&
+                      medicines.all { sameStablePatient(expected, it.patient) } &&
+                      schedules.all { it.medicine == null ||
+                          sameStablePatient(expected, it.medicine.patient) }) {
                     "Cross-patient or ownerless provider medicine links"
                 }
             }
@@ -169,7 +175,7 @@ object ActiveMedUpdater {
             }
             // Link ownership must be checked inside the same transaction as
             // the eventual retirement, not against a stale preflight snapshot.
-            validateLinkedProviderOwners(patient.id)
+            validateLinkedProviderOwners(patient)
             activeMedication.forEach {
                 // Abort and roll back if a profile switch is observed
                 // between imported items, rather than continuing writes.
