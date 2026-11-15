@@ -53,15 +53,26 @@ public class PostCommitReminderCancellationRaceTest {
 
     @Test
     public void patientEraseCannotCancelReplacementInsertedAfterLookup() {
-        exerciseInterleaving(true);
+        exerciseInterleaving(true, false);
     }
 
     @Test
     public void dailyPruneCannotCancelReplacementInsertedAfterLookup() {
-        exerciseInterleaving(false);
+        exerciseInterleaving(false, false);
     }
 
-    private void exerciseInterleaving(boolean patientErase) {
+    @Test
+    public void patientEraseCannotCancelReplacementReturnedByLookup() {
+        exerciseInterleaving(true, true);
+    }
+
+    @Test
+    public void dailyPruneCannotCancelReplacementReturnedByLookup() {
+        exerciseInterleaving(false, true);
+    }
+
+    private void exerciseInterleaving(boolean patientErase,
+                                      boolean lookupSeesReplacement) {
         Context context = ApplicationProvider.getApplicationContext();
         EventReminder retired = reminder(patientErase ? 9000005501L : 9000005502L);
         EventReminder successor = reminder(retired.getId());
@@ -76,7 +87,10 @@ public class PostCommitReminderCancellationRaceTest {
                 // A new patient re-arms a reused numeric ID *during* the old
                 // cleanup's SQL read. The cleanup resumes afterwards.
                 replacement[0] = token(context, successor, PendingIntent.FLAG_UPDATE_CURRENT);
-                return null;
+                // Exercise both possible SQL observations: a replacement may
+                // become visible to the read, or only after it. Either way the
+                // captured old UUID, never its reused row ID, is retired.
+                return lookupSeesReplacement ? successor : null;
             });
             if (patientErase) {
                 Agenda.instance().cancelDeletedPatientReminderTokens(
