@@ -30,6 +30,7 @@ import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.events.PersistenceEvents;
 import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.PatientAlert;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
@@ -63,14 +64,13 @@ public class AlertManager {
                             || alert.getPatient().getId() <= 0L
                             || alert.getMedicine() == null || alert.getMedicine().getId() == null
                             || alert.getMedicine().getId() <= 0L
-                            || DB.patients().findById(alert.getPatient().getId()) == null) {
-                        throw new SQLException("HIGH alert is missing a persisted owner or medicine");
+                            || !sameStablePatient(alert.getPatient(),
+                                    DB.patients().findById(alert.getPatient().getId()))) {
+                        throw new SQLException("HIGH alert is missing its persisted stable owner or medicine");
                     }
                     verifiedMedicine = DB.medicines().findById(alert.getMedicine().getId());
-                    if (verifiedMedicine == null || verifiedMedicine.getPatient() == null
-                            || verifiedMedicine.getPatient().getId() == null
-                            || !alert.getPatient().getId().equals(
-                                    verifiedMedicine.getPatient().getId())) {
+                    if (verifiedMedicine == null || !sameStablePatient(
+                            alert.getPatient(), verifiedMedicine.getPatient())) {
                         throw new SQLException("HIGH alert patient differs from medicine owner");
                     }
                 }
@@ -142,13 +142,21 @@ public class AlertManager {
         }
     }
 
+    /** IDs may be recycled after restore; the nonblank stable code must match. */
+    private static boolean sameStablePatient(Patient expected, Patient actual) {
+        return expected != null && actual != null
+                && expected.getId() != null && expected.getId() > 0L
+                && expected.getId().equals(actual.getId())
+                && expected.getCode() != null
+                && !expected.getCode().trim().isEmpty()
+                && expected.getCode().equals(actual.getCode());
+    }
+
     /** Check clinical identity without exposing patient or medicine details. */
     static boolean sameAlertIdentity(PatientAlert snapshot, PatientAlert current) {
         return snapshot != null && current != null
                 && snapshot.id() != null && snapshot.id().equals(current.id())
-                && snapshot.getPatient() != null && current.getPatient() != null
-                && snapshot.getPatient().getId() != null
-                && snapshot.getPatient().getId().equals(current.getPatient().getId())
+                && sameStablePatient(snapshot.getPatient(), current.getPatient())
                 && snapshot.getMedicine() != null && current.getMedicine() != null
                 && snapshot.getMedicine().getId() != null
                 && snapshot.getMedicine().getId().equals(current.getMedicine().getId())
