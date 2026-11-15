@@ -149,9 +149,17 @@ public class AllergyAlertUtil {
                 || allergen.getType() == null || allergen.getIdentifier() == null) {
             throw new IllegalArgumentException("Persisted patient and allergen identity required");
         }
-        final Long ownerId = allergen.getPatient().getId();
-        if (DB.patients().findById(ownerId) == null) {
-            throw new IllegalStateException("Cannot clean allergy alerts for a deleted patient");
+        // Retain the original durable identity across the asynchronous
+        // allergen-edit/notification flow. A deleted patient ID may have been
+        // reused for a different account before this callback is executed.
+        final Patient ownerSnapshot = new Patient();
+        ownerSnapshot.setId(allergen.getPatient().getId());
+        ownerSnapshot.setCode(allergen.getPatient().getCode());
+        final Long ownerId = ownerSnapshot.getId();
+        if (!PatientOwnerGuard.sameStableIdentity(
+                ownerSnapshot, DB.patients().findById(ownerId))) {
+            throw new IllegalStateException(
+                    "Cannot clean allergy alerts for a missing or replaced patient");
         }
         final AllergenVO removedAllergen = new AllergenVO(allergen);
         final List<PatientAlert> toRemove = new ArrayList<>();
@@ -160,22 +168,26 @@ public class AllergyAlertUtil {
         DB.transaction(new Callable<Object>() {
             @Override
             public Object call() throws Exception {
+                if (!PatientOwnerGuard.sameStableIdentity(
+                        ownerSnapshot, DB.patients().findById(ownerId))) {
+                    throw new SQLException("Allergy alert owner changed before cleanup");
+                }
                 final PreparedQuery<PatientAlert> query = DB.alerts().queryBuilder().where()
                         .eq(PatientAlert.COLUMN_TYPE, AllergyPatientAlert.class.getCanonicalName())
                         .and().eq(PatientAlert.COLUMN_PATIENT, ownerId).prepare();
                 final List<PatientAlert> alerts = DB.alerts().query(query);
                 for (PatientAlert alert : alerts) {
                     if (alert == null || alert.id() == null
-                            || alert.getPatient() == null
-                            || !ownerId.equals(alert.getPatient().getId())
+                            || !PatientOwnerGuard.sameStableIdentity(
+                                    ownerSnapshot, alert.getPatient())
                             || alert.getMedicine() == null
                             || alert.getMedicine().getId() == null) {
                         throw new SQLException("Allergy alert owner is incomplete");
                     }
                     Medicine stored = DB.medicines().findById(alert.getMedicine().getId());
                     if (stored == null || DB.medicines().refresh(stored) != 1
-                            || stored.getPatient() == null
-                            || !ownerId.equals(stored.getPatient().getId())) {
+                            || !PatientOwnerGuard.sameStableIdentity(
+                                    ownerSnapshot, stored.getPatient())) {
                         throw new SQLException("Allergy alert and medicine owners differ");
                     }
                     AllergyPatientAlert mapped = (AllergyPatientAlert) alert.map();

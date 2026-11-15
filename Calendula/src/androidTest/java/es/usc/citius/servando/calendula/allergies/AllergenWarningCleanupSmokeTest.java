@@ -136,6 +136,27 @@ public class AllergenWarningCleanupSmokeTest {
             assertEquals(1, DB.alerts().create(firstAlert));
             assertEquals(1, DB.alerts().create(secondAlert));
 
+            // Simulate an old queued profile callback after a database
+            // restore has recycled this numeric patient ID for another code.
+            // Neither the first HIGH warning nor the multi-allergen warning
+            // may be mutated by that stale callback.
+            Patient recycledId = new Patient();
+            recycledId.setId(owner.getId());
+            recycledId.setCode("ci-other-patient-after-restore-" + seed);
+            PatientAllergen forgedRemoval = new PatientAllergen(a, recycledId);
+            boolean rejected = false;
+            try {
+                AllergyAlertUtil.removeAllergyAlerts(context, forgedRemoval);
+            } catch (RuntimeException | java.sql.SQLException expected) {
+                rejected = true;
+            }
+            assertTrue("Same-ID/different-code allergen cleanup must fail closed", rejected);
+            assertNotNull("Rejected callback must preserve first HIGH alert",
+                    DB.alerts().findById(firstAlert.id()));
+            assertEquals("Rejected callback must preserve second warning details",
+                    2, ((AllergyPatientAlert) DB.alerts().findById(secondAlert.id()).map())
+                            .getDetails().getAllergens().size());
+
             PatientAllergen removed = new PatientAllergen(a, owner);
             AllergyAlertUtil.removeAllergyAlerts(context, removed);
 
