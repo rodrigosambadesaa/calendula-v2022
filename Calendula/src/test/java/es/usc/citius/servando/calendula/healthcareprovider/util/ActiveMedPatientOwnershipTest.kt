@@ -2,6 +2,7 @@ package es.usc.citius.servando.calendula.healthcareprovider.util
 
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import es.usc.citius.servando.calendula.persistence.Patient
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -11,6 +12,45 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class ActiveMedPatientOwnershipTest {
+
+    private fun patient(id: Long?, code: String?): Patient = Patient().apply {
+        this.id = id
+        this.code = code
+    }
+
+    @Test
+    fun recycledNumericPatientIdCannotAuthorizeStaleProviderSnapshot() {
+        val original = patient(101L, "synthetic-original")
+        val restoredOtherPatient = patient(101L, "synthetic-replacement")
+        val sameOwnerAfterReload = patient(101L, "synthetic-original")
+        assertTrue(ActiveMedUpdater.sameStablePatient(original, sameOwnerAfterReload))
+        assertFalse(ActiveMedUpdater.sameStablePatient(original, restoredOtherPatient))
+        assertFalse(ActiveMedUpdater.incomingOwnersMatchStablePatient(
+            restoredOtherPatient, listOf(original)))
+        assertTrue(ActiveMedUpdater.incomingOwnersMatchStablePatient(
+            original, listOf(original, sameOwnerAfterReload)))
+        assertTrue(ActiveMedUpdater.incomingOwnersMatchStablePatient(
+            original, emptyList()))
+    }
+
+    @Test
+    fun ownerlessOrForeignParsedProviderRowsFailClosed() {
+        val selected = patient(201L, "synthetic-selected")
+        assertFalse(ActiveMedUpdater.incomingOwnersMatchStablePatient(
+            selected, listOf(patient(201L, null))))
+        assertFalse(ActiveMedUpdater.incomingOwnersMatchStablePatient(
+            selected, listOf(patient(201L, ""))))
+        assertFalse(ActiveMedUpdater.incomingOwnersMatchStablePatient(
+            selected, listOf(patient(201L, "  "))))
+        assertFalse(ActiveMedUpdater.incomingOwnersMatchStablePatient(
+            selected, listOf(patient(202L, "synthetic-selected"))))
+        assertFalse(ActiveMedUpdater.incomingOwnersMatchStablePatient(
+            selected, listOf(null)))
+        assertFalse(ActiveMedUpdater.incomingOwnersMatchStablePatient(
+            patient(0L, "synthetic-selected"), emptyList()))
+        assertFalse(ActiveMedUpdater.incomingOwnersMatchStablePatient(
+            null, emptyList()))
+    }
 
     @Test
     fun samePatientNewAndExistingMedicationCanBeImported() {

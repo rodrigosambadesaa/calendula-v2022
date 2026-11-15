@@ -54,6 +54,24 @@ class ProviderImportPatientPreflightSmokeTest {
                 .findByCodeForPatient(code, second))
             assertFalse(prefs.all[hashKey] == rejectedHash)
 
+            // A restored database may reuse first.id for a different
+            // account. Even with identical numeric IDs, old parsed treatment
+            // data cannot authorize changes for the current persisted owner.
+            val staleOwner = patient("stale-$suffix").apply { id = first.id }
+            val reusedIdTreatment = ActiveMedDCPFVO(
+                staleOwner, code, "Synthetic medication", emptyList(), null)
+            val staleRevision = "ci-rejected-reused-owner-$suffix"
+            try {
+                ActiveMedUpdater.onNewMeds(
+                    staleRevision, listOf(reusedIdTreatment), context, false)
+                fail("A same-ID/different-code provider patient was accepted")
+            } catch (expected: IllegalStateException) {
+                // No SQLite or preference writes may occur.
+            }
+            assertNull(DB.healthcareProviderDB().activeMeds()
+                .findByCodeForPatient(code, first))
+            assertFalse(prefs.all[hashKey] == staleRevision)
+
             val firstRecord = ActiveMedDCPFVO(
                 first, code, "Synthetic medication", emptyList(), null)
             val duplicateHash = "ci-rejected-duplicate-$suffix"

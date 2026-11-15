@@ -40,10 +40,25 @@ public class ProviderRevisionOwnershipSmokeTest {
 
             assertEquals("synthetic-a-revision",
                     ProviderRevisionGuard.lastRevisionForPatient(a, a.getCode()));
+            assertFalse("App preferences must not expose account identifiers",
+                    prefs.getString(ownerKey, "").contains(a.getCode()));
+            assertTrue(prefs.getString(ownerKey, "").matches("sha256-v2:[0-9a-f]{64}"));
             assertNull("Patient B cannot send A's conditional revision",
                     ProviderRevisionGuard.lastRevisionForPatient(b, b.getCode()));
             assertNull("A stale authenticated subject cannot use A's revision",
                     ProviderRevisionGuard.lastRevisionForPatient(a, b.getCode()));
+
+            // Existing installations may restore the old plaintext owner
+            // format. Never send its conditional revision; fetch the whole
+            // authoritative account snapshot and replace the owner metadata
+            // only after successful reconciliation.
+            assertTrue(prefs.edit().putString(ownerKey,
+                    a.getId() + ":" + a.getCode()).commit());
+            assertNull("Legacy raw owner must require a full provider fetch",
+                    ProviderRevisionGuard.lastRevisionForPatient(a, a.getCode()));
+            assertTrue(prefs.edit().putString(ownerKey, aOwner).commit());
+            assertEquals("synthetic-a-revision",
+                    ProviderRevisionGuard.lastRevisionForPatient(a, a.getCode()));
 
             assertTrue(prefs.edit().remove(ownerKey).commit());
             assertNull("Pre-migration unowned revision requires fresh verification",
@@ -84,6 +99,7 @@ public class ProviderRevisionOwnershipSmokeTest {
             assertEquals(expectedHash, prefs.getString(hashKey, null));
             assertEquals(ProviderRevisionGuard.ownerKey(a.getId(), a.getCode()),
                     prefs.getString(ownerKey, null));
+            assertFalse(prefs.getString(ownerKey, "").contains(a.getCode()));
             assertEquals(expectedHash,
                     ProviderRevisionGuard.lastRevisionForPatient(a, a.getCode()));
         } finally {
