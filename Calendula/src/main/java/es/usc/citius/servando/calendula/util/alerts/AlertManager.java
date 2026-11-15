@@ -63,7 +63,9 @@ public class AlertManager {
                     // match the persisted alert patient before ANY SQL write.
                     if (!PatientOwnerGuard.hasStableIdentity(alert.getPatient())
                             || alert.getMedicine() == null || alert.getMedicine().getId() == null
-                            || alert.getMedicine().getId() <= 0L) {
+                            || alert.getMedicine().getId() <= 0L
+                            || !PatientOwnerGuard.sameStableIdentity(
+                                    alert.getPatient(), alert.getMedicine().getPatient())) {
                         throw new SQLException("HIGH alert is missing a stable owner or medicine");
                     }
                     Patient persistedOwner = DB.patients().findById(alert.getPatient().getId());
@@ -123,9 +125,10 @@ public class AlertManager {
             if (!sameAlertIdentity(alert, current)
                     || !PatientOwnerGuard.sameStableIdentity(
                             alert.getPatient(), persistedOwner)
-                    || linked == null
-                    || !PatientOwnerGuard.sameStableIdentity(
-                            alert.getPatient(), linked.getPatient())) {
+                    || (current.getLevel() == Level.HIGH
+                            && (linked == null
+                                || !PatientOwnerGuard.sameStableIdentity(
+                                        alert.getPatient(), linked.getPatient())))) {
                 throw new IllegalStateException("Alert identity changed before deletion");
             }
             if (DB.alerts().deleteById(current.id()) != 1) {
