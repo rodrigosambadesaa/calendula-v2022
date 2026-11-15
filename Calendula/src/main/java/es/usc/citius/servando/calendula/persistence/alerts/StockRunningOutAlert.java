@@ -37,6 +37,7 @@ import es.usc.citius.servando.calendula.activities.MedicinesActivity;
 import es.usc.citius.servando.calendula.adapters.AlertViewRecyclerAdapter;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.PatientAlert;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
@@ -113,6 +114,15 @@ public class StockRunningOutAlert extends PatientAlert<StockRunningOutAlert, Sto
      */
     public static class StockAlertViewProvider implements AlertViewRecyclerAdapter.AlertViewProvider {
 
+        /** Verify the owner again when a recycled view's button is tapped. */
+        static boolean mayLaunchStockEditor(Patient renderedOwner, Patient selectedOwner,
+                                            Medicine currentMedicine) {
+            return currentMedicine != null
+                    && PatientOwnerGuard.sameStableIdentity(renderedOwner, selectedOwner)
+                    && PatientOwnerGuard.sameStableIdentity(
+                            renderedOwner, currentMedicine.getPatient());
+        }
+
         @Override
         public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent) {
             View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.stock_alert_list_item, parent, false);
@@ -182,10 +192,24 @@ public class StockRunningOutAlert extends PatientAlert<StockRunningOutAlert, Sto
             }
 
             viewHolder.manageStockBtn.setOnClickListener(view -> {
-                Intent intent = new Intent(context, MedicinesActivity.class);
-                intent.putExtra(CalendulaApp.INTENT_EXTRA_MEDICINE_ID, medicine.getId());
-                intent.putExtra(CalendulaApp.INTENT_EXTRA_ACTION, "add_stock");
-                context.startActivity(intent);
+                // A patient may switch after this RecyclerView holder was
+                // rendered. Never let an old button route to the next
+                // patient's medicine, even if the SQLite row ID was reused.
+                try {
+                    Medicine current = DB.medicines().findById(medicine.getId());
+                    if (current == null || DB.medicines().refresh(current) != 1
+                            || !mayLaunchStockEditor(alert.getPatient(),
+                                    DB.patients().getActive(context), current)) {
+                        return;
+                    }
+                    Intent intent = new Intent(context, MedicinesActivity.class);
+                    intent.putExtra(CalendulaApp.INTENT_EXTRA_MEDICINE_ID, current.getId());
+                    intent.putExtra(CalendulaApp.INTENT_EXTRA_ACTION, "add_stock");
+                    context.startActivity(intent);
+                } catch (RuntimeException unavailable) {
+                    // Corrupt/restored owner state is not permission to open
+                    // a stock editor; avoid logging any clinical identifiers.
+                }
             });
         }
 
