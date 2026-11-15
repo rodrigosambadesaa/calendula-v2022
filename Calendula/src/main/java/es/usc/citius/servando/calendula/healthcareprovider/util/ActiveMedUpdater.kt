@@ -57,6 +57,32 @@ object ActiveMedUpdater {
     ): Boolean = activePatientId != null && activePatientId > 0L &&
         incomingPatientIds.all { it == activePatientId }
 
+    /**
+     * A restored SQLite database can reuse a patient row ID. Never accept a
+     * parsed provider payload with a stale patient code just because the ID
+     * matches a different profile. The original code stays in memory only;
+     * no patient identifier is written to a URL, log or Android Intent.
+     */
+    internal fun sameStablePatient(expected: Patient?, observed: Patient?): Boolean {
+        val id = expected?.id ?: return false
+        val code = expected.code ?: return false
+        return id > 0L && code.isNotBlank() &&
+            observed?.id == id && observed.code == code
+    }
+
+    internal fun incomingOwnersMatchStablePatient(
+        selected: Patient?, received: Collection<Patient?>
+    ): Boolean = sameStablePatient(selected, selected) &&
+        received.all { sameStablePatient(selected, it) }
+
+    private fun activeOwnerIsCurrent(ctx: Context, expected: Patient): Boolean {
+        val id = expected.id ?: return false
+        // Guard both current selection and the live persisted row; neither a
+        // reused numeric ID nor a stale cached profile can authorize writes.
+        return sameStablePatient(expected, DB.patients().getActive(ctx)) &&
+            sameStablePatient(expected, DB.patients().findById(id))
+    }
+
     /** Ambiguous duplicate provider codes within one snapshot must fail closed. */
     internal fun hasUniqueUsableCodes(codes: Collection<String?>): Boolean =
         codes.all { !it.isNullOrBlank() } && codes.size == codes.toSet().size
@@ -113,14 +139,18 @@ object ActiveMedUpdater {
         // Reject an unusable owner before any SQLite mutation, not after commit.
         val revisionOwner = ProviderRevisionGuard.ownerKey(patient.id, patient.code)
             ?: throw IllegalStateException("Provider revision requires persisted patient identity")
-        val incomingOwners = activeMedication.map { it.patient?.id }
+        // Verify stable owner codes, not only reusable numeric patient IDs.
+        check(activeOwnerIsCurrent(ctx, patient)) {
+            "Active patient changed before provider import"
+        }
+        val incomingOwners = activeMedication.map { it.patient }
         // All subsequent medication lookups are scoped by the persisted
         // patient and code. Another patient's identical code is legitimate.
         // Duplicate codes *within this snapshot* are ambiguous and rejected.
         if (!hasUniqueUsableCodes(activeMedication.map { it.code })) {
             throw IllegalStateException("Provider medication codes missing or duplicated")
         }
-        if (!incomingOwnersMatchActivePatient(patient.id, incomingOwners)) {
+        if (!incomingOwnersMatchStablePatient(patient, incomingOwners)) {
             LogUtil.w(TAG, "Provider medication update rejected due to patient ownership mismatch")
             throw IllegalStateException("Provider medication patient ownership mismatch")
         }
@@ -134,7 +164,7 @@ object ActiveMedUpdater {
         DB.transaction {
             // A profile can change after FHIR parsing/preflight. Do not
             // begin mutating medicines under a stale active patient.
-            check(DB.patients().getActive(ctx)?.id == patient.id) {
+            check(activeOwnerIsCurrent(ctx, patient)) {
                 "Active patient changed during provider import"
             }
             // Link ownership must be checked inside the same transaction as
@@ -143,7 +173,7 @@ object ActiveMedUpdater {
             activeMedication.forEach {
                 // Abort and roll back if a profile switch is observed
                 // between imported items, rather than continuing writes.
-                check(DB.patients().getActive(ctx)?.id == patient.id) {
+                check(activeOwnerIsCurrent(ctx, patient)) {
                     "Active patient changed during provider import"
                 }
                 // always update dispensation info if med is stored
@@ -164,7 +194,7 @@ object ActiveMedUpdater {
             }
             // Cleanup can retire schedules: never run it after observing
             // an intervening profile change.
-            check(DB.patients().getActive(ctx)?.id == patient.id) {
+            check(activeOwnerIsCurrent(ctx, patient)) {
                 "Active patient changed before provider cleanup"
             }
             cleanOldActiveMeds(ctx, patient.id, summary, activeMedication)
@@ -174,10 +204,15 @@ object ActiveMedUpdater {
         // Always retry cleanup, even if the previous attempt committed SQL
         // and failed before writing the remote revision. This also recovers
         // outstanding unlinked reminders left by an interrupted sync.
+        // A switch after SQLite COMMIT must not cancel another patient's
+        // platform reminders under a recycled numeric owner ID.
+        check(activeOwnerIsCurrent(ctx, patient)) {
+            "Active patient changed before provider alarm cleanup"
+        }
         Agenda.instance().cleanRemindersForPatient(ctx, patient)
         // Even an empty snapshot must not acknowledge a remote revision for
         // a patient who was switched away during the import.
-        check(DB.patients().getActive(ctx)?.id == patient.id) {
+        check(activeOwnerIsCurrent(ctx, patient)) {
             "Active patient changed before provider revision acknowledgement"
         }
         // update the stored hash
