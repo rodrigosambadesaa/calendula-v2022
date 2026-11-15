@@ -39,6 +39,7 @@ import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.PatientAlert;
 import es.usc.citius.servando.calendula.util.IconUtils;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 import es.usc.citius.servando.calendula.util.stock.MedicineScheduleStockProvider;
 import es.usc.citius.servando.calendula.util.stock.StockCalculator;
 import es.usc.citius.servando.calendula.util.stock.StockDisplayUtils;
@@ -136,11 +137,12 @@ public class StockRunningOutAlert extends PatientAlert<StockRunningOutAlert, Sto
             Medicine persisted = associated == null || associated.getId() == null
                     || associated.getId() <= 0L
                     ? null : DB.medicines().findById(associated.getId());
-            Long alertOwnerId = alert.getPatient() == null
-                    ? null : alert.getPatient().getId();
-            if (persisted == null || persisted.getPatient() == null
-                    || alertOwnerId == null
-                    || !alertOwnerId.equals(persisted.getPatient().getId())) {
+            // A restored SQLite ID can now point to a different patient.
+            // Never render another owner's stock quantity or expose its
+            // editor through a recycled alert card. Both durable ID AND
+            // stable patient code must match the live medicine owner.
+            if (persisted == null || !PatientOwnerGuard.sameStableIdentity(
+                    alert.getPatient(), persisted.getPatient())) {
                 // An orphaned/mislinked legacy alert must not show another
                 // patient's inventory or launch an invalid stock editor.
                 viewHolder.description.setVisibility(View.GONE);
