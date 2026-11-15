@@ -86,24 +86,42 @@ object StockAlertHandler {
         && requestedMedicineId == storedMedicineId
         && requestedPatientId == storedPatientId
 
+    /**
+     * Numeric owner IDs can be reused during restore, so they are not
+     * sufficient authority to create or remove a stock warning. Snapshot
+     * the immutable patient code before any ORM refresh may mutate objects.
+     */
+    @JvmStatic
+    fun samePersistedMedicineAndStableOwner(
+        requestedMedicineId: Long?, requestedPatientId: Long?,
+        requestedPatientCode: String?, storedMedicineId: Long?,
+        storedPatientId: Long?, storedPatientCode: String?
+    ): Boolean = samePersistedMedicineOwner(
+        requestedMedicineId, requestedPatientId,
+        storedMedicineId, storedPatientId
+    ) && !requestedPatientCode.isNullOrBlank() &&
+        requestedPatientCode == storedPatientCode
+
     @JvmStatic
     fun checkStockAlerts(m: Medicine) {
         // Snapshot the expected identity and stock BEFORE the ORM refresh:
         // legacy DAO caches can return/mutate the original Java object.
         val requestedMedicineId = m.id
         val requestedPatientId = m.patient?.id
+        val requestedPatientCode = m.patient?.code
         val requestedStock = m.stock
-        if (!samePersistedMedicineOwner(
-                requestedMedicineId, requestedPatientId,
-                requestedMedicineId, requestedPatientId
+        if (!samePersistedMedicineAndStableOwner(
+                requestedMedicineId, requestedPatientId, requestedPatientCode,
+                requestedMedicineId, requestedPatientId, requestedPatientCode
             )) {
             return
         }
 
         val stored = DB.medicines().findById(requestedMedicineId!!) ?: return
         if (DB.medicines().refresh(stored) != 1
-            || !samePersistedMedicineOwner(
-                requestedMedicineId, requestedPatientId, stored.id, stored.patient?.id
+            || !samePersistedMedicineAndStableOwner(
+                requestedMedicineId, requestedPatientId, requestedPatientCode,
+                stored.id, stored.patient?.id, stored.patient?.code
             ) || requestedStock != stored.stock) {
             return
         }
@@ -115,6 +133,7 @@ object StockAlertHandler {
             stored, StockRunningOutAlert::class.java.canonicalName
         )
         if (alerts.any { it.patient?.id != requestedPatientId
+                || it.patient?.code != requestedPatientCode
                 || it.medicine?.id != requestedMedicineId }) {
             return
         }
@@ -141,8 +160,9 @@ object StockAlertHandler {
         // Revalidate after potentially expensive recurrence calculations:
         // never publish or remove an alert using an already changed snapshot.
         if (DB.medicines().refresh(stored) != 1
-            || !samePersistedMedicineOwner(
-                requestedMedicineId, requestedPatientId, stored.id, stored.patient?.id
+            || !samePersistedMedicineAndStableOwner(
+                requestedMedicineId, requestedPatientId, requestedPatientCode,
+                stored.id, stored.patient?.id, stored.patient?.code
             ) || currentStock != stored.stock) {
             return
         }
