@@ -33,6 +33,13 @@ public class AlertManagerStableOwnerTest {
         return owner;
     }
 
+    private static Medicine medicine(Patient owner) {
+        Medicine result = new Medicine("Synthetic medication", Presentation.PILLS);
+        result.setId(80012L);
+        result.setPatient(owner);
+        return result;
+    }
+
     private static AllergyPatientAlert alert(long id, Patient owner) {
         Medicine medicine = new Medicine("Synthetic medication", Presentation.PILLS);
         medicine.setId(80012L);
