@@ -58,6 +58,15 @@ public class AlertDeletionIdentitySmokeTest {
             forged.setMedicine(first);
             assertRejected(forged, saved.id());
 
+            // A stale Java owner can have the same numeric SQLite ID as the
+            // restored patient's row. That must never authorize deletion.
+            Patient recycled = new Patient();
+            recycled.setId(owner.getId());
+            recycled.setCode("ci-alert-recycled-" + suffix);
+            forged.setPatient(recycled);
+            forged.setMedicine(first);
+            assertRejected(forged, saved.id());
+
             forged.setPatient(owner);
             forged.setMedicine(second);
             assertRejected(forged, saved.id());
