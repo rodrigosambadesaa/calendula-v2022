@@ -96,6 +96,8 @@ public class ScheduleUtils {
     void persistNewScheduleRows(Context ctx, Schedule schedule,
                                Collection<EventInstance> precomputed) {
         if (ctx == null || schedule == null || schedule.getId() != null
+                || schedule.hasState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY)
+                || schedule.getRecoveryOwnerDigest() != null
                 || !PatientOwnerGuard.hasStableIdentity(schedule.getPatient())
                 || schedule.getMedicine() == null
                 || schedule.getMedicine().getId() == null
@@ -266,6 +268,20 @@ public class ScheduleUtils {
                                 || !PatientOwnerGuard.sameStableIdentity(
                                         expected, schedule.getMedicine().getPatient())) {
                             throw new SQLException("Edited prescription ownership changed");
+                        }
+                        // A HIGH-alert release can have committed its
+                        // BLOCKED-state change while Android alarm rebuilding
+                        // is still pending. A stale editor's full-row UPDATE
+                        // would silently erase that durable obligation. Fail
+                        // closed until replay has completed successfully.
+                        if (stored.hasState(
+                                Schedule.ScheduleState.PENDING_REMINDER_RECOVERY)
+                                || stored.getRecoveryOwnerDigest() != null
+                                || schedule.hasState(
+                                        Schedule.ScheduleState.PENDING_REMINDER_RECOVERY)
+                                || schedule.getRecoveryOwnerDigest() != null) {
+                            throw new SQLException(
+                                    "Recover pending medication reminders before editing recurrence");
                         }
                         schedule.setMedicine(medicine);
                         if (DB.schedules().update(schedule) != 1) {
