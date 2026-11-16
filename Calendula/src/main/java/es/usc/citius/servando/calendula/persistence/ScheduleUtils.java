@@ -96,11 +96,12 @@ public class ScheduleUtils {
     void persistNewScheduleRows(Context ctx, Schedule schedule,
                                Collection<EventInstance> precomputed) {
         if (ctx == null || schedule == null || schedule.getId() != null
-                || schedule.getPatient() == null
-                || schedule.getPatient().getId() == null
-                || schedule.getPatient().getId() <= 0L
+                || !PatientOwnerGuard.hasStableIdentity(schedule.getPatient())
                 || schedule.getMedicine() == null
-                || schedule.getMedicine().getId() == null) {
+                || schedule.getMedicine().getId() == null
+                || schedule.getMedicine().getId() <= 0L
+                || !PatientOwnerGuard.sameStableIdentity(
+                        schedule.getPatient(), schedule.getMedicine().getPatient())) {
             throw new IllegalArgumentException("New schedule must have a persisted owner and medicine");
         }
         final Collection<EventInstance> inserted;
@@ -108,14 +109,19 @@ public class ScheduleUtils {
             inserted = TransactionManager.callInTransaction(
                     DB.helper().getConnectionSource(),
                     (Callable<Collection<EventInstance>>) () -> {
-                        Patient owner = DB.patients().findById(schedule.getPatient().getId());
-                        Medicine medicine = DB.medicines().findById(schedule.getMedicine().getId());
-                        if (owner == null || medicine == null
+                        // Verify the stable owner BEFORE replacing the editor's
+                        // models with authoritative database rows. A restored
+                        // SQLite file may reuse the same numeric patient,
+                        // medicine and schedule IDs for a different profile.
+                        Patient expected = schedule.getPatient();
+                        Patient owner = DB.patients().findById(expected.getId());
+                        Medicine medicine = new Medicine();
+                        medicine.setId(schedule.getMedicine().getId());
+                        if (!PatientOwnerGuard.sameStableIdentity(expected, owner)
                                 || DB.medicines().refresh(medicine) != 1
-                                || (medicine.getPatient() != null
-                                    && (medicine.getPatient().getId() == null
-                                        || !owner.getId().equals(medicine.getPatient().getId())))) {
-                            throw new SQLException("New prescription owner or medicine is no longer valid");
+                                || !PatientOwnerGuard.sameStableIdentity(
+                                        expected, medicine.getPatient())) {
+                            throw new SQLException("New prescription stable owner or medicine changed");
                         }
                         // Use authoritative records, never a stale picker
                         // object, when creating the new prescription row.
@@ -132,9 +138,8 @@ public class ScheduleUtils {
                                     || e.getType() != EventType.MEDICATION_INTAKE
                                     || e.getTime() == null
                                     || (e.getPatient() != null
-                                        && (e.getPatient().getId() == null
-                                            || !schedule.getPatient().getId().equals(
-                                                    e.getPatient().getId())))) {
+                                        && !PatientOwnerGuard.sameStableIdentity(
+                                                schedule.getPatient(), e.getPatient()))) {
                                 throw new SQLException("Invalid new-schedule dose occurrence");
                             }
                             e.setPatient(schedule.getPatient());
