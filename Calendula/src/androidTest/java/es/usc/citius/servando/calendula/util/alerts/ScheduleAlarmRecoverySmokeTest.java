@@ -137,6 +137,30 @@ public class ScheduleAlarmRecoverySmokeTest {
             assertEquals("Reboot retry must never duplicate the same dose",
                     restored, DB.eventInstances().findBy(
                             EventInstance.COLUMN_REF, schedule.getId()).size());
+
+            // Simulate a harder interruption: SQL generated future events,
+            // one synthetic dose was marked completed, but the recovery
+            // marker was never cleared before process death. A later replay
+            // must preserve the completed decision and avoid duplicates.
+            EventInstance completed = DB.eventInstances().findBy(
+                    EventInstance.COLUMN_REF, schedule.getId()).get(0);
+            sqlite.execSQL("UPDATE EventInstances SET Completed=1 WHERE _id=?",
+                    new Object[]{completed.getId()});
+            assertTrue(DB.eventInstances().findById(completed.getId()).completed());
+            sqlite.execSQL("UPDATE NewSchedules SET State=?, RecoveryOwnerDigest=?"
+                            + " WHERE _id=?",
+                    new Object[]{"[\\"PENDING_REMINDER_RECOVERY\\"]",
+                            ScheduleAlarmRecovery.ownerDigest(owner), schedule.getId()});
+            assertTrue(DB.schedules().findById(schedule.getId())
+                    .hasState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY));
+            Agenda.instance().updateAllAlarms(context);
+            assertTrue("A completed dose must remain completed after replay",
+                    DB.eventInstances().findById(completed.getId()).completed());
+            assertEquals("Restart must not duplicate historic or pending doses",
+                    restored, DB.eventInstances().findBy(
+                            EventInstance.COLUMN_REF, schedule.getId()).size());
+            assertFalse(DB.schedules().findById(schedule.getId())
+                    .hasState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY));
         } finally {
             sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
             if (warning.id() != null && DB.alerts().findById(warning.id()) != null) {
