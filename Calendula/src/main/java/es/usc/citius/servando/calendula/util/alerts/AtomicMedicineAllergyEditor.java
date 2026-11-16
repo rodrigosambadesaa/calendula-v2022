@@ -198,7 +198,9 @@ public final class AtomicMedicineAllergyEditor {
         RuntimeException error = null;
         for (Schedule snapshot : committed.toRegenerate) {
             try {
-                requireCurrentOwner(safeContext, committed.owner);
+                if (!currentOwnerMatches(safeContext, committed.owner)) {
+                    throw new IllegalStateException("Patient changed after medicine COMMIT");
+                }
                 Schedule current = DB.schedules().findById(snapshot.getId());
                 if (current == null || DB.schedules().refresh(current) != 1
                         || !AlertManager.sameStableScheduleMedicine(
@@ -263,12 +265,17 @@ public final class AtomicMedicineAllergyEditor {
         }
     }
 
+    private static boolean currentOwnerMatches(Context context, Patient expected) {
+        return expected != null && PatientOwnerGuard.hasStableIdentity(expected)
+                && PatientOwnerGuard.sameStableIdentity(
+                        expected, DB.patients().findById(expected.getId()))
+                && PatientOwnerGuard.sameStableIdentity(
+                        expected, DB.patients().getActive(context));
+    }
+
     private static void requireCurrentOwner(Context context, Patient expected)
             throws SQLException {
-        if (!PatientOwnerGuard.sameStableIdentity(
-                expected, DB.patients().findById(expected.getId()))
-                || !PatientOwnerGuard.sameStableIdentity(
-                expected, DB.patients().getActive(context))) {
+        if (!currentOwnerMatches(context, expected)) {
             throw new SQLException("Medicine edit changed active or persisted patient");
         }
     }
