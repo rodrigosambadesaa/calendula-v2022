@@ -18,6 +18,7 @@ import org.junit.runner.RunWith;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Patient;
+import es.usc.citius.servando.calendula.persistence.PatientAlert;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.persistence.alerts.AllergyPatientAlert;
@@ -253,9 +254,19 @@ public class ScheduleAlarmRecoverySmokeTest {
             assertTrue(DB.schedules().findById(schedule.getId())
                     .hasState(Schedule.ScheduleState.BLOCKED));
 
-            // Independently retire the synthetic warning using direct fixture
-            // SQL, leaving the schedule BLOCKED for the legacy API test.
-            assertEquals(1, DB.alerts().deleteById(high.id()));
+            // Independently retire the synthetic warning using fixture SQL,
+            // leaving the schedule BLOCKED for the legacy API test. Retrieve
+            // the authoritative persisted alert identity rather than the
+            // transient test object's generated-ID state.
+            java.util.List<PatientAlert> warnings =
+                    DB.alerts().findByMedicineAndLevel(medicine, PatientAlert.Level.HIGH);
+            assertEquals("Exactly one HIGH warning must exist", 1, warnings.size());
+            android.database.sqlite.SQLiteDatabase sqlite =
+                    DB.helper().getWritableDatabase();
+            sqlite.execSQL("DELETE FROM PatientAlerts WHERE _id=?",
+                    new Object[]{warnings.get(0).id()});
+            assertTrue(DB.alerts().findByMedicineAndLevel(
+                    medicine, PatientAlert.Level.HIGH).isEmpty());
             Patient recycled = new Patient();
             recycled.setId(owner.getId());
             recycled.setCode("ci-foreign-restored-owner-" + suffix);
