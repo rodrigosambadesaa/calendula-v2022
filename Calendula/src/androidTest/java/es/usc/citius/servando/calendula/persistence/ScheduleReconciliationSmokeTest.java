@@ -25,6 +25,7 @@ import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
+import es.usc.citius.servando.calendula.util.alerts.ScheduleAlarmRecovery;
 import es.usc.citius.servando.calendula.scheduling.model.recur.RecurringEvent;
 
 import static org.junit.Assert.assertEquals;
@@ -388,6 +389,94 @@ public class ScheduleReconciliationSmokeTest {
                 DB.medicines().remove(medicine);
             }
             if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().remove(owner);
+            }
+        }
+    }
+
+    /**
+     * An in-progress HIGH-alert reminder replay must not disappear when a
+     * stale schedule editor saves an otherwise valid recurrence. This would
+     * permanently lose the only crash-recovery token for its future doses.
+     */
+    @Test
+    public void staleScheduleEditCannotEraseDurablePendingRecovery()
+            throws Exception {
+        assertTrue(DB.initialized);
+        String suffix = Long.toString(System.nanoTime());
+        Patient owner = new Patient();
+        owner.setCode("ci-recovery-edit-owner-" + suffix);
+        owner.setName("Synthetic recovery edit owner");
+        Medicine medicine = new Medicine("Synthetic recovery edit medicine",
+                Presentation.PILLS);
+        Schedule proposed = new Schedule(medicine);
+        EventInstance pending = null;
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            medicine.setPatient(owner);
+            assertEquals(1, DB.medicines().create(medicine));
+            proposed.setPatient(owner);
+            assertEquals(1, DB.schedules().create(proposed));
+
+            DateTime from = DateTime.now().minusDays(4);
+            pending = event(proposed.getId(),
+                    from.plusDays(1).withMillisOfSecond(0), 1.0d);
+            pending.setPatient(owner);
+            assertEquals(1, DB.eventInstances().create(pending));
+
+            // The editor's Java instance was loaded before the HIGH warning
+            // was removed. Only the persisted SQLite row has the marker.
+            Schedule stored = new Schedule();
+            stored.setId(proposed.getId());
+            assertEquals(1, DB.schedules().refresh(stored));
+            stored.addState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY);
+            stored.setRecoveryOwnerDigest(
+                    ScheduleAlarmRecovery.ownerDigest(owner));
+            assertEquals(1, DB.schedules().update(stored));
+
+            try {
+                ScheduleUtils.instance().persistEditedScheduleRows(
+                        InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                        proposed, from, Collections.emptyList());
+                fail("Stale schedule edit silently discarded recovery obligation");
+            } catch (RuntimeException expected) {
+                // Before applying SQL changes, require pending alarm replay.
+            }
+            Schedule preserved = DB.schedules().findById(proposed.getId());
+            assertTrue(preserved.hasState(
+                    Schedule.ScheduleState.PENDING_REMINDER_RECOVERY));
+            assertEquals(ScheduleAlarmRecovery.ownerDigest(owner),
+                    preserved.getRecoveryOwnerDigest());
+            assertNotNull("Pending intake must survive rejected edit",
+                    DB.eventInstances().findById(pending.getId()));
+
+            // A recovery path can later clear its OWN token, after which the
+            // same legitimate schedule edit is allowed.
+            stored = new Schedule();
+            stored.setId(proposed.getId());
+            assertEquals(1, DB.schedules().refresh(stored));
+            stored.removeState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY);
+            stored.setRecoveryOwnerDigest(null);
+            assertEquals(1, DB.schedules().update(stored));
+            ScheduleUtils.instance().persistEditedScheduleRows(
+                    InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                    proposed, from, Collections.emptyList());
+            assertNull(DB.eventInstances().findById(pending.getId()));
+        } finally {
+            if (pending != null && pending.getId() != null
+                    && DB.eventInstances().findById(pending.getId()) != null) {
+                DB.eventInstances().remove(pending);
+            }
+            if (proposed.getId() != null
+                    && DB.schedules().findById(proposed.getId()) != null) {
+                DB.schedules().remove(proposed);
+            }
+            if (medicine.getId() != null
+                    && DB.medicines().findById(medicine.getId()) != null) {
+                DB.medicines().remove(medicine);
+            }
+            if (owner.getId() != null
+                    && DB.patients().findById(owner.getId()) != null) {
                 DB.patients().remove(owner);
             }
         }
