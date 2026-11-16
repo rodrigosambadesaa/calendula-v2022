@@ -25,6 +25,7 @@ import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
+import es.usc.citius.servando.calendula.util.alerts.ScheduleAlarmRecovery;
 import es.usc.citius.servando.calendula.scheduling.model.recur.RecurringEvent;
 
 import static org.junit.Assert.assertEquals;
@@ -152,10 +153,18 @@ public class ScheduleReconciliationSmokeTest {
             } catch (RuntimeException expected) {
                 // The SQL transaction must reject this occurrence.
             }
-            assertNotNull("The attempted SQL insert allocated an ID",
+            // A failed SQLite INSERT must also restore the transient draft:
+            // its stale generated ID must never be reused on retry.
+            assertNull("Rejected initial occurrence must reset schedule ID",
                     staleDoseSchedule.getId());
-            assertNull("Rejected initial occurrence must roll back the schedule",
-                    DB.schedules().findById(staleDoseSchedule.getId()));
+            assertNull("Rejected initial occurrence must not have an ID",
+                    foreignDose.getId());
+            assertNull("Rejected occurrence must restore its original reference",
+                    foreignDose.getRef());
+            assertEquals("Rejected occurrence must keep its original owner",
+                    successor, foreignDose.getPatient());
+            assertTrue("No partially inserted schedule may remain",
+                    DB.schedules().findByMedicine(medicine).isEmpty());
 
             // Control: original owner, original medicine and valid persisted
             // patient code can still create a real synthetic prescription.
@@ -217,16 +226,35 @@ public class ScheduleReconciliationSmokeTest {
                 rejected = true;
             }
             assertTrue("A failed dose insert must fail prescription creation", rejected);
-            assertNotNull("The attempted insert obtained an identifier", schedule.getId());
-            assertNull("New prescription must be rolled back completely",
-                    DB.schedules().findById(schedule.getId()));
-            assertFalse("The failed intake must not be persisted",
-                    DB.eventInstances().exists(EventType.MEDICATION_INTAKE,
-                            when, schedule.getId()));
+            assertNull("Failed schedule draft must not keep a phantom SQLite ID",
+                    schedule.getId());
+            assertNull("Failed dose draft must not keep a phantom SQLite ID",
+                    pending.getId());
+            assertNull("Rolled back dose must not point to an absent schedule",
+                    pending.getRef());
+            assertNull("Original unassigned synthetic event owner must survive rollback",
+                    pending.getPatient());
+            assertTrue("New prescription must be rolled back completely",
+                    DB.schedules().findByMedicine(medicine).isEmpty());
+            assertTrue("The failed intake must not be persisted",
+                    DB.eventInstances().findByTypeAndTime(
+                            EventType.MEDICATION_INTAKE, when).isEmpty());
             assertNotNull("The patient must not be deleted by rollback",
                     DB.patients().findById(owner.getId()));
             assertNotNull("The medicine must not be deleted by rollback",
                     DB.medicines().findById(medicine.getId()));
+
+            // Reuse the SAME Java draft, not a new object. No phantom
+            // generated ID may cause update() instead of a true INSERT.
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            ScheduleUtils.instance().persistNewScheduleRows(
+                    InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                    schedule, java.util.Collections.singletonList(pending));
+            assertNotNull("Retry must commit a new prescription", schedule.getId());
+            assertNotNull("Retry must commit its pending intake", pending.getId());
+            assertEquals(schedule.getId(), pending.getRef());
+            assertNotNull(DB.schedules().findById(schedule.getId()));
+            assertNotNull(DB.eventInstances().findById(pending.getId()));
         } finally {
             sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
             if (pending.getId() != null && DB.eventInstances().findById(pending.getId()) != null) {
@@ -239,6 +267,93 @@ public class ScheduleReconciliationSmokeTest {
                 DB.medicines().remove(medicine);
             }
             if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().remove(owner);
+            }
+        }
+    }
+
+    @Test
+    public void failedSecondNewDoseInsertRestoresEarlierGeneratedIdsForRetry()
+            throws Exception {
+        assertTrue(DB.initialized);
+        String key = Long.toString(System.nanoTime());
+        Patient owner = new Patient();
+        owner.setCode("ci-second-dose-rollback-owner-" + key);
+        owner.setName("Synthetic second-dose rollback owner");
+        Medicine medicine = new Medicine("Synthetic multi-dose medicine",
+                Presentation.PILLS);
+        Schedule schedule = new Schedule(medicine);
+        DateTime firstTime = DateTime.now().plusDays(5).withMillisOfSecond(0);
+        EventInstance first = event(null, firstTime, 1.0d);
+        EventInstance second = event(null, firstTime.plusMinutes(17), 2.0d);
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        final String trigger = "ci_second_new_schedule_intake_abort";
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            medicine.setPatient(owner);
+            assertEquals(1, DB.medicines().create(medicine));
+            schedule.setPatient(owner);
+            first.setPatient(owner);
+            second.setPatient(owner);
+            // The first occurrence will be successfully INSERTed on SQLite.
+            // The second aborts: every SQL write AND each Java generated ID
+            // must be reverted so the same two dose objects can be retried.
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE INSERT ON EventInstances"
+                    + " WHEN (SELECT COUNT(*) FROM EventInstances"
+                    + " WHERE Ref = NEW.Ref) > 0"
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic second dose failure'); END;");
+            boolean rejected = false;
+            try {
+                ScheduleUtils.instance().persistNewScheduleRows(
+                        InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                        schedule, Arrays.asList(first, second));
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("The second intake must abort the whole new prescription", rejected);
+            assertNull(schedule.getId());
+            assertNull(first.getId());
+            assertNull(second.getId());
+            assertNull(first.getRef());
+            assertNull(second.getRef());
+            assertEquals(owner, first.getPatient());
+            assertEquals(owner, second.getPatient());
+            assertTrue(DB.schedules().findByMedicine(medicine).isEmpty());
+            assertTrue(DB.eventInstances().findByTypeAndTime(
+                    EventType.MEDICATION_INTAKE, firstTime).isEmpty());
+            assertTrue(DB.eventInstances().findByTypeAndTime(
+                    EventType.MEDICATION_INTAKE, second.getTime()).isEmpty());
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            ScheduleUtils.instance().persistNewScheduleRows(
+                    InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                    schedule, Arrays.asList(first, second));
+            assertNotNull(schedule.getId());
+            assertNotNull(first.getId());
+            assertNotNull(second.getId());
+            assertEquals(schedule.getId(), first.getRef());
+            assertEquals(schedule.getId(), second.getRef());
+            assertEquals(2, DB.eventInstances().findBy(
+                    EventInstance.COLUMN_REF, schedule.getId()).size());
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            for (EventInstance e : new EventInstance[]{first, second}) {
+                if (e.getId() != null && DB.eventInstances().findById(e.getId()) != null) {
+                    DB.eventInstances().remove(e);
+                }
+            }
+            if (schedule.getId() != null
+                    && DB.schedules().findById(schedule.getId()) != null) {
+                DB.schedules().remove(schedule);
+            }
+            if (medicine.getId() != null
+                    && DB.medicines().findById(medicine.getId()) != null) {
+                DB.medicines().remove(medicine);
+            }
+            if (owner.getId() != null
+                    && DB.patients().findById(owner.getId()) != null) {
                 DB.patients().remove(owner);
             }
         }
@@ -388,6 +503,104 @@ public class ScheduleReconciliationSmokeTest {
                 DB.medicines().remove(medicine);
             }
             if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().remove(owner);
+            }
+        }
+    }
+
+    /**
+     * An in-progress HIGH-alert reminder replay must not disappear when a
+     * stale schedule editor saves an otherwise valid recurrence. This would
+     * permanently lose the only crash-recovery token for its future doses.
+     */
+    @Test
+    public void staleScheduleEditCannotEraseDurablePendingRecovery()
+            throws Exception {
+        assertTrue(DB.initialized);
+        String suffix = Long.toString(System.nanoTime());
+        Patient owner = new Patient();
+        owner.setCode("ci-recovery-edit-owner-" + suffix);
+        owner.setName("Synthetic recovery edit owner");
+        Medicine medicine = new Medicine("Synthetic recovery edit medicine",
+                Presentation.PILLS);
+        Schedule proposed = new Schedule(medicine);
+        EventInstance pending = null;
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            medicine.setPatient(owner);
+            assertEquals(1, DB.medicines().create(medicine));
+            proposed.setPatient(owner);
+            assertEquals(1, DB.schedules().create(proposed));
+
+            DateTime from = DateTime.now().minusDays(4);
+            pending = event(proposed.getId(),
+                    from.plusDays(1).withMillisOfSecond(0), 1.0d);
+            pending.setPatient(owner);
+            assertEquals(1, DB.eventInstances().create(pending));
+
+            // The editor's Java instance was loaded before the HIGH warning
+            // was removed. Only the persisted SQLite row has the marker.
+            Schedule stored = new Schedule();
+            stored.setId(proposed.getId());
+            assertEquals(1, DB.schedules().refresh(stored));
+            // Set the on-disk state directly in this disposable fixture.
+            // The production code still uses an owner-validated DAO
+            // transaction; this setup must not depend on ORMLite reporting
+            // a changed-row count for an artificial stale Java object.
+            android.database.sqlite.SQLiteDatabase sqlite =
+                    DB.helper().getWritableDatabase();
+            sqlite.execSQL("UPDATE NewSchedules SET State=?, RecoveryOwnerDigest=?"
+                            + " WHERE _id=?",
+                    new Object[]{"[\"PENDING_REMINDER_RECOVERY\"]",
+                            ScheduleAlarmRecovery.ownerDigest(owner), proposed.getId()});
+            assertTrue(DB.schedules().findById(proposed.getId())
+                    .hasState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY));
+
+            try {
+                ScheduleUtils.instance().persistEditedScheduleRows(
+                        InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                        proposed, from, Collections.emptyList());
+                fail("Stale schedule edit silently discarded recovery obligation");
+            } catch (RuntimeException expected) {
+                // Before applying SQL changes, require pending alarm replay.
+            }
+            Schedule preserved = DB.schedules().findById(proposed.getId());
+            assertTrue(preserved.hasState(
+                    Schedule.ScheduleState.PENDING_REMINDER_RECOVERY));
+            assertEquals(ScheduleAlarmRecovery.ownerDigest(owner),
+                    preserved.getRecoveryOwnerDigest());
+            assertNotNull("Pending intake must survive rejected edit",
+                    DB.eventInstances().findById(pending.getId()));
+
+            // A recovery path can later clear its OWN token, after which the
+            // same legitimate schedule edit is allowed.
+            stored = new Schedule();
+            stored.setId(proposed.getId());
+            assertEquals(1, DB.schedules().refresh(stored));
+            sqlite.execSQL("UPDATE NewSchedules SET State=?, RecoveryOwnerDigest=NULL"
+                            + " WHERE _id=?",
+                    new Object[]{"[]", proposed.getId()});
+            assertFalse(DB.schedules().findById(proposed.getId())
+                    .hasState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY));
+            ScheduleUtils.instance().persistEditedScheduleRows(
+                    InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                    proposed, from, Collections.emptyList());
+            assertNull(DB.eventInstances().findById(pending.getId()));
+        } finally {
+            if (pending != null && pending.getId() != null
+                    && DB.eventInstances().findById(pending.getId()) != null) {
+                DB.eventInstances().remove(pending);
+            }
+            if (proposed.getId() != null
+                    && DB.schedules().findById(proposed.getId()) != null) {
+                DB.schedules().remove(proposed);
+            }
+            if (medicine.getId() != null
+                    && DB.medicines().findById(medicine.getId()) != null) {
+                DB.medicines().remove(medicine);
+            }
+            if (owner.getId() != null
+                    && DB.patients().findById(owner.getId()) != null) {
                 DB.patients().remove(owner);
             }
         }

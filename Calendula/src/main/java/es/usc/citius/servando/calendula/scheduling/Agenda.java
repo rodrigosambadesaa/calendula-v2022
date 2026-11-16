@@ -48,6 +48,8 @@ import es.usc.citius.servando.calendula.activities.ConfirmIntakeGuard;
 import es.usc.citius.servando.calendula.healthcareprovider.persistence.ActiveMedEntity;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Patient;
+import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.PatientAlert;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.util.stock.StockUpdater;
@@ -59,6 +61,7 @@ import es.usc.citius.servando.calendula.scheduling.model.EventReminderReceiver;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.util.IntentParams;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 import es.usc.citius.servando.calendula.util.alerts.ScheduleAlarmRecovery;
 import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
@@ -170,12 +173,63 @@ public class Agenda {
     }
 
     public boolean createReminders(final Context context, final Collection<EventInstance> intakes) {
-        return createRemindersInternal(context, intakes, true);
+        return createRemindersInternal(context, intakes, true, false);
     }
 
     /** Only persist rows while the enclosing daily SQLite transaction is open. */
     boolean createRemindersForDailyUpdate(final Context context) {
-        return createRemindersInternal(context, reminderWindowCandidates(), false);
+        return createRemindersInternal(context, reminderWindowCandidates(), false, false);
+    }
+
+    /**
+     * Owner-verified crash recovery: every dose is reloaded and checked
+     * inside the very SQL transaction that creates its EventReminder.
+     * A patient switch, completed dose, fresh HIGH warning or prescription
+     * edit between the preliminary scan and COMMIT must fail closed.
+     */
+    private boolean createVerifiedMissingReminders(
+            Context context, Collection<EventInstance> events) {
+        return createRemindersInternal(context, events, true, true);
+    }
+
+    private boolean samePendingIntakeInSqlite(EventInstance selected) {
+        if (selected == null || selected.getId() == null
+                || selected.getId() <= 0L || selected.getRef() == null
+                || selected.getRef() <= 0L) {
+            return false;
+        }
+        EventInstance current = new EventInstance();
+        current.setId(selected.getId());
+        if (DB.eventInstances().refresh(current) != 1
+                || !isReminderEligible(current)
+                || current.getType() != EventType.MEDICATION_INTAKE
+                || !java.util.Objects.equals(selected.getTime(), current.getTime())
+                || !java.util.Objects.equals(selected.getRef(), current.getRef())
+                || !PatientOwnerGuard.sameStableIdentity(
+                        selected.getPatient(), current.getPatient())) {
+            return false;
+        }
+        Schedule schedule = new Schedule();
+        schedule.setId(current.getRef());
+        if (DB.schedules().refresh(schedule) != 1
+                || schedule.getMedicine() == null
+                || schedule.getMedicine().getId() == null) {
+            return false;
+        }
+        Medicine medicine = new Medicine();
+        medicine.setId(schedule.getMedicine().getId());
+        if (DB.medicines().refresh(medicine) != 1) {
+            return false;
+        }
+        Patient expected = current.getPatient();
+        Patient liveOwner = expected == null || expected.getId() == null
+                ? null : DB.patients().findById(expected.getId());
+        boolean high = !DB.alerts().findByMedicineAndLevel(
+                medicine, PatientAlert.Level.HIGH).isEmpty();
+        return current.getTime().isAfterNow()
+                && canBeScheduled(current.getTime())
+                && safeMissingReminderCandidate(
+                        current, schedule, medicine, liveOwner, high);
     }
 
     /**
@@ -188,7 +242,10 @@ public class Agenda {
         int windowMinutes = Math.max(0, ReminderTiming.windowMinutes());
         DateTime earliest = now.minusMinutes(windowMinutes).minusMillis(1);
         DateTime midnightTomorrow = now.plusDays(1).withTimeAtStartOfDay();
-        DateTime endExclusive = midnightTomorrow.plusMillis(1);
+        // DateTimePersister serializes whole seconds. A +1ms SQL bound
+        // rounds DOWN to midnight and accidentally excludes an intake
+        // scheduled for exactly 00:00 tomorrow.
+        DateTime endExclusive = midnightTomorrow.plusSeconds(1);
         return DB.eventInstances().findInWindow(earliest, endExclusive);
     }
 
@@ -206,7 +263,8 @@ public class Agenda {
 
     private boolean createRemindersInternal(final Context context,
                                             final Collection<EventInstance> intakes,
-                                            final boolean allowPlatformEffects) {
+                                            final boolean allowPlatformEffects,
+                                            final boolean verifyMissingInSqlite) {
         // Snapshot new SQL rows so we can schedule only these after commit.
         // Re-arming every existing reminder could fire an old past-due alarm.
         final List<EventReminder> newlyPersisted = new ArrayList<>();
@@ -225,6 +283,14 @@ public class Agenda {
                             // types without an active delivery receiver.
                             // Preserve their event rows for future migration.
                             continue;
+                        }
+                        if (verifyMissingInSqlite && !samePendingIntakeInSqlite(e)) {
+                            // The preliminary crash-recovery scan is NOT
+                            // authority to create an alarm. Another action
+                            // might have completed, cancelled, blocked or
+                            // reassigned the intake before SQLite COMMIT.
+                            throw new SQLException(
+                                    "Future dose changed before reminder recovery");
                         }
                         if (!DB.eventReminders().exists(e.getType(), e.getTime(), e.getPatient())) {
                             LogUtil.d(TAG, "A pending event needs a reminder");
@@ -304,15 +370,140 @@ public class Agenda {
         return createReminders(context, reminderWindowCandidates());
     }
 
-    public void updateAllAlarms(Context context) {
+    /**
+     * A schedule INSERT may commit its EventInstances before a process death
+     * prevents EventReminder INSERT. Re-arming persisted reminders alone
+     * cannot recover this gap: there is no reminder row to re-arm.
+     *
+     * This pure policy intentionally excludes ownerless legacy rows, HIGH
+     * warnings, blocked/unreviewed prescriptions, recycled patient identities
+     * and already-handled doses. The main SQL helper rechecks the persisted
+     * records before the notification creation transaction.
+     */
+    static boolean safeMissingReminderCandidate(
+            EventInstance event, Schedule schedule, Medicine medicine,
+            Patient liveOwner, boolean hasHighWarning) {
+        if (event == null || event.getId() == null || event.getId() <= 0L
+                || event.getType() != EventType.MEDICATION_INTAKE
+                || !isReminderEligible(event)
+                || event.getRef() == null || event.getRef() <= 0L
+                || schedule == null || schedule.getId() == null
+                || !event.getRef().equals(schedule.getId())
+                || schedule.getMedicine() == null
+                || schedule.getMedicine().getId() == null
+                || medicine == null || medicine.getId() == null
+                || !medicine.getId().equals(schedule.getMedicine().getId())
+                || hasHighWarning
+                || schedule.hasState(Schedule.ScheduleState.BLOCKED)
+                || schedule.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE)
+                || schedule.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE)
+                || schedule.hasState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY)
+                || schedule.getRecoveryOwnerDigest() != null) {
+            return false;
+        }
+        Patient expected = event.getPatient();
+        return PatientOwnerGuard.sameStableIdentity(expected, liveOwner)
+                && PatientOwnerGuard.sameStableIdentity(
+                        expected, schedule.getPatient())
+                && PatientOwnerGuard.sameStableIdentity(
+                        expected, schedule.getMedicine().getPatient())
+                && PatientOwnerGuard.sameStableIdentity(
+                        expected, medicine.getPatient());
+    }
+
+    /**
+     * Recover only missing reminders for future doses in the current day's
+     * bounded reminder window. This closes a crash gap independent of the
+     * HIGH-unblock marker. The later rearmPendingFutureReminders pass handles
+     * the other crash gap: an existing reminder with a missing OS alarm.
+     *
+     * No old/past-due intake is automatically delivered on process restart.
+     * Database and owner checks are repeated on each candidate; a malformed
+     * record is skipped rather than broadening another patient's scope.
+     */
+    int recoverMissingCommittedFutureIntakes(Context context) {
+        if (context == null || !DB.initialized) {
+            return 0;
+        }
+        DateTime now = DateTime.now();
+        DateTime throughMidnight = now.plusDays(1).withTimeAtStartOfDay();
+        List<EventInstance> missing = new ArrayList<>();
+        for (EventInstance event : DB.eventInstances().findInWindow(
+                now.plusMillis(1), throughMidnight.plusSeconds(1))) {
+            if (!isReminderEligible(event)
+                    || event.getType() != EventType.MEDICATION_INTAKE
+                    || event.getTime() == null
+                    || !event.getTime().isAfterNow()
+                    || !canBeScheduled(event.getTime())
+                    || event.getPatient() == null
+                    || !PatientOwnerGuard.hasStableIdentity(event.getPatient())
+                    || event.getRef() == null || event.getRef() <= 0L
+                    || DB.eventReminders().exists(
+                            event.getType(), event.getTime(), event.getPatient())) {
+                continue;
+            }
+            try {
+                // Fresh ORM instances are essential: a restored patient can
+                // inherit the numeric row IDs held by an older cached model.
+                Schedule schedule = new Schedule();
+                schedule.setId(event.getRef());
+                if (DB.schedules().refresh(schedule) != 1
+                        || schedule.getMedicine() == null
+                        || schedule.getMedicine().getId() == null) {
+                    continue;
+                }
+                Medicine medicine = new Medicine();
+                medicine.setId(schedule.getMedicine().getId());
+                if (DB.medicines().refresh(medicine) != 1) {
+                    continue;
+                }
+                Patient original = event.getPatient();
+                Patient liveOwner = DB.patients().findById(original.getId());
+                boolean high = !DB.alerts().findByMedicineAndLevel(
+                        medicine, PatientAlert.Level.HIGH).isEmpty();
+                if (safeMissingReminderCandidate(
+                        event, schedule, medicine, liveOwner, high)) {
+                    missing.add(event);
+                }
+            } catch (RuntimeException invalid) {
+                // One malformed/erased prescription cannot authorize a
+                // different patient's dose or suppress safe unrelated rows.
+                LogUtil.w(TAG, "Skipped an unverifiable future reminder");
+            }
+        }
+        if (!missing.isEmpty() && !createVerifiedMissingReminders(context, missing)) {
+            throw new IllegalStateException("Could not restore missing future reminders");
+        }
+        return missing.size();
+    }
+
+    public synchronized void updateAllAlarms(Context context) {
         // A high-allergy warning may have been removed just before process
         // death. The SQL COMMIT persists PENDING_REMINDER_RECOVERY while the
         // Android reminder registrations cannot participate in that commit.
         // Replay only owner-validated schedules; completed and cancelled
         // intakes must never be duplicated on a later startup or reboot.
         ScheduleAlarmRecovery.replayPending(context);
+        // A second crash interval exists before the EventReminder row
+        // itself is saved. Recover only validated pending future intakes.
+        int restored = 0;
+        RuntimeException missingReminderFailure = null;
+        try {
+            restored = recoverMissingCommittedFutureIntakes(context);
+        } catch (RuntimeException incomplete) {
+            // One failed reminder INSERT must not prevent previously committed
+            // and valid alarm tokens for other intakes from being rearmed.
+            LogUtil.e(TAG, "Missing future reminder recovery requires retry");
+            missingReminderFailure = incomplete;
+        }
         int rearmed = rearmPendingFutureReminders(context);
+        LogUtil.d(TAG, "Restored " + restored + " verified missing reminders");
         LogUtil.d(TAG, "Rearmed " + rearmed + " eligible future reminders");
+        if (missingReminderFailure != null) {
+            throw new IllegalStateException(
+                    "Incomplete missing-reminder recovery after alarm rearm",
+                    missingReminderFailure);
+        }
     }
 
     public void setAlarm(Context context, EventReminder reminder) {

@@ -1007,7 +1007,7 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
         final Long openedPatientId = openedBinding == null ? null : openedBinding.id;
 
         SCHEDULE_SAVE_EXECUTOR.execute(() -> {
-            final boolean saved = runSaveAction(() -> {
+            final SaveOutcome outcome = runSaveActionWithOutcome(() -> {
                 Patient active = DB.patients().getActive(ScheduleBuildActivity.this);
                 Patient owner = openedPatientId == null
                         ? null : DB.patients().findById(openedPatientId);
@@ -1082,7 +1082,16 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
                 if (dialog.isShowing()) {
                     dialog.dismiss();
                 }
-                if (saved) {
+                if (outcome == SaveOutcome.SAVED) {
+                    finish();
+                    DB.schedules().fireEvent();
+                } else if (outcome == SaveOutcome.COMMITTED_NEEDS_RECOVERY) {
+                    // SQLite already committed this prescription. Closing
+                    // the stale editor avoids a second create/UPDATE while
+                    // the user checks its reminders and stock warnings.
+                    Toast.makeText(this,
+                            R.string.schedule_build_saved_recovery_required,
+                            Toast.LENGTH_LONG).show();
                     finish();
                     DB.schedules().fireEvent();
                 } else if (!isFinishing() && !isDestroyed()) {
@@ -1102,14 +1111,28 @@ public class ScheduleBuildActivity extends CalendulaActivity implements StepperL
      * patient or prescription information from SQLite exception strings in
      * Logcat. The caller reports the failure on the main thread.
      */
-    static boolean runSaveAction(Runnable save) {
+    enum SaveOutcome {
+        SAVED,
+        COMMITTED_NEEDS_RECOVERY,
+        REJECTED
+    }
+
+    static SaveOutcome runSaveActionWithOutcome(Runnable save) {
         try {
             save.run();
-            return true;
+            return SaveOutcome.SAVED;
+        } catch (ScheduleUtils.PostCommitEffectsException needsRecovery) {
+            LogUtil.e(TAG, "Schedule committed; post-commit effects need recovery");
+            return SaveOutcome.COMMITTED_NEEDS_RECOVERY;
         } catch (RuntimeException failure) {
             LogUtil.e(TAG, "Could not complete schedule save");
-            return false;
+            return SaveOutcome.REJECTED;
         }
+    }
+
+    /** Legacy boolean helper retained for existing synthetic policy tests. */
+    static boolean runSaveAction(Runnable save) {
+        return runSaveActionWithOutcome(save) == SaveOutcome.SAVED;
     }
 
     @Override

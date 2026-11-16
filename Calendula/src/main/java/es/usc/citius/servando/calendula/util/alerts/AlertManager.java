@@ -239,11 +239,91 @@ public class AlertManager {
                 && java.util.Objects.equals(snapshot.getType(), current.getType());
     }
 
+    /**
+     * Legacy public entry point: removing the BLOCKED state must never bypass
+     * the stable patient identity check, other HIGH alerts, or the durable
+     * post-COMMIT reminder-recovery marker.
+     *
+     * Re-read the persisted schedule, medicine and patient INSIDE the same
+     * transaction that releases the schedule. The supplied Java object can
+     * be stale after a backup restore and must not be directly persisted.
+     */
     public static void unblockSchedule(final Schedule schedule) {
-        schedule.removeState(Schedule.ScheduleState.BLOCKED);
-        DB.schedules().save(schedule);
-        ScheduleUtils.instance().createEventInstances(CalendulaApp.getContext(), schedule);
-        CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT);
+        if (schedule == null || schedule.getId() == null || schedule.getId() <= 0L
+                || schedule.getMedicine() == null
+                || schedule.getMedicine().getId() == null
+                || !PatientOwnerGuard.hasStableIdentity(schedule.getPatient())) {
+            throw new IllegalArgumentException("Persisted schedule and stable owner required");
+        }
+        final Patient expected = new Patient();
+        expected.setId(schedule.getPatient().getId());
+        expected.setCode(schedule.getPatient().getCode());
+        final Long scheduleId = schedule.getId();
+        final Long medicineId = schedule.getMedicine().getId();
+        final Boolean needsRecovery = (Boolean) DB.transaction(() -> {
+            Schedule current = new Schedule();
+            current.setId(scheduleId);
+            Medicine medicine = new Medicine();
+            medicine.setId(medicineId);
+            if (DB.schedules().refresh(current) != 1
+                    || DB.medicines().refresh(medicine) != 1
+                    || current.getMedicine() == null
+                    || !medicineId.equals(current.getMedicine().getId())
+                    || !PatientOwnerGuard.sameStableIdentity(
+                            expected, DB.patients().findById(expected.getId()))
+                    || !PatientOwnerGuard.sameStableIdentity(
+                            expected, schedule.getMedicine().getPatient())
+                    || !sameStableScheduleMedicine(medicine, current)) {
+                throw new SQLException("Schedule ownership changed before unblocking");
+            }
+            // A remaining HIGH allergy warning takes precedence over a
+            // manual/legacy unblock request, even when the caller claims the
+            // warning was dismissed.
+            if (!DB.alerts().findByMedicineAndLevel(medicine, Level.HIGH).isEmpty()) {
+                throw new SQLException("HIGH warning still blocks this medicine");
+            }
+            if (!current.hasState(Schedule.ScheduleState.BLOCKED)) {
+                if (!current.hasState(
+                        Schedule.ScheduleState.PENDING_REMINDER_RECOVERY)) {
+                    return Boolean.FALSE; // Idempotent and already recovered.
+                }
+                if (!ScheduleAlarmRecovery.ownerDigest(expected).equals(
+                        current.getRecoveryOwnerDigest())) {
+                    throw new SQLException("Pending recovery belongs to another owner");
+                }
+                return Boolean.TRUE; // Retry a previous post-COMMIT failure.
+            }
+            current.removeState(Schedule.ScheduleState.BLOCKED);
+            current.addState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY);
+            current.setRecoveryOwnerDigest(
+                    ScheduleAlarmRecovery.ownerDigest(expected));
+            // Direct SQL DAO operation: save() triggers stock/UI callbacks
+            // which must not run until the outer SQLite transaction commits.
+            if (DB.schedules().update(current) != 1) {
+                throw new SQLException("Could not commit schedule release");
+            }
+            return Boolean.TRUE;
+        });
+        if (!needsRecovery) {
+            return;
+        }
+        RuntimeException failure = null;
+        try {
+            ScheduleAlarmRecovery.recoverOne(
+                    CalendulaApp.getContext(), scheduleId, expected);
+        } catch (RuntimeException incomplete) {
+            LogUtil.e(TAG, "Committed schedule release requires reminder recovery");
+            failure = incomplete;
+        }
+        try {
+            CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT);
+        } catch (RuntimeException observerError) {
+            if (failure == null) failure = observerError;
+        }
+        if (failure != null) {
+            throw new IllegalStateException(
+                    "Schedule release committed; reminder recovery incomplete", failure);
+        }
     }
 
     /**
