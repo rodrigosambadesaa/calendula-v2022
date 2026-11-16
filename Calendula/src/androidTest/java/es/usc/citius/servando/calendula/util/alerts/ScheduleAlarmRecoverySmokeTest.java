@@ -124,6 +124,27 @@ public class ScheduleAlarmRecoverySmokeTest {
                             schedule.getId()});
             assertEquals(ScheduleAlarmRecovery.ownerDigest(owner),
                     DB.schedules().findById(schedule.getId()).getRecoveryOwnerDigest());
+
+            // An outstanding official-treatment review must suppress future
+            // intakes, even when this patient's HIGH allergy alert is gone.
+            // The pending marker is kept so review can be followed by retry.
+            sqlite.execSQL("UPDATE NewSchedules SET State=? WHERE _id=?",
+                    new Object[]{"[\\\"PENDING_REMINDER_RECOVERY\\\","
+                            + "\\\"PENDING_REVIEW_AFTER_UPDATE\\\"]",
+                            schedule.getId()});
+            Agenda.instance().updateAllAlarms(context);
+            assertTrue("Unreviewed prescription remains in recovery state",
+                    DB.schedules().findById(schedule.getId())
+                            .hasState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY));
+            assertTrue("Unreviewed medication must not generate a dose",
+                    DB.eventInstances().findBy(
+                            EventInstance.COLUMN_REF, schedule.getId()).isEmpty());
+
+            // After a separately authorized review resolves the hold, boot
+            // replay may resume the verified patient's original schedule.
+            sqlite.execSQL("UPDATE NewSchedules SET State=? WHERE _id=?",
+                    new Object[]{"[\\\"PENDING_REMINDER_RECOVERY\\\"]",
+                            schedule.getId()});
             Agenda.instance().updateAllAlarms(context);
             committed = DB.schedules().findById(schedule.getId());
             assertFalse("Clear marker only after successful OS reconciliation",
