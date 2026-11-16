@@ -218,16 +218,35 @@ public class ScheduleReconciliationSmokeTest {
                 rejected = true;
             }
             assertTrue("A failed dose insert must fail prescription creation", rejected);
-            assertNotNull("The attempted insert obtained an identifier", schedule.getId());
-            assertNull("New prescription must be rolled back completely",
-                    DB.schedules().findById(schedule.getId()));
-            assertFalse("The failed intake must not be persisted",
-                    DB.eventInstances().exists(EventType.MEDICATION_INTAKE,
-                            when, schedule.getId()));
+            assertNull("Failed schedule draft must not keep a phantom SQLite ID",
+                    schedule.getId());
+            assertNull("Failed dose draft must not keep a phantom SQLite ID",
+                    pending.getId());
+            assertNull("Rolled back dose must not point to an absent schedule",
+                    pending.getRef());
+            assertNull("Original unassigned synthetic event owner must survive rollback",
+                    pending.getPatient());
+            assertTrue("New prescription must be rolled back completely",
+                    DB.schedules().findByMedicine(medicine).isEmpty());
+            assertTrue("The failed intake must not be persisted",
+                    DB.eventInstances().findByTypeAndTime(
+                            EventType.MEDICATION_INTAKE, when).isEmpty());
             assertNotNull("The patient must not be deleted by rollback",
                     DB.patients().findById(owner.getId()));
             assertNotNull("The medicine must not be deleted by rollback",
                     DB.medicines().findById(medicine.getId()));
+
+            // Reuse the SAME Java draft, not a new object. No phantom
+            // generated ID may cause update() instead of a true INSERT.
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            ScheduleUtils.instance().persistNewScheduleRows(
+                    InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                    schedule, java.util.Collections.singletonList(pending));
+            assertNotNull("Retry must commit a new prescription", schedule.getId());
+            assertNotNull("Retry must commit its pending intake", pending.getId());
+            assertEquals(schedule.getId(), pending.getRef());
+            assertNotNull(DB.schedules().findById(schedule.getId()));
+            assertNotNull(DB.eventInstances().findById(pending.getId()));
         } finally {
             sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
             if (pending.getId() != null && DB.eventInstances().findById(pending.getId()) != null) {
