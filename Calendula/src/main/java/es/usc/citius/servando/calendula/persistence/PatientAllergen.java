@@ -25,6 +25,7 @@ import java.util.Objects;
 
 import es.usc.citius.servando.calendula.allergies.AllergenType;
 import es.usc.citius.servando.calendula.allergies.AllergenVO;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 
 /**
  * Models an user
@@ -141,8 +142,11 @@ public class PatientAllergen {
     }
 
     /**
-     * Compare allergy identity by patient primary key, allergen type, and
-     * identifier VALUE rather than the String object's reference.
+     * Compare the clinical allergen using a stable persisted patient identity:
+     * a restored database can recycle a numeric row ID for another patient.
+     * Two unsaved allergens referencing the very same transient Patient Java
+     * object still compare as before, but separate legacy unowned records
+     * must not silently alias.
      */
     @Override
     public boolean equals(Object o) {
@@ -164,10 +168,8 @@ public class PatientAllergen {
     }
 
     private static boolean samePatientRecord(Patient a, Patient b) {
-        if (a == b) return true;
-        if (a == null || b == null) return false;
-        Long aId = a.getId();
-        return aId != null && aId.equals(b.getId());
+        if (a != null && a == b) return true;
+        return PatientOwnerGuard.sameStableIdentity(a, b);
     }
 
     @Override
