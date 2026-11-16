@@ -28,6 +28,11 @@ import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
  * the BLOCKED state. It is cleared only after occurrences and OS reminders
  * have been reconciled successfully.
  *
+ * Java-level replay is serialized across startup, boot and UI callbacks
+ * so two concurrent invocations cannot both regenerate the same pending
+ * schedule. This is process-local concurrency control, NOT a replacement for
+ * SQLite owner checks, OS idempotence or physical-device acceptance.
+ *
  * Never infer the owner from a numeric SQLite row ID: restored patient,
  * medicine and schedule IDs may all be reused. A failed/mismatched row
  * retains its marker and can only be repaired by an authorized operation.
@@ -137,7 +142,8 @@ public final class ScheduleAlarmRecovery {
      * Duplicate replay cannot duplicate completed/cancelled intake decisions:
      * Agenda.addEvents uses the stable schedule/time identity.
      */
-    public static void recoverOne(Context context, Long scheduleId, Patient expected) {
+    public static synchronized void recoverOne(
+            Context context, Long scheduleId, Patient expected) {
         if (context == null) {
             throw new IllegalArgumentException("Recovery requires application context");
         }
@@ -170,7 +176,7 @@ public final class ScheduleAlarmRecovery {
      * Each failed row stays marked, while other patients' verified rows can
      * still be reconciled. Never log medicine, owner or schedule identifiers.
      */
-    public static void replayPending(Context context) {
+    public static synchronized void replayPending(Context context) {
         if (context == null || !DB.initialized) {
             return;
         }
