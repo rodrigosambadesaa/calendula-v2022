@@ -1,0 +1,2 @@
+# Crash-safe HIGH allergy schedule release, synthetic SQLite fixtures only.
+es.usc.citius.servando.calendula.util.alerts.ScheduleAlarmRecoverySmokeTest
