@@ -194,13 +194,14 @@ public class ScheduleUtils {
             // The other multi-catch alternative is an unchecked exception.
             throw (RuntimeException) error;
         }
-        // The DB now has a complete prescription+occurrence set. Alert checks
-        // used to run inside ScheduleDao.save(), before event creation; move
-        // them after SQL COMMIT to avoid phantom side effects on rollback.
-        StockAlertHandler.checkStockAlerts(schedule.getMedicine());
+        // The DB now has a complete prescription+occurrence set. Restore
+        // actionable dose reminders FIRST: stock calculations are secondary
+        // and must not prevent their post-COMMIT OS registration if they fail.
+        // Neither action runs while the SQLite transaction is uncommitted.
         if (!Agenda.instance().createReminders(ctx, inserted)) {
             throw new IllegalStateException("New schedule reminders could not be persisted");
         }
+        StockAlertHandler.checkStockAlerts(schedule.getMedicine());
     }
 
     public void createEventInstances(Context ctx, Schedule s) {
@@ -335,10 +336,11 @@ public class ScheduleUtils {
             throw new IllegalStateException("Could not atomically edit schedule and occurrences", failure);
         }
         // Platform alarms and stock notifications are not SQLite resources.
-        // Dispatch only AFTER a complete commit, so rollback cannot emit
-        // reminders or stock alerts based on a phantom new prescription.
-        StockAlertHandler.checkStockAlerts(schedule.getMedicine());
+        // Dispatch only AFTER a complete commit. Dose reminders take
+        // precedence: an inventory/stock calculation failure must never
+        // suppress their recovery or hide the committed recurrence.
         notifyCommittedScheduleOccurrences(ctx, toAdd);
+        StockAlertHandler.checkStockAlerts(schedule.getMedicine());
     }
 
     private static void requirePendingReconciliationInputs(
