@@ -231,7 +231,7 @@ Para este desarrollo se hace uso de algunas librerías y utilidades de código a
 <string name="title_medicine_allergy_alert">"Alergias detectadas para este medicamento"</string>
 <string name="message_medicine_alert">"Este medicamento contiene elementos a los que eres alérgico. Por tu seguridad, no se podrán programar pautas para este medicamento."</string>
 <string name="medicine_save_error_message">"Se produjo un error al guardar tu medicamento."</string>
-<string name="medicine_saved_reminder_recovery_required">"El medicamento se ha guardado, pero algunos recordatorios podrían requerir recuperación. Revisa los horarios."</string>
+<string name="medicine_saved_reminder_recovery_required">"El medicamento se ha guardado, pero algunas alertas o recordatorios necesitan recuperación. Revisa los horarios y las advertencias."</string>
 <string name="title_allergies_detected_dialog">"Atención"</string>
 <string name="message_allergies_detected_dialog">"Algunas de las medicinas de tu botiquín contienen el alérgeno que acabas de añadir. Por favor, revisa sus prospectos cuidadosamente."</string>
 <string name="error_duplicate_medicine">"Este medicamento ya está en el botiquín."</string>
