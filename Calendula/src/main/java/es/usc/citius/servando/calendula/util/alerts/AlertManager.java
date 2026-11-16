@@ -155,6 +155,10 @@ public class AlertManager {
                             throw new SQLException("Blocked schedule identity changed");
                         }
                         stored.removeState(Schedule.ScheduleState.BLOCKED);
+                        // Persist the replay token atomically with unblocking.
+                        // Process death before OS alarms are created must not
+                        // lose the obligation to regenerate these intakes.
+                        stored.addState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY);
                         // This direct DAO update deliberately does not call
                         // ScheduleDao.save(), which can execute stock-alert
                         // observers before the outer SQLite COMMIT.
@@ -180,25 +184,9 @@ public class AlertManager {
         RuntimeException postCommitFailure = null;
         for (Schedule snapshot : result.unblocked) {
             try {
-                Schedule current = DB.schedules().findById(snapshot.getId());
-                if (current == null || DB.schedules().refresh(current) != 1
-                        || !PatientOwnerGuard.sameStableIdentity(
-                                result.deleted.getPatient(), current.getPatient())
-                        || current.getMedicine() == null
-                        || snapshot.getMedicine() == null
-                        || !snapshot.getMedicine().getId().equals(current.getMedicine().getId())
-                        || current.hasState(Schedule.ScheduleState.BLOCKED)) {
-                    continue;
-                }
-                Medicine currentMedicine = DB.medicines().findById(current.getMedicine().getId());
-                if (currentMedicine == null
-                        || !PatientOwnerGuard.sameStableIdentity(
-                                result.deleted.getPatient(), currentMedicine.getPatient())
-                        || !DB.alerts().findByMedicineAndLevel(
-                                currentMedicine, Level.HIGH).isEmpty()) {
-                    continue;
-                }
-                ScheduleUtils.instance().createEventInstances(CalendulaApp.getContext(), current);
+                ScheduleAlarmRecovery.recoverOne(
+                        CalendulaApp.getContext(), snapshot.getId(),
+                        result.deleted.getPatient());
             } catch (RuntimeException postCommitError) {
                 LogUtil.e(TAG, "Committed HIGH alert release needs agenda recovery");
                 if (postCommitFailure == null) {
@@ -207,14 +195,6 @@ public class AlertManager {
             }
         }
         if (!result.unblocked.isEmpty()) {
-            try {
-                Agenda.instance().cleanReminders(CalendulaApp.getContext());
-            } catch (RuntimeException postCommitError) {
-                LogUtil.e(TAG, "Committed HIGH alert alarm cleanup needs retry");
-                if (postCommitFailure == null) {
-                    postCommitFailure = postCommitError;
-                }
-            }
             CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT);
         }
         CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT);
