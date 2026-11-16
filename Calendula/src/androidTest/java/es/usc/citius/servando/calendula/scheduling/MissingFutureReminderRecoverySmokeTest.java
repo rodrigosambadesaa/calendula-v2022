@@ -58,6 +58,17 @@ public class MissingFutureReminderRecoverySmokeTest {
         DateTime future = DateTime.now().plusDays(1).withTimeAtStartOfDay();
         EventInstance intake = new EventInstance(future, EventType.MEDICATION_INTAKE);
         intake.addParam(EventInstance.PARAM_DOSE, 1.0d);
+        // A second, unrelated synthetic patient already has committed SQL
+        // reminder data but lost the OS token before a process crash.
+        Patient unaffectedOwner = new Patient();
+        unaffectedOwner.setCode("ci-already-persisted-owner-" + suffix);
+        unaffectedOwner.setName("Synthetic committed reminder owner");
+        EventInstance unaffectedDose = new EventInstance(
+                future, EventType.MEDICATION_INTAKE);
+        unaffectedDose.addParam(EventInstance.PARAM_DOSE, 1.0d);
+        EventReminder unaffectedReminder = new EventReminder(
+                future, EventType.MEDICATION_INTAKE);
+        unaffectedReminder.setNextTime(future);
         SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
         sqlite.execSQL("DROP TRIGGER IF EXISTS " + TRIGGER);
         try {
@@ -74,6 +85,14 @@ public class MissingFutureReminderRecoverySmokeTest {
             assertNull("Committed dose initially has no reminder",
                     DB.eventReminders().findBy(
                             EventType.MEDICATION_INTAKE, future, patient));
+            assertEquals(1, DB.patients().create(unaffectedOwner));
+            unaffectedDose.setPatient(unaffectedOwner);
+            assertEquals(1, DB.eventInstances().create(unaffectedDose));
+            unaffectedReminder.setPatient(unaffectedOwner);
+            assertEquals(1, DB.eventReminders().create(unaffectedReminder));
+            Agenda.instance().cancelAlarm(ctx, unaffectedReminder);
+            assertNull("Second patient's committed OS token is missing",
+                    token(ctx, unaffectedReminder));
 
             sqlite.execSQL("CREATE TRIGGER " + TRIGGER
                     + " BEFORE INSERT ON EventReminders WHEN NEW.Patient = "
@@ -89,6 +108,12 @@ public class MissingFutureReminderRecoverySmokeTest {
                     EventType.MEDICATION_INTAKE, future, patient));
             assertNotNull("Dose SQL COMMIT must survive reminder failure",
                     DB.eventInstances().findById(intake.getId()));
+            assertNotNull("Failed recovery must still rearm unrelated alarms",
+                    token(ctx, unaffectedReminder));
+            assertEquals(unaffectedReminder.getId(),
+                    DB.eventReminders().findBy(
+                            EventType.MEDICATION_INTAKE, future,
+                            unaffectedOwner).getId());
 
             sqlite.execSQL("DROP TRIGGER IF EXISTS " + TRIGGER);
             Agenda.instance().updateAllAlarms(ctx);
@@ -109,6 +134,22 @@ public class MissingFutureReminderRecoverySmokeTest {
             assertNotNull(DB.eventInstances().findById(intake.getId()));
         } finally {
             sqlite.execSQL("DROP TRIGGER IF EXISTS " + TRIGGER);
+            if (unaffectedReminder.getId() != null) {
+                Agenda.instance().cancelAlarm(ctx, unaffectedReminder);
+                if (DB.eventReminders().findById(
+                        unaffectedReminder.getId()) != null) {
+                    DB.eventReminders().remove(unaffectedReminder);
+                }
+            }
+            if (unaffectedDose.getId() != null
+                    && DB.eventInstances().findById(
+                            unaffectedDose.getId()) != null) {
+                DB.eventInstances().remove(unaffectedDose);
+            }
+            if (unaffectedOwner.getId() != null
+                    && DB.patients().findById(unaffectedOwner.getId()) != null) {
+                DB.patients().remove(unaffectedOwner);
+            }
             EventReminder reminder = DB.eventReminders().findBy(
                     EventType.MEDICATION_INTAKE, future, patient);
             if (reminder != null) {
