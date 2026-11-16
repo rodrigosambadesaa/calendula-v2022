@@ -280,7 +280,10 @@ public class AlertManager {
     }
 
     /** Caller must already be inside the HIGH-alert SQLite transaction. */
-    private static void blockSchedulesForMedicineInSql(final Medicine medicine)
+    // SQL-only: call exclusively while the owning DB.transaction is open.
+    // Medicine/allergy editing reuses this exact blocking policy so a
+    // caller cannot commit a warning but leave its schedules runnable.
+    static void blockSchedulesForMedicineInSql(final Medicine medicine)
             throws SQLException {
         final List<Schedule> schedules = DB.schedules().findByMedicine(medicine);
         final DateTime cutoff = DateTime.now();
