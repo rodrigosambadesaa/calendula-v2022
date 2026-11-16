@@ -97,6 +97,14 @@ public final class ScheduleAlarmRecovery {
                 && schedule.getRecoveryOwnerDigest() != null
                 && schedule.getRecoveryOwnerDigest().equals(ownerDigest(expected))
                 && !schedule.hasState(Schedule.ScheduleState.BLOCKED)
+                // A pending official-treatment review suppresses recurrence
+                // generation in Schedule.eventGenerationDisabled(). Clearing
+                // the durable replay marker here would wrongly report success
+                // while the patient still needs to review the prescription.
+                && !schedule.hasState(
+                        Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE)
+                && !schedule.hasState(
+                        Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE)
                 && schedule.getMedicine() != null
                 && liveMedicine != null
                 && schedule.getMedicine().getId() != null
