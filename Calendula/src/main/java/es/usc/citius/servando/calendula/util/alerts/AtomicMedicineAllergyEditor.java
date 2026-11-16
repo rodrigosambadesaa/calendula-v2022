@@ -90,8 +90,13 @@ public final class AtomicMedicineAllergyEditor {
             // Check both the selected profile and the persisted row inside
             // the very transaction that will commit the clinical mutations.
             requireCurrentOwner(safeContext, owner);
-            Medicine before = DB.medicines().findById(proposed.getId());
-            if (before == null || DB.medicines().refresh(before) != 1
+            // Refresh into a *separate* Java instance. ORMLite may return
+            // the editor's own cached object from findById(); refreshing it
+            // would otherwise overwrite the user's proposed changes before
+            // the SQLite UPDATE has even begun.
+            Medicine before = new Medicine();
+            before.setId(proposed.getId());
+            if (DB.medicines().refresh(before) != 1
                     || !PatientOwnerGuard.sameStableIdentity(
                             owner, before.getPatient())) {
                 throw new SQLException("Medicine owner changed before edit");
@@ -117,8 +122,9 @@ public final class AtomicMedicineAllergyEditor {
             if (DB.medicines().update(proposed) != 1) {
                 throw new SQLException("Medicine update did not change one row");
             }
-            Medicine persisted = DB.medicines().findById(proposed.getId());
-            if (persisted == null || DB.medicines().refresh(persisted) != 1
+            Medicine persisted = new Medicine();
+            persisted.setId(proposed.getId());
+            if (DB.medicines().refresh(persisted) != 1
                     || !PatientOwnerGuard.sameStableIdentity(
                             owner, persisted.getPatient())) {
                 throw new SQLException("Medicine owner changed during edit");
