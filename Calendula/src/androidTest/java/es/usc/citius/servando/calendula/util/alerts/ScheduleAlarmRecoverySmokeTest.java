@@ -149,7 +149,7 @@ public class ScheduleAlarmRecoverySmokeTest {
             assertTrue(DB.eventInstances().findById(completed.getId()).completed());
             sqlite.execSQL("UPDATE NewSchedules SET State=?, RecoveryOwnerDigest=?"
                             + " WHERE _id=?",
-                    new Object[]{"[\\"PENDING_REMINDER_RECOVERY\\"]",
+                    new Object[]{"[\"PENDING_REMINDER_RECOVERY\"]",
                             ScheduleAlarmRecovery.ownerDigest(owner), schedule.getId()});
             assertTrue(DB.schedules().findById(schedule.getId())
                     .hasState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY));
