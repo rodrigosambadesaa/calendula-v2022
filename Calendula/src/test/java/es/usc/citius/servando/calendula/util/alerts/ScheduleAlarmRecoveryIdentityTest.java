@@ -70,6 +70,19 @@ public class ScheduleAlarmRecoveryIdentityTest {
         assertFalse(ScheduleAlarmRecovery.eligible(
                 schedule, owner, owner, medicine, true));
 
+        // The allergy warning may be gone, but a separate official
+        // prescription review is still required before restoring doses.
+        schedule.addState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE);
+        assertFalse(ScheduleAlarmRecovery.eligible(
+                schedule, owner, owner, medicine, false));
+        schedule.removeState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE);
+        schedule.addState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE);
+        assertFalse(ScheduleAlarmRecovery.eligible(
+                schedule, owner, owner, medicine, false));
+        schedule.removeState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_DELETE);
+        assertTrue(ScheduleAlarmRecovery.eligible(
+                schedule, owner, owner, medicine, false));
+
         schedule.setRecoveryOwnerDigest(null);
         assertFalse(ScheduleAlarmRecovery.eligible(
                 schedule, owner, owner, medicine, false));
