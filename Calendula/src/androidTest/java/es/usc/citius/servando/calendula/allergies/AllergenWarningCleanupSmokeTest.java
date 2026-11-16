@@ -457,6 +457,111 @@ public class AllergenWarningCleanupSmokeTest {
         }
     }
 
+    /**
+     * An initial HIGH warning is persisted with its medicine, never in a
+     * nested transaction whose Android effects might survive a rollback.
+     * ORMLite's generated Java row ID must also reset on a failed INSERT.
+     */
+    @Test
+    public void newMedicineAndInitialHighWarningInsertRollbackAndRetry()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        Patient previous = DB.patients().getActive(context);
+        String suffix = Long.toString(System.nanoTime());
+        Patient owner = new Patient();
+        owner.setCode("ci-atomic-create-owner-" + suffix);
+        owner.setName("Synthetic new-medicine owner");
+        Medicine proposed = new Medicine("Synthetic unsaved medicine", Presentation.PILLS);
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        String trigger = "ci_new_medicine_allergy_abort";
+        AllergenVO allergen = new AllergenVO(AllergenType.EXCIPIENT,
+                "Synthetic verified allergy", "CI-NEW-MED-" + suffix);
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            DB.patients().setActive(owner);
+            proposed.setPatient(owner);
+
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE INSERT ON Medicines WHEN NEW.Patient = " + owner.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'ci reject new medicine'); END;");
+            assertAtomicCreateRejected(context, proposed, allergen);
+            assertNull("Failed medicine creation must restore the Java row ID",
+                    proposed.getId());
+            assertTrue(DB.medicines().findAll(owner).isEmpty());
+            assertTrue(DB.alerts().findBy(
+                    PatientAlert.COLUMN_PATIENT, owner.getId()).isEmpty());
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE INSERT ON PatientAlerts WHEN NEW.Patient = " + owner.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'ci reject initial HIGH warning'); END;");
+            assertAtomicCreateRejected(context, proposed, allergen);
+            assertNull("Failed warning insertion must restore the generated medicine ID",
+                    proposed.getId());
+            assertTrue("Medicine INSERT must roll back after warning failure",
+                    DB.medicines().findAll(owner).isEmpty());
+            assertTrue(DB.alerts().findBy(
+                    PatientAlert.COLUMN_PATIENT, owner.getId()).isEmpty());
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            AtomicMedicineAllergyEditor.create(context, proposed,
+                    Collections.singletonList(allergen));
+            assertNotNull("Successful retry must assign a persisted medicine ID",
+                    proposed.getId());
+            assertEquals("Synthetic unsaved medicine", persistedName(proposed));
+            assertEquals(1, DB.alerts().findByMedicineAndType(proposed,
+                    AllergyPatientAlert.class.getCanonicalName()).size());
+
+            Patient recycled = new Patient();
+            recycled.setId(owner.getId());
+            recycled.setCode("ci-foreign-restored-owner-" + suffix);
+            Medicine untrusted = new Medicine("Synthetic foreign medicine",
+                    Presentation.PILLS);
+            untrusted.setPatient(recycled);
+            assertAtomicCreateRejected(context, untrusted, allergen);
+            assertNull(untrusted.getId());
+            assertEquals("Forged owner must not insert a second medicine",
+                    1, DB.medicines().findAll(owner).size());
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            if (previous != null && previous.getId() != null
+                    && DB.patients().findById(previous.getId()) != null) {
+                DB.patients().setActive(previous);
+            } else {
+                PreferenceUtils.edit()
+                        .remove(PreferenceKeys.PATIENTS_ACTIVE.key())
+                        .remove(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key())
+                        .remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key())
+                        .commit();
+            }
+            if (proposed.getId() != null
+                    && DB.medicines().findById(proposed.getId()) != null) {
+                for (PatientAlert alert : DB.alerts().findByMedicineAndType(
+                        proposed, AllergyPatientAlert.class.getCanonicalName())) {
+                    DB.alerts().deleteById(alert.id());
+                }
+                DB.medicines().deleteById(proposed.getId());
+            }
+            if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().deleteById(owner.getId());
+            }
+        }
+    }
+
+    private static void assertAtomicCreateRejected(Context context, Medicine proposed,
+                                                    AllergenVO allergen) {
+        boolean rejected = false;
+        try {
+            AtomicMedicineAllergyEditor.create(context, proposed,
+                    Collections.singletonList(allergen));
+        } catch (RuntimeException expected) {
+            rejected = true;
+        }
+        assertTrue("A rejected medicine/alert INSERT must not report success", rejected);
+    }
+
     private static String persistedName(Medicine medicine) {
         Medicine current = DB.medicines().findById(medicine.getId());
         assertNotNull(current);
