@@ -1,0 +1,3 @@
+# A committed HIGH-allergy warning retires stale SQL reminders and OS PendingIntents.
+# Synthetic patients/medicines only; no real clinical records.
+es.usc.citius.servando.calendula.scheduling.AtomicAllergyReminderCleanupSmokeTest
