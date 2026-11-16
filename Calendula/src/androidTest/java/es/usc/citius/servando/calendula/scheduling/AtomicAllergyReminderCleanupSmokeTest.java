@@ -55,14 +55,26 @@ public class AtomicAllergyReminderCleanupSmokeTest {
         owner.setCode("ci-allergy-os-owner-" + seed);
         owner.setName("Synthetic reminder cleanup owner");
         Medicine medicine = new Medicine("Synthetic scheduled medicine", Presentation.PILLS);
+        // A second patient has the exact same dose time but must retain an
+        // independent reminder and immutable platform alarm.
+        Patient other = new Patient();
+        other.setCode("ci-allergy-other-owner-" + seed);
+        other.setName("Synthetic unrelated reminder owner");
+        Medicine otherMedicine = new Medicine("Synthetic unrelated medicine", Presentation.PILLS);
         Schedule schedule = null;
+        Schedule otherSchedule = null;
         EventInstance intake = null;
+        EventInstance otherIntake = null;
         EventReminder reminder = null;
+        EventReminder otherReminder = null;
         try {
             assertEquals(1, DB.patients().create(owner));
+            assertEquals(1, DB.patients().create(other));
             DB.patients().setActive(owner);
             medicine.setPatient(owner);
             assertEquals(1, DB.medicines().create(medicine));
+            otherMedicine.setPatient(other);
+            assertEquals(1, DB.medicines().create(otherMedicine));
 
             RecurringEvent recurrence = new RecurringEvent.Builder()
                     .from(DateTime.now().minusDays(1))
@@ -72,6 +84,11 @@ public class AtomicAllergyReminderCleanupSmokeTest {
             schedule.setMedicine(medicine);
             schedule.setDosage(1.0d);
             assertEquals(1, DB.schedules().create(schedule));
+            otherSchedule = new Schedule(recurrence);
+            otherSchedule.setPatient(other);
+            otherSchedule.setMedicine(otherMedicine);
+            otherSchedule.setDosage(1.0d);
+            assertEquals(1, DB.schedules().create(otherSchedule));
 
             DateTime due = DateTime.now().plusHours(3);
             intake = new EventInstance(due, EventType.MEDICATION_INTAKE);
@@ -79,6 +96,11 @@ public class AtomicAllergyReminderCleanupSmokeTest {
             intake.setRef(schedule.getId());
             intake.addParam(EventInstance.PARAM_DOSE, 1.0d);
             assertEquals(1, DB.eventInstances().create(intake));
+            otherIntake = new EventInstance(due, EventType.MEDICATION_INTAKE);
+            otherIntake.setPatient(other);
+            otherIntake.setRef(otherSchedule.getId());
+            otherIntake.addParam(EventInstance.PARAM_DOSE, 1.0d);
+            assertEquals(1, DB.eventInstances().create(otherIntake));
 
             reminder = new EventReminder(due, EventType.MEDICATION_INTAKE);
             reminder.setPatient(owner);
@@ -87,6 +109,13 @@ public class AtomicAllergyReminderCleanupSmokeTest {
             Agenda.instance().setAlarm(context, reminder);
             PendingIntent oldToken = findToken(context, reminder);
             assertNotNull("Fixture must schedule an actual OS PendingIntent", oldToken);
+            otherReminder = new EventReminder(due, EventType.MEDICATION_INTAKE);
+            otherReminder.setPatient(other);
+            otherReminder.setNextTime(due.minusMinutes(10));
+            assertEquals(1, DB.eventReminders().create(otherReminder));
+            Agenda.instance().setAlarm(context, otherReminder);
+            assertNotNull("Unrelated owner must have an independent Android token",
+                    findToken(context, otherReminder));
 
             // Force SQL to fail *after* the medicine and HIGH warning were
             // written and the schedule-blocking transaction began deleting
@@ -122,6 +151,12 @@ public class AtomicAllergyReminderCleanupSmokeTest {
                         DB.eventReminders().findById(reminder.getId()));
                 assertNotNull("Platform alarm must not be cancelled before COMMIT",
                         findToken(context, reminder));
+                assertNotNull("Other patient's dose must survive failed edit",
+                        DB.eventInstances().findById(otherIntake.getId()));
+                assertNotNull("Other patient's reminder must survive failed edit",
+                        DB.eventReminders().findById(otherReminder.getId()));
+                assertNotNull("Other patient's alarm must survive failed edit",
+                        findToken(context, otherReminder));
             } finally {
                 sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
             }
@@ -145,7 +180,22 @@ public class AtomicAllergyReminderCleanupSmokeTest {
                     DB.eventReminders().findById(reminder.getId()));
             assertNull("Stale Android token must be cancelled after COMMIT",
                     findToken(context, reminder));
+            assertFalse("Other patient's schedule must not be blocked",
+                    DB.schedules().findById(otherSchedule.getId())
+                            .hasState(Schedule.ScheduleState.BLOCKED));
+            assertNotNull("Other patient's future dose must remain",
+                    DB.eventInstances().findById(otherIntake.getId()));
+            assertNotNull("Other patient's persisted reminder must remain",
+                    DB.eventReminders().findById(otherReminder.getId()));
+            assertNotNull("Other patient's Android alarm must not be cancelled",
+                    findToken(context, otherReminder));
         } finally {
+            if (otherReminder != null && otherReminder.getId() != null) {
+                Agenda.instance().cancelAlarm(context, otherReminder);
+                if (DB.eventReminders().findById(otherReminder.getId()) != null) {
+                    DB.eventReminders().deleteById(otherReminder.getId());
+                }
+            }
             if (reminder != null && reminder.getId() != null) {
                 Agenda.instance().cancelAlarm(context, reminder);
                 if (DB.eventReminders().findById(reminder.getId()) != null) {
@@ -162,6 +212,15 @@ public class AtomicAllergyReminderCleanupSmokeTest {
                     && DB.eventInstances().findById(intake.getId()) != null) {
                 DB.eventInstances().deleteById(intake.getId());
             }
+            if (otherIntake != null && otherIntake.getId() != null
+                    && DB.eventInstances().findById(otherIntake.getId()) != null) {
+                DB.eventInstances().deleteById(otherIntake.getId());
+            }
+            if (otherSchedule != null && otherSchedule.getId() != null
+                    && DB.schedules().findById(otherSchedule.getId()) != null) {
+                DB.eventInstances().removeByRef(otherSchedule.getId());
+                DB.schedules().deleteById(otherSchedule.getId());
+            }
             if (schedule != null && schedule.getId() != null
                     && DB.schedules().findById(schedule.getId()) != null) {
                 DB.eventInstances().removeByRef(schedule.getId());
@@ -170,6 +229,10 @@ public class AtomicAllergyReminderCleanupSmokeTest {
             if (medicine.getId() != null
                     && DB.medicines().findById(medicine.getId()) != null) {
                 DB.medicines().deleteById(medicine.getId());
+            }
+            if (otherMedicine.getId() != null
+                    && DB.medicines().findById(otherMedicine.getId()) != null) {
+                DB.medicines().deleteById(otherMedicine.getId());
             }
             if (previous != null && previous.getId() != null
                     && DB.patients().findById(previous.getId()) != null) {
@@ -183,6 +246,9 @@ public class AtomicAllergyReminderCleanupSmokeTest {
             }
             if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
                 DB.patients().deleteById(owner.getId());
+            }
+            if (other.getId() != null && DB.patients().findById(other.getId()) != null) {
+                DB.patients().deleteById(other.getId());
             }
         }
     }
