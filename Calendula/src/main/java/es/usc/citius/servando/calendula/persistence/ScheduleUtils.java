@@ -191,7 +191,8 @@ public class ScheduleUtils {
                 throw new IllegalStateException(
                         "Could not atomically create schedule and occurrences", error);
             }
-            throw error;
+            // The other multi-catch alternative is an unchecked exception.
+            throw (RuntimeException) error;
         }
         // The DB now has a complete prescription+occurrence set. Alert checks
         // used to run inside ScheduleDao.save(), before event creation; move
