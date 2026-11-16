@@ -205,6 +205,88 @@ public class ScheduleReconciliationSmokeTest {
     }
 
     @Test
+    public void recycledPatientOrMedicineIdCannotEditAnotherOwnersSchedule()
+            throws Exception {
+        assertTrue(DB.initialized);
+        String suffix = Long.toString(System.nanoTime());
+        Patient owner = new Patient();
+        owner.setCode("ci-schedule-stable-owner-" + suffix);
+        owner.setName("Synthetic schedule owner");
+        Medicine medicine = new Medicine("Synthetic guarded schedule medicine",
+                Presentation.PILLS);
+        Schedule schedule = new Schedule(medicine);
+        DateTime before = DateTime.now().minusDays(4);
+        DateTime oldDoseTime = before.plusDays(1).withMillisOfSecond(0);
+        EventInstance previous = event(null, oldDoseTime, 1.0d);
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            medicine.setPatient(owner);
+            assertEquals(1, DB.medicines().create(medicine));
+            schedule.setPatient(owner);
+            assertEquals(1, DB.schedules().create(schedule));
+            previous.setRef(schedule.getId());
+            previous.setPatient(owner);
+            assertEquals(1, DB.eventInstances().create(previous));
+
+            Patient recycled = new Patient();
+            recycled.setId(owner.getId());
+            recycled.setCode("ci-restored-different-owner-" + suffix);
+            schedule.setPatient(recycled);
+            try {
+                ScheduleUtils.instance().persistEditedScheduleRows(
+                        InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                        schedule, before, Collections.emptyList());
+                fail("A same-ID different-code owner must not edit a prescription");
+            } catch (RuntimeException expected) {
+                // The false owner is rejected BEFORE the SQL UPDATE.
+            }
+            assertNotNull("The prior patient's dose must survive rejected edit",
+                    DB.eventInstances().findById(previous.getId()));
+            assertEquals("Persisted owner must be unchanged", owner.getCode(),
+                    DB.schedules().findById(schedule.getId()).getPatient().getCode());
+
+            schedule.setPatient(owner);
+            Medicine forgedMedicine = new Medicine("Synthetic old medicine object",
+                    Presentation.PILLS);
+            forgedMedicine.setId(medicine.getId());
+            forgedMedicine.setPatient(recycled);
+            schedule.setMedicine(forgedMedicine);
+            try {
+                ScheduleUtils.instance().persistEditedScheduleRows(
+                        InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                        schedule, before, Collections.emptyList());
+                fail("A stale same-ID medicine owner must not authorize editing");
+            } catch (RuntimeException expected) {
+                // The persisted medication can have the same numeric row ID.
+            }
+            assertNotNull("The other owner's dose must not be touched",
+                    DB.eventInstances().findById(previous.getId()));
+
+            // Control case: the original stable owner is valid. No obsolete
+            // dose may survive the successful recurrence reconciliation.
+            schedule.setMedicine(medicine);
+            ScheduleUtils.instance().persistEditedScheduleRows(
+                    InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                    schedule, before, Collections.emptyList());
+            assertNull(DB.eventInstances().findById(previous.getId()));
+        } finally {
+            if (previous.getId() != null
+                    && DB.eventInstances().findById(previous.getId()) != null) {
+                DB.eventInstances().remove(previous);
+            }
+            if (schedule.getId() != null && DB.schedules().findById(schedule.getId()) != null) {
+                DB.schedules().remove(schedule);
+            }
+            if (medicine.getId() != null && DB.medicines().findById(medicine.getId()) != null) {
+                DB.medicines().remove(medicine);
+            }
+            if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().remove(owner);
+            }
+        }
+    }
+
+    @Test
     public void failedObsoleteDeleteRollsBackEarlierDoseUpdateAndNewOccurrences() {
         assertTrue(DB.initialized);
         Schedule schedule = new Schedule();

@@ -50,6 +50,7 @@ import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime;
 import es.usc.citius.servando.calendula.util.stock.StockUpdater;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 import es.usc.citius.servando.calendula.util.alerts.StockAlertHandler;
 
 /**
@@ -222,9 +223,7 @@ public class ScheduleUtils {
                                    Collection<EventInstance> desired) {
         requirePendingReconciliationInputs(schedule, from, desired);
         if (ctx == null || schedule.getId() <= 0L
-                || schedule.getPatient() == null
-                || schedule.getPatient().getId() == null
-                || schedule.getPatient().getId() <= 0L
+                || !PatientOwnerGuard.hasStableIdentity(schedule.getPatient())
                 || schedule.getMedicine() == null
                 || schedule.getMedicine().getId() == null
                 || schedule.getMedicine().getId() <= 0L) {
@@ -239,15 +238,28 @@ public class ScheduleUtils {
                         // itself would overwrite its new recurrence/dosages.
                         Schedule stored = new Schedule();
                         stored.setId(schedule.getId());
-                        Medicine medicine = DB.medicines().findById(schedule.getMedicine().getId());
+                        Medicine medicine = new Medicine();
+                        medicine.setId(schedule.getMedicine().getId());
+                        Patient expected = schedule.getPatient();
+                        Patient persistedOwner = DB.patients().findById(expected.getId());
+                        // A database restore may reuse an existing numeric
+                        // schedule, medicine or patient row ID. All links
+                        // must belong to the original stable patient code.
                         if (DB.schedules().refresh(stored) != 1
-                                || stored.getPatient() == null
-                                || !schedule.getPatient().getId().equals(stored.getPatient().getId())
-                                || medicine == null || DB.medicines().refresh(medicine) != 1
-                                || (medicine.getPatient() != null
-                                    && (medicine.getPatient().getId() == null
-                                        || !schedule.getPatient().getId().equals(
-                                                medicine.getPatient().getId())))) {
+                                || DB.medicines().refresh(medicine) != 1
+                                || stored.getMedicine() == null
+                                || stored.getMedicine().getId() == null
+                                || !medicine.getId().equals(stored.getMedicine().getId())
+                                || !PatientOwnerGuard.sameStableIdentity(
+                                        expected, persistedOwner)
+                                || !PatientOwnerGuard.sameStableIdentity(
+                                        expected, stored.getPatient())
+                                || !PatientOwnerGuard.sameStableIdentity(
+                                        expected, medicine.getPatient())
+                                || !PatientOwnerGuard.sameStableIdentity(
+                                        expected, stored.getMedicine().getPatient())
+                                || !PatientOwnerGuard.sameStableIdentity(
+                                        expected, schedule.getMedicine().getPatient())) {
                             throw new SQLException("Edited prescription ownership changed");
                         }
                         schedule.setMedicine(medicine);
@@ -286,11 +298,9 @@ public class ScheduleUtils {
                     || event.getType() != EventType.MEDICATION_INTAKE
                     || event.getTime() == null
                     || !schedule.getId().equals(event.getRef())
-                    || (schedule.getPatient() != null
-                        && (event.getPatient() == null
-                            || event.getPatient().getId() == null
-                            || !schedule.getPatient().getId().equals(
-                                    event.getPatient().getId())))) {
+                    || (schedule.getId() > 0L
+                        && !PatientOwnerGuard.sameStableIdentity(
+                                schedule.getPatient(), event.getPatient()))) {
                 throw new SQLException("Generated occurrence has invalid schedule or patient identity");
             }
             if (!DB.eventInstances().exists(
