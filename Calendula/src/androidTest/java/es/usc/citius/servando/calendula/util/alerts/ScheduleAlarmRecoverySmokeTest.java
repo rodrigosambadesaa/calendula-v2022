@@ -129,8 +129,8 @@ public class ScheduleAlarmRecoverySmokeTest {
             // intakes, even when this patient's HIGH allergy alert is gone.
             // The pending marker is kept so review can be followed by retry.
             sqlite.execSQL("UPDATE NewSchedules SET State=? WHERE _id=?",
-                    new Object[]{"[\\\"PENDING_REMINDER_RECOVERY\\\","
-                            + "\\\"PENDING_REVIEW_AFTER_UPDATE\\\"]",
+                    new Object[]{"[\"PENDING_REMINDER_RECOVERY\","
+                            + "\"PENDING_REVIEW_AFTER_UPDATE\"]",
                             schedule.getId()});
             Agenda.instance().updateAllAlarms(context);
             assertTrue("Unreviewed prescription remains in recovery state",
@@ -143,7 +143,7 @@ public class ScheduleAlarmRecoverySmokeTest {
             // After a separately authorized review resolves the hold, boot
             // replay may resume the verified patient's original schedule.
             sqlite.execSQL("UPDATE NewSchedules SET State=? WHERE _id=?",
-                    new Object[]{"[\\\"PENDING_REMINDER_RECOVERY\\\"]",
+                    new Object[]{"[\"PENDING_REMINDER_RECOVERY\"]",
                             schedule.getId()});
             Agenda.instance().updateAllAlarms(context);
             committed = DB.schedules().findById(schedule.getId());
