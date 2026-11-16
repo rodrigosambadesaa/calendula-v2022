@@ -5,6 +5,8 @@ on:
   pull_request:
     branches:
       - main
+      # Also validate stacked clinical-security PRs before integration.
+      - 'integration/**'
     paths:
       - '.github/workflows/android-17-compatibility.yml'
       - '.github/workflows/verified-owner-automerge.yml'
