@@ -67,6 +67,7 @@ public class AtomicAllergyReminderCleanupSmokeTest {
         EventInstance otherIntake = null;
         EventReminder reminder = null;
         EventReminder otherReminder = null;
+        EventReminder otherOrphanReminder = null;
         try {
             assertEquals(1, DB.patients().create(owner));
             assertEquals(1, DB.patients().create(other));
@@ -116,6 +117,17 @@ public class AtomicAllergyReminderCleanupSmokeTest {
             Agenda.instance().setAlarm(context, otherReminder);
             assertNotNull("Unrelated owner must have an independent Android token",
                     findToken(context, otherReminder));
+            // An unrelated stale reminder is intentionally not backed by any
+            // pending dose. Only a separate whole-agenda maintenance pass
+            // may clean this token: editing patient A must not sweep patient B.
+            otherOrphanReminder = new EventReminder(
+                    due.plusMinutes(30), EventType.MEDICATION_INTAKE);
+            otherOrphanReminder.setPatient(other);
+            otherOrphanReminder.setNextTime(due.plusMinutes(20));
+            assertEquals(1, DB.eventReminders().create(otherOrphanReminder));
+            Agenda.instance().setAlarm(context, otherOrphanReminder);
+            assertNotNull("Fixture needs an unrelated stale Android alarm",
+                    findToken(context, otherOrphanReminder));
 
             // Force SQL to fail *after* the medicine and HIGH warning were
             // written and the schedule-blocking transaction began deleting
@@ -157,6 +169,10 @@ public class AtomicAllergyReminderCleanupSmokeTest {
                         DB.eventReminders().findById(otherReminder.getId()));
                 assertNotNull("Other patient's alarm must survive failed edit",
                         findToken(context, otherReminder));
+                assertNotNull("Failed edit must not sweep unrelated stale reminder",
+                        DB.eventReminders().findById(otherOrphanReminder.getId()));
+                assertNotNull("Failed edit must not cancel unrelated stale alarm",
+                        findToken(context, otherOrphanReminder));
             } finally {
                 sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
             }
@@ -189,7 +205,17 @@ public class AtomicAllergyReminderCleanupSmokeTest {
                     DB.eventReminders().findById(otherReminder.getId()));
             assertNotNull("Other patient's Android alarm must not be cancelled",
                     findToken(context, otherReminder));
+            assertNotNull("An allergy edit must not clean another patient's stale row",
+                    DB.eventReminders().findById(otherOrphanReminder.getId()));
+            assertNotNull("An allergy edit must not cancel an unrelated stale token",
+                    findToken(context, otherOrphanReminder));
         } finally {
+            if (otherOrphanReminder != null && otherOrphanReminder.getId() != null) {
+                Agenda.instance().cancelAlarm(context, otherOrphanReminder);
+                if (DB.eventReminders().findById(otherOrphanReminder.getId()) != null) {
+                    DB.eventReminders().deleteById(otherOrphanReminder.getId());
+                }
+            }
             if (otherReminder != null && otherReminder.getId() != null) {
                 Agenda.instance().cancelAlarm(context, otherReminder);
                 if (DB.eventReminders().findById(otherReminder.getId()) != null) {

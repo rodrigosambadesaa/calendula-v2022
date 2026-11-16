@@ -315,12 +315,16 @@ public final class AtomicMedicineAllergyEditor {
         // doses and deletes their SQL occurrences. The OS PendingIntent and
         // displayed notification cannot be revoked *inside* that transaction:
         // if SQL later rolls back, the patient's original dose must survive.
-        // Reconcile stale platform tokens immediately AFTER successful COMMIT.
+        // Reconcile ONLY the edited patient's tokens after successful COMMIT:
+        // this medicine edit must not sweep another patient's reminders or
+        // notifications, even if that patient has an obsolete reminder.
+        // Revalidating the durable owner also prevents recycled-ID cleanup.
         // The same operation is idempotent for schedules just unblocked by
         // recoverOne; failures remain explicit post-commit recovery failures.
         if (committed.changedSchedules) {
             try {
-                Agenda.instance().cleanReminders(safeContext);
+                Agenda.instance().cleanRemindersForPatient(
+                        safeContext, committed.owner);
             } catch (RuntimeException failure) {
                 LogUtil.e(TAG, "Committed allergy schedule needs reminder cleanup");
                 if (error == null) error = failure;
