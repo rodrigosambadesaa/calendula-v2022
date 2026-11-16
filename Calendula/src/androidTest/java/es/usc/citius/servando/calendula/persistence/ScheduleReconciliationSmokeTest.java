@@ -10,6 +10,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import org.joda.time.DateTime;
+import org.dmfs.rfc5545.recur.Freq;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -24,6 +25,7 @@ import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
+import es.usc.citius.servando.calendula.scheduling.model.recur.RecurringEvent;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -74,6 +76,111 @@ public class ScheduleReconciliationSmokeTest {
             }
             if (pending.getId() != null && DB.eventInstances().findById(pending.getId()) != null) {
                 DB.eventInstances().remove(pending);
+            }
+        }
+    }
+
+    @Test
+    public void newScheduleRejectsRecycledPatientMedicineAndInitialDoseOwners()
+            throws Exception {
+        assertTrue(DB.initialized);
+        String suffix = Long.toString(System.nanoTime());
+        Patient owner = new Patient();
+        owner.setCode("ci-create-stable-schedule-owner-" + suffix);
+        owner.setName("Synthetic prescription owner");
+        Medicine medicine = new Medicine("Synthetic new prescription medicine",
+                Presentation.PILLS);
+        RecurringEvent recur = new RecurringEvent.Builder()
+                .from(DateTime.now().minusDays(1))
+                .repeatEvery(12, Freq.HOURLY).build();
+        Schedule planned = new Schedule(recur);
+        Schedule staleDoseSchedule = new Schedule(recur);
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            medicine.setPatient(owner);
+            assertEquals(1, DB.medicines().create(medicine));
+
+            Patient successor = new Patient();
+            successor.setId(owner.getId());
+            successor.setCode("ci-restored-other-owner-" + suffix);
+            planned.setPatient(successor);
+            planned.setMedicine(medicine);
+            planned.setDosage(1.0d);
+            try {
+                ScheduleUtils.instance().persistNewScheduleRows(
+                        InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                        planned, Collections.emptyList());
+                fail("Reused patient ID must not create a prescription");
+            } catch (RuntimeException expected) {
+                // The original stable patient code is still required.
+            }
+            assertNull("Failed owner validation cannot allocate a schedule row",
+                    planned.getId());
+            assertTrue(DB.schedules().findByMedicine(medicine).isEmpty());
+
+            planned.setPatient(owner);
+            Medicine misleading = new Medicine("Synthetic replaced medicine",
+                    Presentation.PILLS);
+            misleading.setId(medicine.getId());
+            misleading.setPatient(successor);
+            planned.setMedicine(misleading);
+            try {
+                ScheduleUtils.instance().persistNewScheduleRows(
+                        InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                        planned, Collections.emptyList());
+                fail("Same numeric medicine ID must not authorize another owner");
+            } catch (RuntimeException expected) {
+                // Owner mismatch is rejected before assigning an SQL ID.
+            }
+            assertNull(planned.getId());
+            assertTrue(DB.schedules().findByMedicine(medicine).isEmpty());
+
+            // The schedule and medicine can both be genuine while a stale
+            // precomputed intake still identifies a different restored owner.
+            staleDoseSchedule.setPatient(owner);
+            staleDoseSchedule.setMedicine(medicine);
+            staleDoseSchedule.setDosage(1.0d);
+            EventInstance foreignDose = new EventInstance(
+                    DateTime.now().plusDays(1), EventType.MEDICATION_INTAKE);
+            foreignDose.setPatient(successor);
+            foreignDose.addParam(EventInstance.PARAM_DOSE, 1.0d);
+            try {
+                ScheduleUtils.instance().persistNewScheduleRows(
+                        InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                        staleDoseSchedule, Collections.singletonList(foreignDose));
+                fail("New occurrence with recycled patient ID must roll back schedule");
+            } catch (RuntimeException expected) {
+                // The SQL transaction must reject this occurrence.
+            }
+            assertNotNull("The attempted SQL insert allocated an ID",
+                    staleDoseSchedule.getId());
+            assertNull("Rejected initial occurrence must roll back the schedule",
+                    DB.schedules().findById(staleDoseSchedule.getId()));
+
+            // Control: original owner, original medicine and valid persisted
+            // patient code can still create a real synthetic prescription.
+            planned.setMedicine(medicine);
+            ScheduleUtils.instance().persistNewScheduleRows(
+                    InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                    planned, Collections.emptyList());
+            assertNotNull(planned.getId());
+            assertEquals(owner.getCode(),
+                    DB.schedules().findById(planned.getId()).getPatient().getCode());
+        } finally {
+            for (Schedule schedule : new Schedule[]{planned, staleDoseSchedule}) {
+                if (schedule.getId() != null
+                        && DB.schedules().findById(schedule.getId()) != null) {
+                    DB.eventInstances().removeByRef(schedule.getId());
+                    DB.schedules().remove(schedule);
+                }
+            }
+            if (medicine.getId() != null
+                    && DB.medicines().findById(medicine.getId()) != null) {
+                DB.medicines().remove(medicine);
+            }
+            if (owner.getId() != null
+                    && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().remove(owner);
             }
         }
     }
