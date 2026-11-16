@@ -69,6 +69,7 @@ import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 import es.usc.citius.servando.calendula.util.Snack;
 import es.usc.citius.servando.calendula.util.alerts.AlertManager;
+import es.usc.citius.servando.calendula.util.alerts.AtomicMedicineAllergyEditor;
 
 public class MedicinesActivity extends CalendulaActivity implements MedicineCreateOrEditFragment.OnMedicineEditListener {
 
@@ -489,43 +490,26 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
             return;
         }
         try {
-            // Evaluate the old prescription BEFORE persisting the new one.
-            boolean oldWarningInvalidated = oldAllergyWarningInvalidated(m);
-            if (allergies != null) {
-                // Replace an existing HIGH alert's allergen details in place,
-                // or create the new HIGH alert while the prior prescription is
-                // still stored. Never delete it afterward: the old order
-                // erased the *new* allergy warning on a prescription switch.
-                createAllergyAlerts(m, allergies);
-            }
-            DB.medicines().saveAndFireEvent(m);
-            if (allergies == null && oldWarningInvalidated) {
-                // Only now, after the medicine was successfully persisted, is
-                // it safe to remove the obsolete HIGH warning. A failed save
-                // must never leave the unchanged old prescription unprotected.
-                AllergyAlertUtil.removeAllergyAlerts(m);
-            }
-            Toast.makeText(this, getString(R.string.medicine_edited_message), Toast.LENGTH_SHORT).show();
+            // The editor no longer inserts HIGH warnings or sends medicine
+            // notifications in separate transactions before the medicine
+            // update succeeds. Only SQL mutations run inside this helper's
+            // single owner-validated SQLite transaction.
+            AtomicMedicineAllergyEditor.edit(this, m, allergies);
+            Toast.makeText(this, getString(R.string.medicine_edited_message),
+                    Toast.LENGTH_SHORT).show();
             finish();
-        } catch (RuntimeException | SQLException e) {
+        } catch (AtomicMedicineAllergyEditor.PostCommitRecoveryException committed) {
+            // The medicine IS saved; do not claim the SQL edit failed or
+            // invite an unsafe repeat using a now-stale prescription.
+            LogUtil.e(TAG, "Committed medicine edit needs schedule recovery");
+            Toast.makeText(this,
+                    R.string.medicine_saved_reminder_recovery_required,
+                    Toast.LENGTH_LONG).show();
+            finish();
+        } catch (RuntimeException error) {
             Snack.show(R.string.medicine_save_error_message, this);
             LogUtil.e(TAG, "Medicine update failed");
         }
-    }
-
-    /** Check whether a *persisted* prescription's allergy warning is stale. */
-    private boolean oldAllergyWarningInvalidated(final Medicine m) {
-        Medicine old = DB.medicines().findById(m.getId());
-        if (old == null || DB.medicines().refresh(old) != 1
-                || !isOriginalEditorPatient(old.getPatient())
-                || !PatientOwnerGuard.sameStableIdentity(
-                        old.getPatient(), m.getPatient())) {
-            throw new IllegalStateException("Medicine changed owner during allergy cleanup");
-        }
-        // Also handle a drug-database switch and removing a prescription.
-        // Whether the *new* medicine is linked must not drive this decision.
-        return MedicineAllergyTransitionGuard.prescriptionChanged(
-                old.getCn(), old.getDatabase(), m.getCn(), m.getDatabase());
     }
 
     private void createMedicine(final Medicine m, final List<AllergenVO> allergies) {
