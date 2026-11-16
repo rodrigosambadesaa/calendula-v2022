@@ -88,6 +88,7 @@ public final class ScheduleAlarmRecovery {
         return schedule != null && schedule.getId() != null
                 && schedule.getId() > 0L
                 && schedule.hasState(MARK)
+                && PatientOwnerGuard.hasStableIdentity(expected)
                 && schedule.getRecoveryOwnerDigest() != null
                 && schedule.getRecoveryOwnerDigest().equals(ownerDigest(expected))
                 && !schedule.hasState(Schedule.ScheduleState.BLOCKED)
