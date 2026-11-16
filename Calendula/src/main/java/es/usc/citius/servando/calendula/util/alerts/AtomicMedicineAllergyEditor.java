@@ -6,8 +6,6 @@ package es.usc.citius.servando.calendula.util.alerts;
 
 import android.content.Context;
 
-import org.joda.time.DateTime;
-
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -230,15 +228,30 @@ public final class AtomicMedicineAllergyEditor {
         // Notify observers even when post-COMMIT Android work fails: the
         // medicine was already committed, and should never be shown as absent.
         if (committed.changedSchedules) {
-            CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT);
+            try {
+                CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT);
+            } catch (RuntimeException failure) {
+                LogUtil.e(TAG, "Committed medicine schedule observer needs recovery");
+                if (error == null) error = failure;
+            }
         }
         if (committed.changedAlert) {
-            CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT);
+            try {
+                CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT);
+            } catch (RuntimeException failure) {
+                LogUtil.e(TAG, "Committed medicine warning observer needs recovery");
+                if (error == null) error = failure;
+            }
         }
-        PersistenceEvents.ModelCreateOrUpdateEvent event =
-                new PersistenceEvents.ModelCreateOrUpdateEvent(Medicine.class);
-        event.model = proposed;
-        CalendulaApp.eventBus().post(event);
+        try {
+            PersistenceEvents.ModelCreateOrUpdateEvent event =
+                    new PersistenceEvents.ModelCreateOrUpdateEvent(Medicine.class);
+            event.model = proposed;
+            CalendulaApp.eventBus().post(event);
+        } catch (RuntimeException failure) {
+            LogUtil.e(TAG, "Committed medicine observer needs recovery");
+            if (error == null) error = failure;
+        }
         if (error != null) {
             throw new PostCommitRecoveryException(error);
         }
