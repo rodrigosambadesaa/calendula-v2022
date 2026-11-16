@@ -88,17 +88,42 @@ public class ScheduleAlarmRecoverySmokeTest {
                     committed.hasState(Schedule.ScheduleState.BLOCKED));
             assertTrue("Recovery obligation must survive the failed callback",
                     committed.hasState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY));
+            assertEquals("Recovery owner must be durably bound before callbacks",
+                    ScheduleAlarmRecovery.ownerDigest(owner),
+                    committed.getRecoveryOwnerDigest());
             assertTrue("Failed occurrence INSERT must not leave a partial batch",
                     DB.eventInstances().findBy(EventInstance.COLUMN_REF,
                             schedule.getId()).isEmpty());
 
-            // The real crash path never gets to call any Java recovery code.
-            // A subsequent startup/boot invokes the same public replay path.
+            // A restored/recycled SQLite ID must never inherit an earlier
+            // patient's saved recovery obligation. Alter only the digest in
+            // this disposable fixture, leaving all original patient records.
             sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            Patient replacementOwner = new Patient();
+            replacementOwner.setId(owner.getId());
+            replacementOwner.setCode("ci-replaced-different-owner-" + suffix);
+            committed.setRecoveryOwnerDigest(
+                    ScheduleAlarmRecovery.ownerDigest(replacementOwner));
+            assertEquals(1, DB.schedules().update(committed));
+            Agenda.instance().updateAllAlarms(context);
+            assertTrue("Mismatched recovery owner must retain pending marker",
+                    DB.schedules().findById(schedule.getId())
+                            .hasState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY));
+            assertTrue("Recycled owner must not receive old medication intakes",
+                    DB.eventInstances().findBy(
+                            EventInstance.COLUMN_REF, schedule.getId()).isEmpty());
+
+            // Restore the original digest and simulate a later app launch.
+            committed = DB.schedules().findById(schedule.getId());
+            committed.setRecoveryOwnerDigest(
+                    ScheduleAlarmRecovery.ownerDigest(owner));
+            assertEquals(1, DB.schedules().update(committed));
             Agenda.instance().updateAllAlarms(context);
             committed = DB.schedules().findById(schedule.getId());
             assertFalse("Clear marker only after successful OS reconciliation",
                     committed.hasState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY));
+            assertNull("Never retain an unnecessary owner fingerprint",
+                    committed.getRecoveryOwnerDigest());
             int restored = DB.eventInstances().findBy(
                     EventInstance.COLUMN_REF, schedule.getId()).size();
             assertTrue("Rebuilt schedule must have future synthetic doses", restored > 0);
@@ -146,10 +171,16 @@ public class ScheduleAlarmRecoverySmokeTest {
         schedule.setId(4490L);
         schedule.setPatient(original);
         schedule.addState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY);
+        schedule.setRecoveryOwnerDigest(ScheduleAlarmRecovery.ownerDigest(original));
         assertTrue(ScheduleAlarmRecovery.eligible(
                 schedule, original, original, medicine, false));
         assertFalse(ScheduleAlarmRecovery.eligible(
                 schedule, original, successor, medicine, false));
+        schedule.setRecoveryOwnerDigest(ScheduleAlarmRecovery.ownerDigest(successor));
+        assertFalse("Original patient digest must be required",
+                ScheduleAlarmRecovery.eligible(
+                        schedule, original, original, medicine, false));
+        schedule.setRecoveryOwnerDigest(ScheduleAlarmRecovery.ownerDigest(original));
         assertFalse(ScheduleAlarmRecovery.eligible(
                 schedule, original, original, medicine, true));
         schedule.addState(Schedule.ScheduleState.BLOCKED);
