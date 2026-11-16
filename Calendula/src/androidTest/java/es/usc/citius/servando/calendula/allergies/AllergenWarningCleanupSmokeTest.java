@@ -6,6 +6,7 @@ package es.usc.citius.servando.calendula.allergies;
 
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteDatabase;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
@@ -21,6 +22,9 @@ import es.usc.citius.servando.calendula.persistence.PatientAlert;
 import es.usc.citius.servando.calendula.persistence.PatientAllergen;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.persistence.alerts.AllergyPatientAlert;
+import es.usc.citius.servando.calendula.util.PreferenceKeys;
+import es.usc.citius.servando.calendula.util.PreferenceUtils;
+import es.usc.citius.servando.calendula.util.alerts.AtomicMedicineAllergyEditor;
 
 import static org.junit.Assert.*;
 
@@ -181,4 +185,164 @@ public class AllergenWarningCleanupSmokeTest {
                 DB.patients().deleteById(owner.getId());
         }
     }
+    /**
+     * Test a full medication edit: a later alert failure must roll back an
+     * earlier medicine update, and the successful retry must commit both.
+     * Use synthetic disposable rows and SQLite RAISE(ABORT) triggers only.
+     */
+    @Test
+    public void medicineAndAllergyEditsRollbackOnEverySqlFailureAndRetry()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        Patient previous = DB.patients().getActive(context);
+        String suffix = Long.toString(System.nanoTime());
+        Patient owner = new Patient();
+        owner.setCode("ci-atomic-med-owner-" + suffix);
+        owner.setName("Synthetic atomic medicine owner");
+        Medicine medicine = new Medicine("Synthetic old name", Presentation.PILLS);
+        AllergenVO original = new AllergenVO(
+                AllergenType.EXCIPIENT, "Synthetic original", "CI-OLD-" + suffix);
+        AllergenVO replacement = new AllergenVO(
+                AllergenType.EXCIPIENT, "Synthetic replacement", "CI-NEW-" + suffix);
+        AllergyPatientAlert initial = null;
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        final String trigger = "ci_atomic_med_allergy_abort";
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            DB.patients().setActive(owner);
+            medicine.setPatient(owner);
+            assertEquals(1, DB.medicines().create(medicine));
+            initial = new AllergyPatientAlert(
+                    medicine, Collections.singletonList(original));
+            assertEquals(1, DB.alerts().create(initial));
+            String previousDetails = DB.alerts().findById(initial.id()).getJsonDetails();
+            medicine.setName("Synthetic edited name");
+
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE UPDATE ON Medicines WHEN OLD._id = "
+                    + medicine.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'ci medicine write failure'); END;");
+            assertAtomicEditRejected(context, medicine,
+                    Collections.singletonList(replacement));
+            assertEquals("Medicine SQL failure must leave old name",
+                    "Synthetic old name", persistedName(medicine));
+            assertEquals(previousDetails,
+                    DB.alerts().findById(initial.id()).getJsonDetails());
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE UPDATE ON PatientAlerts WHEN OLD._id = "
+                    + initial.id()
+                    + " BEGIN SELECT RAISE(ABORT, 'ci allergy update failure'); END;");
+            assertAtomicEditRejected(context, medicine,
+                    Collections.singletonList(replacement));
+            assertEquals("Alert SQL failure must roll back earlier medicine UPDATE",
+                    "Synthetic old name", persistedName(medicine));
+            assertEquals("Alert SQL failure must preserve original clinical warning",
+                    previousDetails, DB.alerts().findById(initial.id()).getJsonDetails());
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            AtomicMedicineAllergyEditor.edit(
+                    context, medicine, Collections.singletonList(replacement));
+            assertEquals("Synthetic edited name", persistedName(medicine));
+            assertEquals(replacement,
+                    ((AllergyPatientAlert) DB.alerts().findById(initial.id()).map())
+                            .getDetails().getAllergens().get(0));
+
+            // Removing an obsolete warning is part of the very same edit,
+            // not a second independently committed alert cleanup.
+            medicine.setName("Synthetic replacement prescription");
+            medicine.setCn("ci-catalog-replacement-" + suffix);
+            medicine.setDatabase("ci-synthetic-catalog");
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE DELETE ON PatientAlerts WHEN OLD._id = "
+                    + initial.id()
+                    + " BEGIN SELECT RAISE(ABORT, 'ci allergy retirement failure'); END;");
+            assertAtomicEditRejected(context, medicine, null);
+            assertEquals("Synthetic edited name", persistedName(medicine));
+            assertNotNull("Failed warning removal must roll back medicine edit",
+                    DB.alerts().findById(initial.id()));
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            AtomicMedicineAllergyEditor.edit(context, medicine, null);
+            assertEquals("Synthetic replacement prescription", persistedName(medicine));
+            assertNull(DB.alerts().findById(initial.id()));
+
+            // A new HIGH warning must not survive failure AFTER the medicine
+            // SQL UPDATE, and a later retry must be able to create it.
+            medicine.setName("Synthetic newly warned medicine");
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE INSERT ON PatientAlerts WHEN NEW.Medicine = "
+                    + medicine.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'ci new warning failure'); END;");
+            assertAtomicEditRejected(context, medicine,
+                    Collections.singletonList(original));
+            assertEquals("Synthetic replacement prescription", persistedName(medicine));
+            assertTrue(DB.alerts().findByMedicineAndType(medicine,
+                    AllergyPatientAlert.class.getCanonicalName()).isEmpty());
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            AtomicMedicineAllergyEditor.edit(
+                    context, medicine, Collections.singletonList(original));
+            assertEquals("Synthetic newly warned medicine", persistedName(medicine));
+            assertEquals(1, DB.alerts().findByMedicineAndType(
+                    medicine, AllergyPatientAlert.class.getCanonicalName()).size());
+
+            Patient recycledOwner = new Patient();
+            recycledOwner.setId(owner.getId());
+            recycledOwner.setCode("ci-another-owner-" + suffix);
+            medicine.setPatient(recycledOwner);
+            medicine.setName("Synthetic forbidden cross-patient edit");
+            assertAtomicEditRejected(context, medicine, null);
+            assertEquals("Synthetic newly warned medicine", persistedName(medicine));
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            if (previous != null && previous.getId() != null
+                    && DB.patients().findById(previous.getId()) != null) {
+                DB.patients().setActive(previous);
+            } else {
+                PreferenceUtils.edit()
+                        .remove(PreferenceKeys.PATIENTS_ACTIVE.key())
+                        .remove(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key())
+                        .remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key())
+                        .commit();
+            }
+            if (medicine.getId() != null && owner.getId() != null) {
+                // Restore a usable owner for scoped fixture cleanup even if
+                // the last test deliberately supplied a recycled identity.
+                medicine.setPatient(owner);
+                for (PatientAlert alert : DB.alerts().findByMedicineAndType(
+                        medicine, AllergyPatientAlert.class.getCanonicalName())) {
+                    DB.alerts().deleteById(alert.id());
+                }
+                if (DB.medicines().findById(medicine.getId()) != null) {
+                    DB.medicines().deleteById(medicine.getId());
+                }
+            }
+            if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().deleteById(owner.getId());
+            }
+        }
+    }
+
+    private static String persistedName(Medicine medicine) {
+        Medicine current = DB.medicines().findById(medicine.getId());
+        assertNotNull(current);
+        assertEquals(1, DB.medicines().refresh(current));
+        return current.getName();
+    }
+
+    private static void assertAtomicEditRejected(Context context, Medicine medicine,
+                                                  java.util.List<AllergenVO> allergens) {
+        boolean rejected = false;
+        try {
+            AtomicMedicineAllergyEditor.edit(context, medicine, allergens);
+        } catch (RuntimeException expected) {
+            rejected = true;
+        }
+        assertTrue("Failed SQL/owner preflight must reject the entire edit", rejected);
+    }
+
 }
