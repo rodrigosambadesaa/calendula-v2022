@@ -551,7 +551,7 @@ public class ScheduleReconciliationSmokeTest {
                     DB.helper().getWritableDatabase();
             sqlite.execSQL("UPDATE NewSchedules SET State=?, RecoveryOwnerDigest=?"
                             + " WHERE _id=?",
-                    new Object[]{"[\\\"PENDING_REMINDER_RECOVERY\\\"]",
+                    new Object[]{"[\"PENDING_REMINDER_RECOVERY\"]",
                             ScheduleAlarmRecovery.ownerDigest(owner), proposed.getId()});
             assertTrue(DB.schedules().findById(proposed.getId())
                     .hasState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY));
