@@ -265,6 +265,93 @@ public class ScheduleReconciliationSmokeTest {
     }
 
     @Test
+    public void failedSecondNewDoseInsertRestoresEarlierGeneratedIdsForRetry()
+            throws Exception {
+        assertTrue(DB.initialized);
+        String key = Long.toString(System.nanoTime());
+        Patient owner = new Patient();
+        owner.setCode("ci-second-dose-rollback-owner-" + key);
+        owner.setName("Synthetic second-dose rollback owner");
+        Medicine medicine = new Medicine("Synthetic multi-dose medicine",
+                Presentation.PILLS);
+        Schedule schedule = new Schedule(medicine);
+        DateTime firstTime = DateTime.now().plusDays(5).withMillisOfSecond(0);
+        EventInstance first = event(null, firstTime, 1.0d);
+        EventInstance second = event(null, firstTime.plusMinutes(17), 2.0d);
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        final String trigger = "ci_second_new_schedule_intake_abort";
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            medicine.setPatient(owner);
+            assertEquals(1, DB.medicines().create(medicine));
+            schedule.setPatient(owner);
+            first.setPatient(owner);
+            second.setPatient(owner);
+            // The first occurrence will be successfully INSERTed on SQLite.
+            // The second aborts: every SQL write AND each Java generated ID
+            // must be reverted so the same two dose objects can be retried.
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE INSERT ON EventInstances"
+                    + " WHEN (SELECT COUNT(*) FROM EventInstances"
+                    + " WHERE Ref = NEW.Ref) > 0"
+                    + " BEGIN SELECT RAISE(ABORT, 'synthetic second dose failure'); END;");
+            boolean rejected = false;
+            try {
+                ScheduleUtils.instance().persistNewScheduleRows(
+                        InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                        schedule, Arrays.asList(first, second));
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("The second intake must abort the whole new prescription", rejected);
+            assertNull(schedule.getId());
+            assertNull(first.getId());
+            assertNull(second.getId());
+            assertNull(first.getRef());
+            assertNull(second.getRef());
+            assertEquals(owner, first.getPatient());
+            assertEquals(owner, second.getPatient());
+            assertTrue(DB.schedules().findByMedicine(medicine).isEmpty());
+            assertTrue(DB.eventInstances().findByTypeAndTime(
+                    EventType.MEDICATION_INTAKE, firstTime).isEmpty());
+            assertTrue(DB.eventInstances().findByTypeAndTime(
+                    EventType.MEDICATION_INTAKE, second.getTime()).isEmpty());
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            ScheduleUtils.instance().persistNewScheduleRows(
+                    InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                    schedule, Arrays.asList(first, second));
+            assertNotNull(schedule.getId());
+            assertNotNull(first.getId());
+            assertNotNull(second.getId());
+            assertEquals(schedule.getId(), first.getRef());
+            assertEquals(schedule.getId(), second.getRef());
+            assertEquals(2, DB.eventInstances().findBy(
+                    EventInstance.COLUMN_REF, schedule.getId()).size());
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            for (EventInstance e : new EventInstance[]{first, second}) {
+                if (e.getId() != null && DB.eventInstances().findById(e.getId()) != null) {
+                    DB.eventInstances().remove(e);
+                }
+            }
+            if (schedule.getId() != null
+                    && DB.schedules().findById(schedule.getId()) != null) {
+                DB.schedules().remove(schedule);
+            }
+            if (medicine.getId() != null
+                    && DB.medicines().findById(medicine.getId()) != null) {
+                DB.medicines().remove(medicine);
+            }
+            if (owner.getId() != null
+                    && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().remove(owner);
+            }
+        }
+    }
+
+    @Test
     public void failedEditedOccurrenceDeleteRollsBackStoredPrescriptionState()
             throws Exception {
         assertTrue(DB.initialized);
