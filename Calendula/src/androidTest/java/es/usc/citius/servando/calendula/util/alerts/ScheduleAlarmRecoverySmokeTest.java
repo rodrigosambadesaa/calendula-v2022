@@ -102,9 +102,14 @@ public class ScheduleAlarmRecoverySmokeTest {
             Patient replacementOwner = new Patient();
             replacementOwner.setId(owner.getId());
             replacementOwner.setCode("ci-replaced-different-owner-" + suffix);
-            committed.setRecoveryOwnerDigest(
-                    ScheduleAlarmRecovery.ownerDigest(replacementOwner));
-            assertEquals(1, DB.schedules().update(committed));
+            // Corrupt only the on-disk owner binding as a restored legacy
+            // fixture would. Avoid an ORM update of the complete schedule:
+            // it also carries unrelated dosage and recurrence fields.
+            sqlite.execSQL("UPDATE NewSchedules SET RecoveryOwnerDigest=? WHERE _id=?",
+                    new Object[]{ScheduleAlarmRecovery.ownerDigest(replacementOwner),
+                            schedule.getId()});
+            assertEquals(ScheduleAlarmRecovery.ownerDigest(replacementOwner),
+                    DB.schedules().findById(schedule.getId()).getRecoveryOwnerDigest());
             Agenda.instance().updateAllAlarms(context);
             assertTrue("Mismatched recovery owner must retain pending marker",
                     DB.schedules().findById(schedule.getId())
@@ -114,10 +119,11 @@ public class ScheduleAlarmRecoverySmokeTest {
                             EventInstance.COLUMN_REF, schedule.getId()).isEmpty());
 
             // Restore the original digest and simulate a later app launch.
-            committed = DB.schedules().findById(schedule.getId());
-            committed.setRecoveryOwnerDigest(
-                    ScheduleAlarmRecovery.ownerDigest(owner));
-            assertEquals(1, DB.schedules().update(committed));
+            sqlite.execSQL("UPDATE NewSchedules SET RecoveryOwnerDigest=? WHERE _id=?",
+                    new Object[]{ScheduleAlarmRecovery.ownerDigest(owner),
+                            schedule.getId()});
+            assertEquals(ScheduleAlarmRecovery.ownerDigest(owner),
+                    DB.schedules().findById(schedule.getId()).getRecoveryOwnerDigest());
             Agenda.instance().updateAllAlarms(context);
             committed = DB.schedules().findById(schedule.getId());
             assertFalse("Clear marker only after successful OS reconciliation",
