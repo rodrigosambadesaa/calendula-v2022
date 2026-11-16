@@ -36,8 +36,9 @@ import es.usc.citius.servando.calendula.util.alerts.StockAlertHandler;
  * AlarmManager, stock/driving warning providers, recurrence generation and
  * event-bus observers never execute before the SQLite commit.
  *
- * This is deliberately separate from the new-medicine path, which still
- * requires its own acceptance review (see #971).
+ * Both creation and editing keep all clinical SQL mutations inside their
+ * own transaction. Platform-alarm and observer reconciliation happens only
+ * after commit; independent clinical acceptance is still required (#971).
  */
 public final class AtomicMedicineAllergyEditor {
     private static final String TAG = "AtomicMedicineAllergyEditor";
@@ -310,13 +311,34 @@ public final class AtomicMedicineAllergyEditor {
                 if (error == null) error = failure;
             }
         }
+        // A newly inserted HIGH allergy warning atomically blocks future
+        // doses and deletes their SQL occurrences. The OS PendingIntent and
+        // displayed notification cannot be revoked *inside* that transaction:
+        // if SQL later rolls back, the patient's original dose must survive.
+        // Reconcile stale platform tokens immediately AFTER successful COMMIT.
+        // The same operation is idempotent for schedules just unblocked by
+        // recoverOne; failures remain explicit post-commit recovery failures.
+        if (committed.changedSchedules) {
+            try {
+                Agenda.instance().cleanReminders(safeContext);
+            } catch (RuntimeException failure) {
+                LogUtil.e(TAG, "Committed allergy schedule needs reminder cleanup");
+                if (error == null) error = failure;
+            }
+        }
         try {
+            if (!currentOwnerMatches(safeContext, committed.owner)) {
+                throw new IllegalStateException("Patient changed after medicine COMMIT");
+            }
             StockAlertHandler.checkStockAlerts(proposed);
         } catch (RuntimeException failure) {
             LogUtil.e(TAG, "Committed medicine stock check requires recovery");
             if (error == null) error = failure;
         }
         try {
+            if (!currentOwnerMatches(safeContext, committed.owner)) {
+                throw new IllegalStateException("Patient changed after medicine COMMIT");
+            }
             Prescription prescription = proposed.isBoundToPrescription()
                     ? DB.drugDB().prescriptions().findByCn(proposed.getCn()) : null;
             DrivingAlertHandler.checkDrivingAlerts(proposed, prescription);
