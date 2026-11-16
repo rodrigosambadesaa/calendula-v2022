@@ -6,6 +6,7 @@ package es.usc.citius.servando.calendula.scheduling;
 
 import android.app.PendingIntent;
 import android.content.Context;
+import android.database.sqlite.SQLiteDatabase;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -87,6 +88,46 @@ public class AtomicAllergyReminderCleanupSmokeTest {
             PendingIntent oldToken = findToken(context, reminder);
             assertNotNull("Fixture must schedule an actual OS PendingIntent", oldToken);
 
+            // Force SQL to fail *after* the medicine and HIGH warning were
+            // written and the schedule-blocking transaction began deleting
+            // future doses. Neither SQL state nor the Android token may be
+            // retired when the outer transaction rolls back.
+            SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+            String trigger = "ci_allergy_reminder_rollback_abort";
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            try {
+                sqlite.execSQL("CREATE TRIGGER " + trigger
+                        + " BEFORE DELETE ON EventInstances WHEN OLD._id = "
+                        + intake.getId()
+                        + " BEGIN SELECT RAISE(ABORT, 'synthetic allergy rollback'); END;");
+                boolean rejected = false;
+                try {
+                    AtomicMedicineAllergyEditor.edit(context, medicine,
+                            Collections.singletonList(new AllergenVO(
+                                    AllergenType.EXCIPIENT, "Synthetic excipient",
+                                    "ci-synthetic-" + seed)));
+                } catch (RuntimeException expected) {
+                    rejected = true;
+                }
+                assertTrue("Injected SQL failure must abort the edit", rejected);
+                assertFalse("Rolled-back edit must leave schedule active",
+                        DB.schedules().findById(schedule.getId())
+                                .hasState(Schedule.ScheduleState.BLOCKED));
+                assertTrue("Rolled-back HIGH warning must not persist",
+                        DB.alerts().findByMedicineAndLevel(
+                                medicine, PatientAlert.Level.HIGH).isEmpty());
+                assertNotNull("Rolled-back future dose must survive",
+                        DB.eventInstances().findById(intake.getId()));
+                assertNotNull("Rolled-back reminder must survive",
+                        DB.eventReminders().findById(reminder.getId()));
+                assertNotNull("Platform alarm must not be cancelled before COMMIT",
+                        findToken(context, reminder));
+            } finally {
+                sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            }
+
+            // Retry the same medicine edit with no injected SQL error:
+            // the committed HIGH warning now retires SQL and OS reminders.
             AtomicMedicineAllergyEditor.edit(context, medicine,
                     Collections.singletonList(new AllergenVO(
                             AllergenType.EXCIPIENT, "Synthetic excipient",
