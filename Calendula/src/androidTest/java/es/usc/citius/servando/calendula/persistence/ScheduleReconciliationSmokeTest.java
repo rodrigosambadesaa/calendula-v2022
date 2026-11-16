@@ -153,10 +153,18 @@ public class ScheduleReconciliationSmokeTest {
             } catch (RuntimeException expected) {
                 // The SQL transaction must reject this occurrence.
             }
-            assertNotNull("The attempted SQL insert allocated an ID",
+            // A failed SQLite INSERT must also restore the transient draft:
+            // its stale generated ID must never be reused on retry.
+            assertNull("Rejected initial occurrence must reset schedule ID",
                     staleDoseSchedule.getId());
-            assertNull("Rejected initial occurrence must roll back the schedule",
-                    DB.schedules().findById(staleDoseSchedule.getId()));
+            assertNull("Rejected initial occurrence must not have an ID",
+                    foreignDose.getId());
+            assertNull("Rejected occurrence must restore its original reference",
+                    foreignDose.getRef());
+            assertEquals("Rejected occurrence must keep its original owner",
+                    successor, foreignDose.getPatient());
+            assertTrue("No partially inserted schedule may remain",
+                    DB.schedules().findByMedicine(medicine).isEmpty());
 
             // Control: original owner, original medicine and valid persisted
             // patient code can still create a real synthetic prescription.
@@ -535,10 +543,18 @@ public class ScheduleReconciliationSmokeTest {
             Schedule stored = new Schedule();
             stored.setId(proposed.getId());
             assertEquals(1, DB.schedules().refresh(stored));
-            stored.addState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY);
-            stored.setRecoveryOwnerDigest(
-                    ScheduleAlarmRecovery.ownerDigest(owner));
-            assertEquals(1, DB.schedules().update(stored));
+            // Set the on-disk state directly in this disposable fixture.
+            // The production code still uses an owner-validated DAO
+            // transaction; this setup must not depend on ORMLite reporting
+            // a changed-row count for an artificial stale Java object.
+            android.database.sqlite.SQLiteDatabase sqlite =
+                    DB.helper().getWritableDatabase();
+            sqlite.execSQL("UPDATE NewSchedules SET State=?, RecoveryOwnerDigest=?"
+                            + " WHERE _id=?",
+                    new Object[]{"[\\\"PENDING_REMINDER_RECOVERY\\\"]",
+                            ScheduleAlarmRecovery.ownerDigest(owner), proposed.getId()});
+            assertTrue(DB.schedules().findById(proposed.getId())
+                    .hasState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY));
 
             try {
                 ScheduleUtils.instance().persistEditedScheduleRows(
@@ -561,9 +577,11 @@ public class ScheduleReconciliationSmokeTest {
             stored = new Schedule();
             stored.setId(proposed.getId());
             assertEquals(1, DB.schedules().refresh(stored));
-            stored.removeState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY);
-            stored.setRecoveryOwnerDigest(null);
-            assertEquals(1, DB.schedules().update(stored));
+            sqlite.execSQL("UPDATE NewSchedules SET State=?, RecoveryOwnerDigest=NULL"
+                            + " WHERE _id=?",
+                    new Object[]{"[]", proposed.getId()});
+            assertFalse(DB.schedules().findById(proposed.getId())
+                    .hasState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY));
             ScheduleUtils.instance().persistEditedScheduleRows(
                     InstrumentationRegistry.getInstrumentation().getTargetContext(),
                     proposed, from, Collections.emptyList());
