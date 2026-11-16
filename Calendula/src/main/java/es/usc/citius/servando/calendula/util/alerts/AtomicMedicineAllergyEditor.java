@@ -63,6 +63,88 @@ public final class AtomicMedicineAllergyEditor {
     }
 
     /**
+     * New-medicine insertion must be one SQL unit with its initial HIGH
+     * allergy warning. No nested AlertManager, stock-alert, OS-alarm or
+     * event-bus call can run inside the owning transaction.
+     */
+    public static void create(Context context, Medicine proposed,
+                              List<AllergenVO> verifiedAllergens) {
+        if (context == null || proposed == null || proposed.getId() != null
+                || !PatientOwnerGuard.hasStableIdentity(proposed.getPatient())) {
+            throw new IllegalArgumentException("Unsaved medicine with stable owner required");
+        }
+        if (verifiedAllergens != null && (verifiedAllergens.isEmpty()
+                || verifiedAllergens.contains(null))) {
+            throw new IllegalArgumentException("Verified allergen set is incomplete");
+        }
+        final List<AllergenVO> allergens = verifiedAllergens == null
+                ? null : new ArrayList<>(verifiedAllergens);
+        final Patient owner = new Patient();
+        owner.setId(proposed.getPatient().getId());
+        owner.setCode(proposed.getPatient().getCode());
+        final Context safeContext = context.getApplicationContext() != null
+                ? context.getApplicationContext() : context;
+        final Prescription prescription = proposed.isBoundToPrescription()
+                ? DB.drugDB().prescriptions().findByCn(proposed.getCn()) : null;
+        // Preserve the original MedicineDao.save() group assignment for new
+        // linked prescriptions, without firing its pre-COMMIT callbacks.
+        if (prescription != null && prescription.getHomogeneousGroup() != null) {
+            proposed.setHomogeneousGroup(prescription.getHomogeneousGroup());
+        }
+
+        try {
+            DB.transaction(() -> {
+                requireCurrentOwner(safeContext, owner);
+                if (proposed.getId() != null || DB.medicines().create(proposed) != 1
+                        || proposed.getId() == null) {
+                    throw new SQLException("Could not atomically insert medicine");
+                }
+                if (allergens != null) {
+                    AllergyPatientAlert warning = new AllergyPatientAlert(proposed, allergens);
+                    if (DB.alerts().create(warning) != 1) {
+                        throw new SQLException("Could not atomically insert initial allergy warning");
+                    }
+                }
+                requireCurrentOwner(safeContext, owner);
+                return null;
+            });
+        } catch (RuntimeException failure) {
+            // ORMLite may leave a generated Java ID after the SQLite INSERT
+            // was rolled back. Restore create semantics so the EXACT draft
+            // can be retried without updating a nonexistent row.
+            proposed.setId(null);
+            throw failure;
+        }
+
+        RuntimeException error = null;
+        if (!currentOwnerMatches(safeContext, owner)) {
+            error = new IllegalStateException("Patient changed after medicine creation");
+        } else {
+            try {
+                StockAlertHandler.checkStockAlerts(proposed);
+                DrivingAlertHandler.checkDrivingAlerts(proposed, prescription);
+            } catch (RuntimeException failure) {
+                LogUtil.e(TAG, "Committed new medicine alert checks need recovery");
+                error = failure;
+            }
+        }
+        try {
+            DB.medicines().fireEvent();
+            CalendulaApp.eventBus().post(
+                    new PersistenceEvents.MedicineAddedEvent(proposed.getId()));
+            if (allergens != null) {
+                CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT);
+            }
+        } catch (RuntimeException failure) {
+            LogUtil.e(TAG, "Committed new medicine observers need recovery");
+            if (error == null) error = failure;
+        }
+        if (error != null) {
+            throw new PostCommitRecoveryException(error);
+        }
+    }
+
+    /**
      * @param verifiedAllergens null means the editor has verified that the
      *                          new prescription has no matching allergens.
      *                          A non-null list must be verified and nonempty.
