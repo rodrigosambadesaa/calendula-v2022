@@ -120,24 +120,41 @@ public final class AtomicMedicineAllergyEditor {
         if (!currentOwnerMatches(safeContext, owner)) {
             error = new IllegalStateException("Patient changed after medicine creation");
         } else {
+            // Try both independent clinical checks: a failure evaluating
+            // stock must not silently skip a driving caution and vice versa.
             try {
                 StockAlertHandler.checkStockAlerts(proposed);
+            } catch (RuntimeException failure) {
+                LogUtil.e(TAG, "Committed medicine stock check needs recovery");
+                if (error == null) error = failure;
+            }
+            try {
                 DrivingAlertHandler.checkDrivingAlerts(proposed, prescription);
             } catch (RuntimeException failure) {
-                LogUtil.e(TAG, "Committed new medicine alert checks need recovery");
-                error = failure;
+                LogUtil.e(TAG, "Committed medicine driving check needs recovery");
+                if (error == null) error = failure;
             }
         }
         try {
             DB.medicines().fireEvent();
+        } catch (RuntimeException failure) {
+            LogUtil.e(TAG, "Committed medicine list observer needs recovery");
+            if (error == null) error = failure;
+        }
+        try {
             CalendulaApp.eventBus().post(
                     new PersistenceEvents.MedicineAddedEvent(proposed.getId()));
-            if (allergens != null) {
-                CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT);
-            }
         } catch (RuntimeException failure) {
-            LogUtil.e(TAG, "Committed new medicine observers need recovery");
+            LogUtil.e(TAG, "Committed medicine added observer needs recovery");
             if (error == null) error = failure;
+        }
+        if (allergens != null) {
+            try {
+                CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT);
+            } catch (RuntimeException failure) {
+                LogUtil.e(TAG, "Committed allergy observer needs recovery");
+                if (error == null) error = failure;
+            }
         }
         if (error != null) {
             throw new PostCommitRecoveryException(error);
