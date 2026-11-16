@@ -41,11 +41,7 @@ import com.github.javiersantos.materialstyleddialogs.MaterialStyledDialog;
 import com.github.javiersantos.materialstyleddialogs.enums.Style;
 import com.mikepenz.community_material_typeface_library.CommunityMaterial;
 
-import java.sql.SQLException;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.Callable;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -54,21 +50,17 @@ import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.allergies.AllergenFacade;
 import es.usc.citius.servando.calendula.allergies.AllergenVO;
-import es.usc.citius.servando.calendula.allergies.AllergyAlertUtil;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.drugdb.model.persistence.Prescription;
 import es.usc.citius.servando.calendula.events.PersistenceEvents;
 import es.usc.citius.servando.calendula.fragments.MedicineCreateOrEditFragment;
 import es.usc.citius.servando.calendula.persistence.Medicine;
-import es.usc.citius.servando.calendula.persistence.PatientAlert;
-import es.usc.citius.servando.calendula.persistence.alerts.AllergyPatientAlert;
 import es.usc.citius.servando.calendula.util.ClinicalScreenOwnerBinding;
 import es.usc.citius.servando.calendula.util.FragmentUtils;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 import es.usc.citius.servando.calendula.util.Snack;
-import es.usc.citius.servando.calendula.util.alerts.AlertManager;
 import es.usc.citius.servando.calendula.util.alerts.AtomicMedicineAllergyEditor;
 
 public class MedicinesActivity extends CalendulaActivity implements MedicineCreateOrEditFragment.OnMedicineEditListener {
@@ -518,69 +510,24 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
             return;
         }
         try {
-            DB.transaction(new Callable<Object>() {
-                @Override
-                public Object call() throws Exception {
-                    DB.medicines().save(m);
-                    if (allergies != null) {
-                        createAllergyAlerts(m, allergies);
-                    }
-
-                    DB.medicines().fireEvent();
-                    return null;
-                }
-            });
-
-            CalendulaApp.eventBus().post(new PersistenceEvents.MedicineAddedEvent(m.getId()));
-            Toast.makeText(this, getString(R.string.medicine_created_message), Toast.LENGTH_SHORT).show();
+            // Medicine and initial HIGH warning must COMMIT as one unit.
+            // The old DB.medicines().save() callback and nested
+            // AlertManager.createAlert() could notify Android of uncommitted
+            // doses or warnings if a later INSERT failed.
+            AtomicMedicineAllergyEditor.create(this, m, allergies);
+            Toast.makeText(this, R.string.medicine_created_message,
+                    Toast.LENGTH_SHORT).show();
             finish();
-        } catch (RuntimeException e) {
+        } catch (AtomicMedicineAllergyEditor.PostCommitRecoveryException committed) {
+            LogUtil.e(TAG, "Committed new medicine needs alert recovery");
+            Toast.makeText(this,
+                    R.string.medicine_saved_reminder_recovery_required,
+                    Toast.LENGTH_LONG).show();
+            finish();
+        } catch (RuntimeException failure) {
             Snack.show(R.string.medicine_save_error_message, this);
             LogUtil.e(TAG, "Medicine creation failed");
         }
-    }
-
-    /**
-     * Creates or updates allergy alert for a medicine with te given allergens.
-     *
-     * @param m         the medicine
-     * @param allergies the allergens
-     * @return <code>true</code> if changes have been made, <code>false</code> otherwise (error or no allergy changes)
-     */
-    private boolean createAllergyAlerts(final Medicine m, final List<AllergenVO> allergies)
-            throws SQLException {
-
-        final List<PatientAlert> allergyAlerts = DB.alerts().findByMedicineAndType(m, new AllergyPatientAlert().getType());
-        switch (allergyAlerts.size()) {
-            case 0:
-                AllergyPatientAlert alert = new AllergyPatientAlert(m, allergies);
-                AlertManager.createAlert(alert);
-                LogUtil.d(TAG, "createAllergyAlerts: New alert created");
-                return true;
-            case 1:
-                AllergyPatientAlert alert1 = (AllergyPatientAlert) allergyAlerts.get(0).map();
-                final AllergyPatientAlert.AllergyAlertInfo details = alert1.getDetails();
-                final Set<AllergenVO> previousAllergens = new HashSet<>(details.getAllergens());
-                final Set<AllergenVO> allergiesSet = new HashSet<>(allergies);
-                if (allergiesSet.equals(previousAllergens)) {
-                    //do nothing
-                    return false;
-                } else {
-                    details.setAllergens(allergies);
-                    alert1.setDetails(details);
-                    // A failed HIGH-alert update must abort the medication
-                    // operation rather than silently reporting a safe save.
-                    AllergyAlertUtil.updateExistingAllergyWarning(alert1);
-                    return true;
-                }
-            default:
-                // Existing duplicates are not evidence that the patient has
-                // no allergy conflict. Refuse to save until clinical data are
-                // reviewed rather than silently ignoring ambiguous warnings.
-                throw new IllegalStateException(
-                        "Duplicate allergy alerts need review for this medicine");
-        }
-
     }
 
     /**
