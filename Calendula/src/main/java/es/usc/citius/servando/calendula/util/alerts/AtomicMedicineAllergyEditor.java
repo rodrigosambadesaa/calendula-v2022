@@ -325,11 +325,16 @@ public final class AtomicMedicineAllergyEditor {
         }
         try {
             StockAlertHandler.checkStockAlerts(proposed);
+        } catch (RuntimeException failure) {
+            LogUtil.e(TAG, "Committed medicine stock check requires recovery");
+            if (error == null) error = failure;
+        }
+        try {
             Prescription prescription = proposed.isBoundToPrescription()
                     ? DB.drugDB().prescriptions().findByCn(proposed.getCn()) : null;
             DrivingAlertHandler.checkDrivingAlerts(proposed, prescription);
         } catch (RuntimeException failure) {
-            LogUtil.e(TAG, "Committed medicine warning checks require recovery");
+            LogUtil.e(TAG, "Committed medicine driving check requires recovery");
             if (error == null) error = failure;
         }
         // Notify observers even when post-COMMIT Android work fails: the
