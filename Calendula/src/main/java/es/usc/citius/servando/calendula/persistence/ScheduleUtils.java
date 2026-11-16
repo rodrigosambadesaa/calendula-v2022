@@ -65,6 +65,17 @@ public class ScheduleUtils {
     private ScheduleUtils() {
     }
 
+    /**
+     * The schedule and dose rows have ALREADY committed in SQLite. A later
+     * alarm/stock failure is a recovery problem, NOT a reason to invite the
+     * editor to insert a duplicate schedule or overwrite another recurrence.
+     */
+    public static final class PostCommitEffectsException extends RuntimeException {
+        public PostCommitEffectsException(RuntimeException cause) {
+            super("Schedule saved; post-commit reminders or stock checks need review", cause);
+        }
+    }
+
     public static ScheduleUtils instance() {
         return instance;
     }
@@ -198,10 +209,26 @@ public class ScheduleUtils {
         // actionable dose reminders FIRST: stock calculations are secondary
         // and must not prevent their post-COMMIT OS registration if they fail.
         // Neither action runs while the SQLite transaction is uncommitted.
-        if (!Agenda.instance().createReminders(ctx, inserted)) {
-            throw new IllegalStateException("New schedule reminders could not be persisted");
+        RuntimeException postCommitFailure = null;
+        try {
+            if (!Agenda.instance().createReminders(ctx, inserted)) {
+                throw new IllegalStateException("New schedule reminders could not be persisted");
+            }
+        } catch (RuntimeException recoveryFailed) {
+            postCommitFailure = recoveryFailed;
         }
-        StockAlertHandler.checkStockAlerts(schedule.getMedicine());
+        // Even when reminder recovery fails, assess stock independently.
+        // Both actions observe committed SQLite rows, never a phantom dose.
+        try {
+            StockAlertHandler.checkStockAlerts(schedule.getMedicine());
+        } catch (RuntimeException stockFailed) {
+            if (postCommitFailure == null) {
+                postCommitFailure = stockFailed;
+            }
+        }
+        if (postCommitFailure != null) {
+            throw new PostCommitEffectsException(postCommitFailure);
+        }
     }
 
     public void createEventInstances(Context ctx, Schedule s) {
@@ -339,8 +366,22 @@ public class ScheduleUtils {
         // Dispatch only AFTER a complete commit. Dose reminders take
         // precedence: an inventory/stock calculation failure must never
         // suppress their recovery or hide the committed recurrence.
-        notifyCommittedScheduleOccurrences(ctx, toAdd);
-        StockAlertHandler.checkStockAlerts(schedule.getMedicine());
+        RuntimeException postCommitFailure = null;
+        try {
+            notifyCommittedScheduleOccurrences(ctx, toAdd);
+        } catch (RuntimeException recoveryFailed) {
+            postCommitFailure = recoveryFailed;
+        }
+        try {
+            StockAlertHandler.checkStockAlerts(schedule.getMedicine());
+        } catch (RuntimeException stockFailed) {
+            if (postCommitFailure == null) {
+                postCommitFailure = stockFailed;
+            }
+        }
+        if (postCommitFailure != null) {
+            throw new PostCommitEffectsException(postCommitFailure);
+        }
     }
 
     private static void requirePendingReconciliationInputs(
