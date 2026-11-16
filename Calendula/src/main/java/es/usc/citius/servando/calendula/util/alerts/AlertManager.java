@@ -159,6 +159,8 @@ public class AlertManager {
                         // Process death before OS alarms are created must not
                         // lose the obligation to regenerate these intakes.
                         stored.addState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY);
+                        stored.setRecoveryOwnerDigest(
+                                ScheduleAlarmRecovery.ownerDigest(alert.getPatient()));
                         // This direct DAO update deliberately does not call
                         // ScheduleDao.save(), which can execute stock-alert
                         // observers before the outer SQLite COMMIT.
