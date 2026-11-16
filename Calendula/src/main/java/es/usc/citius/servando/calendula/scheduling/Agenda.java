@@ -423,10 +423,24 @@ public class Agenda {
         ScheduleAlarmRecovery.replayPending(context);
         // A second crash interval exists before the EventReminder row
         // itself is saved. Recover only validated pending future intakes.
-        int restored = recoverMissingCommittedFutureIntakes(context);
+        int restored = 0;
+        RuntimeException missingReminderFailure = null;
+        try {
+            restored = recoverMissingCommittedFutureIntakes(context);
+        } catch (RuntimeException incomplete) {
+            // One failed reminder INSERT must not prevent previously committed
+            // and valid alarm tokens for other intakes from being rearmed.
+            LogUtil.e(TAG, "Missing future reminder recovery requires retry");
+            missingReminderFailure = incomplete;
+        }
         int rearmed = rearmPendingFutureReminders(context);
         LogUtil.d(TAG, "Restored " + restored + " verified missing reminders");
         LogUtil.d(TAG, "Rearmed " + rearmed + " eligible future reminders");
+        if (missingReminderFailure != null) {
+            throw new IllegalStateException(
+                    "Incomplete missing-reminder recovery after alarm rearm",
+                    missingReminderFailure);
+        }
     }
 
     public void setAlarm(Context context, EventReminder reminder) {
