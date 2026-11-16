@@ -105,6 +105,30 @@ public class AlertScheduleOwnershipSmokeTest {
             assertEquals("Original patient may find their blocked schedule",
                     1, DB.schedules().findByMedicineAndState(
                             medicine, Schedule.ScheduleState.BLOCKED).size());
+            assertEquals(1, DB.schedules().findByMedicine(medicine).size());
+
+            Patient recycled = new Patient();
+            recycled.setId(first.getId());
+            recycled.setCode("ci-replaced-owner-same-row-" + seed);
+            Medicine staleFromRestore = new Medicine(
+                    "Synthetic stale medicine", Presentation.PILLS);
+            staleFromRestore.setId(medicine.getId());
+            staleFromRestore.setPatient(recycled);
+            // Same SQLite IDs do not make these two patients identical.
+            assertTrue("Stale owner cannot enumerate blocked medication",
+                    DB.schedules().findByMedicineAndState(
+                            staleFromRestore, Schedule.ScheduleState.BLOCKED).isEmpty());
+            boolean staleRejected = false;
+            try {
+                DB.schedules().findByMedicine(staleFromRestore);
+            } catch (IllegalStateException expected) {
+                staleRejected = true;
+            }
+            assertTrue("Recycled patient code must not disclose another's schedules",
+                    staleRejected);
+            assertEquals("Valid original profile remains usable",
+                    1, DB.schedules().findByMedicine(medicine).size());
+
             assertTrue("A missing state must fail closed",
                     DB.schedules().findByMedicineAndState(medicine, null).isEmpty());
             assertTrue("A missing medicine cannot produce patient alerts",
