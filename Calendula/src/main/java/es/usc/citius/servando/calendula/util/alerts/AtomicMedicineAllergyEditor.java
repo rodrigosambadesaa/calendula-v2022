@@ -1,0 +1,256 @@
+/*
+ * Calendula - An assistant for personal medication management.
+ * Distributed under the GNU General Public License v3.0 or later.
+ */
+package es.usc.citius.servando.calendula.util.alerts;
+
+import android.content.Context;
+
+import org.joda.time.DateTime;
+
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+
+import es.usc.citius.servando.calendula.CalendulaApp;
+import es.usc.citius.servando.calendula.allergies.AllergenVO;
+import es.usc.citius.servando.calendula.database.DB;
+import es.usc.citius.servando.calendula.drugdb.model.persistence.Prescription;
+import es.usc.citius.servando.calendula.events.PersistenceEvents;
+import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.Patient;
+import es.usc.citius.servando.calendula.persistence.PatientAlert;
+import es.usc.citius.servando.calendula.persistence.Schedule;
+import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
+import es.usc.citius.servando.calendula.persistence.alerts.AllergyPatientAlert;
+import es.usc.citius.servando.calendula.scheduling.Agenda;
+import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
+import es.usc.citius.servando.calendula.util.alerts.DrivingAlertHandler;
+import es.usc.citius.servando.calendula.util.alerts.StockAlertHandler;
+
+/**
+ * SQL-only medication edit and allergy-warning reconciliation. An outer
+ * transaction owns EVERY medicine, alert and schedule state mutation.
+ * AlarmManager, stock/driving warning providers, recurrence generation and
+ * event-bus observers never execute before the SQLite commit.
+ *
+ * This is deliberately separate from the new-medicine path, which still
+ * requires its own acceptance review (see #971).
+ */
+public final class AtomicMedicineAllergyEditor {
+    private static final String TAG = "AtomicMedicineAllergyEditor";
+
+    private AtomicMedicineAllergyEditor() {
+    }
+
+    public static final class PostCommitRecoveryException extends RuntimeException {
+        private PostCommitRecoveryException(RuntimeException cause) {
+            super("Medicine changes committed; reminder/observer recovery incomplete", cause);
+        }
+    }
+
+    private static final class EditResult {
+        final Patient owner;
+        final List<Schedule> toRegenerate = new ArrayList<>();
+        boolean changedAlert;
+        boolean changedSchedules;
+
+        EditResult(Patient owner) {
+            this.owner = owner;
+        }
+    }
+
+    /**
+     * @param verifiedAllergens null means the editor has verified that the
+     *                          new prescription has no matching allergens.
+     *                          A non-null list must be verified and nonempty.
+     */
+    public static void edit(Context context, Medicine proposed,
+                            List<AllergenVO> verifiedAllergens) {
+        if (context == null || proposed == null || proposed.getId() == null
+                || proposed.getId() <= 0L
+                || !PatientOwnerGuard.hasStableIdentity(proposed.getPatient())) {
+            throw new IllegalArgumentException("Persisted owned medicine is required");
+        }
+        if (verifiedAllergens != null && (verifiedAllergens.isEmpty()
+                || verifiedAllergens.contains(null))) {
+            throw new IllegalArgumentException("Verified allergen set is incomplete");
+        }
+        final List<AllergenVO> allergens = verifiedAllergens == null
+                ? null : new ArrayList<>(verifiedAllergens);
+        final Patient owner = new Patient();
+        owner.setId(proposed.getPatient().getId());
+        owner.setCode(proposed.getPatient().getCode());
+        final Context safeContext = context.getApplicationContext() != null
+                ? context.getApplicationContext() : context;
+
+        EditResult committed = (EditResult) DB.transaction(() -> {
+            // Check both the selected profile and the persisted row inside
+            // the very transaction that will commit the clinical mutations.
+            requireCurrentOwner(safeContext, owner);
+            Medicine before = DB.medicines().findById(proposed.getId());
+            if (before == null || DB.medicines().refresh(before) != 1
+                    || !PatientOwnerGuard.sameStableIdentity(
+                            owner, before.getPatient())) {
+                throw new SQLException("Medicine owner changed before edit");
+            }
+            boolean changedPrescription =
+                    !Objects.equals(before.getCn(), proposed.getCn())
+                    || !Objects.equals(before.getDatabase(), proposed.getDatabase());
+            List<PatientAlert> warnings = DB.alerts().findByPatientMedicineAndType(
+                    owner, before, AllergyPatientAlert.class.getCanonicalName());
+            if (warnings.size() > 1) {
+                throw new SQLException("Duplicate HIGH allergy alerts require review");
+            }
+            PatientAlert existing = warnings.isEmpty() ? null : warnings.get(0);
+            if (existing != null && (existing.id() == null
+                    || existing.getLevel() != PatientAlert.Level.HIGH
+                    || !PatientOwnerGuard.sameStableIdentity(
+                            owner, existing.getPatient()))) {
+                throw new SQLException("Unverifiable HIGH allergy alert");
+            }
+
+            // Use the raw DAO operation, not MedicineDao.save(): that wrapper
+            // invokes stock/driving alert callbacks before transaction COMMIT.
+            if (DB.medicines().update(proposed) != 1) {
+                throw new SQLException("Medicine update did not change one row");
+            }
+            Medicine persisted = DB.medicines().findById(proposed.getId());
+            if (persisted == null || DB.medicines().refresh(persisted) != 1
+                    || !PatientOwnerGuard.sameStableIdentity(
+                            owner, persisted.getPatient())) {
+                throw new SQLException("Medicine owner changed during edit");
+            }
+
+            EditResult result = new EditResult(owner);
+            if (allergens != null) {
+                if (existing == null) {
+                    AllergyPatientAlert warning = new AllergyPatientAlert(persisted, allergens);
+                    if (DB.alerts().create(warning) != 1) {
+                        throw new SQLException("Cannot persist HIGH allergy warning");
+                    }
+                    result.changedAlert = true;
+                    AlertManager.blockSchedulesForMedicineInSql(persisted);
+                    result.changedSchedules = true;
+                } else {
+                    AllergyPatientAlert warning = (AllergyPatientAlert) existing.map();
+                    AllergyPatientAlert.AllergyAlertInfo details = warning.getDetails();
+                    if (details == null || details.getAllergens() == null
+                            || details.getAllergens().contains(null)) {
+                        throw new SQLException("Existing HIGH allergy details are unverifiable");
+                    }
+                    Set<AllergenVO> incoming = new HashSet<>(allergens);
+                    if (!incoming.equals(new HashSet<>(details.getAllergens()))) {
+                        details.setAllergens(allergens);
+                        warning.setDetails(details);
+                        if (DB.alerts().update(warning) != 1) {
+                            throw new SQLException("Cannot atomically revise allergy warning");
+                        }
+                        result.changedAlert = true;
+                    }
+                }
+            } else if (changedPrescription && existing != null) {
+                if (DB.alerts().deleteById(existing.id()) != 1) {
+                    throw new SQLException("Cannot atomically retire obsolete allergy warning");
+                }
+                result.changedAlert = true;
+                // A different HIGH warning still takes precedence. Do not
+                // release any medication while another blocker remains.
+                if (DB.alerts().findByMedicineAndLevel(
+                        persisted, PatientAlert.Level.HIGH).isEmpty()) {
+                    List<Schedule> blocked = DB.schedules().findByMedicineAndState(
+                            persisted, Schedule.ScheduleState.BLOCKED);
+                    for (Schedule candidate : blocked) {
+                        if (!AlertManager.sameStableScheduleMedicine(
+                                persisted, candidate)) {
+                            throw new SQLException("Blocked schedule has a stale owner");
+                        }
+                        Schedule stored = DB.schedules().findById(candidate.getId());
+                        if (stored == null || DB.schedules().refresh(stored) != 1
+                                || !AlertManager.sameStableScheduleMedicine(
+                                        persisted, stored)
+                                || !stored.hasState(Schedule.ScheduleState.BLOCKED)) {
+                            throw new SQLException("Blocked schedule changed before release");
+                        }
+                        stored.removeState(Schedule.ScheduleState.BLOCKED);
+                        if (DB.schedules().update(stored) != 1) {
+                            throw new SQLException("Could not atomically release schedule");
+                        }
+                        result.toRegenerate.add(stored);
+                    }
+                    result.changedSchedules = !blocked.isEmpty();
+                }
+            }
+            requireCurrentOwner(safeContext, owner);
+            return result;
+        });
+
+        // A COMMIT has happened. These effects must never be invoked inside
+        // DB.transaction, even when an SQL helper opens nested transactions.
+        RuntimeException error = null;
+        for (Schedule snapshot : committed.toRegenerate) {
+            try {
+                requireCurrentOwner(safeContext, committed.owner);
+                Schedule current = DB.schedules().findById(snapshot.getId());
+                if (current == null || DB.schedules().refresh(current) != 1
+                        || !AlertManager.sameStableScheduleMedicine(
+                                proposed, current)
+                        || current.hasState(Schedule.ScheduleState.BLOCKED)
+                        || !DB.alerts().findByMedicineAndLevel(
+                                proposed, PatientAlert.Level.HIGH).isEmpty()) {
+                    throw new IllegalStateException("Schedule changed after medicine COMMIT");
+                }
+                ScheduleUtils.instance().createEventInstances(safeContext, current);
+            } catch (RuntimeException failure) {
+                LogUtil.e(TAG, "Committed medicine schedule requires recovery");
+                if (error == null) error = failure;
+            }
+        }
+        if (committed.changedSchedules) {
+            try {
+                Agenda.instance().cleanReminders(safeContext);
+            } catch (RuntimeException failure) {
+                LogUtil.e(TAG, "Committed medicine alarm reconciliation requires recovery");
+                if (error == null) error = failure;
+            }
+        }
+        try {
+            StockAlertHandler.checkStockAlerts(proposed);
+            Prescription prescription = proposed.isBoundToPrescription()
+                    ? DB.drugDB().prescriptions().findByCn(proposed.getCn()) : null;
+            DrivingAlertHandler.checkDrivingAlerts(proposed, prescription);
+        } catch (RuntimeException failure) {
+            LogUtil.e(TAG, "Committed medicine warning checks require recovery");
+            if (error == null) error = failure;
+        }
+        // Notify observers even when post-COMMIT Android work fails: the
+        // medicine was already committed, and should never be shown as absent.
+        if (committed.changedSchedules) {
+            CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT);
+        }
+        if (committed.changedAlert) {
+            CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT);
+        }
+        PersistenceEvents.ModelCreateOrUpdateEvent event =
+                new PersistenceEvents.ModelCreateOrUpdateEvent(Medicine.class);
+        event.model = proposed;
+        CalendulaApp.eventBus().post(event);
+        if (error != null) {
+            throw new PostCommitRecoveryException(error);
+        }
+    }
+
+    private static void requireCurrentOwner(Context context, Patient expected)
+            throws SQLException {
+        if (!PatientOwnerGuard.sameStableIdentity(
+                expected, DB.patients().findById(expected.getId()))
+                || !PatientOwnerGuard.sameStableIdentity(
+                expected, DB.patients().getActive(context))) {
+            throw new SQLException("Medicine edit changed active or persisted patient");
+        }
+    }
+}
