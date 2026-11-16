@@ -210,10 +210,19 @@ public class MissingFutureReminderRecoverySmokeTest {
 
             // Even without BLOCKED, a pending official-treatment review
             // still forbids automatically generating clinical reminders.
+            // The disposable fixture deliberately simulates a separate
+            // provider review transition, not the app's normal schedule
+            // editor. Write the serialized EnumSet state explicitly so this
+            // test does not depend on ORMLite's affected-row bookkeeping.
+            SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+            sqlite.execSQL("UPDATE NewSchedules SET State=? WHERE _id=?",
+                    new Object[]{"[\\\"PENDING_REVIEW_AFTER_UPDATE\\\"]",
+                            schedule.getId()});
             Schedule stored = DB.schedules().findById(schedule.getId());
-            stored.removeState(Schedule.ScheduleState.BLOCKED);
-            stored.addState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE);
-            assertEquals(1, DB.schedules().update(stored));
+            assertNotNull(stored);
+            assertTrue("Provider-review fixture must persist before recovery",
+                    stored.hasState(Schedule.ScheduleState.PENDING_REVIEW_AFTER_UPDATE));
+            assertFalse(stored.hasState(Schedule.ScheduleState.BLOCKED));
             Agenda.instance().updateAllAlarms(ctx);
             assertNull("Unreviewed official treatment must stay unscheduled",
                     DB.eventReminders().findBy(
