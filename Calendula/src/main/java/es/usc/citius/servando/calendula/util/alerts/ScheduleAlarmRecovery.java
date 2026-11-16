@@ -7,6 +7,9 @@ package es.usc.citius.servando.calendula.util.alerts;
 import android.content.Context;
 
 import java.sql.SQLException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,6 +50,37 @@ public final class ScheduleAlarmRecovery {
         return identity;
     }
 
+    /**
+     * Stable, domain-separated identity fingerprint for crash recovery.
+     * This is a comparison key, not encryption. It must be stored inside the
+     * SAME SQLite transaction as the unblocked schedule state.
+     */
+    public static String ownerDigest(Patient owner) {
+        if (!PatientOwnerGuard.hasStableIdentity(owner)) {
+            throw new IllegalArgumentException("Recovery requires a stable owner");
+        }
+        try {
+            MessageDigest sha = MessageDigest.getInstance("SHA-256");
+            sha.update("calendula/high-alert-recovery/v1"
+                    .getBytes(StandardCharsets.UTF_8));
+            sha.update((byte) 0);
+            sha.update(Long.toString(owner.getId()).getBytes(StandardCharsets.UTF_8));
+            sha.update((byte) 0);
+            sha.update(owner.getCode().getBytes(StandardCharsets.UTF_8));
+            byte[] hash = sha.digest();
+            char[] result = new char[hash.length * 2];
+            final char[] hex = "0123456789abcdef".toCharArray();
+            for (int i = 0; i < hash.length; i++) {
+                int b = hash[i] & 0xff;
+                result[2 * i] = hex[b >>> 4];
+                result[2 * i + 1] = hex[b & 0x0f];
+            }
+            return "sha256-v1:" + new String(result);
+        } catch (NoSuchAlgorithmException unavailable) {
+            throw new IllegalStateException("SHA-256 is unavailable", unavailable);
+        }
+    }
+
     /** Pure guard also used by isolated policy tests. */
     public static boolean eligible(Schedule schedule, Patient expected,
                                    Patient liveOwner, Medicine liveMedicine,
@@ -54,6 +88,8 @@ public final class ScheduleAlarmRecovery {
         return schedule != null && schedule.getId() != null
                 && schedule.getId() > 0L
                 && schedule.hasState(MARK)
+                && schedule.getRecoveryOwnerDigest() != null
+                && schedule.getRecoveryOwnerDigest().equals(ownerDigest(expected))
                 && !schedule.hasState(Schedule.ScheduleState.BLOCKED)
                 && schedule.getMedicine() != null
                 && liveMedicine != null
@@ -120,6 +156,7 @@ public final class ScheduleAlarmRecovery {
         DB.transaction(() -> {
             Schedule unchanged = requireEligible(scheduleId, owner);
             unchanged.removeState(MARK);
+            unchanged.setRecoveryOwnerDigest(null);
             if (DB.schedules().update(unchanged) != 1) {
                 throw new SQLException("Could not commit schedule recovery marker");
             }
