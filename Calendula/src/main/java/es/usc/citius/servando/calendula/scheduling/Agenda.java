@@ -59,6 +59,7 @@ import es.usc.citius.servando.calendula.scheduling.model.EventReminderReceiver;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.util.IntentParams;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.alerts.ScheduleAlarmRecovery;
 import es.usc.citius.servando.calendula.util.PendingIntentFlags;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
@@ -304,6 +305,12 @@ public class Agenda {
     }
 
     public void updateAllAlarms(Context context) {
+        // A high-allergy warning may have been removed just before process
+        // death. The SQL COMMIT persists PENDING_REMINDER_RECOVERY while the
+        // Android reminder registrations cannot participate in that commit.
+        // Replay only owner-validated schedules; completed and cancelled
+        // intakes must never be duplicated on a later startup or reboot.
+        ScheduleAlarmRecovery.replayPending(context);
         int rearmed = rearmPendingFutureReminders(context);
         LogUtil.d(TAG, "Rearmed " + rearmed + " eligible future reminders");
     }
@@ -502,7 +509,7 @@ public class Agenda {
         // A same-day process restart may follow a crash between SQLite COMMIT
         // and OS registration. Re-arm valid future tokens from persisted SQL.
         // Do not fire old past-due reminders or resurrect cancelled intakes.
-        rearmPendingFutureReminders(context);
+        updateAllAlarms(context);
     }
 
     /**
