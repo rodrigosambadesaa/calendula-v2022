@@ -281,6 +281,8 @@ public final class AtomicMedicineAllergyEditor {
                         }
                         stored.removeState(Schedule.ScheduleState.BLOCKED);
                         stored.addState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY);
+                        stored.setRecoveryOwnerDigest(
+                                ScheduleAlarmRecovery.ownerDigest(owner));
                         if (DB.schedules().update(stored) != 1) {
                             throw new SQLException("Could not atomically release schedule");
                         }
