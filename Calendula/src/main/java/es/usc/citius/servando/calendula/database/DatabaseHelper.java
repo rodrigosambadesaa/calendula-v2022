@@ -66,7 +66,7 @@ import es.usc.citius.servando.calendula.util.LogUtil;
 public class DatabaseHelper extends OrmLiteSqliteOpenHelper {
 
     // any time you make changes to your database objects, you may have to increase the database version
-    public static final int DATABASE_VERSION = 4;
+    public static final int DATABASE_VERSION = 5;
     private static final String TAG = "DatabaseHelper";
     // name of the database file for our application
     private static final String DATABASE_NAME = DB.DB_NAME;
@@ -185,6 +185,15 @@ public class DatabaseHelper extends OrmLiteSqliteOpenHelper {
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS"
                         + " `EventRemindersAlarmInstanceUnique` ON `EventReminders`"
                         + " (`" + EventReminder.COLUMN_ALARM_INSTANCE + "`);");
+            }
+            if (oldVersion < 5) {
+                // Version 5 binds a pending HIGH-alert alarm replay to its
+                // ORIGINAL stable patient, not merely a reused SQLite row ID.
+                // Nullable for all legacy schedules: no old release created
+                // this recovery marker. Never synthesize an owner digest.
+                db.execSQL("ALTER TABLE `NewSchedules` ADD COLUMN `"
+                        + Schedule.COLUMN_RECOVERY_OWNER_DIGEST
+                        + "` VARCHAR;");
             }
         } catch (Exception e) {
             // Never try to recover an upgrade failure by deleting user data.
