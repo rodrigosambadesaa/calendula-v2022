@@ -216,7 +216,7 @@ public class MissingFutureReminderRecoverySmokeTest {
             // test does not depend on ORMLite's affected-row bookkeeping.
             SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
             sqlite.execSQL("UPDATE NewSchedules SET State=? WHERE _id=?",
-                    new Object[]{"[\\\"PENDING_REVIEW_AFTER_UPDATE\\\"]",
+                    new Object[]{"[\"PENDING_REVIEW_AFTER_UPDATE\"]",
                             schedule.getId()});
             Schedule stored = DB.schedules().findById(schedule.getId());
             assertNotNull(stored);
