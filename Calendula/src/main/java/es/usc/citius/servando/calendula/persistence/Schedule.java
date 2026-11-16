@@ -294,7 +294,11 @@ public class Schedule implements EventProvider {
         PENDING_REVIEW_AFTER_UPDATE("PENDING_REVIEW_AFTER_UPDATE"),
         PENDING_REVIEW_AFTER_DELETE("PENDING_REVIEW_AFTER_DELETE"),
         DIFFERS_FROM_OFFICIAL("DIFFERS_FROM_OFFICIAL"),
-        CREATED_FROM_OFFICIAL("CREATED_FROM_OFFICIAL");
+        CREATED_FROM_OFFICIAL("CREATED_FROM_OFFICIAL"),
+        // Persisted in the same SQLite transaction that releases a HIGH
+        // allergy block. Survives process death before Android reminders
+        // can be rebuilt. This does NOT itself enable event generation.
+        PENDING_REMINDER_RECOVERY("PENDING_REMINDER_RECOVERY");
 
         String value;
 
