@@ -106,6 +106,27 @@ public class ScheduleUtils {
                         schedule.getPatient(), schedule.getMedicine().getPatient())) {
             throw new IllegalArgumentException("New schedule must have a persisted owner and medicine");
         }
+        // ORMLite mutates generated IDs on Java objects even when a later
+        // INSERT aborts the SQLite transaction. Keep the caller's complete
+        // unsaved draft intact so a retry cannot UPDATE phantom schedule/
+        // intake rows, nor accidentally carry another schedule's references.
+        final Patient originalPatient = schedule.getPatient();
+        final Medicine originalMedicine = schedule.getMedicine();
+        final java.util.IdentityHashMap<EventInstance, Long> originalEventIds =
+                new java.util.IdentityHashMap<>();
+        final java.util.IdentityHashMap<EventInstance, Long> originalEventRefs =
+                new java.util.IdentityHashMap<>();
+        final java.util.IdentityHashMap<EventInstance, Patient> originalEventPatients =
+                new java.util.IdentityHashMap<>();
+        if (precomputed != null) {
+            for (EventInstance event : precomputed) {
+                if (event != null) {
+                    originalEventIds.put(event, event.getId());
+                    originalEventRefs.put(event, event.getRef());
+                    originalEventPatients.put(event, event.getPatient());
+                }
+            }
+        }
         final Collection<EventInstance> inserted;
         try {
             inserted = TransactionManager.callInTransaction(
@@ -150,8 +171,27 @@ public class ScheduleUtils {
                         Agenda.instance().addEvents(events);
                         return events;
                     });
-        } catch (SQLException error) {
-            throw new IllegalStateException("Could not atomically create schedule and occurrences", error);
+        } catch (SQLException | RuntimeException error) {
+            // Revert only the in-memory identities changed by the failed SQL
+            // phase. Never reset them for a post-COMMIT Android alarm failure:
+            // at that point the schedule row really exists in SQLite.
+            schedule.setId(null);
+            schedule.setPatient(originalPatient);
+            schedule.setMedicine(originalMedicine);
+            if (precomputed != null) {
+                for (EventInstance event : precomputed) {
+                    if (event != null) {
+                        event.setId(originalEventIds.get(event));
+                        event.setRef(originalEventRefs.get(event));
+                        event.setPatient(originalEventPatients.get(event));
+                    }
+                }
+            }
+            if (error instanceof SQLException) {
+                throw new IllegalStateException(
+                        "Could not atomically create schedule and occurrences", error);
+            }
+            throw error;
         }
         // The DB now has a complete prescription+occurrence set. Alert checks
         // used to run inside ScheduleDao.save(), before event creation; move
