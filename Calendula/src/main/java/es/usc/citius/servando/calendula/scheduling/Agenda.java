@@ -242,7 +242,10 @@ public class Agenda {
         int windowMinutes = Math.max(0, ReminderTiming.windowMinutes());
         DateTime earliest = now.minusMinutes(windowMinutes).minusMillis(1);
         DateTime midnightTomorrow = now.plusDays(1).withTimeAtStartOfDay();
-        DateTime endExclusive = midnightTomorrow.plusMillis(1);
+        // DateTimePersister serializes whole seconds. A +1ms SQL bound
+        // rounds DOWN to midnight and accidentally excludes an intake
+        // scheduled for exactly 00:00 tomorrow.
+        DateTime endExclusive = midnightTomorrow.plusSeconds(1);
         return DB.eventInstances().findInWindow(earliest, endExclusive);
     }
 
@@ -426,7 +429,7 @@ public class Agenda {
         DateTime throughMidnight = now.plusDays(1).withTimeAtStartOfDay();
         List<EventInstance> missing = new ArrayList<>();
         for (EventInstance event : DB.eventInstances().findInWindow(
-                now.plusMillis(1), throughMidnight.plusMillis(1))) {
+                now.plusMillis(1), throughMidnight.plusSeconds(1))) {
             if (!isReminderEligible(event)
                     || event.getType() != EventType.MEDICATION_INTAKE
                     || event.getTime() == null
