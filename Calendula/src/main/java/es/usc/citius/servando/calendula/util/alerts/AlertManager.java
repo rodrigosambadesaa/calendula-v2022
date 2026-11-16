@@ -35,6 +35,7 @@ import es.usc.citius.servando.calendula.persistence.PatientAlert;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 
 import static es.usc.citius.servando.calendula.persistence.PatientAlert.Level;
 
@@ -102,47 +103,135 @@ public class AlertManager {
         if (alert == null || alert.id() == null || alert.id() <= 0L) {
             throw new IllegalArgumentException("A persisted alert ID is required");
         }
-        // A UI/worker may hold an old alert object. Do not let that stale
-        // object delete a replacement or a clinical alert reassigned to
-        // another patient, medicine, or severity.
-        PatientAlert persisted = (PatientAlert) DB.transaction(() -> {
+
+        final AlertRemovalResult result = (AlertRemovalResult) DB.transaction(() -> {
             PatientAlert current = DB.alerts().findById(alert.id());
             if (current == null) {
                 return null; // Already removed; never unblock anything.
             }
-            if (!sameAlertIdentity(alert, current)) {
+            Medicine linked = current.getMedicine() == null
+                    || current.getMedicine().getId() == null ? null
+                    : DB.medicines().findById(current.getMedicine().getId());
+            Patient persistedOwner = current.getPatient() == null
+                    || current.getPatient().getId() == null ? null
+                    : DB.patients().findById(current.getPatient().getId());
+            if (!sameAlertIdentity(alert, current)
+                    || !PatientOwnerGuard.sameStableIdentity(
+                            alert.getPatient(), persistedOwner)
+                    || (current.getLevel() == Level.HIGH
+                            && (linked == null
+                                || !PatientOwnerGuard.sameStableIdentity(
+                                        alert.getPatient(), linked.getPatient())))) {
                 throw new IllegalStateException("Alert identity changed before deletion");
             }
+
             if (DB.alerts().deleteById(current.id()) != 1) {
                 throw new SQLException("Alert deletion did not remove exactly one row");
             }
-            return current;
+
+            List<Schedule> toRebuild = new java.util.ArrayList<>();
+            if (current.getLevel() == Level.HIGH) {
+                // Observe the remaining HIGH warnings only *after* deleting
+                // this one, on the same SQLite connection. A second HIGH
+                // alert must keep the schedule blocked.
+                List<PatientAlert> remaining = DB.alerts().findByMedicineAndLevel(
+                        linked, Level.HIGH);
+                if (remaining.isEmpty()) {
+                    List<Schedule> blocked = DB.schedules().findByMedicineAndState(
+                            linked, Schedule.ScheduleState.BLOCKED);
+                    for (Schedule selected : blocked) {
+                        if (selected == null || selected.getId() == null
+                                || !PatientOwnerGuard.sameStableIdentity(
+                                        alert.getPatient(), selected.getPatient())) {
+                            throw new SQLException("Blocked schedule owner mismatch");
+                        }
+                        Schedule stored = DB.schedules().findById(selected.getId());
+                        if (stored == null || DB.schedules().refresh(stored) != 1
+                                || !PatientOwnerGuard.sameStableIdentity(
+                                        alert.getPatient(), stored.getPatient())
+                                || stored.getMedicine() == null
+                                || !linked.getId().equals(stored.getMedicine().getId())
+                                || !stored.hasState(Schedule.ScheduleState.BLOCKED)) {
+                            throw new SQLException("Blocked schedule identity changed");
+                        }
+                        stored.removeState(Schedule.ScheduleState.BLOCKED);
+                        // This direct DAO update deliberately does not call
+                        // ScheduleDao.save(), which can execute stock-alert
+                        // observers before the outer SQLite COMMIT.
+                        if (DB.schedules().update(stored) != 1) {
+                            throw new SQLException("Could not atomically unblock schedule");
+                        }
+                        toRebuild.add(stored);
+                    }
+                }
+            }
+            return new AlertRemovalResult(current, toRebuild);
         });
-        if (persisted == null) {
+        if (result == null) {
             return;
         }
 
-        // The remaining HIGH alerts must be checked AFTER the committed
-        // deletion. Reuse the authoritative persisted owner/medicine rather
-        // than an untrusted callback snapshot.
-        if (persisted.getLevel() == Level.HIGH) {
-            final List<Schedule> blocked = DB.schedules().findByMedicineAndState(
-                    persisted.getMedicine(), Schedule.ScheduleState.BLOCKED);
-            if (!blocked.isEmpty()) {
-                final List<PatientAlert> alerts = DB.alerts().findByMedicineAndLevel(
-                        persisted.getMedicine(), Level.HIGH);
-                if (alerts.isEmpty()) {
-                    DB.transaction(new Callable<Object>() {
-                        @Override
-                        public Object call() throws Exception {
-                            for (Schedule schedule : blocked) {
-                                unblockSchedule(schedule);
-                            }
-                            return null;
-                        }
-                    });
+        // SQLite has committed here. Re-read each schedule before creating
+        // future occurrences: a new HIGH warning or a recycled patient/row ID
+        // cannot authorize another patient's reminders after the COMMIT.
+        // Attempt *every* regeneration even when one fails. A post-COMMIT
+        // failure must not silently skip the remaining patient's schedules
+        // or suppress the alert/schedule observers.
+        RuntimeException postCommitFailure = null;
+        for (Schedule snapshot : result.unblocked) {
+            try {
+                Schedule current = DB.schedules().findById(snapshot.getId());
+                if (current == null || DB.schedules().refresh(current) != 1
+                        || !PatientOwnerGuard.sameStableIdentity(
+                                result.deleted.getPatient(), current.getPatient())
+                        || current.getMedicine() == null
+                        || snapshot.getMedicine() == null
+                        || !snapshot.getMedicine().getId().equals(current.getMedicine().getId())
+                        || current.hasState(Schedule.ScheduleState.BLOCKED)) {
+                    continue;
+                }
+                Medicine currentMedicine = DB.medicines().findById(current.getMedicine().getId());
+                if (currentMedicine == null
+                        || !PatientOwnerGuard.sameStableIdentity(
+                                result.deleted.getPatient(), currentMedicine.getPatient())
+                        || !DB.alerts().findByMedicineAndLevel(
+                                currentMedicine, Level.HIGH).isEmpty()) {
+                    continue;
+                }
+                ScheduleUtils.instance().createEventInstances(CalendulaApp.getContext(), current);
+            } catch (RuntimeException postCommitError) {
+                LogUtil.e(TAG, "Committed HIGH alert release needs agenda recovery");
+                if (postCommitFailure == null) {
+                    postCommitFailure = postCommitError;
                 }
             }
+        }
+        if (!result.unblocked.isEmpty()) {
+            try {
+                Agenda.instance().cleanReminders(CalendulaApp.getContext());
+            } catch (RuntimeException postCommitError) {
+                LogUtil.e(TAG, "Committed HIGH alert alarm cleanup needs retry");
+                if (postCommitFailure == null) {
+                    postCommitFailure = postCommitError;
+                }
+            }
+            CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT);
+        }
+        CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT);
+        if (postCommitFailure != null) {
+            throw new IllegalStateException(
+                    "Alert removal committed; schedule recovery is incomplete",
+                    postCommitFailure);
+        }
+    }
+
+    private static final class AlertRemovalResult {
+        final PatientAlert deleted;
+        final List<Schedule> unblocked;
+
+        AlertRemovalResult(PatientAlert deleted, List<Schedule> unblocked) {
+            this.deleted = deleted;
+            this.unblocked = unblocked;
         }
     }
 
