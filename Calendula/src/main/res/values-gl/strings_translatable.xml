@@ -238,7 +238,7 @@ Calendula está sendo desenvolvida polo Centro de Investigación en Tecnoloxías
 <string name="title_medicine_allergy_alert">"Alerxias detectadas para este medicamento"</string>
 <string name="message_medicine_alert">"Este medicamento contén elementos aos que eres alérxico. Pola túa seguridade, non se poderán programar pautas para este medicamento."</string>
 <string name="medicine_save_error_message">"Produciuse un erro ao gardar o medicamento."</string>
-<string name="medicine_saved_reminder_recovery_required">"O medicamento gardouse, pero algúns recordatorios poden precisar recuperación. Revisa os horarios."</string>
+<string name="medicine_saved_reminder_recovery_required">"O medicamento gardouse, pero algunhas alertas ou recordatorios precisan recuperación. Revisa os horarios e os avisos."</string>
 <string name="title_allergies_detected_dialog">"Atención"</string>
 <string name="message_allergies_detected_dialog">"Algunhas das medicinas no teu botiquín conteñen o alérxeno que acabas de engadir. Por favor, revisa os seus prospectos coidadosamente."</string>
 <string name="error_duplicate_medicine">"Este medicamento xa se atopa no botiquín."</string>
