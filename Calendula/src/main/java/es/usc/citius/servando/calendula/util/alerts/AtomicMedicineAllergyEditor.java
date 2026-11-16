@@ -280,6 +280,7 @@ public final class AtomicMedicineAllergyEditor {
                             throw new SQLException("Blocked schedule changed before release");
                         }
                         stored.removeState(Schedule.ScheduleState.BLOCKED);
+                        stored.addState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY);
                         if (DB.schedules().update(stored) != 1) {
                             throw new SQLException("Could not atomically release schedule");
                         }
@@ -300,26 +301,10 @@ public final class AtomicMedicineAllergyEditor {
                 if (!currentOwnerMatches(safeContext, committed.owner)) {
                     throw new IllegalStateException("Patient changed after medicine COMMIT");
                 }
-                Schedule current = DB.schedules().findById(snapshot.getId());
-                if (current == null || DB.schedules().refresh(current) != 1
-                        || !AlertManager.sameStableScheduleMedicine(
-                                proposed, current)
-                        || current.hasState(Schedule.ScheduleState.BLOCKED)
-                        || !DB.alerts().findByMedicineAndLevel(
-                                proposed, PatientAlert.Level.HIGH).isEmpty()) {
-                    throw new IllegalStateException("Schedule changed after medicine COMMIT");
-                }
-                ScheduleUtils.instance().createEventInstances(safeContext, current);
+                ScheduleAlarmRecovery.recoverOne(
+                        safeContext, snapshot.getId(), committed.owner);
             } catch (RuntimeException failure) {
                 LogUtil.e(TAG, "Committed medicine schedule requires recovery");
-                if (error == null) error = failure;
-            }
-        }
-        if (committed.changedSchedules) {
-            try {
-                Agenda.instance().cleanReminders(safeContext);
-            } catch (RuntimeException failure) {
-                LogUtil.e(TAG, "Committed medicine alarm reconciliation requires recovery");
                 if (error == null) error = failure;
             }
         }
