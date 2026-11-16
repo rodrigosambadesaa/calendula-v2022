@@ -12,6 +12,8 @@ import androidx.test.platform.app.InstrumentationRegistry;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.dmfs.rfc5545.recur.Freq;
+import org.joda.time.DateTime;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -21,6 +23,10 @@ import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.PatientAlert;
 import es.usc.citius.servando.calendula.persistence.PatientAllergen;
 import es.usc.citius.servando.calendula.persistence.Presentation;
+import es.usc.citius.servando.calendula.persistence.Schedule;
+import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
+import es.usc.citius.servando.calendula.scheduling.model.EventType;
+import es.usc.citius.servando.calendula.scheduling.model.recur.RecurringEvent;
 import es.usc.citius.servando.calendula.persistence.alerts.AllergyPatientAlert;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
@@ -320,6 +326,130 @@ public class AllergenWarningCleanupSmokeTest {
                 if (DB.medicines().findById(medicine.getId()) != null) {
                     DB.medicines().deleteById(medicine.getId());
                 }
+            }
+            if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().deleteById(owner.getId());
+            }
+        }
+    }
+
+
+    /**
+     * A HIGH warning may block several scheduled doses. A failed second
+     * occurrence DELETE must roll back the medicine edit, new HIGH warning,
+     * earlier schedule block, and removed future occurrences as ONE unit.
+     */
+    @Test
+    public void failedSecondScheduleBlockRollsBackMedicineAndWarningToo()
+            throws Exception {
+        assertTrue(DB.initialized);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        Patient previous = DB.patients().getActive(context);
+        String suffix = Long.toString(System.nanoTime());
+        Patient owner = new Patient();
+        owner.setCode("ci-edit-block-owner-" + suffix);
+        owner.setName("Synthetic atomic scheduling owner");
+        Medicine medicine = new Medicine("Synthetic unchanged medicine", Presentation.PILLS);
+        Schedule first = null;
+        Schedule second = null;
+        EventInstance e1 = null;
+        EventInstance e2 = null;
+        SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+        String trigger = "ci_edit_block_second_event_abort";
+        sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            DB.patients().setActive(owner);
+            medicine.setPatient(owner);
+            assertEquals(1, DB.medicines().create(medicine));
+            RecurringEvent recur = new RecurringEvent.Builder()
+                    .from(DateTime.now().minusDays(1))
+                    .repeatEvery(8, Freq.HOURLY).build();
+            first = new Schedule(recur);
+            first.setPatient(owner);
+            first.setMedicine(medicine);
+            first.setDosage(1.0d);
+            second = new Schedule(recur);
+            second.setPatient(owner);
+            second.setMedicine(medicine);
+            second.setDosage(1.0d);
+            assertEquals(1, DB.schedules().create(first));
+            assertEquals(1, DB.schedules().create(second));
+            e1 = new EventInstance(DateTime.now().plusMinutes(25), EventType.MEDICATION_INTAKE);
+            e2 = new EventInstance(DateTime.now().plusMinutes(30), EventType.MEDICATION_INTAKE);
+            e1.setPatient(owner);
+            e2.setPatient(owner);
+            e1.setRef(first.getId());
+            e2.setRef(second.getId());
+            e1.addParam(EventInstance.PARAM_DOSE, 1.0d);
+            e2.addParam(EventInstance.PARAM_DOSE, 1.0d);
+            assertEquals(1, DB.eventInstances().create(e1));
+            assertEquals(1, DB.eventInstances().create(e2));
+            medicine.setName("Synthetic changed medicine");
+            AllergenVO verified = new AllergenVO(
+                    AllergenType.EXCIPIENT, "Synthetic guarded allergen", "CI-BLOCK-" + suffix);
+
+            sqlite.execSQL("CREATE TRIGGER " + trigger
+                    + " BEFORE DELETE ON EventInstances WHEN OLD._id = " + e2.getId()
+                    + " BEGIN SELECT RAISE(ABORT, 'ci synthetic second intake failure'); END;");
+            assertAtomicEditRejected(context, medicine, Collections.singletonList(verified));
+            assertEquals("Synthetic unchanged medicine", persistedName(medicine));
+            assertTrue("Rolled-back HIGH warning must not remain",
+                    DB.alerts().findByMedicineAndType(medicine,
+                            AllergyPatientAlert.class.getCanonicalName()).isEmpty());
+            assertFalse(DB.schedules().findById(first.getId())
+                    .hasState(Schedule.ScheduleState.BLOCKED));
+            assertFalse(DB.schedules().findById(second.getId())
+                    .hasState(Schedule.ScheduleState.BLOCKED));
+            assertNotNull(DB.eventInstances().findById(e1.getId()));
+            assertNotNull(DB.eventInstances().findById(e2.getId()));
+
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            AtomicMedicineAllergyEditor.edit(
+                    context, medicine, Collections.singletonList(verified));
+            assertEquals("Synthetic changed medicine", persistedName(medicine));
+            assertEquals(1, DB.alerts().findByMedicineAndType(
+                    medicine, AllergyPatientAlert.class.getCanonicalName()).size());
+            assertTrue(DB.schedules().findById(first.getId())
+                    .hasState(Schedule.ScheduleState.BLOCKED));
+            assertTrue(DB.schedules().findById(second.getId())
+                    .hasState(Schedule.ScheduleState.BLOCKED));
+            assertNull(DB.eventInstances().findById(e1.getId()));
+            assertNull(DB.eventInstances().findById(e2.getId()));
+        } finally {
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            if (previous != null && previous.getId() != null
+                    && DB.patients().findById(previous.getId()) != null) {
+                DB.patients().setActive(previous);
+            } else {
+                PreferenceUtils.edit()
+                        .remove(PreferenceKeys.PATIENTS_ACTIVE.key())
+                        .remove(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key())
+                        .remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key())
+                        .commit();
+            }
+            if (medicine.getId() != null && owner.getId() != null) {
+                for (PatientAlert alert : DB.alerts().findByMedicineAndType(
+                        medicine, AllergyPatientAlert.class.getCanonicalName())) {
+                    DB.alerts().deleteById(alert.id());
+                }
+            }
+            for (EventInstance event : new EventInstance[]{e1, e2}) {
+                if (event != null && event.getId() != null
+                        && DB.eventInstances().findById(event.getId()) != null) {
+                    DB.eventInstances().deleteById(event.getId());
+                }
+            }
+            for (Schedule schedule : new Schedule[]{first, second}) {
+                if (schedule != null && schedule.getId() != null
+                        && DB.schedules().findById(schedule.getId()) != null) {
+                    DB.eventInstances().removeByRef(schedule.getId());
+                    DB.schedules().deleteById(schedule.getId());
+                }
+            }
+            if (medicine.getId() != null
+                    && DB.medicines().findById(medicine.getId()) != null) {
+                DB.medicines().deleteById(medicine.getId());
             }
             if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
                 DB.patients().deleteById(owner.getId());
