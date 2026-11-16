@@ -218,7 +218,7 @@ Calendula is being developed by the Centro de Investigación en Tecnoloxías Int
 <string name="title_medicine_allergy_alert">"Allergies detected for this medicine."</string>
 <string name="message_medicine_alert">"This medicine contains ingredients to which you have an allergy. For your safety, you will not be able to schedule this medicine."</string>
 <string name="medicine_save_error_message">"There was an error while saving your medicine."</string>
-<string name="medicine_saved_reminder_recovery_required">"Medication saved, but some reminders may need recovery. Please review your schedules."</string>
+<string name="medicine_saved_reminder_recovery_required">"Medication saved, but some alerts or reminders need recovery. Review your schedules and warnings."</string>
 <string name="title_allergies_detected_dialog">"Warning"</string>
 <string name="message_allergies_detected_dialog">"Some of the medicines in your medkit contain the allergen you've just added. Please review their prospects carefully."</string>
 <string name="error_duplicate_medicine">"This medicine is already in your medkit."</string>
