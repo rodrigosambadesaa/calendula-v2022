@@ -191,13 +191,30 @@ public class AllergyAlertUtil {
                         throw new SQLException("Allergy alert and medicine owners differ");
                     }
                     AllergyPatientAlert mapped = (AllergyPatientAlert) alert.map();
+                    if (alert.getLevel() != PatientAlert.Level.HIGH) {
+                        // A corrupted allergy type/severity must not be
+                        // silently rewritten or treated as a safe LOW alert.
+                        throw new SQLException("Persisted allergy warning severity is invalid");
+                    }
                     final AllergyPatientAlert.AllergyAlertInfo details = mapped.getDetails();
-                    if (details == null || details.getAllergens() == null) {
-                        // Never remove a HIGH alert whose stored allergen
-                        // details are missing or cannot be verified.
-                        continue;
+                    if (details == null || details.getAllergens() == null
+                            || details.getAllergens().isEmpty()) {
+                        // Preserve the HIGH warning, but do NOT report a
+                        // successful cleanup of an unverifiable record.
+                        throw new SQLException("HIGH allergy warning details need review");
                     }
                     List<AllergenVO> remaining = new ArrayList<>(details.getAllergens());
+                    java.util.Set<AllergenVO> verified = new java.util.HashSet<>();
+                    for (AllergenVO item : remaining) {
+                        if (item == null || item.getType() == null
+                                || item.getIdentifier() == null
+                                || item.getIdentifier().trim().isEmpty()
+                                || !verified.add(item)) {
+                            // Duplicate/malformed identities must not allow
+                            // removal to unblock a clinically unsafe dose.
+                            throw new SQLException("HIGH allergy identities are ambiguous");
+                        }
+                    }
                     if (!remaining.remove(removedAllergen)) {
                         continue;
                     }
