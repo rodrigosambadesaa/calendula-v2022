@@ -78,6 +78,16 @@ public final class AtomicAllergenRegistration {
                 || requested == null || requested.isEmpty() || lookup == null) {
             throw new IllegalArgumentException("Persisted owner and nonempty allergen batch required");
         }
+        // The helper emits nontransactional AlarmManager/observer effects
+        // when its own transaction returns. If it were nested inside a
+        // caller's outer SQLite transaction, those effects could run BEFORE
+        // the real outer COMMIT (or survive its later ROLLBACK).
+        // Refuse an ambient transaction rather than falsely claiming that
+        // returning from an ORMLite savepoint made clinical data durable.
+        if (DB.helper().getWritableDatabase().inTransaction()) {
+            throw new IllegalStateException(
+                    "Allergen registration requires the outermost SQLite transaction");
+        }
         final Context app = context.getApplicationContext() != null
                 ? context.getApplicationContext() : context;
         final Patient owner = new Patient();
