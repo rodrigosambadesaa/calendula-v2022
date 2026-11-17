@@ -227,12 +227,14 @@ public final class AtomicAllergenRegistration {
         RuntimeException afterCommitFailure = null;
         if (committed.schedulesBlocked) {
             try {
+                requireCurrentOwnerForPlatformEffects(app, owner);
                 Agenda.instance().cleanRemindersForPatient(app, owner);
             } catch (RuntimeException failure) {
                 LogUtil.e(TAG, "Committed allergen batch requires alarm recovery");
                 afterCommitFailure = failure;
             }
             try {
+                requireCurrentOwnerForPlatformEffects(app, owner);
                 CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT);
             } catch (RuntimeException failure) {
                 LogUtil.e(TAG, "Committed allergen schedule observer failed");
@@ -241,6 +243,7 @@ public final class AtomicAllergenRegistration {
         }
         if (committed.alertsChanged) {
             try {
+                requireCurrentOwnerForPlatformEffects(app, owner);
                 CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT);
             } catch (RuntimeException failure) {
                 LogUtil.e(TAG, "Committed allergen alert observer failed");
@@ -251,6 +254,22 @@ public final class AtomicAllergenRegistration {
             throw new PostCommitRecoveryException(afterCommitFailure);
         }
         return committed;
+    }
+
+    /**
+     * Platform alarms and UI events are not covered by the already-committed
+     * SQLite transaction. A profile switch during COMMIT must not allow the
+     * old asynchronous operation to act in a different active-owner context.
+     * Treat this as a post-COMMIT recovery failure, never a rolled-back save.
+     */
+    static void requireCurrentOwnerForPlatformEffects(Context context, Patient expected) {
+        try {
+            requireLiveActiveOwner(context, expected);
+        } catch (SQLException staleOwner) {
+            throw new IllegalStateException(
+                    "Committed allergy registration requires patient-scoped recovery",
+                    staleOwner);
+        }
     }
 
     private static void requireLiveActiveOwner(Context context, Patient expected)
