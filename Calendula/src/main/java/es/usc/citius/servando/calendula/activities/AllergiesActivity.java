@@ -538,11 +538,16 @@ public class AllergiesActivity extends CalendulaActivity {
                     AllergyAlertUtil.removeAllergyAlerts(context, allergen);
                 }
             } catch (SQLException | RuntimeException failure) {
-                LogUtil.e(TAG, "Allergen removed; clinical warning cleanup needs review");
-                return -2;
+                LogUtil.e(TAG, "Allergen removal committed; clinical warning cleanup needs review");
+                return -3; // SQLite already committed; do not imply retrying the deletion.
             }
             if (notify) {
-                CalendulaApp.eventBus().post(PersistenceEvents.MEDICINE_EVENT);
+                try {
+                    CalendulaApp.eventBus().post(PersistenceEvents.MEDICINE_EVENT);
+                } catch (RuntimeException failure) {
+                    LogUtil.e(TAG, "Allergen removal committed; observer recovery incomplete");
+                    return -3;
+                }
             }
             return 0;
         }
@@ -551,10 +556,10 @@ public class AllergiesActivity extends CalendulaActivity {
             if (allergen == null || currentAllergies == null) {
                 return -2;
             }
-            int index = currentAllergies.indexOf(allergen);
-            int result = deleteVerifiedAllergens(
+            // The caller rebuilds its adapter from the committed SQLite
+            // state; a cached list index must never drive clinical UI cleanup.
+            return deleteVerifiedAllergens(
                     Collections.singletonList(allergen), notify);
-            return result < 0 ? result : index;
         }
 
         public int deleteAllergens(final List<PatientAllergen> allergens) {
@@ -658,7 +663,6 @@ public class AllergiesActivity extends CalendulaActivity {
     private void deleteAllergyGroupAsync(final AllergyGroupItem item) {
         progressBar.setVisibility(View.VISIBLE);
 
-        final int index = allergiesAdapter.getAdapterPosition(item);
         final List<AllergyGroupSubItem> subItems = new ArrayList<>(item.getSubItems());
         final List<PatientAllergen> allergens = new ArrayList<>(subItems.size());
         for (AllergyGroupSubItem subItem : subItems) {
@@ -666,23 +670,21 @@ public class AllergiesActivity extends CalendulaActivity {
         }
 
         ALLERGY_EXECUTOR.execute(() -> {
-            final int deleted = store.deleteAllergens(allergens);
-            final int resultIndex = deleted >= -1 ? index : deleted;
+            final int outcome = store.deleteAllergens(allergens);
+            // SQL may already have committed when post-COMMIT warning cleanup
+            // fails. Refresh even on errors; never leave a phantom group row.
+            store.reload();
+            final List<AbstractItem> authoritativeItems = getAllergyItems();
 
             runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) {
+                if (isFinishing() || isDestroyed()) return;
+                if (!isOriginalPatientActive()) {
+                    finish();
                     return;
                 }
-                store.reload();
-                if (resultIndex >= 0) {
-                    checkPlaceholder();
-                    expandableExtension.collapse(resultIndex);
-                    allergiesAdapter.remove(resultIndex);
-                } else {
-                    Snack.show(R.string.delete_allergen_error, AllergiesActivity.this);
-                }
+                allergiesAdapter.set(authoritativeItems);
+                showAllergenDeletionOutcome(outcome);
                 progressBar.setVisibility(View.GONE);
-                new Handler().postDelayed(() -> checkPlaceholder(), 200);
                 hideAllergiesView(false);
             });
         });
@@ -690,30 +692,34 @@ public class AllergiesActivity extends CalendulaActivity {
 
     private void deleteAllergyAsync(final AllergyItem item) {
         progressBar.setVisibility(View.VISIBLE);
-        final int index = allergiesAdapter.getAdapterPosition(item);
         final PatientAllergen allergen = item.getAllergen();
 
         ALLERGY_EXECUTOR.execute(() -> {
-            final int deleted = store.deleteAllergen(allergen, true);
+            final int outcome = store.deleteAllergen(allergen, true);
+            store.reload();
+            final List<AbstractItem> authoritativeItems = getAllergyItems();
 
             runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) {
+                if (isFinishing() || isDestroyed()) return;
+                if (!isOriginalPatientActive()) {
+                    finish();
                     return;
                 }
-                // The DB transaction may have committed while subsequent
-                // clinical warning cleanup failed; always reload from SQLite.
-                store.reload();
-                if (deleted >= 0 && index >= 0) {
-                    checkPlaceholder();
-                    allergiesAdapter.remove(index);
-                } else {
-                    Snack.show(R.string.delete_allergen_error, AllergiesActivity.this);
-                }
+                allergiesAdapter.set(authoritativeItems);
+                showAllergenDeletionOutcome(outcome);
                 progressBar.setVisibility(View.GONE);
-                new Handler().postDelayed(() -> checkPlaceholder(), 200);
                 hideAllergiesView(false);
             });
         });
+    }
+
+    /** Distinguish an SQL rollback from a committed deletion needing recovery. */
+    private void showAllergenDeletionOutcome(int outcome) {
+        if (outcome == -3) {
+            Snack.show(R.string.message_allergy_removed_recovery_required, this);
+        } else if (outcome < 0) {
+            Snack.show(R.string.delete_allergen_error, this);
+        }
     }
 
     private void loadAllergiesAsync() {
