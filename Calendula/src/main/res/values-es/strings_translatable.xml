@@ -219,7 +219,7 @@ Para este desarrollo se hace uso de algunas librerías y utilidades de código a
 <string name="home_menu_allergies">"Alergias"</string>
 <string name="title_activity_allergies">"Alergias"</string>
 <string name="message_allergy_saved_recovery_required">"Las alergias se han guardado, pero es necesario recuperar los recordatorios de medicación. Revise la pauta antes de confiar en las alertas."</string>
- <string name="message_allergy_removed_recovery_required">"La alergia se ha eliminado, pero no se ha completado la recuperación de avisos o notificaciones de medicación. Revise la pauta antes de confiar en las alertas."</string>
+ <string name="message_allergy_removed_recovery_required">"Se han guardado los cambios en las alergias, pero no se ha completado la recuperación de avisos o notificaciones de medicación. Revise la pauta antes de confiar en las alertas."</string>
 <string name="message_allergy_add_failure">"Ocurrió un error al intentar guardar tus preferencias de alergias."</string>
 <string name="remove_allergy_message_short">"¿Eliminar la alergia a %1$s?"</string>
 <string name="excipient">"Excipiente"</string>
