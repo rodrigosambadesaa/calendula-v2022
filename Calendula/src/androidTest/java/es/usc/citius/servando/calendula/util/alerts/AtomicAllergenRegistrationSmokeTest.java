@@ -513,6 +513,8 @@ public class AtomicAllergenRegistrationSmokeTest {
             // The selected owner is valid when the SQL operation begins.
             AtomicAllergenRegistration.requireCurrentOwnerForPlatformEffects(
                     f.context, f.owner);
+            AtomicMedicineAllergyEditor.requireCurrentOwnerForPlatformEffects(
+                    f.context, f.owner);
             Patient another = new Patient();
             another.setCode("ci-postcommit-switched-" + f.suffix);
             another.setName("Synthetic switched profile");
@@ -526,6 +528,14 @@ public class AtomicAllergenRegistrationSmokeTest {
                 } catch (IllegalStateException expected) {
                     // The caller reports committed-but-recovery-incomplete,
                     // not a database rollback or a successful alarm update.
+                }
+                try {
+                    AtomicMedicineAllergyEditor.requireCurrentOwnerForPlatformEffects(
+                            f.context, f.owner);
+                    fail("An old medicine editor cannot dispatch events after a switch");
+                } catch (IllegalStateException expected) {
+                    // Persisted medicine remains committed, but no stale
+                    // owner event may be published to the active profile.
                 }
                 assertTrue(f.savedAllergens().isEmpty());
                 assertTrue(f.savedWarnings().isEmpty());
