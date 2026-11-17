@@ -39,7 +39,6 @@ public class AllergyGroupSubItem extends AbstractExpandableItem<AllergyGroupItem
     private PatientAllergen allergen;
     private String title;
     private String subtitle;
-    private ViewHolder holder;
     private AllergyGroupItem parent;
 
     public AllergyGroupSubItem(PatientAllergen vo, Context context) {
@@ -68,7 +67,6 @@ public class AllergyGroupSubItem extends AbstractExpandableItem<AllergyGroupItem
         super.bindView(holder, payloads);
         holder.title.setText(title);
         holder.subtitle.setText(subtitle);
-        this.holder = holder;
     }
 
     @Override
