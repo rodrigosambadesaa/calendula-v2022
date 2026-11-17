@@ -45,8 +45,11 @@ public class AlertManager {
     private static final String TAG = "AlertManager";
 
     public static void createAlert(final PatientAlert alert) {
-        if (alert == null) {
-            throw new IllegalArgumentException("A persisted clinical alert is required");
+        if (alert == null || alert.id() != null) {
+            // Creation must never become an UPDATE through ORMLite's
+            // createOrUpdate when an old alert ID is recycled by a restore.
+            // Existing warnings have a separate, owner-verified edit route.
+            throw new IllegalArgumentException("A new, unsaved clinical alert is required");
         }
         final boolean high = alert.getLevel() == Level.HIGH;
         // Alert creation and schedule/occurrence blocking commit together.
@@ -79,7 +82,11 @@ public class AlertManager {
                         || !sameStablePatient(expected, verifiedMedicine.getPatient())) {
                     throw new SQLException("Clinical alert patient differs from persisted medicine owner");
                 }
-                DB.alerts().save(alert);
+                // Strict INSERT, not an implicit create-or-update. A stale
+                // caller-supplied alert ID must not overwrite another owner.
+                if (alert.id() != null || DB.alerts().create(alert) != 1) {
+                    throw new SQLException("Could not insert exactly one clinical alert");
+                }
                 if (high) {
                     blockSchedulesForMedicineInSql(verifiedMedicine);
                 }
