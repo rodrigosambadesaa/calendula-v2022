@@ -382,6 +382,48 @@ public class AtomicAllergenRegistrationSmokeTest {
     }
 
     @Test
+    public void nestedPatientAllergyCleanupCannotOutliveOuterRollback()
+            throws Exception {
+        try (Fixture f = new Fixture(true)) {
+            AllergyPatientAlert warning = f.persistExistingWarning();
+            PatientAllergen allergen = f.savedAllergens().get(0);
+            try {
+                DB.transaction(() -> {
+                    assertTrue(DB.helper().getWritableDatabase().inTransaction());
+                    AllergyAlertUtil.removeAllergyAlerts(f.context, allergen);
+                    return null;
+                });
+                fail("Nested warning cleanup must be rejected before Android effects");
+            } catch (RuntimeException expected) {
+                // Cleanup may only run after the outermost transaction ends.
+            }
+            assertNotNull("Original HIGH warning must survive",
+                    DB.alerts().findById(warning.id()));
+            assertEquals(1, f.savedAllergens().size());
+        }
+    }
+
+    @Test
+    public void nestedMedicineAllergyCleanupCannotRemoveAHighWarning()
+            throws Exception {
+        try (Fixture f = new Fixture(true)) {
+            AllergyPatientAlert warning = f.persistExistingWarning();
+            try {
+                DB.transaction(() -> {
+                    assertTrue(DB.helper().getWritableDatabase().inTransaction());
+                    AllergyAlertUtil.removeAllergyAlerts(f.medicine);
+                    return null;
+                });
+                fail("Nested medicine alert cleanup must not cancel warning alarms");
+            } catch (RuntimeException expected) {
+                // A nested savepoint is not an independently durable COMMIT.
+            }
+            assertNotNull("Original HIGH warning must survive",
+                    DB.alerts().findById(warning.id()));
+        }
+    }
+
+    @Test
     public void duplicateBatchIdentifiersAreRejectedBeforeFirstInsert()
             throws Exception {
         try (Fixture f = new Fixture(false)) {
