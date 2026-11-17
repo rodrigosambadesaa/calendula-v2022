@@ -4,6 +4,7 @@
  */
 package es.usc.citius.servando.calendula.util.alerts;
 
+import android.content.ContentValues;
 import android.database.sqlite.SQLiteDatabase;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import org.dmfs.rfc5545.recur.Freq;
@@ -499,8 +500,12 @@ public class AtomicHighAlertSmokeTest {
 
             // Hold the UI's old record, then commit a different medically
             // relevant HIGH-warning detail to SQLite with the SAME alert ID.
-            AllergyPatientAlert staleDisplayed = created.map();
-            AllergyPatientAlert revised = created.map();
+            // Fetch the persisted record rather than relying on the object
+            // used for creation: this represents the actual UI snapshot.
+            PatientAlert persisted = DB.alerts().findById(created.id());
+            assertNotNull("The initial HIGH warning must be committed", persisted);
+            AllergyPatientAlert staleDisplayed = persisted.map();
+            AllergyPatientAlert revised = persisted.map();
             revised.setDetails(new AllergyPatientAlert.AllergyAlertInfo(
                     Collections.singletonList(new AllergenVO(
                             AllergenType.EXCIPIENT, "Synthetic allergen v2",
@@ -508,7 +513,18 @@ public class AtomicHighAlertSmokeTest {
             assertFalse("Fixture must actually change the warning details",
                     java.util.Objects.equals(staleDisplayed.getJsonDetails(),
                             revised.getJsonDetails()));
-            assertEquals(1, DB.alerts().update(revised));
+
+            // Model an independent SQLite writer updating this exact row.
+            // Using a raw SQL revision avoids ORMLite's subclass mapping
+            // affecting the test setup; the tested deletion still uses the
+            // real AlertManager and owner-checked DAO transaction.
+            ContentValues revision = new ContentValues();
+            revision.put(PatientAlert.COLUMN_DETAILS, revised.getJsonDetails());
+            assertEquals("The concurrent HIGH warning revision must be committed",
+                    1, DB.helper().getWritableDatabase().update(
+                            "PatientAlerts", revision,
+                            PatientAlert.COLUMN_ID + " = ?",
+                            new String[]{Long.toString(created.id())}));
 
             boolean rejected = false;
             try {
