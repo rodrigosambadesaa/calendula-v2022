@@ -87,7 +87,7 @@ public class AtomicAllergenRegistrationSmokeTest {
         }
 
         @Override
-        public void close() {
+        public void close() throws Exception {
             if (medicine != null && medicine.getId() != null
                     && DB.medicines().findById(medicine.getId()) != null) {
                 for (PatientAlert warning : savedWarnings()) {
