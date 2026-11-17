@@ -243,7 +243,11 @@ public class AlertManager {
                 && snapshot.getMedicine().getId() != null
                 && snapshot.getMedicine().getId().equals(current.getMedicine().getId())
                 && snapshot.getLevel() == current.getLevel()
-                && java.util.Objects.equals(snapshot.getType(), current.getType());
+                && java.util.Objects.equals(snapshot.getType(), current.getType())
+                // A displayed warning may have been revised since the click.
+                // A stale UI action cannot delete a newer HIGH allergy detail.
+                && java.util.Objects.equals(
+                        snapshot.getJsonDetails(), current.getJsonDetails());
     }
 
     /**
