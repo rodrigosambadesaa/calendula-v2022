@@ -117,7 +117,7 @@ public class AllergyAlertUtil {
      * @param m the medicine
      */
     public static void removeAllergyAlerts(final Medicine m) throws SQLException {
-
+        requireOutermostSqlForAndroidAlertEffects();
         LogUtil.d(TAG, "removeAllergyAlerts: medicine lookup started");
         final List<PatientAlert> alerts = getAlertsForMedicine(m);
         // Allergy alerts are HIGH clinical warnings that block treatment
@@ -149,6 +149,7 @@ public class AllergyAlertUtil {
                 || allergen.getType() == null || allergen.getIdentifier() == null) {
             throw new IllegalArgumentException("Persisted patient and allergen identity required");
         }
+        requireOutermostSqlForAndroidAlertEffects();
         // Retain the original durable identity across the asynchronous
         // allergen-edit/notification flow. A deleted patient ID may have been
         // reused for a different account before this callback is executed.
@@ -244,6 +245,19 @@ public class AllergyAlertUtil {
         }
     }
 
+
+    /**
+     * Both public cleanup paths can eventually cancel Android OS alarms
+     * through AlertManager.removeAlert. A nested ORMLite savepoint does NOT
+     * guarantee the outer transaction has committed. Reject callers that
+     * still own an outer SQLite transaction before touching any warning.
+     */
+    private static void requireOutermostSqlForAndroidAlertEffects() {
+        if (DB.helper().getWritableDatabase().inTransaction()) {
+            throw new IllegalStateException(
+                    "Allergy alert cleanup requires the outermost SQLite transaction");
+        }
+    }
 
     /**
      * Checks if any allergy alerts are present for a given medicine.
