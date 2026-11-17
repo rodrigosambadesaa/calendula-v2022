@@ -11,6 +11,8 @@ import android.database.sqlite.SQLiteDatabase;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import org.dmfs.rfc5545.recur.Freq;
+import org.joda.time.DateTime;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -27,6 +29,8 @@ import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.PatientAlert;
 import es.usc.citius.servando.calendula.persistence.PatientAllergen;
 import es.usc.citius.servando.calendula.persistence.Presentation;
+import es.usc.citius.servando.calendula.persistence.Schedule;
+import es.usc.citius.servando.calendula.scheduling.model.recur.RecurringEvent;
 import es.usc.citius.servando.calendula.persistence.alerts.AllergyPatientAlert;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
@@ -86,6 +90,29 @@ public class AtomicAllergenRegistrationSmokeTest {
                             medicine, PatientAlert.Level.HIGH);
         }
 
+        Schedule createRunnableSchedule() throws Exception {
+            RecurringEvent recurrence = new RecurringEvent.Builder()
+                    .from(DateTime.now().minusDays(1))
+                    .repeatEvery(12, Freq.HOURLY).build();
+            Schedule schedule = new Schedule(recurrence);
+            schedule.setPatient(owner);
+            schedule.setMedicine(medicine);
+            schedule.setDosage(1.0d);
+            assertEquals(1, DB.schedules().create(schedule));
+            return schedule;
+        }
+
+        AllergyPatientAlert persistExistingWarning() throws Exception {
+            PatientAllergen existing = allergen("previous");
+            assertEquals(1, DB.patientAllergens().create(existing));
+            AllergyPatientAlert warning = new AllergyPatientAlert(medicine,
+                    Collections.singletonList(new AllergenVO(existing)));
+            // Simulate a legacy/restored HIGH warning whose schedule was
+            // subsequently created and has not yet been re-blocked.
+            assertEquals(1, DB.alerts().create(warning));
+            return warning;
+        }
+
         @Override
         public void close() throws Exception {
             if (medicine != null && medicine.getId() != null
@@ -96,6 +123,13 @@ public class AtomicAllergenRegistrationSmokeTest {
             }
             for (PatientAllergen allergen : savedAllergens()) {
                 DB.patientAllergens().deleteById(allergen.getId());
+            }
+            if (medicine != null && medicine.getId() != null
+                    && DB.medicines().findById(medicine.getId()) != null) {
+                for (Schedule schedule : DB.schedules().findByMedicine(medicine)) {
+                    DB.eventInstances().removeByRef(schedule.getId());
+                    DB.schedules().deleteById(schedule.getId());
+                }
             }
             if (medicine != null && medicine.getId() != null
                     && DB.medicines().findById(medicine.getId()) != null) {
@@ -197,6 +231,72 @@ public class AtomicAllergenRegistrationSmokeTest {
             assertEquals(2, details.size());
             assertTrue(details.contains(new AllergenVO(first)));
             assertTrue(details.contains(new AllergenVO(second)));
+        }
+    }
+
+    @Test
+    public void existingHighWarningReblocksNewlyAddedRunnableSchedule()
+            throws Exception {
+        try (Fixture f = new Fixture(true)) {
+            f.persistExistingWarning();
+            Schedule schedule = f.createRunnableSchedule();
+            assertFalse("Synthetic restored schedule starts runnable",
+                    DB.schedules().findById(schedule.getId())
+                            .hasState(Schedule.ScheduleState.BLOCKED));
+
+            PatientAllergen next = f.allergen("added-later");
+            AtomicAllergenRegistration.Result result =
+                    AtomicAllergenRegistration.register(f.context, f.owner,
+                            Collections.singletonList(next),
+                            (context, allergen) -> Collections.singletonList(f.medicine));
+            assertTrue(result.hasConflicts());
+            assertEquals(2, f.savedAllergens().size());
+            assertEquals("Must update rather than duplicate HIGH warning",
+                    1, f.savedWarnings().size());
+            assertEquals(2, ((AllergyPatientAlert) f.savedWarnings().get(0).map())
+                    .getDetails().getAllergens().size());
+            assertTrue("Existing HIGH warning must also re-block future doses",
+                    DB.schedules().findById(schedule.getId())
+                            .hasState(Schedule.ScheduleState.BLOCKED));
+        }
+    }
+
+    @Test
+    public void failedReblockRollsBackExistingHighDetailsAndNewAllergen()
+            throws Exception {
+        try (Fixture f = new Fixture(true)) {
+            f.persistExistingWarning();
+            Schedule schedule = f.createRunnableSchedule();
+            SQLiteDatabase sqlite = DB.helper().getWritableDatabase();
+            final String trigger = "ci_abort_existing_high_reblock";
+            sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            try {
+                sqlite.execSQL("CREATE TRIGGER " + trigger
+                        + " BEFORE UPDATE ON NewSchedules WHEN NEW._id = "
+                        + schedule.getId()
+                        + " BEGIN SELECT RAISE(ABORT, 'synthetic reblock failure'); END;");
+                PatientAllergen next = f.allergen("must-rollback");
+                try {
+                    AtomicAllergenRegistration.register(f.context, f.owner,
+                            Collections.singletonList(next),
+                            (context, allergen) -> Collections.singletonList(f.medicine));
+                    fail("Failed schedule block must abort whole allergy registration");
+                } catch (RuntimeException expected) {
+                    // A late schedule UPDATE failure must revert preceding
+                    // allergen INSERT and existing HIGH-details UPDATE.
+                }
+                assertNull(next.getId());
+                assertEquals(1, f.savedAllergens().size());
+                assertEquals(1, f.savedWarnings().size());
+                assertEquals("Existing warning details must remain unchanged",
+                        1, ((AllergyPatientAlert) f.savedWarnings().get(0).map())
+                                .getDetails().getAllergens().size());
+                assertFalse("Failed block cannot appear committed",
+                        DB.schedules().findById(schedule.getId())
+                                .hasState(Schedule.ScheduleState.BLOCKED));
+            } finally {
+                sqlite.execSQL("DROP TRIGGER IF EXISTS " + trigger);
+            }
         }
     }
 
