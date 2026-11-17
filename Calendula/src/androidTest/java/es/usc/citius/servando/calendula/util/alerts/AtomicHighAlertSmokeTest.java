@@ -11,6 +11,8 @@ import org.joda.time.DateTime;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import java.util.Collections;
+import es.usc.citius.servando.calendula.allergies.AllergenType;
+import es.usc.citius.servando.calendula.allergies.AllergenVO;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.PatientAlert;
@@ -467,6 +469,78 @@ public class AtomicHighAlertSmokeTest {
                         && DB.patients().findById(patient.getId()) != null) {
                     DB.patients().deleteById(patient.getId());
                 }
+            }
+        }
+    }
+
+
+    @Test
+    public void revisedHighAllergyDetailsCannotBeDeletedByStaleAlertSnapshot()
+            throws Exception {
+        assertTrue(DB.initialized);
+        String suffix = Long.toString(System.nanoTime());
+        Patient owner = new Patient();
+        owner.setCode("ci-alert-detail-revision-" + suffix);
+        owner.setName("Synthetic allergy revision owner");
+        Medicine medicine = new Medicine("Synthetic allergy revision medicine",
+                Presentation.PILLS);
+        AllergyPatientAlert created = null;
+        try {
+            assertEquals(1, DB.patients().create(owner));
+            medicine.setPatient(owner);
+            assertEquals(1, DB.medicines().create(medicine));
+
+            created = new AllergyPatientAlert(medicine,
+                    Collections.singletonList(new AllergenVO(
+                            AllergenType.EXCIPIENT, "Synthetic allergen v1",
+                            "ci-allergen-v1-" + suffix)));
+            AlertManager.createAlert(created);
+            assertNotNull(created.id());
+
+            // Hold the UI's old record, then commit a different medically
+            // relevant HIGH-warning detail to SQLite with the SAME alert ID.
+            AllergyPatientAlert staleDisplayed = created.map();
+            AllergyPatientAlert revised = created.map();
+            revised.setDetails(new AllergyPatientAlert.AllergyAlertInfo(
+                    Collections.singletonList(new AllergenVO(
+                            AllergenType.EXCIPIENT, "Synthetic allergen v2",
+                            "ci-allergen-v2-" + suffix))));
+            assertFalse("Fixture must actually change the warning details",
+                    java.util.Objects.equals(staleDisplayed.getJsonDetails(),
+                            revised.getJsonDetails()));
+            assertEquals(1, DB.alerts().update(revised));
+
+            boolean rejected = false;
+            try {
+                AlertManager.removeAlert(staleDisplayed);
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("An old warning cannot delete a more recent HIGH warning",
+                    rejected);
+            PatientAlert current = DB.alerts().findById(created.id());
+            assertNotNull("The revised HIGH allergy warning must survive",
+                    current);
+            assertEquals(revised.getJsonDetails(), current.getJsonDetails());
+            assertEquals(PatientAlert.Level.HIGH, current.getLevel());
+
+            // Once the caller has the updated warning, an ordinary explicit
+            // removal remains supported. This guard is version-sensitive,
+            // not a permanent lock on the patient-owned warning.
+            AlertManager.removeAlert(revised);
+            assertNull(DB.alerts().findById(created.id()));
+        } finally {
+            if (created != null && created.id() != null
+                    && DB.alerts().findById(created.id()) != null) {
+                DB.alerts().deleteById(created.id());
+            }
+            if (medicine.getId() != null
+                    && DB.medicines().findById(medicine.getId()) != null) {
+                DB.medicines().deleteById(medicine.getId());
+            }
+            if (owner.getId() != null
+                    && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().deleteById(owner.getId());
             }
         }
     }
