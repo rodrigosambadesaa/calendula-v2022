@@ -398,6 +398,39 @@ public class AtomicAllergenRegistrationSmokeTest {
     }
 
     @Test
+    public void duplicateExistingHighWarningRejectsNewAllergenAndRollsBackSql()
+            throws Exception {
+        try (Fixture f = new Fixture(true)) {
+            AllergyPatientAlert warning = f.persistExistingWarning();
+            PatientAllergen existing = f.savedAllergens().get(0);
+            warning.setDetails(new AllergyPatientAlert.AllergyAlertInfo(
+                    Arrays.asList(new AllergenVO(existing), new AllergenVO(existing))));
+            String originalDetails = warning.getJsonDetails();
+            // Seed a damaged legacy alert directly; the regular DAO edit
+            // must never be weakened just to create a regression fixture.
+            DB.helper().getWritableDatabase().execSQL(
+                    "UPDATE PatientAlerts SET Details = ? WHERE _id = ?",
+                    new Object[]{originalDetails, warning.id()});
+            PatientAllergen newAllergen = f.allergen("must-rollback-duplicate-details");
+            try {
+                AtomicAllergenRegistration.register(f.context, f.owner,
+                        Collections.singletonList(newAllergen),
+                        (context, allergen) -> Collections.singletonList(f.medicine));
+                fail("Duplicate persisted HIGH identities must reject registration");
+            } catch (RuntimeException expected) {
+                // SQL INSERT rolled back, retained HIGH warning unmodified.
+            }
+            assertNull(newAllergen.getId());
+            assertEquals("Rejected registration leaves old allergen only",
+                    1, f.savedAllergens().size());
+            PatientAlert retained = DB.alerts().findById(warning.id());
+            assertNotNull(retained);
+            assertEquals(PatientAlert.Level.HIGH, retained.getLevel());
+            assertEquals(originalDetails, retained.getJsonDetails());
+        }
+    }
+
+    @Test
     public void nestedPatientAllergyCleanupCannotOutliveOuterRollback()
             throws Exception {
         try (Fixture f = new Fixture(true)) {
