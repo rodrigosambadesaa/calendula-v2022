@@ -540,6 +540,58 @@ public class AtomicAllergenRegistrationSmokeTest {
     }
 
     @Test
+    public void nestedMedicineCreateIsRejectedBeforePersistingClinicalRows()
+            throws Exception {
+        try (Fixture f = new Fixture(true)) {
+            Medicine proposed = new Medicine(
+                    "Synthetic nested create", Presentation.PILLS);
+            proposed.setPatient(f.owner);
+            DB.transaction(() -> {
+                assertTrue(DB.helper().getWritableDatabase().inTransaction());
+                try {
+                    AtomicMedicineAllergyEditor.create(f.context, proposed, null);
+                    fail("Medicine creation must reject an enclosing SQL transaction");
+                } catch (IllegalStateException expected) {
+                    assertTrue(expected.getMessage().contains("outermost SQLite"));
+                }
+                return null;
+            });
+            assertNull("Rejected creation cannot leave a generated medicine ID",
+                    proposed.getId());
+            assertTrue("Rejected creation cannot insert allergy alerts",
+                    f.savedWarnings().isEmpty());
+            assertTrue(f.savedAllergens().isEmpty());
+        }
+    }
+
+    @Test
+    public void nestedMedicineEditIsRejectedBeforeUpdatingClinicalRows()
+            throws Exception {
+        try (Fixture f = new Fixture(true)) {
+            Medicine proposed = new Medicine(
+                    "Synthetic forbidden nested edit", Presentation.PILLS);
+            proposed.setId(f.medicine.getId());
+            proposed.setPatient(f.owner);
+            DB.transaction(() -> {
+                assertTrue(DB.helper().getWritableDatabase().inTransaction());
+                try {
+                    AtomicMedicineAllergyEditor.edit(f.context, proposed, null);
+                    fail("Medicine edit must reject an enclosing SQL transaction");
+                } catch (IllegalStateException expected) {
+                    assertTrue(expected.getMessage().contains("outermost SQLite"));
+                }
+                return null;
+            });
+            Medicine persisted = new Medicine();
+            persisted.setId(f.medicine.getId());
+            assertEquals(1, DB.medicines().refresh(persisted));
+            assertEquals("Synthetic batch medicine", persisted.getName());
+            assertTrue("Rejected edit cannot create or remove allergy alerts",
+                    f.savedWarnings().isEmpty());
+        }
+    }
+
+    @Test
     public void duplicateBatchIdentifiersAreRejectedBeforeFirstInsert()
             throws Exception {
         try (Fixture f = new Fixture(false)) {
