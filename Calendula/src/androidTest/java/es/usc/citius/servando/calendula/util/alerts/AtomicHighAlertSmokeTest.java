@@ -504,8 +504,8 @@ public class AtomicHighAlertSmokeTest {
             // used for creation: this represents the actual UI snapshot.
             PatientAlert persisted = DB.alerts().findById(created.id());
             assertNotNull("The initial HIGH warning must be committed", persisted);
-            AllergyPatientAlert staleDisplayed = persisted.map();
-            AllergyPatientAlert revised = persisted.map();
+            AllergyPatientAlert staleDisplayed = (AllergyPatientAlert) persisted.map();
+            AllergyPatientAlert revised = (AllergyPatientAlert) persisted.map();
             revised.setDetails(new AllergyPatientAlert.AllergyAlertInfo(
                     Collections.singletonList(new AllergenVO(
                             AllergenType.EXCIPIENT, "Synthetic allergen v2",
