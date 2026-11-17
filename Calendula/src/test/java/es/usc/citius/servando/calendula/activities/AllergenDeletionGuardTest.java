@@ -60,6 +60,6 @@ public class AllergenDeletionGuardTest {
                 "excipient", "excipient", "   ", "   "));
         assertFalse(AllergenDeletionGuard.isSamePersistedOwner(
                 123L, 123L, 42L, 123L, 42L, 123L,
-                "excipient", "excipient", "\\t", "\\t"));
+                "excipient", "excipient", "\t", "\t"));
     }
 }
