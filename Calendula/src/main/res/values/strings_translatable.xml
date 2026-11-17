@@ -206,6 +206,7 @@ Calendula is being developed by the Centro de Investigación en Tecnoloxías Int
 <string name="home_menu_allergies">"Allergies"</string>
 <string name="title_activity_allergies">"Allergies"</string>
 <string name="message_allergy_saved_recovery_required">"The allergies were saved, but medication reminders need recovery. Review the schedule before relying on alerts."</string>
+ <string name="message_allergy_removed_recovery_required">"The allergy was removed, but medication warning or notification recovery is incomplete. Review the treatment schedule before relying on alerts."</string>
 <string name="message_allergy_add_failure">"There was an error while trying to save your allergy preferences."</string>
 <string name="remove_allergy_message_short">"Remove allergy %1$s?"</string>
 <string name="excipient">"Excipient"</string>
