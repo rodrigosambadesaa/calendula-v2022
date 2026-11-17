@@ -692,6 +692,7 @@ public class AllergiesActivity extends CalendulaActivity {
                     return;
                 }
                 allergiesAdapter.set(authoritativeItems);
+                checkPlaceholder();
                 showAllergenDeletionOutcome(outcome);
                 progressBar.setVisibility(View.GONE);
                 hideAllergiesView(false);
@@ -715,6 +716,7 @@ public class AllergiesActivity extends CalendulaActivity {
                     return;
                 }
                 allergiesAdapter.set(authoritativeItems);
+                checkPlaceholder();
                 showAllergenDeletionOutcome(outcome);
                 progressBar.setVisibility(View.GONE);
                 hideAllergiesView(false);
