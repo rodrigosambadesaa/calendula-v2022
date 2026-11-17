@@ -519,9 +519,11 @@ public class AllergiesActivity extends CalendulaActivity {
                         throw new SQLException("Active patient changed while deleting allergens");
                     }
                     for (PatientAllergen stored : live) {
-                        if (DB.patientAllergens().deleteById(stored.getId()) != 1) {
-                            throw new SQLException("Allergen deletion affected an unexpected number of rows");
-                        }
+                        // The DAO's bare deleteById() can report zero for a
+                        // readable generated row. Use the single-row,
+                        // owner/type/identifier-scoped SQL deletion instead;
+                        // its affected-row check aborts the ENTIRE batch.
+                        DB.patientAllergens().deleteVerifiedOwned(stored, current);
                     }
                     return live;
                 });
