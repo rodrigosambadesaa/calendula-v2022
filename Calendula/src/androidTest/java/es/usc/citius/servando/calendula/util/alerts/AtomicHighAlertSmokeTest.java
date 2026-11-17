@@ -24,6 +24,7 @@ import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Presentation;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.persistence.alerts.AllergyPatientAlert;
+import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.scheduling.model.recur.RecurringEvent;
@@ -557,6 +558,69 @@ public class AtomicHighAlertSmokeTest {
             if (owner.getId() != null
                     && DB.patients().findById(owner.getId()) != null) {
                 DB.patients().deleteById(owner.getId());
+            }
+        }
+    }
+
+    /**
+     * Creating a HIGH warning for A must not perform unrelated patient B's
+     * reminder cleanup. The old global cleanReminders call deleted B's
+     * pending reminder merely because there was no matching event, even
+     * though the warning changed only A. Use synthetic disposable profiles.
+     */
+    @Test
+    public void creatingHighWarningDoesNotPruneAnotherPatientsReminder()
+            throws Exception {
+        assertTrue(DB.initialized);
+        String suffix = Long.toString(System.nanoTime());
+        Patient ownerA = new Patient();
+        ownerA.setCode("ci-high-scope-a-" + suffix);
+        ownerA.setName("Synthetic HIGH warning owner");
+        Patient ownerB = new Patient();
+        ownerB.setCode("ci-high-scope-b-" + suffix);
+        ownerB.setName("Synthetic unrelated reminder owner");
+        Medicine medicineA = new Medicine("Synthetic HIGH warning medicine",
+                Presentation.PILLS);
+        DateTime future = DateTime.now().plusHours(6).withMillisOfSecond(0);
+        EventReminder unrelated = new EventReminder(future, EventType.MEDICATION_INTAKE);
+        unrelated.setNextTime(future);
+        unrelated.setPatient(ownerB);
+        AllergyPatientAlert warning = new AllergyPatientAlert();
+        try {
+            assertEquals(1, DB.patients().create(ownerA));
+            assertEquals(1, DB.patients().create(ownerB));
+            medicineA.setPatient(ownerA);
+            assertEquals(1, DB.medicines().create(medicineA));
+            assertEquals(1, DB.eventReminders().create(unrelated));
+            assertNotNull(unrelated.getId());
+
+            warning.setPatient(ownerA);
+            warning.setMedicine(medicineA);
+            warning.setLevel(PatientAlert.Level.HIGH);
+            AlertManager.createAlert(warning);
+
+            assertNotNull("A's HIGH warning must be committed", warning.id());
+            assertNotNull(DB.alerts().findById(warning.id()));
+            assertNotNull("Unrelated patient's reminder must not be pruned",
+                    DB.eventReminders().findById(unrelated.getId()));
+            assertEquals(ownerB.getId(),
+                    DB.eventReminders().findById(unrelated.getId()).getPatient().getId());
+        } finally {
+            if (warning.id() != null && DB.alerts().findById(warning.id()) != null) {
+                DB.alerts().deleteById(warning.id());
+            }
+            if (unrelated.getId() != null
+                    && DB.eventReminders().findById(unrelated.getId()) != null) {
+                DB.eventReminders().deleteById(unrelated.getId());
+            }
+            if (medicineA.getId() != null
+                    && DB.medicines().findById(medicineA.getId()) != null) {
+                DB.medicines().deleteById(medicineA.getId());
+            }
+            for (Patient p : new Patient[]{ownerA, ownerB}) {
+                if (p.getId() != null && DB.patients().findById(p.getId()) != null) {
+                    DB.patients().deleteById(p.getId());
+                }
             }
         }
     }

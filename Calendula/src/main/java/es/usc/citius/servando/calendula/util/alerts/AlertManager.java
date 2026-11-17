@@ -102,7 +102,10 @@ public class AlertManager {
         // cannot prevent the UI from learning about the persisted HIGH
         // warning, or prevent the schedule observer from running.
         finishCommittedAlertCreation(high,
-                () -> Agenda.instance().cleanReminders(CalendulaApp.getContext()),
+                // A HIGH warning for patient A must never sweep patient B's
+                // reminder records or platform tokens after COMMIT.
+                () -> Agenda.instance().cleanRemindersForPatient(
+                        CalendulaApp.getContext(), alert.getPatient()),
                 () -> CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT),
                 () -> CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT));
     }
