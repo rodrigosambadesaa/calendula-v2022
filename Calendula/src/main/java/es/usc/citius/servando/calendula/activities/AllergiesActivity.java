@@ -599,7 +599,16 @@ public class AllergiesActivity extends CalendulaActivity {
             Collections.sort(currentAllergies, new Comparator<PatientAllergen>() {
                 @Override
                 public int compare(PatientAllergen o1, PatientAllergen o2) {
-                    return o1.getName().compareTo(o2.getName());
+                    // Imported legacy rows may have no usable display name.
+                    // Keep them in the list for review rather than crashing
+                    // while sorting (their clinical rows must not disappear).
+                    String first = o1.getName();
+                    String second = o2.getName();
+                    if (first == null || first.trim().isEmpty()) {
+                        return second == null || second.trim().isEmpty() ? 0 : 1;
+                    }
+                    if (second == null || second.trim().isEmpty()) return -1;
+                    return first.compareTo(second);
                 }
             });
         }
