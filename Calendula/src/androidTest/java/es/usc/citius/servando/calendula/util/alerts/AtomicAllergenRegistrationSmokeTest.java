@@ -23,6 +23,7 @@ import java.util.List;
 
 import es.usc.citius.servando.calendula.allergies.AllergenType;
 import es.usc.citius.servando.calendula.allergies.AllergenVO;
+import es.usc.citius.servando.calendula.allergies.AllergyAlertUtil;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Patient;
@@ -328,6 +329,55 @@ public class AtomicAllergenRegistrationSmokeTest {
             assertNull("Candidate must remain unsaved", candidate.getId());
             assertTrue("No allergen row may be inserted", f.savedAllergens().isEmpty());
             assertTrue("No HIGH warning may be inserted", f.savedWarnings().isEmpty());
+        }
+    }
+
+    @Test
+    public void incompleteHighWarningDetailsDemandReviewWithoutRemovingAlert()
+            throws Exception {
+        try (Fixture f = new Fixture(true)) {
+            AllergyPatientAlert warning = f.persistExistingWarning();
+            PatientAllergen selected = f.savedAllergens().get(0);
+            for (String malformed : new String[]{
+                    "{}", "{\\\"allergens\\\":[]}", "{\\\"allergens\\\":[null]}"}) {
+                warning.setJsonDetails(malformed);
+                assertEquals(1, DB.alerts().update(warning));
+                try {
+                    AllergyAlertUtil.removeAllergyAlerts(f.context, selected);
+                    fail("Missing or malformed HIGH details cannot be silently skipped");
+                } catch (RuntimeException | SQLException expected) {
+                    // Clinical warning is intentionally preserved for review.
+                }
+                PatientAlert persisted = DB.alerts().findById(warning.id());
+                assertNotNull("HIGH warning must remain persisted", persisted);
+                assertEquals(PatientAlert.Level.HIGH, persisted.getLevel());
+                assertEquals("Corrupt details must not be overwritten",
+                        malformed, persisted.getJsonDetails());
+            }
+        }
+    }
+
+    @Test
+    public void duplicateHighWarningAllergenIdentityDemandReview()
+            throws Exception {
+        try (Fixture f = new Fixture(true)) {
+            AllergyPatientAlert warning = f.persistExistingWarning();
+            PatientAllergen selected = f.savedAllergens().get(0);
+            AllergenVO duplicate = new AllergenVO(selected);
+            warning.setDetails(new AllergyPatientAlert.AllergyAlertInfo(
+                    Arrays.asList(duplicate, new AllergenVO(selected))));
+            assertEquals(1, DB.alerts().update(warning));
+            try {
+                AllergyAlertUtil.removeAllergyAlerts(f.context, selected);
+                fail("Ambiguous duplicate HIGH identities need review");
+            } catch (RuntimeException | SQLException expected) {
+                // Never unblock a medicine using ambiguous imported data.
+            }
+            PatientAlert persisted = DB.alerts().findById(warning.id());
+            assertNotNull(persisted);
+            assertEquals(PatientAlert.Level.HIGH, persisted.getLevel());
+            assertEquals(2, ((AllergyPatientAlert) persisted.map())
+                    .getDetails().getAllergens().size());
         }
     }
 
