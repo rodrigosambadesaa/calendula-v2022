@@ -111,7 +111,12 @@ public class AtomicAllergenRegistrationSmokeTest {
             // Simulate a legacy/restored HIGH warning whose schedule was
             // subsequently created and has not yet been re-blocked.
             assertEquals(1, DB.alerts().create(warning));
-            return warning;
+            // ORMLite creates the row via the base PatientAlert DAO; do not
+            // assume the subclass fixture retains its generated row ID.
+            List<PatientAlert> persisted = savedWarnings();
+            assertEquals("Synthetic HIGH warning must persist", 1, persisted.size());
+            assertNotNull("Synthetic HIGH warning needs an SQL row ID", persisted.get(0).id());
+            return (AllergyPatientAlert) persisted.get(0).map();
         }
 
         @Override
@@ -340,8 +345,14 @@ public class AtomicAllergenRegistrationSmokeTest {
             PatientAllergen selected = f.savedAllergens().get(0);
             for (String malformed : new String[]{
                     "{}", "{\"allergens\":[]}", "{\"allergens\":[null]}"}) {
-                warning.setJsonDetails(malformed);
-                assertEquals(1, DB.alerts().update(warning));
+                // Deliberately inject legacy/corrupt data using raw SQLite:
+                // the ordinary DAO may reject it before this recovery path
+                // ever gets a chance to verify persisted warning details.
+                DB.helper().getWritableDatabase().execSQL(
+                        "UPDATE PatientAlerts SET Details = ? WHERE _id = ?",
+                        new Object[]{malformed, warning.id()});
+                assertEquals(malformed,
+                        DB.alerts().findById(warning.id()).getJsonDetails());
                 try {
                     AllergyAlertUtil.removeAllergyAlerts(f.context, selected);
                     fail("Missing or malformed HIGH details cannot be silently skipped");
@@ -366,7 +377,12 @@ public class AtomicAllergenRegistrationSmokeTest {
             AllergenVO duplicate = new AllergenVO(selected);
             warning.setDetails(new AllergyPatientAlert.AllergyAlertInfo(
                     Arrays.asList(duplicate, new AllergenVO(selected))));
-            assertEquals(1, DB.alerts().update(warning));
+            String duplicateDetails = warning.getJsonDetails();
+            DB.helper().getWritableDatabase().execSQL(
+                    "UPDATE PatientAlerts SET Details = ? WHERE _id = ?",
+                    new Object[]{duplicateDetails, warning.id()});
+            assertEquals(duplicateDetails,
+                    DB.alerts().findById(warning.id()).getJsonDetails());
             try {
                 AllergyAlertUtil.removeAllergyAlerts(f.context, selected);
                 fail("Ambiguous duplicate HIGH identities need review");
