@@ -379,4 +379,96 @@ public class AtomicHighAlertSmokeTest {
             }
         }
     }
+
+    @Test
+    public void createAlertMustNotOverwriteExistingRecordWithSuppliedId()
+            throws Exception {
+        assertTrue(DB.initialized);
+        String suffix = Long.toString(System.nanoTime());
+        Patient patientA = new Patient();
+        patientA.setCode("ci-alert-insert-a-" + suffix);
+        patientA.setName("Synthetic alert record A");
+        Patient patientB = new Patient();
+        patientB.setCode("ci-alert-insert-b-" + suffix);
+        patientB.setName("Synthetic alert record B");
+        Medicine medicineA = new Medicine("Synthetic insert-only A", Presentation.PILLS);
+        Medicine medicineB = new Medicine("Synthetic insert-only B", Presentation.PILLS);
+        PatientAlert existing = null;
+        PatientAlert validB = null;
+        try {
+            assertEquals(1, DB.patients().create(patientA));
+            assertEquals(1, DB.patients().create(patientB));
+            medicineA.setPatient(patientA);
+            medicineB.setPatient(patientB);
+            assertEquals(1, DB.medicines().create(medicineA));
+            assertEquals(1, DB.medicines().create(medicineB));
+
+            existing = new DrivingCautionAlert(medicineA);
+            assertNull(existing.id());
+            AlertManager.createAlert(existing);
+            assertNotNull(existing.id());
+
+            // The previous createOrUpdate implementation silently updated A's
+            // record when an otherwise valid B-owned draft carried A's ID.
+            PatientAlert attemptedOverwrite = new StockRunningOutAlert(
+                    medicineB, LocalDate.now());
+            attemptedOverwrite.setId(existing.id());
+            boolean rejected = false;
+            try {
+                AlertManager.createAlert(attemptedOverwrite);
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            assertTrue("Create must reject a caller-supplied existing alert ID", rejected);
+            PatientAlert originalRow = DB.alerts().findById(existing.id());
+            assertNotNull("Patient A's alert must survive the rejected overwrite",
+                    originalRow);
+            assertEquals(patientA.getId(), originalRow.getPatient().getId());
+            assertEquals(medicineA.getId(), originalRow.getMedicine().getId());
+            assertEquals(DrivingCautionAlert.class.getCanonicalName(),
+                    originalRow.getType());
+            assertEquals(PatientAlert.Level.LOW, originalRow.getLevel());
+            assertTrue("Patient B must not acquire a row by overwriting patient A",
+                    DB.alerts().findByMedicineAndType(
+                            medicineB, StockRunningOutAlert.class.getCanonicalName())
+                            .isEmpty());
+
+            // This is creation-only hardening, not a prohibition on legitimate
+            // fresh LOW/MEDIUM alerts for a different patient.
+            validB = new StockRunningOutAlert(medicineB, LocalDate.now());
+            assertNull(validB.id());
+            AlertManager.createAlert(validB);
+            assertNotNull("Fresh B-owned warning must still be insertable",
+                    DB.alerts().findById(validB.id()));
+            assertNotNull("A's existing record must remain untouched",
+                    DB.alerts().findById(existing.id()));
+        } finally {
+            for (Medicine medicine : new Medicine[]{medicineA, medicineB}) {
+                if (medicine.getId() == null) {
+                    continue;
+                }
+                for (PatientAlert warning : DB.alerts().findBy(
+                        PatientAlert.COLUMN_MEDICINE, medicine.getId())) {
+                    DB.alerts().deleteById(warning.id());
+                }
+            }
+            if (existing != null && existing.id() != null
+                    && DB.alerts().findById(existing.id()) != null) {
+                DB.alerts().deleteById(existing.id());
+            }
+            for (Medicine medicine : new Medicine[]{medicineA, medicineB}) {
+                if (medicine.getId() != null
+                        && DB.medicines().findById(medicine.getId()) != null) {
+                    DB.medicines().deleteById(medicine.getId());
+                }
+            }
+            for (Patient patient : new Patient[]{patientA, patientB}) {
+                if (patient.getId() != null
+                        && DB.patients().findById(patient.getId()) != null) {
+                    DB.patients().deleteById(patient.getId());
+                }
+            }
+        }
+    }
+
 }
