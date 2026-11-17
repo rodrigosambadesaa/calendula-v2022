@@ -26,7 +26,10 @@ final class AllergenDeletionGuard {
                 // Without a reliable external identifier, deleting the
                 // allergen row could strand an unverified HIGH warning that
                 // cannot be safely reconciled after COMMIT.
-                && requestedIdentifier != null && !requestedIdentifier.isEmpty()
+                && requestedIdentifier != null
+                && !requestedIdentifier.trim().isEmpty()
+                && persistedIdentifier != null
+                && !persistedIdentifier.trim().isEmpty()
                 && Objects.equals(requestedIdentifier, persistedIdentifier);
     }
 }
