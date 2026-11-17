@@ -339,7 +339,7 @@ public class AtomicAllergenRegistrationSmokeTest {
             AllergyPatientAlert warning = f.persistExistingWarning();
             PatientAllergen selected = f.savedAllergens().get(0);
             for (String malformed : new String[]{
-                    "{}", "{\\\"allergens\\\":[]}", "{\\\"allergens\\\":[null]}"}) {
+                    "{}", "{\"allergens\":[]}", "{\"allergens\":[null]}"}) {
                 warning.setJsonDetails(malformed);
                 assertEquals(1, DB.alerts().update(warning));
                 try {
