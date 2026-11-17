@@ -301,6 +301,37 @@ public class AtomicAllergenRegistrationSmokeTest {
     }
 
     @Test
+    public void registrationWithinAnOuterTransactionIsRejectedBeforeAnyWrite()
+            throws Exception {
+        try (Fixture f = new Fixture(true)) {
+            PatientAllergen candidate = f.allergen("nested-outer-transaction");
+            final int[] conflictLookups = {0};
+            try {
+                DB.transaction(() -> {
+                    assertTrue("Fixture must hold a real SQLite outer transaction",
+                            DB.helper().getWritableDatabase().inTransaction());
+                    AtomicAllergenRegistration.register(f.context, f.owner,
+                            Collections.singletonList(candidate),
+                            (context, allergen) -> {
+                                conflictLookups[0]++;
+                                return Collections.singletonList(f.medicine);
+                            });
+                    return null;
+                });
+                fail("An ambient transaction must not allow post-COMMIT effects");
+            } catch (RuntimeException expected) {
+                // The helper must reject the outer transaction at entry,
+                // rather than treating a nested savepoint as a true COMMIT.
+            }
+            assertEquals("No catalog lookups after rejecting nested SQL",
+                    0, conflictLookups[0]);
+            assertNull("Candidate must remain unsaved", candidate.getId());
+            assertTrue("No allergen row may be inserted", f.savedAllergens().isEmpty());
+            assertTrue("No HIGH warning may be inserted", f.savedWarnings().isEmpty());
+        }
+    }
+
+    @Test
     public void duplicateBatchIdentifiersAreRejectedBeforeFirstInsert()
             throws Exception {
         try (Fixture f = new Fixture(false)) {
