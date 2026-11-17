@@ -42,7 +42,6 @@ public class AllergyItem extends AbstractItem<AllergyItem, AllergyItem.ViewHolde
     private String title;
     private String allergenType;
     private PatientAllergen allergen;
-    private ViewHolder holder;
 
     public AllergyItem(PatientAllergen vo, Context context) {
         this.title = vo.getName() == null || vo.getName().trim().isEmpty()
@@ -91,7 +90,6 @@ public class AllergyItem extends AbstractItem<AllergyItem, AllergyItem.ViewHolde
     @Override
     public void bindView(ViewHolder viewHolder, List<Object> payloads) {
         super.bindView(viewHolder, payloads);
-        this.holder = viewHolder;
         viewHolder.title.setText(title);
         viewHolder.subtitle.setText(allergenType);
         viewHolder.deleteButton.setImageDrawable(new IconicsDrawable(viewHolder.deleteButton.getContext())
