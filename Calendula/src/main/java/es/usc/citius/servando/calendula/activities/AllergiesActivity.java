@@ -278,7 +278,9 @@ public class AllergiesActivity extends CalendulaActivity {
                                 a.setDetails(d);
                                 DB.alerts().save(a);
                             } else {
-                                LogUtil.wtf(TAG, "Duplicate alerts: " + list);
+                                // A warning collection can expose clinical metadata through toString().
+                                // Never write individual warning IDs/types to device logs.
+                                LogUtil.wtf(TAG, "Duplicate HIGH allergy warnings require review");
                             }
                         } else {
                             AlertManager.createAlert(new AllergyPatientAlert(conflict, new ArrayList<AllergenVO>() {{
