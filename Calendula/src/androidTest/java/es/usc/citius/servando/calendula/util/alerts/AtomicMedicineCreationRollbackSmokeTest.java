@@ -69,7 +69,8 @@ public class AtomicMedicineCreationRollbackSmokeTest {
             // SQLite first writes Medicines, then PatientAlerts in the same
             // outer transaction. Fail the SECOND write deterministically.
             sqlite.execSQL("CREATE TRIGGER " + trigger
-                    + " BEFORE INSERT ON PatientAlerts"
+                    + " BEFORE INSERT ON PatientAlerts WHEN NEW.Patient = "
+                    + owner.getId()
                     + " BEGIN SELECT RAISE(ABORT, 'synthetic alert failure'); END;");
             boolean rejected = false;
             try {
