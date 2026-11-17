@@ -98,12 +98,56 @@ public class AlertManager {
             }
             throw failure;
         }
-        // AlarmManager and UI observers must only run after SQL COMMIT.
+        // SQLite has already committed. A failure cancelling OS alarms
+        // cannot prevent the UI from learning about the persisted HIGH
+        // warning, or prevent the schedule observer from running.
+        finishCommittedAlertCreation(high,
+                () -> Agenda.instance().cleanReminders(CalendulaApp.getContext()),
+                () -> CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT),
+                () -> CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT));
+    }
+
+    /**
+     * Execute independent post-COMMIT work without suppressing later safety
+     * notifications if an earlier Android or observer action fails.
+     * All callbacks must be invoked ONLY after successful SQLite commit.
+     * Keep diagnostics free of clinical details and preserve the first cause
+     * for recovery, rather than reporting a misleading rollback.
+     */
+    static void finishCommittedAlertCreation(boolean high,
+                                             Runnable cleanupReminders,
+                                             Runnable notifySchedules,
+                                             Runnable notifyAlerts) {
+        RuntimeException postCommitFailure = null;
         if (high) {
-            Agenda.instance().cleanReminders(CalendulaApp.getContext());
-            CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT);
+            try {
+                cleanupReminders.run();
+            } catch (RuntimeException failure) {
+                LogUtil.e(TAG, "Committed HIGH alert needs reminder cleanup");
+                postCommitFailure = failure;
+            }
+            try {
+                notifySchedules.run();
+            } catch (RuntimeException failure) {
+                LogUtil.e(TAG, "Committed HIGH alert schedule observer failed");
+                if (postCommitFailure == null) {
+                    postCommitFailure = failure;
+                }
+            }
         }
-        CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT);
+        try {
+            notifyAlerts.run();
+        } catch (RuntimeException failure) {
+            LogUtil.e(TAG, "Committed clinical alert observer failed");
+            if (postCommitFailure == null) {
+                postCommitFailure = failure;
+            }
+        }
+        if (postCommitFailure != null) {
+            throw new IllegalStateException(
+                    "Clinical alert committed; reminder/observer recovery incomplete",
+                    postCommitFailure);
+        }
     }
 
     public static void removeAlert(final PatientAlert alert) {
