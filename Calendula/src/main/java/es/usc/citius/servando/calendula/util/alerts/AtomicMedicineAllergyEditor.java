@@ -78,6 +78,7 @@ public final class AtomicMedicineAllergyEditor {
                 || verifiedAllergens.contains(null))) {
             throw new IllegalArgumentException("Verified allergen set is incomplete");
         }
+        requireOutermostClinicalTransaction();
         final List<AllergenVO> allergens = verifiedAllergens == null
                 ? null : new ArrayList<>(verifiedAllergens);
         final Patient owner = new Patient();
@@ -178,6 +179,7 @@ public final class AtomicMedicineAllergyEditor {
                 || verifiedAllergens.contains(null))) {
             throw new IllegalArgumentException("Verified allergen set is incomplete");
         }
+        requireOutermostClinicalTransaction();
         final List<AllergenVO> allergens = verifiedAllergens == null
                 ? null : new ArrayList<>(verifiedAllergens);
         final Patient owner = new Patient();
@@ -379,6 +381,19 @@ public final class AtomicMedicineAllergyEditor {
         }
         if (error != null) {
             throw new PostCommitRecoveryException(error);
+        }
+    }
+
+    /**
+     * The editor schedules Android alarm and EventBus reconciliation after
+     * its own SQL transaction returns. An enclosing caller transaction
+     * would make that inner success a savepoint, NOT the durable COMMIT;
+     * refuse such calls before any SQL or platform-side effect can occur.
+     */
+    private static void requireOutermostClinicalTransaction() {
+        if (DB.helper().getWritableDatabase().inTransaction()) {
+            throw new IllegalStateException(
+                    "Medicine editing requires the outermost SQLite transaction");
         }
     }
 
