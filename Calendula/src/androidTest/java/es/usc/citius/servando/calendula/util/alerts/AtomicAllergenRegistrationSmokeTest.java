@@ -498,6 +498,39 @@ public class AtomicAllergenRegistrationSmokeTest {
     }
 
     @Test
+    public void postCommitPlatformEffectsRejectAChangedActivePatient()
+            throws Exception {
+        try (Fixture f = new Fixture(true)) {
+            // The selected owner is valid when the SQL operation begins.
+            AtomicAllergenRegistration.requireCurrentOwnerForPlatformEffects(
+                    f.context, f.owner);
+            Patient another = new Patient();
+            another.setCode("ci-postcommit-switched-" + f.suffix);
+            another.setName("Synthetic switched profile");
+            try {
+                assertEquals(1, DB.patients().create(another));
+                DB.patients().setActive(another);
+                try {
+                    AtomicAllergenRegistration.requireCurrentOwnerForPlatformEffects(
+                            f.context, f.owner);
+                    fail("An old owner cannot dispatch platform effects after a switch");
+                } catch (IllegalStateException expected) {
+                    // The caller reports committed-but-recovery-incomplete,
+                    // not a database rollback or a successful alarm update.
+                }
+                assertTrue(f.savedAllergens().isEmpty());
+                assertTrue(f.savedWarnings().isEmpty());
+            } finally {
+                DB.patients().setActive(f.owner);
+                if (another.getId() != null
+                        && DB.patients().findById(another.getId()) != null) {
+                    DB.patients().deleteById(another.getId());
+                }
+            }
+        }
+    }
+
+    @Test
     public void duplicateBatchIdentifiersAreRejectedBeforeFirstInsert()
             throws Exception {
         try (Fixture f = new Fixture(false)) {
