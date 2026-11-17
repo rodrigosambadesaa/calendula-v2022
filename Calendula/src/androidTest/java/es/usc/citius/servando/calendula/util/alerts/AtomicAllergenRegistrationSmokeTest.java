@@ -127,9 +127,14 @@ public class AtomicAllergenRegistrationSmokeTest {
                     DB.alerts().deleteById(warning.id());
                 }
             }
-            for (PatientAllergen allergen : savedAllergens()) {
-                DB.patientAllergens().deleteById(allergen.getId());
-            }
+            // Synthetic fixture-only teardown: the legacy ORMLite
+            // deleteById count can be zero even for a readable row (#977).
+            // Scope cleanup to this unique disposable owner and identifier
+            // prefix; never issue a global clinical-table DELETE.
+            DB.helper().getWritableDatabase().delete("Allergens",
+                    "Patient = ? AND Identifier LIKE ?",
+                    new String[]{String.valueOf(owner.getId()),
+                            "ci-batch-" + suffix + "-%"});
             if (medicine != null && medicine.getId() != null
                     && DB.medicines().findById(medicine.getId()) != null) {
                 for (Schedule schedule : DB.schedules().findByMedicine(medicine)) {
@@ -602,10 +607,11 @@ public class AtomicAllergenRegistrationSmokeTest {
     }
 
     @Test
-    public void allergenDaoDeletesOnlyItsPersistedSyntheticRowById()
+    public void verifiedAllergenDeletionRemovesExactlyOneScopedSqliteRow()
             throws Exception {
-        // Independent DAO baseline for #977: no alert cleanup and no
-        // post-COMMIT effects can influence this isolated row-ID check.
+        // #977 reproduced legacy ORMLite deleteById returning zero on
+        // API23/33/37 for a valid generated ID. Exercise the production
+        // owner-scoped replacement under the SAME SQLite transaction.
         try (Fixture f = new Fixture(false)) {
             PatientAllergen proposed = f.allergen("dao-by-id");
             assertEquals(1, DB.patientAllergens().create(proposed));
@@ -613,13 +619,55 @@ public class AtomicAllergenRegistrationSmokeTest {
             assertTrue(proposed.getId() > 0L);
             List<PatientAllergen> readBack = f.savedAllergens();
             assertEquals(1, readBack.size());
-            assertEquals("DAO must restore the authoritative generated row ID",
+            assertEquals("DAO must restore the generated row ID",
                     proposed.getId(), readBack.get(0).getId());
             assertNotNull(DB.patientAllergens().findById(readBack.get(0).getId()));
-            assertEquals("A verified single-row DAO deletion must affect one row",
-                    1, DB.patientAllergens().deleteById(readBack.get(0).getId()));
-            assertTrue("No synthetic allergen may remain after a successful delete",
+            DB.transaction(() -> {
+                assertEquals(1, DB.patientAllergens().deleteVerifiedOwned(
+                        readBack.get(0), f.owner));
+                return null;
+            });
+            assertTrue("No synthetic allergen may remain after successful COMMIT",
                     f.savedAllergens().isEmpty());
+        }
+    }
+
+    @Test
+    public void verifiedDeletionRejectsRecycledOwnerAndPreservesRows()
+            throws Exception {
+        try (Fixture f = new Fixture(false)) {
+            PatientAllergen proposed = f.allergen("owner-guard");
+            assertEquals(1, DB.patientAllergens().create(proposed));
+            Patient forged = new Patient();
+            forged.setId(f.owner.getId());
+            forged.setCode("ci-recycled-owner-" + f.suffix);
+            try {
+                DB.transaction(() -> {
+                    DB.patientAllergens().deleteVerifiedOwned(proposed, forged);
+                    return null;
+                });
+                fail("Same SQL row ID with different patient code must be rejected");
+            } catch (RuntimeException expected) {
+                // A stale caller must not erase the new owner's allergen.
+            }
+            assertEquals(1, f.savedAllergens().size());
+            assertNotNull(DB.patientAllergens().findById(proposed.getId()));
+        }
+    }
+
+    @Test
+    public void verifiedDeletionCannotRunWithoutOutermostSqlTransaction()
+            throws Exception {
+        try (Fixture f = new Fixture(false)) {
+            PatientAllergen proposed = f.allergen("requires-transaction");
+            assertEquals(1, DB.patientAllergens().create(proposed));
+            try {
+                DB.patientAllergens().deleteVerifiedOwned(proposed, f.owner);
+                fail("No uncommitted SQL batch may remove a clinical allergen");
+            } catch (IllegalStateException expected) {
+                // Caller must own a transaction for atomic group deletion.
+            }
+            assertEquals(1, f.savedAllergens().size());
         }
     }
 
