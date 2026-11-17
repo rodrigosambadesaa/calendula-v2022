@@ -440,6 +440,31 @@ public class AtomicAllergenRegistrationSmokeTest {
     }
 
     @Test
+    public void persistedAllergenCannotClearHighWarningUntilCommittedDeletion()
+            throws Exception {
+        try (Fixture f = new Fixture(true)) {
+            AllergyPatientAlert warning = f.persistExistingWarning();
+            PatientAllergen registered = f.savedAllergens().get(0);
+            try {
+                AllergyAlertUtil.removeAllergyAlerts(f.context, registered);
+                fail("An existing allergen must keep its HIGH medicine warning");
+            } catch (RuntimeException | SQLException expected) {
+                // Out-of-order cleanup cannot bypass a registered allergy.
+            }
+            assertNotNull("Rejected removal must retain the HIGH warning",
+                    DB.alerts().findById(warning.id()));
+            assertEquals(1, f.savedAllergens().size());
+
+            // The intended flow commits the allergen-row deletion first and
+            // only then reconciles the HIGH warning; verify both directions.
+            assertEquals(1, DB.patientAllergens().deleteById(registered.getId()));
+            AllergyAlertUtil.removeAllergyAlerts(f.context, registered);
+            assertNull("After verified deletion the stale HIGH warning is retired",
+                    DB.alerts().findById(warning.id()));
+        }
+    }
+
+    @Test
     public void duplicateBatchIdentifiersAreRejectedBeforeFirstInsert()
             throws Exception {
         try (Fixture f = new Fixture(false)) {
