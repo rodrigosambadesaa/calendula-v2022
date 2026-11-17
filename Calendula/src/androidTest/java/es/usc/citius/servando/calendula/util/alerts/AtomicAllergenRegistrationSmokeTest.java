@@ -490,7 +490,16 @@ public class AtomicAllergenRegistrationSmokeTest {
 
             // The intended flow commits the allergen-row deletion first and
             // only then reconciles the HIGH warning; verify both directions.
-            assertEquals(1, DB.patientAllergens().deleteById(registered.getId()));
+            // This fixture intentionally simulates an already-COMMITTED SQL
+            // removal. Delete by the verified stable owner and unique
+            // synthetic allergen identifier rather than trusting an
+            // ORMLite-provided row ID from an imported/cached Java object.
+            assertEquals(1, DB.helper().getWritableDatabase().delete(
+                    "Allergens", "Patient = ? AND Identifier = ?",
+                    new String[]{String.valueOf(f.owner.getId()),
+                            registered.getIdentifier()}));
+            assertTrue("Allergen removal must be committed before alert cleanup",
+                    f.savedAllergens().isEmpty());
             AllergyAlertUtil.removeAllergyAlerts(f.context, registered);
             assertNull("After verified deletion the stale HIGH warning is retired",
                     DB.alerts().findById(warning.id()));
