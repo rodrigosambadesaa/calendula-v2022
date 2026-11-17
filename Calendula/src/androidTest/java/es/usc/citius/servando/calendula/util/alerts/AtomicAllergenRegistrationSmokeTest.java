@@ -602,6 +602,28 @@ public class AtomicAllergenRegistrationSmokeTest {
     }
 
     @Test
+    public void allergenDaoDeletesOnlyItsPersistedSyntheticRowById()
+            throws Exception {
+        // Independent DAO baseline for #977: no alert cleanup and no
+        // post-COMMIT effects can influence this isolated row-ID check.
+        try (Fixture f = new Fixture(false)) {
+            PatientAllergen proposed = f.allergen("dao-by-id");
+            assertEquals(1, DB.patientAllergens().create(proposed));
+            assertNotNull("Created allergen must acquire a row ID", proposed.getId());
+            assertTrue(proposed.getId() > 0L);
+            List<PatientAllergen> readBack = f.savedAllergens();
+            assertEquals(1, readBack.size());
+            assertEquals("DAO must restore the authoritative generated row ID",
+                    proposed.getId(), readBack.get(0).getId());
+            assertNotNull(DB.patientAllergens().findById(readBack.get(0).getId()));
+            assertEquals("A verified single-row DAO deletion must affect one row",
+                    1, DB.patientAllergens().deleteById(readBack.get(0).getId()));
+            assertTrue("No synthetic allergen may remain after a successful delete",
+                    f.savedAllergens().isEmpty());
+        }
+    }
+
+    @Test
     public void duplicateBatchIdentifiersAreRejectedBeforeFirstInsert()
             throws Exception {
         try (Fixture f = new Fixture(false)) {
