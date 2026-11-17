@@ -656,6 +656,76 @@ public class AtomicAllergenRegistrationSmokeTest {
     }
 
     @Test
+    public void verifiedAllergenGroupDeleteRollsBackEarlierSqlRowOnLaterFailure()
+            throws Exception {
+        try (Fixture f = new Fixture(false)) {
+            PatientAllergen first = f.allergen("rollback-first");
+            PatientAllergen second = f.allergen("rollback-second");
+            assertEquals(1, DB.patientAllergens().create(first));
+            assertEquals(1, DB.patientAllergens().create(second));
+            assertEquals(2, f.savedAllergens().size());
+            PatientAllergen forgedSecond = new PatientAllergen(
+                    "Synthetic forged later row", second.getType(),
+                    "ci-unverified-identifier", f.owner);
+            forgedSecond.setId(second.getId());
+            try {
+                DB.transaction(() -> {
+                    assertEquals(1, DB.patientAllergens().deleteVerifiedOwned(
+                            first, f.owner));
+                    // This second preflight must abort the entire unit,
+                    // including SQLiteDatabase.delete() of the FIRST row.
+                    DB.patientAllergens().deleteVerifiedOwned(forgedSecond, f.owner);
+                    return null;
+                });
+                fail("A stale second allergen must roll back the whole SQL group");
+            } catch (RuntimeException expected) {
+                // No HIGH warning is retired and no partial removal commits.
+            }
+            assertNotNull("First row must survive outer transaction rollback",
+                    DB.patientAllergens().findById(first.getId()));
+            assertNotNull("Second row must remain unchanged",
+                    DB.patientAllergens().findById(second.getId()));
+            assertEquals(2, f.savedAllergens().size());
+        }
+    }
+
+    @Test
+    public void verifiedAllergenDeleteCannotTouchOtherPatientsSameAllergen()
+            throws Exception {
+        try (Fixture f = new Fixture(false)) {
+            Patient other = new Patient();
+            other.setCode("ci-independent-owner-" + f.suffix);
+            other.setName("Synthetic other owner");
+            assertEquals(1, DB.patients().create(other));
+            PatientAllergen first = f.allergen("shared-clinical-identifier");
+            PatientAllergen second = new PatientAllergen(
+                    first.getName(), first.getType(), first.getIdentifier(), other);
+            try {
+                assertEquals(1, DB.patientAllergens().create(first));
+                assertEquals(1, DB.patientAllergens().create(second));
+                DB.transaction(() -> {
+                    DB.patientAllergens().deleteVerifiedOwned(first, f.owner);
+                    return null;
+                });
+                assertTrue(f.savedAllergens().isEmpty());
+                assertNotNull("Another patient's same catalog allergen must survive",
+                        DB.patientAllergens().findById(second.getId()));
+                assertEquals(other.getId(),
+                        DB.patientAllergens().findById(second.getId())
+                                .getPatient().getId());
+            } finally {
+                // Only synthetic, explicitly identified second-owner rows.
+                DB.helper().getWritableDatabase().delete("Allergens",
+                        "_id = ? AND Patient = ? AND Identifier = ?",
+                        new String[]{String.valueOf(second.getId()),
+                                String.valueOf(other.getId()),
+                                second.getIdentifier()});
+                DB.patients().deleteById(other.getId());
+            }
+        }
+    }
+
+    @Test
     public void verifiedDeletionCannotRunWithoutOutermostSqlTransaction()
             throws Exception {
         try (Fixture f = new Fixture(false)) {
