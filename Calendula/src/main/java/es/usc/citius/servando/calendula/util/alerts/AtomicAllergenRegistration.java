@@ -179,10 +179,15 @@ public final class AtomicAllergenRegistration {
                             }
                             List<AllergenVO> merged =
                                     new ArrayList<>(details.getAllergens());
+                            Set<AllergenVO> uniqueExisting = new HashSet<>();
                             for (AllergenVO existing : merged) {
                                 if (existing.getType() == null || existing.getIdentifier() == null
-                                        || existing.getIdentifier().trim().isEmpty()) {
-                                    throw new SQLException("Existing HIGH allergy identity is incomplete");
+                                        || existing.getIdentifier().trim().isEmpty()
+                                        || !uniqueExisting.add(existing)) {
+                                    // A duplicate imported identity is not
+                                    // verified clinical detail. Preserve the
+                                    // HIGH warning and rollback the new row.
+                                    throw new SQLException("Existing HIGH allergy identities are ambiguous");
                                 }
                             }
                             if (!merged.contains(allergen)) {
