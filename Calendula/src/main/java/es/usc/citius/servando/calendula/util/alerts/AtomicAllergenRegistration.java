@@ -150,10 +150,7 @@ public final class AtomicAllergenRegistration {
                             if (DB.alerts().create(warning) != 1) {
                                 throw new SQLException("HIGH warning INSERT failed");
                             }
-                            // SQL-only and owned by THIS same outer transaction.
-                            AlertManager.blockSchedulesForMedicineInSql(medicine);
                             alertsChanged = true;
-                            schedulesBlocked = true;
                         } else {
                             PatientAlert current = warnings.get(0);
                             if (current.id() == null || current.id() <= 0L
@@ -188,6 +185,13 @@ public final class AtomicAllergenRegistration {
                                 alertsChanged = true;
                             }
                         }
+                        // An existing HIGH warning does not prove that every
+                        // schedule is still BLOCKED. Restores or later schedule
+                        // creation can leave a runnable dose behind. Reapply
+                        // the same SQL-only blocking policy for both new and
+                        // pre-existing warnings before the outer COMMIT.
+                        AlertManager.blockSchedulesForMedicineInSql(medicine);
+                        schedulesBlocked = true;
                     }
                 }
                 requireLiveActiveOwner(app, owner);
