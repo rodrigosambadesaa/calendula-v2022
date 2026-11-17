@@ -146,7 +146,8 @@ public class AllergyAlertUtil {
         if (c == null || allergen == null || allergen.getPatient() == null
                 || allergen.getPatient().getId() == null
                 || allergen.getPatient().getId() <= 0L
-                || allergen.getType() == null || allergen.getIdentifier() == null) {
+                || allergen.getType() == null || allergen.getIdentifier() == null
+                || allergen.getIdentifier().trim().isEmpty()) {
             throw new IllegalArgumentException("Persisted patient and allergen identity required");
         }
         requireOutermostSqlForAndroidAlertEffects();
@@ -172,6 +173,23 @@ public class AllergyAlertUtil {
                 if (!PatientOwnerGuard.sameStableIdentity(
                         ownerSnapshot, DB.patients().findById(ownerId))) {
                     throw new SQLException("Allergy alert owner changed before cleanup");
+                }
+                // This public helper is also callable outside the allergy
+                // editor. Do not retire a HIGH warning while the corresponding
+                // allergen is still registered in the committed patient data.
+                // Otherwise an out-of-order callback could unblock a medicine
+                // despite an allergy that still exists in SQLite.
+                for (PatientAllergen stillRegistered : DB.patientAllergens().findBy(
+                        PatientAllergen.COLUMN_PATIENT, ownerId)) {
+                    if (stillRegistered == null || !PatientOwnerGuard.sameStableIdentity(
+                            ownerSnapshot, stillRegistered.getPatient())) {
+                        throw new SQLException("Persisted allergen owner is unverifiable");
+                    }
+                    if (stillRegistered.getType() == removedAllergen.getType()
+                            && removedAllergen.getIdentifier().equals(
+                                    stillRegistered.getIdentifier())) {
+                        throw new SQLException("Allergen still registered; HIGH alert cleanup rejected");
+                    }
                 }
                 final PreparedQuery<PatientAlert> query = DB.alerts().queryBuilder().where()
                         .eq(PatientAlert.COLUMN_TYPE, AllergyPatientAlert.class.getCanonicalName())
