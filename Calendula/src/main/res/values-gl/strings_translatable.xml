@@ -226,6 +226,7 @@ Calendula está sendo desenvolvida polo Centro de Investigación en Tecnoloxías
 <string name="home_menu_allergies">"Alerxias"</string>
 <string name="title_activity_allergies">"Alerxias"</string>
 <string name="message_allergy_saved_recovery_required">"Gardáronse as alerxias, pero cómpre recuperar os recordatorios da medicación. Revise a pauta antes de confiar nas alertas."</string>
+ <string name="message_allergy_removed_recovery_required">"Eliminouse a alerxia, pero non se completou a recuperación dos avisos ou notificacións da medicación. Revise a pauta antes de confiar nas alertas."</string>
 <string name="message_allergy_add_failure">"Ocorreu un erro ao tratar de gardar as túas preferencias de alerxias."</string>
 <string name="remove_allergy_message_short">"Eliminar a alerxia a %1$s?"</string>
 <string name="excipient">"Excipiente"</string>
