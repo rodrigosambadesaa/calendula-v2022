@@ -255,7 +255,10 @@ public class AllergyAlertUtil {
             }
         });
         for (PatientAlert alert : toRemove) {
-            AlertManager.removeAlert(alert);
+            // A concurrent insertion might have restored the same allergy
+            // after the details transaction returned. The AlertManager
+            // checks its absence again atomically with HIGH warning deletion.
+            AlertManager.removeAlertAfterAllergenDeletion(alert, allergen);
         }
         if (updated[0] || !toRemove.isEmpty()) {
             es.usc.citius.servando.calendula.CalendulaApp.eventBus().post(
