@@ -90,6 +90,33 @@ public class CommittedWarningRetirementTest {
     }
 
     @Test
+    public void medicineWarningCleanupContinuesWithoutAnExtraObserver() {
+        // The medicine-specific path already delegates observer dispatch to
+        // AlertManager.removeAlert, so it supplies no additional notifier.
+        List<String> calls = new ArrayList<>();
+        RuntimeException first = new IllegalStateException("synthetic post-commit failure");
+        try {
+            CommittedWarningRetirement.finish(Arrays.asList("first", "second", "third"),
+                    warning -> {
+                        calls.add(warning);
+                        if ("first".equals(warning)) throw first;
+                    }, null);
+            fail("An already committed but unrecovered warning cannot report success");
+        } catch (IllegalStateException expected) {
+            assertSame(first, expected.getCause());
+        }
+        assertEquals(Arrays.asList("first", "second", "third"), calls);
+    }
+
+    @Test
+    public void medicineWarningCleanupSucceedsWithoutAnExtraObserver() {
+        List<String> calls = new ArrayList<>();
+        CommittedWarningRetirement.finish(Arrays.asList("first", "second"),
+                calls::add, null);
+        assertEquals(Arrays.asList("first", "second"), calls);
+    }
+
+    @Test
     public void missingSnapshotFailsClosedButStillAttemptsOtherRetirements() {
         List<String> calls = new ArrayList<>();
         try {
