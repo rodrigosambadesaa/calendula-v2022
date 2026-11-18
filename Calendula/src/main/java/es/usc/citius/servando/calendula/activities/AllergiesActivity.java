@@ -534,7 +534,7 @@ public class AllergiesActivity extends CalendulaActivity {
 
             // Every row deletion has already COMMITTED. Reconcile each HIGH
             // warning independently; one post-COMMIT failure must not skip
-            // later patients' verified allergy records in this batch, or
+            // later verified allergens of the same patient, or
             // suppress the final medicine observer.
             // Never repeat the SQL DELETE when recovery remains incomplete.
             final boolean recovered = AllergenDeletionPostCommit.reconcile(
