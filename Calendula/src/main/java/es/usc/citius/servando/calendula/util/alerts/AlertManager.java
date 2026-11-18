@@ -45,7 +45,21 @@ public class AlertManager {
 
     private static final String TAG = "AlertManager";
 
+    /**
+     * Platform alarms and event-bus observers cannot roll back with SQLite.
+     * An ORMLite nested transaction is only a savepoint, so completing that
+     * nested unit does NOT guarantee a durable outer COMMIT. Refuse these
+     * public entry points before any clinical SQL or Android side effect.
+     */
+    private static void requireOutermostPlatformTransaction() {
+        if (DB.helper().getWritableDatabase().inTransaction()) {
+            throw new IllegalStateException(
+                    "Clinical alert platform effects require the outermost SQLite transaction");
+        }
+    }
+
     public static void createAlert(final PatientAlert alert) {
+        requireOutermostPlatformTransaction();
         if (alert == null || alert.id() != null) {
             // Creation must never become an UPDATE through ORMLite's
             // createOrUpdate when an old alert ID is recycled by a restore.
@@ -178,6 +192,7 @@ public class AlertManager {
 
     private static void removeAlertInternal(final PatientAlert alert,
                                             final PatientAllergen deletedAllergen) {
+        requireOutermostPlatformTransaction();
         if (alert == null || alert.id() == null || alert.id() <= 0L) {
             throw new IllegalArgumentException("A persisted alert ID is required");
         }
@@ -389,6 +404,7 @@ public class AlertManager {
      * be stale after a backup restore and must not be directly persisted.
      */
     public static void unblockSchedule(final Schedule schedule) {
+        requireOutermostPlatformTransaction();
         if (schedule == null || schedule.getId() == null || schedule.getId() <= 0L
                 || schedule.getMedicine() == null
                 || schedule.getMedicine().getId() == null
