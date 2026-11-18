@@ -250,14 +250,46 @@ public class AlertManager {
                 }
             }
         }
-        if (!result.unblocked.isEmpty()) {
-            CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT);
+        finishCommittedAlertRemoval(!result.unblocked.isEmpty(), postCommitFailure,
+                () -> CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT),
+                () -> CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT));
+    }
+
+    /**
+     * SQL has already COMMITTED. A failed schedule observer must not prevent
+     * alert observers from seeing the deleted warning, and an earlier Android
+     * reminder-recovery error must not suppress either notification.
+     *
+     * Preserve the first failure so callers cannot mistake a committed
+     * removal for a rolled-back delete and retry it unsafely.
+     */
+    static void finishCommittedAlertRemoval(boolean schedulesChanged,
+                                            RuntimeException earlierRecoveryFailure,
+                                            Runnable notifySchedules,
+                                            Runnable notifyAlerts) {
+        RuntimeException failure = earlierRecoveryFailure;
+        if (schedulesChanged) {
+            try {
+                notifySchedules.run();
+            } catch (RuntimeException observerFailure) {
+                LogUtil.e(TAG, "Committed alert removal schedule observer failed");
+                if (failure == null) {
+                    failure = observerFailure;
+                }
+            }
         }
-        CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT);
-        if (postCommitFailure != null) {
+        try {
+            notifyAlerts.run();
+        } catch (RuntimeException observerFailure) {
+            LogUtil.e(TAG, "Committed alert removal alert observer failed");
+            if (failure == null) {
+                failure = observerFailure;
+            }
+        }
+        if (failure != null) {
             throw new IllegalStateException(
-                    "Alert removal committed; schedule recovery is incomplete",
-                    postCommitFailure);
+                    "Alert removal committed; reminder/observer recovery incomplete",
+                    failure);
         }
     }
 
