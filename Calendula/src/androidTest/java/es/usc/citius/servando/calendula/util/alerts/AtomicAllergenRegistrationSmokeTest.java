@@ -801,6 +801,69 @@ public class AtomicAllergenRegistrationSmokeTest {
     }
 
     @Test
+    public void alertManagerRejectsNestedHighCreationWithoutPersistingWarning()
+            throws Exception {
+        try (Fixture f = new Fixture(true)) {
+            AllergyPatientAlert proposed = new AllergyPatientAlert(f.medicine,
+                    Collections.singletonList(new AllergenVO(f.allergen("nested-alert"))));
+            DB.transaction(() -> {
+                assertTrue(DB.helper().getWritableDatabase().inTransaction());
+                try {
+                    AlertManager.createAlert(proposed);
+                    fail("Nested HIGH alert creation must not run before the outer COMMIT");
+                } catch (IllegalStateException expected) {
+                    assertTrue(expected.getMessage().contains("outermost SQLite"));
+                }
+                return null;
+            });
+            assertTrue("Rejected nested creation cannot persist HIGH warnings",
+                    f.savedWarnings().isEmpty());
+            assertNull("Rejected nested creation cannot claim an alert row ID",
+                    proposed.id());
+        }
+    }
+
+    @Test
+    public void alertManagerRejectsNestedHighRemovalWithoutDeletingWarning()
+            throws Exception {
+        try (Fixture f = new Fixture(true)) {
+            AllergyPatientAlert current = f.persistExistingWarning();
+            DB.transaction(() -> {
+                assertTrue(DB.helper().getWritableDatabase().inTransaction());
+                try {
+                    AlertManager.removeAlert(current);
+                    fail("Nested HIGH alert removal must not precede the outer COMMIT");
+                } catch (IllegalStateException expected) {
+                    assertTrue(expected.getMessage().contains("outermost SQLite"));
+                }
+                return null;
+            });
+            assertNotNull("Rejected removal must preserve the HIGH warning",
+                    DB.alerts().findById(current.id()));
+        }
+    }
+
+    @Test
+    public void alertManagerRejectsNestedScheduleReleaseBeforeAlarmRecovery()
+            throws Exception {
+        try (Fixture f = new Fixture(true)) {
+            Schedule schedule = f.createRunnableSchedule();
+            DB.transaction(() -> {
+                assertTrue(DB.helper().getWritableDatabase().inTransaction());
+                try {
+                    AlertManager.unblockSchedule(schedule);
+                    fail("Nested schedule release must not create OS alarms before COMMIT");
+                } catch (IllegalStateException expected) {
+                    assertTrue(expected.getMessage().contains("outermost SQLite"));
+                }
+                return null;
+            });
+            assertNotNull("Rejected schedule release must leave its row intact",
+                    DB.schedules().findById(schedule.getId()));
+        }
+    }
+
+    @Test
     public void duplicateBatchIdentifiersAreRejectedBeforeFirstInsert()
             throws Exception {
         try (Fixture f = new Fixture(false)) {
