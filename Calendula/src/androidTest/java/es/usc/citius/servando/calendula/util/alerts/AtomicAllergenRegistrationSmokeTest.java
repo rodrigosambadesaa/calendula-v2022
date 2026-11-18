@@ -774,6 +774,33 @@ public class AtomicAllergenRegistrationSmokeTest {
     }
 
     @Test
+    public void patientScopedAllergenDaoReadRejectsStaleRecycledIdentity()
+            throws Exception {
+        try (Fixture f = new Fixture(false)) {
+            PatientAllergen verified = f.allergen("patient-scoped-read");
+            assertEquals(1, DB.patientAllergens().create(verified));
+            assertEquals(1, DB.patientAllergens().findAll(f.owner).size());
+
+            // Simulate a stale profile snapshot after database restore. The
+            // numeric owner ID matches, but its durable code does not.
+            Patient recycledSnapshot = new Patient();
+            recycledSnapshot.setId(f.owner.getId());
+            recycledSnapshot.setCode("ci-replaced-patient-" + f.suffix);
+            assertTrue("A recycled row ID must not reveal another patient's allergens",
+                    DB.patientAllergens().findAll(recycledSnapshot).isEmpty());
+
+            Patient incompleteSnapshot = new Patient();
+            incompleteSnapshot.setId(f.owner.getId());
+            assertTrue("Unidentified legacy snapshots must not disclose allergens",
+                    DB.patientAllergens().findAll(incompleteSnapshot).isEmpty());
+            assertTrue(DB.patientAllergens().findAll((Patient) null).isEmpty());
+
+            assertEquals("Denied reads must not delete or alter real rows",
+                    1, f.savedAllergens().size());
+        }
+    }
+
+    @Test
     public void duplicateBatchIdentifiersAreRejectedBeforeFirstInsert()
             throws Exception {
         try (Fixture f = new Fixture(false)) {
