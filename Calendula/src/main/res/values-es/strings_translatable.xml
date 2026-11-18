@@ -218,6 +218,8 @@ Para este desarrollo se hace uso de algunas librerías y utilidades de código a
 <string name="title_about">"Acerca de"</string>
 <string name="home_menu_allergies">"Alergias"</string>
 <string name="title_activity_allergies">"Alergias"</string>
+<string name="message_allergy_saved_recovery_required">"Las alergias se han guardado, pero es necesario recuperar los recordatorios de medicación. Revise la pauta antes de confiar en las alertas."</string>
+ <string name="message_allergy_removed_recovery_required">"Se han guardado los cambios en las alergias, pero no se ha completado la recuperación de avisos o notificaciones de medicación. Revise la pauta antes de confiar en las alertas."</string>
 <string name="message_allergy_add_failure">"Ocurrió un error al intentar guardar tus preferencias de alergias."</string>
 <string name="remove_allergy_message_short">"¿Eliminar la alergia a %1$s?"</string>
 <string name="excipient">"Excipiente"</string>
@@ -506,6 +508,7 @@ Quieres instalar la nueva base de datos ahora?"</string>
     <string name="medicine_alerts_unavailable">No se pueden verificar las alertas clínicas de este medicamento. Comprueba el perfil del paciente y vuelve a abrirlo.</string>
     <string name="medicine_stock_amount_invalid">Introduce una cantidad de existencias válida y no negativa. No se puede guardar ese valor.</string>
     <string name="allergy_details_unavailable">No se pueden verificar los detalles de los alérgenos. Mantén esta advertencia de alergia y revisa el medicamento antes de usarlo.</string>
+    <string name="allergy_entry_unverified">Alérgeno sin verificar — revisar</string>
     <string name="medicine_allergy_catalog_unavailable">No se puede comprobar la seguridad frente a alergias porque faltan datos de ingredientes o excipientes en el catálogo. Revisa el catálogo antes de guardar.</string>
     <string name="patient_qr_invalid">El código de vinculación del paciente no es válido o es demasiado grande.</string>
     <string name="active_med_details_unavailable">Los datos de este medicamento no están disponibles. Revisa el registro del proveedor sanitario.</string>

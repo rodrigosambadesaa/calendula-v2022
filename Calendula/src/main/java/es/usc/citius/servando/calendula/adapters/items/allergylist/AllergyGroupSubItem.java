@@ -39,19 +39,26 @@ public class AllergyGroupSubItem extends AbstractExpandableItem<AllergyGroupItem
     private PatientAllergen allergen;
     private String title;
     private String subtitle;
-    private ViewHolder holder;
     private AllergyGroupItem parent;
 
     public AllergyGroupSubItem(PatientAllergen vo, Context context) {
         this.allergen = vo;
-        this.title = vo.getName();
-        switch (vo.getType()) {
+        // Old imports can omit an allergen name or type. Keep the row
+        // visible for clinical review rather than crashing the allergy list.
+        this.title = vo.getName() == null || vo.getName().trim().isEmpty()
+                ? context.getString(R.string.allergy_entry_unverified)
+                : vo.getName();
+        if (vo.getType() == null) {
+            subtitle = context.getString(R.string.allergy_entry_unverified);
+        } else switch (vo.getType()) {
             case ACTIVE_INGREDIENT:
                 subtitle = context.getString(R.string.active_ingredient);
                 break;
             case EXCIPIENT:
                 subtitle = context.getString(R.string.excipient);
                 break;
+            default:
+                subtitle = context.getString(R.string.allergy_entry_unverified);
         }
     }
 
@@ -60,7 +67,6 @@ public class AllergyGroupSubItem extends AbstractExpandableItem<AllergyGroupItem
         super.bindView(holder, payloads);
         holder.title.setText(title);
         holder.subtitle.setText(subtitle);
-        this.holder = holder;
     }
 
     @Override
@@ -73,7 +79,8 @@ public class AllergyGroupSubItem extends AbstractExpandableItem<AllergyGroupItem
     @NonNull
     @Override
     public ViewHolder getViewHolder(View v) {
-        return null;
+        // Returning null makes FastAdapter unable to create grouped rows.
+        return new ViewHolder(v);
     }
 
     @Override

@@ -52,5 +52,14 @@ public class AllergenDeletionGuardTest {
         assertFalse(AllergenDeletionGuard.isSamePersistedOwner(
                 123L, 123L, 42L, 123L, 42L, 123L,
                 "excipient", "excipient", "", ""));
+        // A legacy whitespace-only identity is not proof of an allergy
+        // match: deleting it would commit the row removal and only then
+        // fail during HIGH alert reconciliation.
+        assertFalse(AllergenDeletionGuard.isSamePersistedOwner(
+                123L, 123L, 42L, 123L, 42L, 123L,
+                "excipient", "excipient", "   ", "   "));
+        assertFalse(AllergenDeletionGuard.isSamePersistedOwner(
+                123L, 123L, 42L, 123L, 42L, 123L,
+                "excipient", "excipient", "\t", "\t"));
     }
 }

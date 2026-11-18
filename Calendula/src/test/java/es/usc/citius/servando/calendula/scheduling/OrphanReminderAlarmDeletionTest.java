@@ -85,7 +85,8 @@ public class OrphanReminderAlarmDeletionTest {
         EventReminder r = orphan(9000001602L);
         EventReminderDao reminders = mock(EventReminderDao.class);
         EventInstanceDao instances = mock(EventInstanceDao.class);
-        when(reminders.findById(r.getId())).thenReturn(r, null);
+        // Cast the second response: bare null is ambiguous with Mockito varargs.
+        when(reminders.findById(r.getId())).thenReturn(r, (EventReminder) null);
         when(reminders.deleteIfSameInstance(r)).thenReturn(1);
         PendingIntent original = lookup(context, r, PendingIntent.FLAG_UPDATE_CURRENT);
         try (MockedStatic<DB> db = mockStatic(DB.class)) {
@@ -132,7 +133,8 @@ public class OrphanReminderAlarmDeletionTest {
         EventReminder r = orphan(9000001604L);
         EventReminderDao reminders = mock(EventReminderDao.class);
         EventInstanceDao instances = mock(EventInstanceDao.class);
-        when(reminders.findById(r.getId())).thenReturn(r, null);
+        // Cast the second response: bare null is ambiguous with Mockito varargs.
+        when(reminders.findById(r.getId())).thenReturn(r, (EventReminder) null);
         when(reminders.deleteIfSameInstance(r)).thenReturn(0);
         PendingIntent original = lookup(context, r, PendingIntent.FLAG_UPDATE_CURRENT);
         try (MockedStatic<DB> db = mockStatic(DB.class)) {

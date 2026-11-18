@@ -78,6 +78,7 @@ public final class AtomicMedicineAllergyEditor {
                 || verifiedAllergens.contains(null))) {
             throw new IllegalArgumentException("Verified allergen set is incomplete");
         }
+        requireOutermostClinicalTransaction();
         final List<AllergenVO> allergens = verifiedAllergens == null
                 ? null : new ArrayList<>(verifiedAllergens);
         final Patient owner = new Patient();
@@ -124,12 +125,14 @@ public final class AtomicMedicineAllergyEditor {
             // Try both independent clinical checks: a failure evaluating
             // stock must not silently skip a driving caution and vice versa.
             try {
+                requireCurrentOwnerForPlatformEffects(safeContext, owner);
                 StockAlertHandler.checkStockAlerts(proposed);
             } catch (RuntimeException failure) {
                 LogUtil.e(TAG, "Committed medicine stock check needs recovery");
                 if (error == null) error = failure;
             }
             try {
+                requireCurrentOwnerForPlatformEffects(safeContext, owner);
                 DrivingAlertHandler.checkDrivingAlerts(proposed, prescription);
             } catch (RuntimeException failure) {
                 LogUtil.e(TAG, "Committed medicine driving check needs recovery");
@@ -137,12 +140,14 @@ public final class AtomicMedicineAllergyEditor {
             }
         }
         try {
+            requireCurrentOwnerForPlatformEffects(safeContext, owner);
             DB.medicines().fireEvent();
         } catch (RuntimeException failure) {
             LogUtil.e(TAG, "Committed medicine list observer needs recovery");
             if (error == null) error = failure;
         }
         try {
+            requireCurrentOwnerForPlatformEffects(safeContext, owner);
             CalendulaApp.eventBus().post(
                     new PersistenceEvents.MedicineAddedEvent(proposed.getId()));
         } catch (RuntimeException failure) {
@@ -151,6 +156,7 @@ public final class AtomicMedicineAllergyEditor {
         }
         if (allergens != null) {
             try {
+                requireCurrentOwnerForPlatformEffects(safeContext, owner);
                 CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT);
             } catch (RuntimeException failure) {
                 LogUtil.e(TAG, "Committed allergy observer needs recovery");
@@ -178,6 +184,7 @@ public final class AtomicMedicineAllergyEditor {
                 || verifiedAllergens.contains(null))) {
             throw new IllegalArgumentException("Verified allergen set is incomplete");
         }
+        requireOutermostClinicalTransaction();
         final List<AllergenVO> allergens = verifiedAllergens == null
                 ? null : new ArrayList<>(verifiedAllergens);
         final Patient owner = new Patient();
@@ -354,6 +361,7 @@ public final class AtomicMedicineAllergyEditor {
         // medicine was already committed, and should never be shown as absent.
         if (committed.changedSchedules) {
             try {
+                requireCurrentOwnerForPlatformEffects(safeContext, committed.owner);
                 CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT);
             } catch (RuntimeException failure) {
                 LogUtil.e(TAG, "Committed medicine schedule observer needs recovery");
@@ -362,6 +370,7 @@ public final class AtomicMedicineAllergyEditor {
         }
         if (committed.changedAlert) {
             try {
+                requireCurrentOwnerForPlatformEffects(safeContext, committed.owner);
                 CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT);
             } catch (RuntimeException failure) {
                 LogUtil.e(TAG, "Committed medicine warning observer needs recovery");
@@ -369,6 +378,7 @@ public final class AtomicMedicineAllergyEditor {
             }
         }
         try {
+            requireCurrentOwnerForPlatformEffects(safeContext, committed.owner);
             PersistenceEvents.ModelCreateOrUpdateEvent event =
                     new PersistenceEvents.ModelCreateOrUpdateEvent(Medicine.class);
             event.model = proposed;
@@ -379,6 +389,27 @@ public final class AtomicMedicineAllergyEditor {
         }
         if (error != null) {
             throw new PostCommitRecoveryException(error);
+        }
+    }
+
+    /**
+     * The editor schedules Android alarm and EventBus reconciliation after
+     * its own SQL transaction returns. An enclosing caller transaction
+     * would make that inner success a savepoint, NOT the durable COMMIT;
+     * refuse such calls before any SQL or platform-side effect can occur.
+     */
+    private static void requireOutermostClinicalTransaction() {
+        if (DB.helper().getWritableDatabase().inTransaction()) {
+            throw new IllegalStateException(
+                    "Medicine editing requires the outermost SQLite transaction");
+        }
+    }
+
+    /** Do not publish stale-owner medication data into a newly selected profile. */
+    static void requireCurrentOwnerForPlatformEffects(Context context, Patient expected) {
+        if (!currentOwnerMatches(context, expected)) {
+            throw new IllegalStateException(
+                    "Committed medicine update needs patient-scoped recovery");
         }
     }
 

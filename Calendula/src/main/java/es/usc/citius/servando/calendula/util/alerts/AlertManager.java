@@ -32,6 +32,7 @@ import es.usc.citius.servando.calendula.events.PersistenceEvents;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.PatientAlert;
+import es.usc.citius.servando.calendula.persistence.PatientAllergen;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
@@ -44,7 +45,21 @@ public class AlertManager {
 
     private static final String TAG = "AlertManager";
 
+    /**
+     * Platform alarms and event-bus observers cannot roll back with SQLite.
+     * An ORMLite nested transaction is only a savepoint, so completing that
+     * nested unit does NOT guarantee a durable outer COMMIT. Refuse these
+     * public entry points before any clinical SQL or Android side effect.
+     */
+    private static void requireOutermostPlatformTransaction() {
+        if (DB.helper().getWritableDatabase().inTransaction()) {
+            throw new IllegalStateException(
+                    "Clinical alert platform effects require the outermost SQLite transaction");
+        }
+    }
+
     public static void createAlert(final PatientAlert alert) {
+        requireOutermostPlatformTransaction();
         if (alert == null || alert.id() != null) {
             // Creation must never become an UPDATE through ORMLite's
             // createOrUpdate when an old alert ID is recycled by a restore.
@@ -154,6 +169,30 @@ public class AlertManager {
     }
 
     public static void removeAlert(final PatientAlert alert) {
+        removeAlertInternal(alert, null);
+    }
+
+    /**
+     * Remove an allergy warning after the owning allergen was committed as
+     * deleted. Recheck absence in the SAME SQLite transaction as warning
+     * removal: a concurrent re-registration must not let a delayed callback
+     * clear a currently required HIGH warning and unblock doses.
+     */
+    public static void removeAlertAfterAllergenDeletion(final PatientAlert alert,
+                                                        final PatientAllergen deletedAllergen) {
+        if (deletedAllergen == null || deletedAllergen.getPatient() == null
+                || !PatientOwnerGuard.hasStableIdentity(deletedAllergen.getPatient())
+                || deletedAllergen.getType() == null
+                || deletedAllergen.getIdentifier() == null
+                || deletedAllergen.getIdentifier().trim().isEmpty()) {
+            throw new IllegalArgumentException("Stable deleted allergen identity required");
+        }
+        removeAlertInternal(alert, deletedAllergen);
+    }
+
+    private static void removeAlertInternal(final PatientAlert alert,
+                                            final PatientAllergen deletedAllergen) {
+        requireOutermostPlatformTransaction();
         if (alert == null || alert.id() == null || alert.id() <= 0L) {
             throw new IllegalArgumentException("A persisted alert ID is required");
         }
@@ -177,6 +216,32 @@ public class AlertManager {
                                 || !PatientOwnerGuard.sameStableIdentity(
                                         alert.getPatient(), linked.getPatient())))) {
                 throw new IllegalStateException("Alert identity changed before deletion");
+            }
+
+            if (deletedAllergen != null) {
+                if (!es.usc.citius.servando.calendula.persistence.alerts
+                        .AllergyPatientAlert.class.getCanonicalName().equals(current.getType())
+                        || current.getLevel() != Level.HIGH
+                        || !PatientOwnerGuard.sameStableIdentity(
+                                deletedAllergen.getPatient(), persistedOwner)) {
+                    throw new SQLException("Deleted allergen owner or HIGH alert type changed");
+                }
+                // This check and the DELETE share one SQLite transaction,
+                // not two asynchronous preflight/cleanup operations.
+                for (PatientAllergen registered : DB.patientAllergens()
+                        .findAll(persistedOwner)) {
+                    if (registered == null
+                            || !PatientOwnerGuard.sameStableIdentity(
+                                    persistedOwner, registered.getPatient())) {
+                        throw new SQLException("Persisted allergen owner is unverifiable");
+                    }
+                    if (deletedAllergen.getType() == registered.getType()
+                            && deletedAllergen.getIdentifier()
+                                    .equals(registered.getIdentifier())) {
+                        throw new SQLException(
+                                "Allergen re-registered before HIGH warning removal");
+                    }
+                }
             }
 
             if (DB.alerts().deleteById(current.id()) != 1) {
@@ -250,14 +315,46 @@ public class AlertManager {
                 }
             }
         }
-        if (!result.unblocked.isEmpty()) {
-            CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT);
+        finishCommittedAlertRemoval(!result.unblocked.isEmpty(), postCommitFailure,
+                () -> CalendulaApp.eventBus().post(PersistenceEvents.SCHEDULE_EVENT),
+                () -> CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT));
+    }
+
+    /**
+     * SQL has already COMMITTED. A failed schedule observer must not prevent
+     * alert observers from seeing the deleted warning, and an earlier Android
+     * reminder-recovery error must not suppress either notification.
+     *
+     * Preserve the first failure so callers cannot mistake a committed
+     * removal for a rolled-back delete and retry it unsafely.
+     */
+    static void finishCommittedAlertRemoval(boolean schedulesChanged,
+                                            RuntimeException earlierRecoveryFailure,
+                                            Runnable notifySchedules,
+                                            Runnable notifyAlerts) {
+        RuntimeException failure = earlierRecoveryFailure;
+        if (schedulesChanged) {
+            try {
+                notifySchedules.run();
+            } catch (RuntimeException observerFailure) {
+                LogUtil.e(TAG, "Committed alert removal schedule observer failed");
+                if (failure == null) {
+                    failure = observerFailure;
+                }
+            }
         }
-        CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT);
-        if (postCommitFailure != null) {
+        try {
+            notifyAlerts.run();
+        } catch (RuntimeException observerFailure) {
+            LogUtil.e(TAG, "Committed alert removal alert observer failed");
+            if (failure == null) {
+                failure = observerFailure;
+            }
+        }
+        if (failure != null) {
             throw new IllegalStateException(
-                    "Alert removal committed; schedule recovery is incomplete",
-                    postCommitFailure);
+                    "Alert removal committed; reminder/observer recovery incomplete",
+                    failure);
         }
     }
 
@@ -307,6 +404,7 @@ public class AlertManager {
      * be stale after a backup restore and must not be directly persisted.
      */
     public static void unblockSchedule(final Schedule schedule) {
+        requireOutermostPlatformTransaction();
         if (schedule == null || schedule.getId() == null || schedule.getId() <= 0L
                 || schedule.getMedicine() == null
                 || schedule.getMedicine().getId() == null

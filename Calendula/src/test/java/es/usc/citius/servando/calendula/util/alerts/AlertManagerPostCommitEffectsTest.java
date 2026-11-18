@@ -104,4 +104,62 @@ public class AlertManagerPostCommitEffectsTest {
                 () -> calls.add("alerts"));
         assertEquals(Arrays.asList("cleanup", "schedules", "alerts"), calls);
     }
+
+    @Test
+    public void removedHighAlertNotifiesAlertObserversAfterScheduleObserverFailure() {
+        List<String> calls = new ArrayList<>();
+        RuntimeException failure = new IllegalStateException("synthetic schedule observer");
+        try {
+            AlertManager.finishCommittedAlertRemoval(true, null,
+                    () -> {
+                        calls.add("schedules");
+                        throw failure;
+                    },
+                    () -> calls.add("alerts"));
+            fail("A committed removal with a failed observer requires recovery");
+        } catch (IllegalStateException expected) {
+            assertSame(failure, expected.getCause());
+            assertTrue(expected.getMessage().contains("committed"));
+        }
+        assertEquals(Arrays.asList("schedules", "alerts"), calls);
+    }
+
+    @Test
+    public void failedAlarmRecoveryDoesNotSuppressRemovalObservers() {
+        List<String> calls = new ArrayList<>();
+        RuntimeException recovery = new IllegalStateException("synthetic alarm recovery");
+        try {
+            AlertManager.finishCommittedAlertRemoval(true, recovery,
+                    () -> calls.add("schedules"),
+                    () -> calls.add("alerts"));
+            fail("A completed SQL removal still needs post-commit recovery");
+        } catch (IllegalStateException expected) {
+            assertSame(recovery, expected.getCause());
+        }
+        assertEquals(Arrays.asList("schedules", "alerts"), calls);
+    }
+
+    @Test
+    public void removedLowAlertNeverNotifiesUnchangedSchedules() {
+        List<String> calls = new ArrayList<>();
+        AlertManager.finishCommittedAlertRemoval(false, null,
+                () -> fail("No schedule was unblocked"),
+                () -> calls.add("alerts"));
+        assertEquals(Arrays.asList("alerts"), calls);
+    }
+
+    @Test
+    public void removedAlertObserverFailureIsNotMisreportedAsRollback() {
+        RuntimeException failure = new IllegalStateException("synthetic alert observer");
+        try {
+            AlertManager.finishCommittedAlertRemoval(false, null,
+                    () -> fail("No schedule event expected"),
+                    () -> { throw failure; });
+            fail("Committed removal must report observer failure");
+        } catch (IllegalStateException expected) {
+            assertSame(failure, expected.getCause());
+            assertTrue(expected.getMessage().contains("committed"));
+        }
+    }
+
 }

@@ -42,24 +42,30 @@ public class AllergyItem extends AbstractItem<AllergyItem, AllergyItem.ViewHolde
     private String title;
     private String allergenType;
     private PatientAllergen allergen;
-    private ViewHolder holder;
 
     public AllergyItem(PatientAllergen vo, Context context) {
-        this.title = vo.getName();
-        switch (vo.getType()) {
+        this.title = vo.getName() == null || vo.getName().trim().isEmpty()
+                ? context.getString(R.string.allergy_entry_unverified)
+                : vo.getName();
+        if (vo.getType() == null) {
+            allergenType = context.getString(R.string.allergy_entry_unverified);
+        } else switch (vo.getType()) {
             case ACTIVE_INGREDIENT:
                 allergenType = context.getString(R.string.active_ingredient);
                 break;
             case EXCIPIENT:
                 allergenType = context.getString(R.string.excipient);
                 break;
+            default:
+                allergenType = context.getString(R.string.allergy_entry_unverified);
         }
         this.allergen = vo;
     }
 
     @Override
     public int compareTo(@NonNull AllergyItem o) {
-        return this.title.compareTo(o.title);
+        return (this.title == null ? "" : this.title)
+                .compareTo(o.title == null ? "" : o.title);
     }
 
     public PatientAllergen getAllergen() {
@@ -84,7 +90,6 @@ public class AllergyItem extends AbstractItem<AllergyItem, AllergyItem.ViewHolde
     @Override
     public void bindView(ViewHolder viewHolder, List<Object> payloads) {
         super.bindView(viewHolder, payloads);
-        this.holder = viewHolder;
         viewHolder.title.setText(title);
         viewHolder.subtitle.setText(allergenType);
         viewHolder.deleteButton.setImageDrawable(new IconicsDrawable(viewHolder.deleteButton.getContext())

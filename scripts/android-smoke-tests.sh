@@ -129,6 +129,38 @@ if [[ "$DEVICE_API" == "36" ]]; then
   fi
 fi
 
-exec ./gradlew connectedCiDebugAndroidTest \
-  "-Pandroid.testInstrumentationRunnerArguments.class=${TEST_CLASSES}" \
-  --stacktrace --no-daemon
+# Maven Central can throttle cold GitHub runners with HTTP 429 while the
+# Android emulator is already booted. Retry ONLY recognizable dependency
+# throttling, never an instrumentation assertion failure or compiler error.
+# Every attempt runs the exact same classes; a failed clinical test remains
+# a failing CI job. No patient data, logs or fixture files are uploaded here.
+for attempt in 1 2 3; do
+  GRADLE_LOG="$(mktemp)"
+  set +e
+  ./gradlew connectedCiDebugAndroidTest \
+    "-Pandroid.testInstrumentationRunnerArguments.class=${TEST_CLASSES}" \
+    --stacktrace --no-daemon 2>&1 | tee "$GRADLE_LOG"
+  result=( "${PIPESTATUS[@]}" )
+  set -e
+  if [[ "${result[0]}" -eq 0 && "${result[1]}" -eq 0 ]]; then
+    rm -f "$GRADLE_LOG"
+    exit 0
+  fi
+  if [[ "${result[1]}" -ne 0 ]]; then
+    echo "Instrumentation log capture failed; cannot verify tests" >&2
+    rm -f "$GRADLE_LOG"
+    exit 1
+  fi
+  if [[ "$attempt" -lt 3 ]] && \
+     grep -Eqi 'status code 429|HTTP[ /]+429|Too Many Requests' "$GRADLE_LOG" && \
+     grep -Eqi 'Could not GET|Could not HEAD|Could not resolve' "$GRADLE_LOG" && \
+     ! grep -Eqi 'There were failing tests|Tests on .* failed' "$GRADLE_LOG"; then
+    echo "::warning::Maven dependency HTTP 429 on smoke attempt $attempt; retrying without skipping tests"
+    rm -f "$GRADLE_LOG"
+    sleep $((attempt * 20))
+    continue
+  fi
+  echo "Instrumentation failed (exit ${result[0]}); not retrying a non-throttling error" >&2
+  rm -f "$GRADLE_LOG"
+  exit "${result[0]}"
+done

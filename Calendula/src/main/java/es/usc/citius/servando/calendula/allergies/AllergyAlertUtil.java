@@ -28,6 +28,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 
+import es.usc.citius.servando.calendula.CalendulaApp;
+import es.usc.citius.servando.calendula.events.PersistenceEvents;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Patient;
@@ -117,7 +119,7 @@ public class AllergyAlertUtil {
      * @param m the medicine
      */
     public static void removeAllergyAlerts(final Medicine m) throws SQLException {
-
+        requireOutermostSqlForAndroidAlertEffects();
         LogUtil.d(TAG, "removeAllergyAlerts: medicine lookup started");
         final List<PatientAlert> alerts = getAlertsForMedicine(m);
         // Allergy alerts are HIGH clinical warnings that block treatment
@@ -126,10 +128,11 @@ public class AllergyAlertUtil {
         // unblocks the schedule only if no other HIGH alert remains.
         // Do not wrap the following in an *outer* transaction: alarm and
         // schedule changes must occur after each committed alert deletion.
-        for (PatientAlert alert : alerts) {
-            AlertManager.removeAlert(alert);
-        }
-        LogUtil.d(TAG, "removeAllergyAlerts: Removed " + alerts.size() + " alerts");
+        // A first warning's post-COMMIT OS/observer failure must not prevent
+        // processing later warnings for this medicine. Preserve the initial
+        // failure and report recovery-incomplete only after attempting all.
+        CommittedWarningRetirement.finish(alerts, AlertManager::removeAlert, null);
+        LogUtil.d(TAG, "removeAllergyAlerts: Reconciled " + alerts.size() + " alerts");
 
     }
 
@@ -146,9 +149,11 @@ public class AllergyAlertUtil {
         if (c == null || allergen == null || allergen.getPatient() == null
                 || allergen.getPatient().getId() == null
                 || allergen.getPatient().getId() <= 0L
-                || allergen.getType() == null || allergen.getIdentifier() == null) {
+                || allergen.getType() == null || allergen.getIdentifier() == null
+                || allergen.getIdentifier().trim().isEmpty()) {
             throw new IllegalArgumentException("Persisted patient and allergen identity required");
         }
+        requireOutermostSqlForAndroidAlertEffects();
         // Retain the original durable identity across the asynchronous
         // allergen-edit/notification flow. A deleted patient ID may have been
         // reused for a different account before this callback is executed.
@@ -172,6 +177,23 @@ public class AllergyAlertUtil {
                         ownerSnapshot, DB.patients().findById(ownerId))) {
                     throw new SQLException("Allergy alert owner changed before cleanup");
                 }
+                // This public helper is also callable outside the allergy
+                // editor. Do not retire a HIGH warning while the corresponding
+                // allergen is still registered in the committed patient data.
+                // Otherwise an out-of-order callback could unblock a medicine
+                // despite an allergy that still exists in SQLite.
+                for (PatientAllergen stillRegistered : DB.patientAllergens().findBy(
+                        PatientAllergen.COLUMN_PATIENT, ownerId)) {
+                    if (stillRegistered == null || !PatientOwnerGuard.sameStableIdentity(
+                            ownerSnapshot, stillRegistered.getPatient())) {
+                        throw new SQLException("Persisted allergen owner is unverifiable");
+                    }
+                    if (stillRegistered.getType() == removedAllergen.getType()
+                            && removedAllergen.getIdentifier().equals(
+                                    stillRegistered.getIdentifier())) {
+                        throw new SQLException("Allergen still registered; HIGH alert cleanup rejected");
+                    }
+                }
                 final PreparedQuery<PatientAlert> query = DB.alerts().queryBuilder().where()
                         .eq(PatientAlert.COLUMN_TYPE, AllergyPatientAlert.class.getCanonicalName())
                         .and().eq(PatientAlert.COLUMN_PATIENT, ownerId).prepare();
@@ -191,13 +213,30 @@ public class AllergyAlertUtil {
                         throw new SQLException("Allergy alert and medicine owners differ");
                     }
                     AllergyPatientAlert mapped = (AllergyPatientAlert) alert.map();
+                    if (alert.getLevel() != PatientAlert.Level.HIGH) {
+                        // A corrupted allergy type/severity must not be
+                        // silently rewritten or treated as a safe LOW alert.
+                        throw new SQLException("Persisted allergy warning severity is invalid");
+                    }
                     final AllergyPatientAlert.AllergyAlertInfo details = mapped.getDetails();
-                    if (details == null || details.getAllergens() == null) {
-                        // Never remove a HIGH alert whose stored allergen
-                        // details are missing or cannot be verified.
-                        continue;
+                    if (details == null || details.getAllergens() == null
+                            || details.getAllergens().isEmpty()) {
+                        // Preserve the HIGH warning, but do NOT report a
+                        // successful cleanup of an unverifiable record.
+                        throw new SQLException("HIGH allergy warning details need review");
                     }
                     List<AllergenVO> remaining = new ArrayList<>(details.getAllergens());
+                    java.util.Set<AllergenVO> verified = new java.util.HashSet<>();
+                    for (AllergenVO item : remaining) {
+                        if (item == null || item.getType() == null
+                                || item.getIdentifier() == null
+                                || item.getIdentifier().trim().isEmpty()
+                                || !verified.add(item)) {
+                            // Duplicate/malformed identities must not allow
+                            // removal to unblock a clinically unsafe dose.
+                            throw new SQLException("HIGH allergy identities are ambiguous");
+                        }
+                    }
                     if (!remaining.remove(removedAllergen)) {
                         continue;
                     }
@@ -218,15 +257,35 @@ public class AllergyAlertUtil {
                 return null;
             }
         });
-        for (PatientAlert alert : toRemove) {
-            AlertManager.removeAlert(alert);
-        }
-        if (updated[0] || !toRemove.isEmpty()) {
-            es.usc.citius.servando.calendula.CalendulaApp.eventBus().post(
-                    es.usc.citius.servando.calendula.events.PersistenceEvents.ALERT_EVENT);
-        }
+        // Every details UPDATE above has already COMMITTED. Each subsequent
+        // HIGH retirement owns a separate SQLite transaction and may fail
+        // after COMMIT during alarm recovery. Attempt the remaining warnings
+        // and notify observers even if an earlier retirement fails, while
+        // preserving an explicit recovery-incomplete result for the caller.
+        CommittedWarningRetirement.finish(toRemove,
+                alert -> {
+                    // The AlertManager also checks absence of a concurrently
+                    // re-registered allergen in its alert DELETE transaction.
+                    AlertManager.removeAlertAfterAllergenDeletion(alert, allergen);
+                },
+                updated[0] || !toRemove.isEmpty()
+                        ? () -> CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT)
+                        : null);
     }
 
+
+    /**
+     * Both public cleanup paths can eventually cancel Android OS alarms
+     * through AlertManager.removeAlert. A nested ORMLite savepoint does NOT
+     * guarantee the outer transaction has committed. Reject callers that
+     * still own an outer SQLite transaction before touching any warning.
+     */
+    private static void requireOutermostSqlForAndroidAlertEffects() {
+        if (DB.helper().getWritableDatabase().inTransaction()) {
+            throw new IllegalStateException(
+                    "Allergy alert cleanup requires the outermost SQLite transaction");
+        }
+    }
 
     /**
      * Checks if any allergy alerts are present for a given medicine.

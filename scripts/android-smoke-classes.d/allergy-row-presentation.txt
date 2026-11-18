@@ -1,0 +1,2 @@
+# Validate grouped allergy row rendering and safe review labels for incomplete legacy entries on each disposable emulator API.
+es.usc.citius.servando.calendula.adapters.items.allergylist.AllergyRowPresentationSmokeTest

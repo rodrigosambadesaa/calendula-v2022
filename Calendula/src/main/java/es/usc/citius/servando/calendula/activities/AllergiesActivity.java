@@ -261,40 +261,6 @@ public class AllergiesActivity extends CalendulaActivity {
         }
     }
 
-    private boolean checkConflictsAndCreateAlerts(final AllergenVO allergen) {
-        final List<Medicine> conflicts = AllergenFacade.checkNewMedicineAllergies(this, allergen);
-        if (!conflicts.isEmpty()) {
-            DB.transaction(new Callable<Object>() {
-                @Override
-                public Object call() throws Exception {
-                    for (Medicine conflict : conflicts) {
-//                        AlertManager.createAlert(new AllergyPatientAlert(conflict, allergen), AllergiesActivity.this);
-                        final List<PatientAlert> list = AllergyAlertUtil.getAlertsForMedicine(conflict);
-                        if (list.size() > 0) {
-                            if (list.size() == 1) {
-                                AllergyPatientAlert a = (AllergyPatientAlert) list.get(0).map();
-                                final AllergyAlertInfo d = a.getDetails();
-                                d.getAllergens().add(allergen);
-                                a.setDetails(d);
-                                DB.alerts().save(a);
-                            } else {
-                                // A warning collection can expose clinical metadata through toString().
-                                // Never write individual warning IDs/types to device logs.
-                                LogUtil.wtf(TAG, "Duplicate HIGH allergy warnings require review");
-                            }
-                        } else {
-                            AlertManager.createAlert(new AllergyPatientAlert(conflict, new ArrayList<AllergenVO>() {{
-                                add(allergen);
-                            }}));
-                        }
-                    }
-                    return null;
-                }
-            });
-        }
-        return !conflicts.isEmpty();
-    }
-
     private void checkPlaceholder() {
         if (allergiesPlaceholder.getVisibility() == View.VISIBLE) {
             if (!store.isEmpty())
@@ -475,7 +441,7 @@ public class AllergiesActivity extends CalendulaActivity {
     }
 
     public enum SaveResult {
-        OK, ERROR, ALLERGY
+        OK, ERROR, ALLERGY, COMMITTED_RECOVERY_REQUIRED
     }
 
     public class AllergiesStore {
@@ -553,9 +519,11 @@ public class AllergiesActivity extends CalendulaActivity {
                         throw new SQLException("Active patient changed while deleting allergens");
                     }
                     for (PatientAllergen stored : live) {
-                        if (DB.patientAllergens().deleteById(stored.getId()) != 1) {
-                            throw new SQLException("Allergen deletion affected an unexpected number of rows");
-                        }
+                        // The DAO's bare deleteById() can report zero for a
+                        // readable generated row. Use the single-row,
+                        // owner/type/identifier-scoped SQL deletion instead;
+                        // its affected-row check aborts the ENTIRE batch.
+                        DB.patientAllergens().deleteVerifiedOwned(stored, current);
                     }
                     return live;
                 });
@@ -564,19 +532,19 @@ public class AllergiesActivity extends CalendulaActivity {
                 return -2;
             }
 
-            // Never run AlertManager.removeAlert inside the batch transaction.
-            // If a subsequent alert operation fails, conservative HIGH alerts
-            // remain, and the UI reloads SQLite rather than claiming success.
-            try {
-                for (PatientAllergen allergen : deleted) {
-                    AllergyAlertUtil.removeAllergyAlerts(context, allergen);
-                }
-            } catch (SQLException | RuntimeException failure) {
-                LogUtil.e(TAG, "Allergen removed; clinical warning cleanup needs review");
-                return -2;
-            }
-            if (notify) {
-                CalendulaApp.eventBus().post(PersistenceEvents.MEDICINE_EVENT);
+            // Every row deletion has already COMMITTED. Reconcile each HIGH
+            // warning independently; one post-COMMIT failure must not skip
+            // later verified allergens of the same patient, or
+            // suppress the final medicine observer.
+            // Never repeat the SQL DELETE when recovery remains incomplete.
+            final boolean recovered = AllergenDeletionPostCommit.reconcile(
+                    deleted,
+                    allergen -> AllergyAlertUtil.removeAllergyAlerts(context, allergen),
+                    notify ? () -> CalendulaApp.eventBus().post(
+                            PersistenceEvents.MEDICINE_EVENT) : null);
+            if (!recovered) {
+                LogUtil.e(TAG, "Allergen deletion committed; warning/observer recovery incomplete");
+                return -3;
             }
             return 0;
         }
@@ -585,10 +553,10 @@ public class AllergiesActivity extends CalendulaActivity {
             if (allergen == null || currentAllergies == null) {
                 return -2;
             }
-            int index = currentAllergies.indexOf(allergen);
-            int result = deleteVerifiedAllergens(
+            // The caller rebuilds its adapter from the committed SQLite
+            // state; a cached list index must never drive clinical UI cleanup.
+            return deleteVerifiedAllergens(
                     Collections.singletonList(allergen), notify);
-            return result < 0 ? result : index;
         }
 
         public int deleteAllergens(final List<PatientAllergen> allergens) {
@@ -628,89 +596,79 @@ public class AllergiesActivity extends CalendulaActivity {
             Collections.sort(currentAllergies, new Comparator<PatientAllergen>() {
                 @Override
                 public int compare(PatientAllergen o1, PatientAllergen o2) {
-                    return o1.getName().compareTo(o2.getName());
+                    // Imported legacy rows may have no usable display name.
+                    // Keep them in the list for review rather than crashing
+                    // while sorting (their clinical rows must not disappear).
+                    String first = o1.getName();
+                    String second = o2.getName();
+                    if (first == null || first.trim().isEmpty()) {
+                        return second == null || second.trim().isEmpty() ? 0 : 1;
+                    }
+                    if (second == null || second.trim().isEmpty()) return -1;
+                    return first.compareTo(second);
                 }
             });
         }
 
         public SaveResult storeAllergen(PatientAllergen allergen) {
-            // This public path can be called outside storeAllergens(). Verify
-            // the original stable identity before touching any allergy row.
-            Patient active = context == null ? null : DB.patients().getActive(context);
-            if (allergen == null || allergen.getPatient() == null
-                    || !AllergenSearchOwnerGuard.canStore(
-                            loadedPatientId, loadedPatientFingerprint,
-                            active == null ? null : active.getId(),
-                            active == null ? null : active.getCode(),
-                            allergen.getPatient().getId(),
-                            allergen.getPatient().getCode())) {
-                return SaveResult.ERROR;
-            }
-            int rows;
-            try {
-                rows = DB.patientAllergens().create(allergen);
-            } catch (SQLException e) {
-                LogUtil.e(TAG, "Could not create patient allergy record");
-                return SaveResult.ERROR;
-            }
-            LogUtil.d(TAG, "Patient allergy insertion completed");
-            if (rows == 1) {
-                final boolean r = checkConflictsAndCreateAlerts(new AllergenVO(allergen));
-                currentAllergies.add(allergen);
-                if (r)
-                    return SaveResult.ALLERGY;
-                return SaveResult.OK;
-
-            }
-            return SaveResult.ERROR;
+            // Identical atomic policy for the historical single-item caller.
+            return storeAllergens(Collections.singletonList(allergen));
         }
 
         public SaveResult storeAllergens(final Collection<PatientAllergen> allergens) {
-            return (SaveResult) DB.transaction(new Callable<SaveResult>() {
-                @Override
-                public SaveResult call() throws Exception {
-                    // Check inside the transaction before ANY insert. A worker
-                    // may start with patient A and run after the active profile
-                    // has switched to patient B.
-                    Patient active = DB.patients().getActive(context);
-                    Long current = active == null ? null : active.getId();
-                    String currentCode = active == null ? null : active.getCode();
-                    if (!AllergenSearchOwnerGuard.samePatient(
-                            openedPatientId, openedPatientFingerprint,
-                            current, currentCode)
-                            || !AllergenSearchOwnerGuard.samePatient(
-                                    loadedPatientId, loadedPatientFingerprint,
-                                    current, currentCode)) {
-                        throw new SQLException("Active patient changed during allergen save");
-                    }
-                    for (PatientAllergen allergen : allergens) {
-                        if (allergen == null || allergen.getPatient() == null
-                                || !AllergenSearchOwnerGuard.canStore(
+            if (context == null || currentAllergies == null
+                    || allergens == null || allergens.isEmpty()) {
+                return SaveResult.ERROR;
+            }
+            Patient active = DB.patients().getActive(context);
+            Long id = active == null ? null : active.getId();
+            String code = active == null ? null : active.getCode();
+            if (!AllergenSearchOwnerGuard.samePatient(
+                    openedPatientId, openedPatientFingerprint, id, code)
+                    || !AllergenSearchOwnerGuard.samePatient(
+                            loadedPatientId, loadedPatientFingerprint, id, code)) {
+                return SaveResult.ERROR;
+            }
+            final List<PatientAllergen> batch = new ArrayList<>(allergens);
+            for (PatientAllergen candidate : batch) {
+                if (candidate == null || candidate.getPatient() == null
+                        || !AllergenSearchOwnerGuard.canStore(
                                 loadedPatientId, loadedPatientFingerprint,
-                                current, currentCode,
-                                allergen.getPatient().getId(),
-                                allergen.getPatient().getCode())) {
-                            throw new SQLException("Allergen belongs to a different patient");
-                        }
-                    }
-                    SaveResult res = SaveResult.OK;
-                    for (PatientAllergen allergen : allergens) {
-                        final SaveResult r = storeAllergen(allergen);
-                        if (r == SaveResult.ALLERGY && res != SaveResult.ERROR)
-                            res = SaveResult.ALLERGY;
-                        if (r == SaveResult.ERROR)
-                            res = SaveResult.ERROR;
-                    }
-                    return res;
+                                id, code, candidate.getPatient().getId(),
+                                candidate.getPatient().getCode())) {
+                    return SaveResult.ERROR;
                 }
-            });
+            }
+            try {
+                // The new helper owns the complete SQL transaction and
+                // performs Android effects only after the final COMMIT.
+                // Neither this activity nor the store may nest an outer
+                // transaction around that call.
+                es.usc.citius.servando.calendula.util.alerts.AtomicAllergenRegistration.Result
+                        committed = es.usc.citius.servando.calendula.util.alerts
+                        .AtomicAllergenRegistration.register(context, active, batch);
+                // Do not append to an in-memory list inside SQLite: a
+                // failed later INSERT must leave the UI ready for retry.
+                reload();
+                return committed.hasConflicts() ? SaveResult.ALLERGY : SaveResult.OK;
+            } catch (es.usc.citius.servando.calendula.util.alerts
+                    .AtomicAllergenRegistration.PostCommitRecoveryException committed) {
+                // SQLite DID commit. Never claim the allergen INSERT failed
+                // or invite a second write that could create duplicates.
+                LogUtil.e(TAG, "Committed allergy registration needs reminder recovery");
+                reload();
+                return SaveResult.COMMITTED_RECOVERY_REQUIRED;
+            } catch (RuntimeException failure) {
+                LogUtil.e(TAG, "Allergy registration rolled back or requires review");
+                reload();
+                return SaveResult.ERROR;
+            }
         }
     }
 
     private void deleteAllergyGroupAsync(final AllergyGroupItem item) {
         progressBar.setVisibility(View.VISIBLE);
 
-        final int index = allergiesAdapter.getAdapterPosition(item);
         final List<AllergyGroupSubItem> subItems = new ArrayList<>(item.getSubItems());
         final List<PatientAllergen> allergens = new ArrayList<>(subItems.size());
         for (AllergyGroupSubItem subItem : subItems) {
@@ -718,23 +676,22 @@ public class AllergiesActivity extends CalendulaActivity {
         }
 
         ALLERGY_EXECUTOR.execute(() -> {
-            final int deleted = store.deleteAllergens(allergens);
-            final int resultIndex = deleted >= -1 ? index : deleted;
+            final int outcome = store.deleteAllergens(allergens);
+            // SQL may already have committed when post-COMMIT warning cleanup
+            // fails. Refresh even on errors; never leave a phantom group row.
+            store.reload();
+            final List<AbstractItem> authoritativeItems = getAllergyItems();
 
             runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) {
+                if (isFinishing() || isDestroyed()) return;
+                if (!isOriginalPatientActive()) {
+                    finish();
                     return;
                 }
-                store.reload();
-                if (resultIndex >= 0) {
-                    checkPlaceholder();
-                    expandableExtension.collapse(resultIndex);
-                    allergiesAdapter.remove(resultIndex);
-                } else {
-                    Snack.show(R.string.delete_allergen_error, AllergiesActivity.this);
-                }
+                allergiesAdapter.set(authoritativeItems);
+                checkPlaceholder();
+                showAllergenDeletionOutcome(outcome);
                 progressBar.setVisibility(View.GONE);
-                new Handler().postDelayed(() -> checkPlaceholder(), 200);
                 hideAllergiesView(false);
             });
         });
@@ -742,30 +699,35 @@ public class AllergiesActivity extends CalendulaActivity {
 
     private void deleteAllergyAsync(final AllergyItem item) {
         progressBar.setVisibility(View.VISIBLE);
-        final int index = allergiesAdapter.getAdapterPosition(item);
         final PatientAllergen allergen = item.getAllergen();
 
         ALLERGY_EXECUTOR.execute(() -> {
-            final int deleted = store.deleteAllergen(allergen, true);
+            final int outcome = store.deleteAllergen(allergen, true);
+            store.reload();
+            final List<AbstractItem> authoritativeItems = getAllergyItems();
 
             runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) {
+                if (isFinishing() || isDestroyed()) return;
+                if (!isOriginalPatientActive()) {
+                    finish();
                     return;
                 }
-                // The DB transaction may have committed while subsequent
-                // clinical warning cleanup failed; always reload from SQLite.
-                store.reload();
-                if (deleted >= 0 && index >= 0) {
-                    checkPlaceholder();
-                    allergiesAdapter.remove(index);
-                } else {
-                    Snack.show(R.string.delete_allergen_error, AllergiesActivity.this);
-                }
+                allergiesAdapter.set(authoritativeItems);
+                checkPlaceholder();
+                showAllergenDeletionOutcome(outcome);
                 progressBar.setVisibility(View.GONE);
-                new Handler().postDelayed(() -> checkPlaceholder(), 200);
                 hideAllergiesView(false);
             });
         });
+    }
+
+    /** Distinguish an SQL rollback from a committed deletion needing recovery. */
+    private void showAllergenDeletionOutcome(int outcome) {
+        if (outcome == -3) {
+            Snack.show(R.string.message_allergy_removed_recovery_required, this);
+        } else if (outcome < 0) {
+            Snack.show(R.string.delete_allergen_error, this);
+        }
     }
 
     private void loadAllergiesAsync() {
@@ -824,8 +786,10 @@ public class AllergiesActivity extends CalendulaActivity {
                 LogUtil.e(TAG, "Unable to save patient allergens safely");
                 result = SaveResult.ERROR;
             }
-            final boolean saved = result == SaveResult.OK || result == SaveResult.ALLERGY;
+            final boolean saved = result == SaveResult.OK || result == SaveResult.ALLERGY
+                    || result == SaveResult.COMMITTED_RECOVERY_REQUIRED;
             final boolean conflicts = result == SaveResult.ALLERGY;
+            final boolean recovery = result == SaveResult.COMMITTED_RECOVERY_REQUIRED;
             final List<AbstractItem> allergyItems = getAllergyItems();
 
             runOnUiThread(() -> {
@@ -838,16 +802,18 @@ public class AllergiesActivity extends CalendulaActivity {
                 }
                 progressBar.setVisibility(View.GONE);
                 if (saved) {
-                    if (!allergyItems.isEmpty()) {
-                        allergiesAdapter.set(allergyItems);
-                        store.reload();
-                    }
+                    allergiesAdapter.set(allergyItems);
                     if (conflicts) {
                         showNewAllergyConflictDialog();
                     }
                     hideAllergiesView(false);
-                    Snack.show(getString(R.string.message_allergy_add_multiple_success),
-                            AllergiesActivity.this);
+                    if (recovery) {
+                        Snack.show(R.string.message_allergy_saved_recovery_required,
+                                AllergiesActivity.this);
+                    } else {
+                        Snack.show(getString(R.string.message_allergy_add_multiple_success),
+                                AllergiesActivity.this);
+                    }
                 } else {
                     Snack.show(R.string.message_allergy_add_failure, AllergiesActivity.this);
                 }

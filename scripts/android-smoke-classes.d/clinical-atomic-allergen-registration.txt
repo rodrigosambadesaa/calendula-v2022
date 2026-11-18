@@ -1,0 +1,3 @@
+# SQL batch rollback on late verification/INSERT failure, HIGH warning combination, and duplicate prevention.
+# Disposable emulators only; never run against personal patient data.
+es.usc.citius.servando.calendula.util.alerts.AtomicAllergenRegistrationSmokeTest

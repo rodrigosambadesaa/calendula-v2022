@@ -66,7 +66,9 @@ public class AllergyGroupItem extends AbstractExpandableItem<AllergyGroupItem, A
         final float rotation = isExpanded() ? 180 : 0;
         holder.dropButton.setContentDescription(context.getString(
                 isExpanded() ? R.string.accessibility_collapse : R.string.accessibility_expand));
-        holder.itemView.setRotation(rotation);
+        // Only the chevron indicates expansion. Rotating the entire row
+        // would invert its clinical label and the destructive delete button.
+        holder.dropButton.setRotation(rotation);
         holder.deleteButton.setImageDrawable(new IconicsDrawable(holder.deleteButton.getContext())
                 .icon(CommunityMaterial.Icon.cmd_delete)
                 .colorRes(R.color.agenda_item_title)

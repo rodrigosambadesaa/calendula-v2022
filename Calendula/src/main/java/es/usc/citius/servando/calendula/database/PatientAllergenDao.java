@@ -19,15 +19,18 @@
 package es.usc.citius.servando.calendula.database;
 
 import android.content.Context;
+import android.database.sqlite.SQLiteDatabase;
 
 import com.j256.ormlite.dao.Dao;
 
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.PatientAllergen;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 
 public class PatientAllergenDao extends GenericDao<PatientAllergen, Long> {
 
@@ -50,14 +53,75 @@ public class PatientAllergenDao extends GenericDao<PatientAllergen, Long> {
         }
     }
 
+    /**
+     * Delete exactly one allergy owned by a previously verified stable
+     * patient, in the caller's OUTER SQLite transaction. Do not rely on
+     * ORMLite deleteById()'s affected-row count for clinical integrity:
+     * disposable API 23/33/37 fixtures reproduced a zero count despite
+     * reading the authoritative generated ID. A zero SQL delete must abort
+     * the entire group and preserve the original HIGH warnings.
+     *
+     * The row ID alone is not an authorization boundary. Verify the stable
+     * patient fingerprint, allergen type and full identifier, then constrain
+     * the actual DELETE by all four persisted coordinates.
+     */
+    public int deleteVerifiedOwned(PatientAllergen requested, Patient owner)
+            throws SQLException {
+        final SQLiteDatabase sqlite = dbHelper.getWritableDatabase();
+        if (!sqlite.inTransaction()) {
+            throw new IllegalStateException(
+                    "Verified allergen deletion requires an outer SQLite transaction");
+        }
+        if (requested == null || requested.getId() == null
+                || requested.getId() <= 0L || requested.getType() == null
+                || requested.getIdentifier() == null
+                || requested.getIdentifier().trim().isEmpty()
+                || !PatientOwnerGuard.hasStableIdentity(owner)
+                || !PatientOwnerGuard.sameStableIdentity(
+                        owner, requested.getPatient())) {
+            throw new SQLException("Allergen deletion requires a verified stable identity");
+        }
+        final Patient currentOwner = DB.patients().findById(owner.getId());
+        final PatientAllergen current = findById(requested.getId());
+        if (!PatientOwnerGuard.sameStableIdentity(owner, currentOwner)
+                || current == null || refresh(current) != 1
+                || !PatientOwnerGuard.sameStableIdentity(
+                        owner, current.getPatient())
+                || current.getType() != requested.getType()
+                || !Objects.equals(current.getIdentifier(),
+                        requested.getIdentifier())) {
+            throw new SQLException("Allergen identity changed before deletion");
+        }
+        final int removed = sqlite.delete("Allergens",
+                PatientAllergen.COLUMN_ID + " = ? AND "
+                        + PatientAllergen.COLUMN_PATIENT + " = ? AND "
+                        + PatientAllergen.COLUMN_ALLERGEN_TYPE + " = ? AND "
+                        + PatientAllergen.COLUMN_IDENTIFIER + " = ?",
+                new String[]{String.valueOf(requested.getId()),
+                        String.valueOf(owner.getId()), requested.getType().name(),
+                        requested.getIdentifier()});
+        if (removed != 1) {
+            throw new SQLException("Verified allergen deletion did not affect one row");
+        }
+        return removed;
+    }
+
     public List<PatientAllergen> findAllForActivePatient(Context ctx) {
         return findAll(DB.patients().getActive(ctx));
     }
 
     public List<PatientAllergen> findAll(Patient p) {
-        // No active owner means no patient data; never query NULL-owned rows.
-        return p == null || p.getId() == null
-                ? Collections.<PatientAllergen>emptyList() : findAll(p.getId());
+        // This overload is used by patient-scoped clinical reads. A cached
+        // Patient object is NOT sufficient authorization when a restored
+        // SQLite database can reuse its numeric row ID for a different owner.
+        // Keep the explicit findAll(Long) method for verified internal
+        // patient-erasure code; never silently widen this patient API to IDs.
+        if (!PatientOwnerGuard.hasStableIdentity(p)) {
+            return Collections.emptyList();
+        }
+        Patient persisted = DB.patients().findById(p.getId());
+        return PatientOwnerGuard.sameStableIdentity(p, persisted)
+                ? findAll(p.getId()) : Collections.emptyList();
     }
 
 
