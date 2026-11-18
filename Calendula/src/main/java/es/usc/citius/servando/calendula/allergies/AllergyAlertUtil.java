@@ -254,16 +254,22 @@ public class AllergyAlertUtil {
                 return null;
             }
         });
-        for (PatientAlert alert : toRemove) {
-            // A concurrent insertion might have restored the same allergy
-            // after the details transaction returned. The AlertManager
-            // checks its absence again atomically with HIGH warning deletion.
-            AlertManager.removeAlertAfterAllergenDeletion(alert, allergen);
-        }
-        if (updated[0] || !toRemove.isEmpty()) {
-            es.usc.citius.servando.calendula.CalendulaApp.eventBus().post(
-                    es.usc.citius.servando.calendula.events.PersistenceEvents.ALERT_EVENT);
-        }
+        // Every details UPDATE above has already COMMITTED. Each subsequent
+        // HIGH retirement owns a separate SQLite transaction and may fail
+        // after COMMIT during alarm recovery. Attempt the remaining warnings
+        // and notify observers even if an earlier retirement fails, while
+        // preserving an explicit recovery-incomplete result for the caller.
+        CommittedWarningRetirement.finish(toRemove,
+                alert -> {
+                    // The AlertManager also checks absence of a concurrently
+                    // re-registered allergen in its alert DELETE transaction.
+                    AlertManager.removeAlertAfterAllergenDeletion(alert, allergen);
+                },
+                updated[0] || !toRemove.isEmpty()
+                        ? () -> es.usc.citius.servando.calendula.CalendulaApp
+                                .eventBus().post(es.usc.citius.servando.calendula
+                                        .events.PersistenceEvents.ALERT_EVENT)
+                        : null);
     }
 
 
