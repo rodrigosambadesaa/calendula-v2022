@@ -512,6 +512,38 @@ public class AtomicAllergenRegistrationSmokeTest {
     }
 
     @Test
+    public void reRegisteredAllergenCannotBeRemovedByStaleHighCleanup()
+            throws Exception {
+        try (Fixture f = new Fixture(true)) {
+            AllergyPatientAlert warning = f.persistExistingWarning();
+            PatientAllergen deleted = f.savedAllergens().get(0);
+            assertEquals(1, DB.helper().getWritableDatabase().delete(
+                    "Allergens", "Patient = ? AND Identifier = ?",
+                    new String[]{String.valueOf(f.owner.getId()),
+                            deleted.getIdentifier()}));
+            assertTrue(f.savedAllergens().isEmpty());
+
+            // A second UI/provider action wins the SQLite lock and restores
+            // the SAME clinical allergen before an old post-COMMIT callback
+            // can retire the stale HIGH warning.
+            PatientAllergen reRegistered = f.allergen("previous");
+            assertEquals(1, DB.patientAllergens().create(reRegistered));
+            assertEquals(1, f.savedAllergens().size());
+            try {
+                AlertManager.removeAlertAfterAllergenDeletion(
+                        f.savedWarnings().get(0), deleted);
+                fail("A re-registered allergy must keep its HIGH warning");
+            } catch (RuntimeException expected) {
+                // Recheck and alert DELETE are one SQL unit; no unblock occurs.
+            }
+            PatientAlert retained = DB.alerts().findById(warning.id());
+            assertNotNull("Stale cleanup must not erase an active HIGH warning", retained);
+            assertEquals(PatientAlert.Level.HIGH, retained.getLevel());
+            assertEquals(1, f.savedAllergens().size());
+        }
+    }
+
+    @Test
     public void postCommitPlatformEffectsRejectAChangedActivePatient()
             throws Exception {
         try (Fixture f = new Fixture(true)) {
