@@ -28,6 +28,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 
+import es.usc.citius.servando.calendula.CalendulaApp;
+import es.usc.citius.servando.calendula.events.PersistenceEvents;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Patient;
@@ -266,9 +268,7 @@ public class AllergyAlertUtil {
                     AlertManager.removeAlertAfterAllergenDeletion(alert, allergen);
                 },
                 updated[0] || !toRemove.isEmpty()
-                        ? () -> es.usc.citius.servando.calendula.CalendulaApp
-                                .eventBus().post(es.usc.citius.servando.calendula
-                                        .events.PersistenceEvents.ALERT_EVENT)
+                        ? () -> CalendulaApp.eventBus().post(PersistenceEvents.ALERT_EVENT)
                         : null);
     }
 
