@@ -46,6 +46,10 @@ concurrency:
 # Deliberately separate from the API 23/33/36 jobs, but run the same
 # synthetic instrumentation test classes on API 37. Compile/target
 # remain at SDK 36 until the API 37 toolchain and target behavior are audited.
+# CVE-2026-114938: protect the JDK used for Gradle/Android SDK builds.
+env:
+  JAVA_TOOL_OPTIONS: -XX:-UseBASE64Intrinsics
+
 jobs:
   runtime-compatibility:
     runs-on: ubuntu-latest
