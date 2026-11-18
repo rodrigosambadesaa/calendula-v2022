@@ -111,9 +111,17 @@ public class PatientAllergenDao extends GenericDao<PatientAllergen, Long> {
     }
 
     public List<PatientAllergen> findAll(Patient p) {
-        // No active owner means no patient data; never query NULL-owned rows.
-        return p == null || p.getId() == null
-                ? Collections.<PatientAllergen>emptyList() : findAll(p.getId());
+        // This overload is used by patient-scoped clinical reads. A cached
+        // Patient object is NOT sufficient authorization when a restored
+        // SQLite database can reuse its numeric row ID for a different owner.
+        // Keep the explicit findAll(Long) method for verified internal
+        // patient-erasure code; never silently widen this patient API to IDs.
+        if (!PatientOwnerGuard.hasStableIdentity(p)) {
+            return Collections.emptyList();
+        }
+        Patient persisted = DB.patients().findById(p.getId());
+        return PatientOwnerGuard.sameStableIdentity(p, persisted)
+                ? findAll(p.getId()) : Collections.emptyList();
     }
 
 
