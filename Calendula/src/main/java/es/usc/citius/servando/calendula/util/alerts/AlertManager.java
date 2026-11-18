@@ -32,6 +32,7 @@ import es.usc.citius.servando.calendula.events.PersistenceEvents;
 import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.PatientAlert;
+import es.usc.citius.servando.calendula.persistence.PatientAllergen;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
@@ -154,6 +155,29 @@ public class AlertManager {
     }
 
     public static void removeAlert(final PatientAlert alert) {
+        removeAlertInternal(alert, null);
+    }
+
+    /**
+     * Remove an allergy warning after the owning allergen was committed as
+     * deleted. Recheck absence in the SAME SQLite transaction as warning
+     * removal: a concurrent re-registration must not let a delayed callback
+     * clear a currently required HIGH warning and unblock doses.
+     */
+    public static void removeAlertAfterAllergenDeletion(final PatientAlert alert,
+                                                        final PatientAllergen deletedAllergen) {
+        if (deletedAllergen == null || deletedAllergen.getPatient() == null
+                || !PatientOwnerGuard.hasStableIdentity(deletedAllergen.getPatient())
+                || deletedAllergen.getType() == null
+                || deletedAllergen.getIdentifier() == null
+                || deletedAllergen.getIdentifier().trim().isEmpty()) {
+            throw new IllegalArgumentException("Stable deleted allergen identity required");
+        }
+        removeAlertInternal(alert, deletedAllergen);
+    }
+
+    private static void removeAlertInternal(final PatientAlert alert,
+                                            final PatientAllergen deletedAllergen) {
         if (alert == null || alert.id() == null || alert.id() <= 0L) {
             throw new IllegalArgumentException("A persisted alert ID is required");
         }
@@ -177,6 +201,32 @@ public class AlertManager {
                                 || !PatientOwnerGuard.sameStableIdentity(
                                         alert.getPatient(), linked.getPatient())))) {
                 throw new IllegalStateException("Alert identity changed before deletion");
+            }
+
+            if (deletedAllergen != null) {
+                if (!es.usc.citius.servando.calendula.persistence.alerts
+                        .AllergyPatientAlert.class.getCanonicalName().equals(current.getType())
+                        || current.getLevel() != Level.HIGH
+                        || !PatientOwnerGuard.sameStableIdentity(
+                                deletedAllergen.getPatient(), persistedOwner)) {
+                    throw new SQLException("Deleted allergen owner or HIGH alert type changed");
+                }
+                // This check and the DELETE share one SQLite transaction,
+                // not two asynchronous preflight/cleanup operations.
+                for (PatientAllergen registered : DB.patientAllergens()
+                        .findAll(persistedOwner)) {
+                    if (registered == null
+                            || !PatientOwnerGuard.sameStableIdentity(
+                                    persistedOwner, registered.getPatient())) {
+                        throw new SQLException("Persisted allergen owner is unverifiable");
+                    }
+                    if (deletedAllergen.getType() == registered.getType()
+                            && deletedAllergen.getIdentifier()
+                                    .equals(registered.getIdentifier())) {
+                        throw new SQLException(
+                                "Allergen re-registered before HIGH warning removal");
+                    }
+                }
             }
 
             if (DB.alerts().deleteById(current.id()) != 1) {
