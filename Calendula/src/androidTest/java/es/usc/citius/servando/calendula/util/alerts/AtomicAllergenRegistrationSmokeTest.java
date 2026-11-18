@@ -6,6 +6,7 @@ package es.usc.citius.servando.calendula.util.alerts;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -654,6 +655,19 @@ public class AtomicAllergenRegistrationSmokeTest {
             assertEquals("DAO must restore the generated row ID",
                     proposed.getId(), readBack.get(0).getId());
             assertNotNull(DB.patientAllergens().findById(readBack.get(0).getId()));
+            // Compare ORMLite's generated/read-back ID with authoritative
+            // SQLite _id and Patient columns; a cached Java ID alone must
+            // not be mistaken for proof that a row is really persisted.
+            try (Cursor raw = DB.helper().getReadableDatabase().rawQuery(
+                    "SELECT _id, Patient FROM Allergens WHERE _id = ?",
+                    new String[]{String.valueOf(proposed.getId())})) {
+                assertTrue("Generated allergen ID must exist in raw SQLite",
+                        raw.moveToFirst());
+                assertEquals(proposed.getId().longValue(), raw.getLong(0));
+                assertEquals(f.owner.getId().longValue(), raw.getLong(1));
+                assertFalse("An allergen primary key must identify only one row",
+                        raw.moveToNext());
+            }
             DB.transaction(() -> {
                 assertEquals(1, DB.patientAllergens().deleteVerifiedOwned(
                         readBack.get(0), f.owner));
