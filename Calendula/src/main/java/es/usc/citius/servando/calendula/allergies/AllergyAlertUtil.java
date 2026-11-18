@@ -128,10 +128,11 @@ public class AllergyAlertUtil {
         // unblocks the schedule only if no other HIGH alert remains.
         // Do not wrap the following in an *outer* transaction: alarm and
         // schedule changes must occur after each committed alert deletion.
-        for (PatientAlert alert : alerts) {
-            AlertManager.removeAlert(alert);
-        }
-        LogUtil.d(TAG, "removeAllergyAlerts: Removed " + alerts.size() + " alerts");
+        // A first warning's post-COMMIT OS/observer failure must not prevent
+        // processing later warnings for this medicine. Preserve the initial
+        // failure and report recovery-incomplete only after attempting all.
+        CommittedWarningRetirement.finish(alerts, AlertManager::removeAlert, null);
+        LogUtil.d(TAG, "removeAllergyAlerts: Reconciled " + alerts.size() + " alerts");
 
     }
 
