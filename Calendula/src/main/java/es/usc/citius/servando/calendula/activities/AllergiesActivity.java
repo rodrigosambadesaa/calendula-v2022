@@ -532,24 +532,19 @@ public class AllergiesActivity extends CalendulaActivity {
                 return -2;
             }
 
-            // Never run AlertManager.removeAlert inside the batch transaction.
-            // If a subsequent alert operation fails, conservative HIGH alerts
-            // remain, and the UI reloads SQLite rather than claiming success.
-            try {
-                for (PatientAllergen allergen : deleted) {
-                    AllergyAlertUtil.removeAllergyAlerts(context, allergen);
-                }
-            } catch (SQLException | RuntimeException failure) {
-                LogUtil.e(TAG, "Allergen removal committed; clinical warning cleanup needs review");
-                return -3; // SQLite already committed; do not imply retrying the deletion.
-            }
-            if (notify) {
-                try {
-                    CalendulaApp.eventBus().post(PersistenceEvents.MEDICINE_EVENT);
-                } catch (RuntimeException failure) {
-                    LogUtil.e(TAG, "Allergen removal committed; observer recovery incomplete");
-                    return -3;
-                }
+            // Every row deletion has already COMMITTED. Reconcile each HIGH
+            // warning independently; one post-COMMIT failure must not skip
+            // later patients' verified allergy records in this batch, or
+            // suppress the final medicine observer.
+            // Never repeat the SQL DELETE when recovery remains incomplete.
+            final boolean recovered = AllergenDeletionPostCommit.reconcile(
+                    deleted,
+                    allergen -> AllergyAlertUtil.removeAllergyAlerts(context, allergen),
+                    notify ? () -> CalendulaApp.eventBus().post(
+                            PersistenceEvents.MEDICINE_EVENT) : null);
+            if (!recovered) {
+                LogUtil.e(TAG, "Allergen deletion committed; warning/observer recovery incomplete");
+                return -3;
             }
             return 0;
         }
