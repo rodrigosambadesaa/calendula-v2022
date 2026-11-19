@@ -280,6 +280,15 @@ public class WebViewActivity extends CalendulaActivity {
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
+        // Sharing or opening a clinical document delegates its URL to another app.
+        // A patient may have changed in the database without this Activity
+        // receiving onResume; re-check stable ownership at the exact action.
+        // Fail closed before creating any ACTION_SEND / ACTION_VIEW intent.
+        if ((item.getItemId() == R.id.action_share_link
+                || item.getItemId() == R.id.action_open_with_browser)
+                && rejectChangedPatient()) {
+            return true;
+        }
         switch (item.getItemId()) {
             case R.id.action_share_link:
                 Intent i = new Intent(Intent.ACTION_SEND);
