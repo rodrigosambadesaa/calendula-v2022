@@ -105,8 +105,28 @@ public class PdfViewActivity extends CalendulaActivity {
 
     @Override
     protected void onDestroy() {
+        // Stop receiving asynchronous provider responses before removing the
+        // patient-specific view and pending UI callbacks.
         if (CalendulaApp.eventBus().isRegistered(this)) {
             CalendulaApp.eventBus().unregister(this);
+        }
+        if (handler != null) {
+            handler.removeCallbacksAndMessages(null);
+        }
+        if (webView != null) {
+            webView.stopLoading();
+            webView.setWebViewClient(null);
+            if (webView.getParent() instanceof android.view.ViewGroup) {
+                ((android.view.ViewGroup) webView.getParent()).removeView(webView);
+            }
+            // Destroy the WebView explicitly; retaining its renderer after
+            // logout/profile changes can retain a sensitive PDF preview.
+            webView.destroy();
+            webView = null;
+        }
+        if (loadingDialog != null) {
+            loadingDialog.dismiss();
+            loadingDialog = null;
         }
         super.onDestroy();
     }
