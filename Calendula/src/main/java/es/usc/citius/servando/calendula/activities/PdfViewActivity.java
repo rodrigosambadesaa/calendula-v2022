@@ -15,7 +15,6 @@ import android.util.Base64;
 import android.view.ActionMode;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.webkit.JavascriptInterface;
 import android.webkit.SslErrorHandler;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -32,7 +31,6 @@ import com.github.javiersantos.materialstyleddialogs.enums.Style;
 import com.mikepenz.community_material_typeface_library.CommunityMaterial;
 
 import org.greenrobot.eventbus.Subscribe;
-import org.joda.time.Duration;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -46,7 +44,6 @@ import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.events.GetExtraInfoEvent;
 import es.usc.citius.servando.calendula.healthcareprovider.jobs.GetExtraInfoFromServiceJob;
-import es.usc.citius.servando.calendula.util.HtmlCacheManager;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
 
@@ -447,14 +444,6 @@ public class PdfViewActivity extends CalendulaActivity {
         Toast.makeText(this, error, Toast.LENGTH_SHORT).show();
     }
 
-    /**
-     * Interface that must be implemented in order to access the page html
-     * and make changes before it is displayed
-     */
-    public interface HtmlPostprocessor {
-        String process(String html);
-    }
-
     private class CustomWebViewClient extends WebViewClient {
 
         protected final WebViewRequest request;
@@ -540,68 +529,6 @@ public class PdfViewActivity extends CalendulaActivity {
 
     }
 
-    private class SimpleJSCacheInterface {
-        private Context ctx;
+    // Intentionally no JavaScript bridge: PDF previews are bounded PNG data URLs.
 
-        SimpleJSCacheInterface(Context ctx) {
-            this.ctx = ctx;
-        }
-
-        @JavascriptInterface
-        public void writeToCache(String html) {
-
-            final Duration ttl = request.getCacheTTL(); //can  be null
-            String processed = null;
-            // if there is a postprocessor enabled
-            if (request.needsPostprocessing()) {
-                // instantiate postprocessor
-                try {
-                    PdfViewActivity.HtmlPostprocessor processor = (PdfViewActivity.HtmlPostprocessor) Class.forName(request.getPostProcessorClassname()).newInstance();
-                    // get processed html
-                    processed = processor.process(html);
-                    // save it to cache if needed
-                    if (request.getCacheType().equals(WebViewRequest.CacheType.DOWNLOAD_CACHE)) {
-                        HtmlCacheManager.getInstance().put(url, processed, ttl);
-                    }
-
-                } catch (Exception e) {
-                    // The postprocessor exception may embed patient HTML or
-                    // a private provider URL. Retain only a fixed diagnostic.
-                    LogUtil.e(TAG, "Could not postprocess provider document");
-                }
-            }
-            // in other case, simply write html content to cache
-            else if (request.getCacheType().equals(WebViewRequest.CacheType.DOWNLOAD_CACHE)) {
-                HtmlCacheManager.getInstance().put(url, html, ttl);
-            }
-
-            final String finalHtml = processed != null ? processed : html;
-            handler.post(new Runnable() {
-                @Override
-                public void run() {
-                    webView.setWebViewClient(new PdfViewActivity.CustomWebViewClient(request) {
-                                                 @Override
-                                                 public void onPageFinished(WebView view, String url) {
-                                                     pageLoaded = true;
-                                                     handler.postDelayed(new Runnable() {
-                                                         @Override
-                                                         public void run() {
-                                                             webView.setVisibility(View.VISIBLE);
-                                                             webView.getSettings().setJavaScriptEnabled(request.isJavaScriptEnabled());
-                                                             hideLoading();
-                                                         }
-                                                     }, 200);
-                                                 }
-                                             }
-                    );
-                    webView.loadData(finalHtml, "text/html; charset=UTF-8", null);
-                    webView.clearHistory();
-                }
-            });
-
-
-            // dismiss the loading dialog
-
-        }
-    }
 }
