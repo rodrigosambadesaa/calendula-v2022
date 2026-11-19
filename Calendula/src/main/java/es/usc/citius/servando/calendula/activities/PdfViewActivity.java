@@ -107,12 +107,11 @@ public class PdfViewActivity extends CalendulaActivity {
         if (CalendulaApp.eventBus().isRegistered(this)) {
             CalendulaApp.eventBus().unregister(this);
         }
-        if (handler != null) {
-            handler.removeCallbacksAndMessages(null);
-        }
         if (webView != null) {
-            webView.stopLoading();
+            // Detach callbacks *before* stopLoading: a synchronous finish
+            // callback could otherwise enqueue stale patient UI work.
             webView.setWebViewClient(null);
+            webView.stopLoading();
             if (webView.getParent() instanceof android.view.ViewGroup) {
                 ((android.view.ViewGroup) webView.getParent()).removeView(webView);
             }
@@ -120,6 +119,11 @@ public class PdfViewActivity extends CalendulaActivity {
             // logout/profile changes can retain a sensitive PDF preview.
             webView.destroy();
             webView = null;
+        }
+        // Clear after stopping/destroying the renderer so any callbacks
+        // enqueued by shutdown cannot outlive this activity.
+        if (handler != null) {
+            handler.removeCallbacksAndMessages(null);
         }
         if (loadingDialog != null) {
             loadingDialog.dismiss();
