@@ -82,6 +82,43 @@ public class HttpDownloadUtilTest {
                 "https://example.test/db/archive.zip").getProtocol());
     }
 
+    @Test
+    public void unsafeAuthorityAndMalformedBackendUrlsAreRejectedBeforeNetworkAccess()
+            throws Exception {
+        String[] invalid = {
+                "https://user:secret@example.test/db/archive.zip",
+                "https://example.test:0/db/archive.zip",
+                "https://example.test:65536/db/archive.zip",
+                "https://example.test:-2/db/archive.zip",
+                "https://example.test/has whitespace/archive.zip",
+                "https:///db/archive.zip"
+        };
+        for (String candidate : invalid) {
+            try {
+                HttpDownloadUtil.requireHttpUrl(candidate);
+                org.junit.Assert.fail("Unexpectedly accepted invalid HTTP(S) backend URL");
+            } catch (IOException expected) {
+                // Fail closed; URLs are not connected or logged.
+            }
+        }
+        assertEquals(443, HttpDownloadUtil.requireHttpUrl(
+                "https://example.test:443/db/archive.zip").getPort());
+    }
+
+    @Test(expected = IOException.class)
+    public void credentialedAbsoluteRedirectIsRejected() throws Exception {
+        HttpDownloadUtil.resolveRedirectUrl(
+                "https://example.test/db/archive.zip",
+                "https://user:secret@cdn.example.test/db/archive.zip");
+    }
+
+    @Test(expected = IOException.class)
+    public void invalidTcpPortRedirectIsRejected() throws Exception {
+        HttpDownloadUtil.resolveRedirectUrl(
+                "https://example.test/db/archive.zip",
+                "https://cdn.example.test:65536/db/archive.zip");
+    }
+
     @Test(expected = IOException.class)
     public void missingBackendUrlIsRejected() throws Exception {
         HttpDownloadUtil.requireHttpUrl(null);
