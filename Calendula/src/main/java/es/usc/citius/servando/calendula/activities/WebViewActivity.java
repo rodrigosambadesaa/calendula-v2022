@@ -278,6 +278,22 @@ public class WebViewActivity extends CalendulaActivity {
         return true;
     }
 
+    /**
+     * Browser/chooser intents are user-directed and may have no installed
+     * handler (including restricted enterprise profiles). Missing or denied
+     * handlers must not crash a medication leaflet viewer.
+     *
+     * Avoid logging the Intent or URL: they may describe medical treatment.
+     */
+    static boolean tryStartExternalActivity(Context context, Intent intent) {
+        try {
+            context.startActivity(intent);
+            return true;
+        } catch (ActivityNotFoundException | SecurityException unavailable) {
+            return false;
+        }
+    }
+
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         // Sharing or opening a clinical document delegates its URL to another app.
@@ -296,11 +312,18 @@ public class WebViewActivity extends CalendulaActivity {
                         originalUrl);
                 i.putExtra(Intent.EXTRA_SUBJECT, webView.getTitle());
                 i.setType("text/plain");
-                startActivity(Intent.createChooser(i, getString(R.string.title_share_link)));
+                if (!tryStartExternalActivity(this,
+                        Intent.createChooser(i, getString(R.string.title_share_link)))) {
+                    LogUtil.w(TAG, "Unable to launch external link-sharing activity");
+                    showErrorToast(null);
+                }
                 break;
             case R.id.action_open_with_browser:
                 Intent i1 = new Intent(Intent.ACTION_VIEW, Uri.parse(originalUrl));
-                startActivity(i1);
+                if (!tryStartExternalActivity(this, i1)) {
+                    LogUtil.w(TAG, "Unable to launch external browser");
+                    showErrorToast(null);
+                }
                 break;
             default:
                 onBackPressed();
