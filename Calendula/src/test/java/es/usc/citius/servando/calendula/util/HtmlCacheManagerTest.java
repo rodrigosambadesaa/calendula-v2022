@@ -18,7 +18,6 @@ import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Date;
 
-import es.usc.citius.servando.calendula.database.DatabaseHelper;
 import es.usc.citius.servando.calendula.persistence.HtmlCacheEntry;
 import org.junit.Before;
 import org.junit.Test;
