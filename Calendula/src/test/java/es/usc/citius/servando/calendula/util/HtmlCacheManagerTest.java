@@ -11,6 +11,15 @@ import android.content.Context;
 import androidx.test.core.app.ApplicationProvider;
 
 import org.joda.time.Duration;
+
+import com.j256.ormlite.dao.Dao;
+
+import java.lang.reflect.Field;
+import java.util.Arrays;
+import java.util.Date;
+
+import es.usc.citius.servando.calendula.database.DatabaseHelper;
+import es.usc.citius.servando.calendula.persistence.HtmlCacheEntry;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -24,6 +33,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 28)
@@ -244,4 +258,43 @@ public class HtmlCacheManagerTest {
         assertFalse(HtmlCacheManager.getInstance().put(
                 null, "Unkeyed synthetic content", Duration.standardMinutes(5)));
     }
+    @Test
+    @SuppressWarnings("unchecked")
+    public void ambiguousLegacyHashNeverErasesMultipleCachedDocuments()
+            throws Exception {
+        HtmlCacheManager cache = HtmlCacheManager.getInstance();
+        String requested = "https://example.test/synthetic-conflicting-cache";
+        HtmlCacheEntry first = new HtmlCacheEntry(
+                requested.hashCode(), requested, new Date(),
+                "Synthetic original leaflet", Duration.standardMinutes(10).getMillis());
+        HtmlCacheEntry second = new HtmlCacheEntry(
+                requested.hashCode(), "https://example.test/synthetic-unrelated-cache",
+                new Date(), "Synthetic unrelated leaflet",
+                Duration.standardMinutes(10).getMillis());
+
+        // The production schema has a unique index. Inject an inconsistent
+        // legacy DAO result without corrupting or altering the SQLite schema.
+        Dao<HtmlCacheEntry, Long> injectedDao = mock(Dao.class);
+        when(injectedDao.queryForEq(HtmlCacheEntry.COLUMN_HASHCODE, requested.hashCode()))
+                .thenReturn(Arrays.asList(first, second));
+        Field daoField = HtmlCacheManager.class.getDeclaredField("dao");
+        Field helperField = HtmlCacheManager.class.getDeclaredField("daoHelper");
+        daoField.setAccessible(true);
+        helperField.setAccessible(true);
+        Object previousDao = daoField.get(cache);
+        Object previousHelper = helperField.get(cache);
+        try {
+            daoField.set(cache, injectedDao);
+            helperField.set(cache, DB.helper());
+
+            assertNull("Ambiguous cache lookup must never return patient content",
+                    cache.get(requested));
+            assertFalse(cache.isCached(requested));
+            verify(injectedDao, never()).delete(any(HtmlCacheEntry.class));
+        } finally {
+            daoField.set(cache, previousDao);
+            helperField.set(cache, previousHelper);
+        }
+    }
+
 }
