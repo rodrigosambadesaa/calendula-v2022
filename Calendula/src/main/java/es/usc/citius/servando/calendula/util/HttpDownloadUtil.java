@@ -278,8 +278,16 @@ public class HttpDownloadUtil {
         try {
             URI uri = url.toURI();
             int port = url.getPort();
+            // URL accepts percent-encoded / otherwise malformed authority
+            // strings that URI parses without a valid host. Do not let the
+            // preflight and the actual connection disagree about the target.
+            // IDNs can use their ASCII (punycode) form; normal DNS hosts and
+            // bracketed IPv6 literals remain accepted.
+            String uriHost = uri.getHost();
             if (uri.getRawUserInfo() != null
-                    || url.getHost() == null || url.getHost().trim().isEmpty()
+                    || uriHost == null || url.getHost() == null
+                    || !uriHost.equalsIgnoreCase(url.getHost())
+                    || url.getHost().trim().isEmpty()
                     || port == 0 || port < -1 || port > 65535) {
                 throw new IOException("Unsafe backend URL authority");
             }
