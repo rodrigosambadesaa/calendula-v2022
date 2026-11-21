@@ -205,21 +205,19 @@ public class HttpDownloadUtil {
         StringBuilder sb = new StringBuilder(Math.min(maxChars, 4096));
         char[] buffer = new char[4096];
         int read;
+        int zeroReadCount = 0;
         while ((read = reader.read(buffer)) != -1) {
             if (read == 0) {
-                // Avoid an unbounded busy loop for a Reader which does not
-                // make progress on bulk reads. Single-character read either
-                // produces one character or reports EOF.
-                int next = reader.read();
-                if (next == -1) {
-                    break;
+                // Reader.read() may itself be implemented using read(char[]),
+                // so a single-char fallback cannot reliably tell a byte of
+                // data from another zero-progress read. Retry a small bounded
+                // number of times, then fail rather than spin or invent NULs.
+                if (++zeroReadCount > 3) {
+                    throw new IOException("Text response reader made no progress");
                 }
-                if (sb.length() >= maxChars) {
-                    throw new IOException("Text response exceeds maximum allowed size");
-                }
-                sb.append((char) next);
                 continue;
             }
+            zeroReadCount = 0;
             if (sb.length() + read > maxChars) {
                 throw new IOException("Text response exceeds maximum allowed size");
             }
