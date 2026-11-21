@@ -244,6 +244,22 @@ public class HttpDownloadUtilTest {
     }
 
     @Test(expected = IOException.class)
+    public void repeatedlyStalledTextReaderFailsWithoutFabricatingNullCharacters()
+            throws Exception {
+        java.io.Reader stalled = new java.io.Reader() {
+            @Override
+            public int read(char[] chars, int offset, int length) {
+                return 0;
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+        HttpDownloadUtil.readLimitedText(stalled, 16);
+    }
+
+    @Test(expected = IOException.class)
     public void zeroLengthBulkReadCannotBypassTextLimit() throws Exception {
         StringReader unusual = new StringReader("ab") {
             boolean zeroOnce = true;
