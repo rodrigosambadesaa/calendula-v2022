@@ -28,6 +28,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 
 import es.usc.citius.servando.calendula.CalendulaApp;
@@ -267,7 +269,22 @@ public class HttpDownloadUtil {
         URL url = new URL(value);
         String protocol = url.getProtocol();
         if (!"http".equalsIgnoreCase(protocol) && !"https".equalsIgnoreCase(protocol)) {
-            throw new IOException("Unsupported backend URL protocol: " + protocol);
+            throw new IOException("Unsupported backend URL protocol");
+        }
+        // URL's legacy parser accepts credential-bearing authority strings
+        // and out-of-range TCP ports. Never download a clinical database from
+        // such a target, including when supplied by an HTTP redirect.
+        // URI rejects malformed escapes/whitespace in an otherwise valid URL.
+        try {
+            URI uri = url.toURI();
+            int port = url.getPort();
+            if (uri.getRawUserInfo() != null
+                    || url.getHost() == null || url.getHost().trim().isEmpty()
+                    || port == 0 || port < -1 || port > 65535) {
+                throw new IOException("Unsafe backend URL authority");
+            }
+        } catch (URISyntaxException invalidUri) {
+            throw new IOException("Malformed backend URL", invalidUri);
         }
         return url;
     }
