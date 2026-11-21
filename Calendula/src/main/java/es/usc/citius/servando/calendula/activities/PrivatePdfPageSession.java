@@ -113,8 +113,21 @@ final class PrivatePdfPageSession implements AutoCloseable {
      * allocations for a hostile PDF on older, memory-constrained devices.
      */
     static final class BoundedPngBuffer extends ByteArrayOutputStream {
+        private final int maxBytes;
+
+        BoundedPngBuffer() {
+            this(MAX_PNG_BYTES);
+        }
+
+        BoundedPngBuffer(int maxBytes) {
+            if (maxBytes < 0 || maxBytes > MAX_PNG_BYTES) {
+                throw new IllegalArgumentException("Invalid PDF PNG byte budget");
+            }
+            this.maxBytes = maxBytes;
+        }
+
         private void requireSpace(int bytes) {
-            if (bytes < 0 || bytes > MAX_PNG_BYTES - count) {
+            if (bytes < 0 || bytes > maxBytes - count) {
                 throw new IllegalStateException("Encoded PDF page exceeds byte limit");
             }
         }
