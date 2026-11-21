@@ -277,6 +277,9 @@ public class PdfViewActivity extends CalendulaActivity {
                 try {
                     pdfSession = PrivatePdfPageSession.open(getCacheDir(), source);
                     renderPdfPageOnWorker(0, generation);
+                } catch (PrivatePdfPageSession.UnsupportedLegacyMultipagePdfException legacy) {
+                    cleanTemporaryPdf(source);
+                    reportPdfFailure(generation, R.string.pdf_legacy_multipage_unavailable);
                 } catch (IOException | RuntimeException invalidPdf) {
                     cleanTemporaryPdf(source);
                     reportPdfFailure(generation);
@@ -288,6 +291,10 @@ public class PdfViewActivity extends CalendulaActivity {
     }
 
     private void reportPdfFailure(int generation) {
+        reportPdfFailure(generation, R.string.remote_extrainfo_generic_error);
+    }
+
+    private void reportPdfFailure(int generation, int messageResourceId) {
         // No URL or patient document contents may enter Logcat.
         LogUtil.w(TAG, "Unable to render bounded private provider PDF page");
         handler.post(() -> {
@@ -299,7 +306,7 @@ public class PdfViewActivity extends CalendulaActivity {
                 return;
             }
             hideLoading();
-            showErrorToast(getString(R.string.remote_extrainfo_generic_error));
+            showErrorToast(getString(messageResourceId));
             finish();
         });
     }
