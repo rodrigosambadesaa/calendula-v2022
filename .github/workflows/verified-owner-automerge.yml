@@ -10,6 +10,11 @@ on:
       - Android 17 runtime compatibility (API 37.0)
     types:
       - completed
+    # Only branches eligible for automatic merging can trigger this workflow.
+    # Otherwise each main push creates three redundant, skipped workflow runs.
+    # Manual workflow_dispatch remains available for deliberate dry runs.
+    branches:
+      - 'modernize/**'
   workflow_dispatch:
     inputs:
       dry_run:
