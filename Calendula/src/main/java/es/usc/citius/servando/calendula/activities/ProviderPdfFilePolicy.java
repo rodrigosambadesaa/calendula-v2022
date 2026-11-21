@@ -23,6 +23,21 @@ final class ProviderPdfFilePolicy {
         try {
             File parent = appCacheDirectory.getCanonicalFile();
             File file = candidate.getCanonicalFile();
+            // Canonicalize the parent independently, without following the
+            // candidate's final path component. Otherwise a symlink named
+            // extrainfo*.pdf pointing at a different private PDF can be
+            // accepted as though it were the provider's actual temp file.
+            // Resolve parent symlinks normally (e.g. /data/data on Android),
+            // but reject a symlink or path substitution at the leaf itself.
+            File candidateParent = candidate.getParentFile();
+            if (candidateParent == null) {
+                return false;
+            }
+            File expectedFile = new File(candidateParent.getCanonicalFile(),
+                    candidate.getName());
+            if (!file.equals(expectedFile)) {
+                return false;
+            }
             String name = file.getName();
             return parent.equals(file.getParentFile())
                     && name.startsWith("extrainfo")
