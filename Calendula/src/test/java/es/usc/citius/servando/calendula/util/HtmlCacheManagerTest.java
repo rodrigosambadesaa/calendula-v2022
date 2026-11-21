@@ -253,6 +253,35 @@ public class HtmlCacheManagerTest {
     }
 
     @Test
+    public void unknownLegacyCacheIdentityIsNeitherDeletedNorAdoptedOnReadOrWrite()
+            throws Exception {
+        String requested = "https://example.test/synthetic-legacy-unknown-owner";
+        String original = "Synthetic historical document with unknown URL";
+        Dao<HtmlCacheEntry, Long> dao = DB.helper().getDao(HtmlCacheEntry.class);
+        HtmlCacheEntry oldEntry = new HtmlCacheEntry(
+                requested.hashCode(), null, new Date(), original,
+                Duration.standardMinutes(20).getMillis());
+        assertEquals(1, dao.create(oldEntry));
+        assertTrue(oldEntry.getId() != null && oldEntry.getId() > 0L);
+
+        HtmlCacheManager cache = HtmlCacheManager.getInstance();
+        assertNull("Unknown legacy URL must never be displayed", cache.get(requested));
+        assertFalse("Unknown legacy URL must never be reported cached",
+                cache.isCached(requested));
+        assertFalse("Hash equality alone must not reassign another owner's data",
+                cache.put(requested, "New synthetic document",
+                        Duration.standardMinutes(20)));
+
+        HtmlCacheEntry persisted = dao.queryForId(oldEntry.getId());
+        assertTrue("Read/write must not delete the unidentifiable document",
+                persisted != null);
+        assertNull("Read/write must not adopt a new URL without identity proof",
+                persisted.getUrl());
+        assertEquals(original, persisted.getData());
+        assertEquals(requested.hashCode(), (int) persisted.getHashCode());
+    }
+
+    @Test
     public void missingUrlCannotCreateCacheRow() {
         assertFalse(HtmlCacheManager.getInstance().put(
                 null, "Unkeyed synthetic content", Duration.standardMinutes(5)));

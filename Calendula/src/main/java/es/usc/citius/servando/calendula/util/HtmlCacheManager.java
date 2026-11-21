@@ -152,8 +152,8 @@ public class HtmlCacheManager {
     /**
      * Cache key collisions must not evict an unrelated medication document.
      * Refresh an existing URL in place so a failed SQLite write cannot erase
-     * a previously usable leaflet. A URL-less legacy row is safely replaced
-     * in place because its original identity cannot be established.
+     * a previously usable leaflet. A URL-less legacy row has no verified
+     * owner or URL, so even an identical Java hash must not authorize reuse.
      */
     public boolean put(final String url, final String data, final Duration ttlDuration) {
         if (url == null || url.isEmpty()
@@ -165,8 +165,10 @@ public class HtmlCacheManager {
         final Long ttl = ttlDuration == null ? DEFAULT_TTL_MILLIS : ttlDuration.getMillis();
         final int hashCode = url.hashCode();
         HtmlCacheEntry entry = retrieveByHash(hashCode);
-        if (entry != null && entry.getUrl() != null && !url.equals(entry.getUrl())) {
-            LogUtil.w(TAG, "Ignoring HTML cache hash collision without evicting prior content");
+        if (entry != null && !url.equals(entry.getUrl())) {
+            // Missing legacy URL is ambiguous, just like a mismatched URL:
+            // neither case authorizes overwriting a private document.
+            LogUtil.w(TAG, "Ignoring ambiguous HTML cache identity without mutation");
             return false;
         }
 
@@ -176,21 +178,16 @@ public class HtmlCacheManager {
                 // The UPDATE is atomic on SQLite; on failure the previously
                 // committed HTML remains intact. Do not delete-then-insert.
                 // Match the full cache identity in SQLite (not only its
-                // Java hash). Legacy rows without URL can be adopted safely,
-                // while concurrent hash collisions can never overwrite
-                // another document. A failed UPDATE does not remove content.
+                // Java hash). This path is reachable only for a matching
+                // non-null URL. Never adopt a legacy identity-less entry,
+                // even when its Java hash matches the requested key.
                 UpdateBuilder<HtmlCacheEntry, Long> update = getDao().updateBuilder();
                 update.updateColumnValue(HtmlCacheEntry.COLUMN_URL, url);
                 update.updateColumnValue(HtmlCacheEntry.COLUMN_TIMESTAMP, now);
                 update.updateColumnValue(HtmlCacheEntry.COLUMN_DATA, data);
                 update.updateColumnValue(HtmlCacheEntry.COLUMN_TTL, ttl);
-                if (entry.getUrl() == null) {
-                    update.where().eq(HtmlCacheEntry.COLUMN_HASHCODE, hashCode)
-                            .and().isNull(HtmlCacheEntry.COLUMN_URL);
-                } else {
-                    update.where().eq(HtmlCacheEntry.COLUMN_HASHCODE, hashCode)
-                            .and().eq(HtmlCacheEntry.COLUMN_URL, url);
-                }
+                update.where().eq(HtmlCacheEntry.COLUMN_HASHCODE, hashCode)
+                        .and().eq(HtmlCacheEntry.COLUMN_URL, url);
                 int changed = update.update();
                 if (changed == 1) {
                     return true;
@@ -286,8 +283,9 @@ public class HtmlCacheManager {
         // safely distinguished from a Java String.hashCode() collision, so treat
         // them as stale and rebuild them on demand.
         if (entry.getUrl() == null) {
-            LogUtil.d(TAG, "retrieve: Removing legacy cache entry without URL");
-            remove(entry);
+            // A read is not an authorization to erase an unidentified legacy
+            // document. Explicit TTL-based purge handles abandoned rows.
+            LogUtil.d(TAG, "retrieve: Ignoring legacy cache entry without URL");
             return null;
         }
 
