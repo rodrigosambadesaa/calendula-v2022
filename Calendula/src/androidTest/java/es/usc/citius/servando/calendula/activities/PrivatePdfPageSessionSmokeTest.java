@@ -5,6 +5,7 @@
 package es.usc.citius.servando.calendula.activities;
 
 import android.content.Context;
+import android.os.Build;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -79,6 +80,21 @@ public class PrivatePdfPageSessionSmokeTest {
                 "extrainfo-paginated-ci-" + System.nanoTime() + ".pdf");
         try (FileOutputStream out = new FileOutputStream(file)) {
             out.write(independentTwoPagePdf());
+        }
+        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.M) {
+            // Verified API23 platform PDFium SIGSEGV occurs at FPDF_ClosePage
+            // even with a separately generated valid two-page PDF. This is
+            // a positive fail-closed regression, not a skipped renderer test:
+            // no page may render, and the private file must be erased.
+            try (PrivatePdfPageSession ignored = PrivatePdfPageSession.open(
+                    context.getCacheDir(), file)) {
+                fail("Android 6 must reject native multi-page PDF rendering");
+            } catch (PrivatePdfPageSession.UnsupportedLegacyMultipagePdfException expected) {
+                assertFalse("Unsafe provider PDF must be cleaned up", file.exists());
+            } finally {
+                file.delete();
+            }
+            return;
         }
         try (PrivatePdfPageSession session = PrivatePdfPageSession.open(
                 context.getCacheDir(), file)) {
