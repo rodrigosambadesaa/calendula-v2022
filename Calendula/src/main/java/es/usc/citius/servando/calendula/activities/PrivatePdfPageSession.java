@@ -8,6 +8,7 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.pdf.PdfRenderer;
 import android.os.ParcelFileDescriptor;
+import android.os.Build;
 import android.util.Base64;
 
 import java.io.ByteArrayOutputStream;
@@ -49,6 +50,14 @@ final class PrivatePdfPageSession implements AutoCloseable {
             int count = renderer.getPageCount();
             if (count < 1 || count > MAX_PAGES) {
                 throw new IOException("PDF page count outside safe preview limits");
+            }
+            // Android 6's system libpdfium repeatedly SIGSEGVs on
+            // FPDF_ClosePage with independent, valid two-page test PDFs.
+            // Fail closed BEFORE opening any native page instead of crashing
+            // the app or silently hiding later clinical instructions. This
+            // limitation requires a reviewed alternative renderer for API 23.
+            if (Build.VERSION.SDK_INT == Build.VERSION_CODES.M && count > 1) {
+                throw new UnsupportedLegacyMultipagePdfException();
             }
             // The verified private file must not persist while a viewer is open.
             // PdfRenderer reads the already-open descriptor after unlinking it.
@@ -156,6 +165,12 @@ final class PrivatePdfPageSession implements AutoCloseable {
         if (!closed) {
             closed = true;
             renderer.close();
+        }
+    }
+
+    static final class UnsupportedLegacyMultipagePdfException extends IOException {
+        UnsupportedLegacyMultipagePdfException() {
+            super("Multi-page preview is unsafe in Android 6 system PdfRenderer");
         }
     }
 
