@@ -196,6 +196,71 @@ public class HttpDownloadUtilTest {
                 "https://cdn.example.test/db/archive.zip"));
     }
     @Test
+    public void zeroLengthBulkBinaryReadMakesProgressWithoutLosingData() throws Exception {
+        byte[] bytes = "ABC".getBytes(StandardCharsets.UTF_8);
+        java.io.InputStream unusual = new java.io.InputStream() {
+            int pos;
+            boolean zeroOnce = true;
+
+            @Override
+            public int read(byte[] buffer, int offset, int length) {
+                if (zeroOnce) {
+                    zeroOnce = false;
+                    return 0;
+                }
+                if (pos == bytes.length) return -1;
+                int amount = Math.min(length, bytes.length - pos);
+                System.arraycopy(bytes, pos, buffer, offset, amount);
+                pos += amount;
+                return amount;
+            }
+
+            @Override
+            public int read() {
+                return pos < bytes.length ? bytes[pos++] & 0xff : -1;
+            }
+        };
+        ByteArrayOutputStream result = new ByteArrayOutputStream();
+        assertEquals(3L, HttpDownloadUtil.copyLimited(unusual, result, 3L));
+        assertEquals("ABC", new String(result.toByteArray(), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    public void zeroLengthBulkTextReadMakesProgressWithoutLosingCharacters()
+            throws Exception {
+        StringReader unusual = new StringReader("abc") {
+            boolean zeroOnce = true;
+
+            @Override
+            public int read(char[] chars, int offset, int length) throws IOException {
+                if (zeroOnce) {
+                    zeroOnce = false;
+                    return 0;
+                }
+                return super.read(chars, offset, length);
+            }
+        };
+        assertEquals("abc", HttpDownloadUtil.readLimitedText(unusual, 3));
+    }
+
+    @Test(expected = IOException.class)
+    public void zeroLengthBulkReadCannotBypassTextLimit() throws Exception {
+        StringReader unusual = new StringReader("ab") {
+            boolean zeroOnce = true;
+
+            @Override
+            public int read(char[] chars, int offset, int length) throws IOException {
+                if (zeroOnce) {
+                    zeroOnce = false;
+                    return 0;
+                }
+                return super.read(chars, offset, length);
+            }
+        };
+        HttpDownloadUtil.readLimitedText(unusual, 1);
+    }
+
+    @Test
     public void binaryStreamAllowsExactByteLimit() throws Exception {
         byte[] input = "12345".getBytes(StandardCharsets.UTF_8);
         ByteArrayOutputStream output = new ByteArrayOutputStream();
