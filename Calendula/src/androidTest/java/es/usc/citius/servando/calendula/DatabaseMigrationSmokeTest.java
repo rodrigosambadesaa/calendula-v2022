@@ -87,7 +87,29 @@ public class DatabaseMigrationSmokeTest {
                     old.execSQL("CREATE TABLE HtmlCache (_id INTEGER PRIMARY KEY,"
                             + " HashCode INTEGER, Data VARCHAR)");
                 }
+                old.execSQL("CREATE TABLE EventReminders (_id INTEGER PRIMARY KEY,"
+                        + " DateTime VARCHAR, NextTime VARCHAR, EventType VARCHAR, Patient BIGINT)");
+                old.execSQL("CREATE TABLE NewSchedules (_id INTEGER PRIMARY KEY,"
+                        + " State VARCHAR, Patient BIGINT, Medicine BIGINT)");
                 old.setVersion(1);
+            }
+        }
+
+        void seedVersionThree(boolean abortSecondRowUpdate) {
+            try (SQLiteDatabase old = SQLiteDatabase.openOrCreateDatabase(
+                    databaseFile, null)) {
+                old.execSQL("CREATE TABLE EventReminders (_id INTEGER PRIMARY KEY,"
+                        + " DateTime VARCHAR, NextTime VARCHAR, EventType VARCHAR, Patient BIGINT)");
+                old.execSQL("INSERT INTO EventReminders (_id, EventType) VALUES"
+                        + " (51, 'MEDICATION_INTAKE'), (52, 'MEDICATION_INTAKE')");
+                old.execSQL("CREATE TABLE NewSchedules (_id INTEGER PRIMARY KEY,"
+                        + " State VARCHAR, Patient BIGINT, Medicine BIGINT)");
+                if (abortSecondRowUpdate) {
+                    old.execSQL("CREATE TRIGGER ci_abort_reminder_backfill"
+                            + " BEFORE UPDATE ON EventReminders WHEN OLD._id = 52"
+                            + " BEGIN SELECT RAISE(ABORT, 'synthetic migration rollback'); END;");
+                }
+                old.setVersion(3);
             }
         }
 
@@ -137,6 +159,78 @@ public class DatabaseMigrationSmokeTest {
         return false;
     }
 
+
+    @Test
+    public void versionThreeReminderMigrationPreservesRowsAndCreatesDistinctTokens() {
+        Fixture fixture = new Fixture("reminder-instance-upgrade");
+        try {
+            fixture.seedVersionThree(false);
+            DatabaseHelper helper = new DatabaseHelper(fixture.context);
+            try {
+                SQLiteDatabase upgraded = helper.getWritableDatabase();
+                assertEquals(DatabaseHelper.DATABASE_VERSION, upgraded.getVersion());
+                assertTrue(hasColumn(upgraded, "NewSchedules",
+                        "RecoveryOwnerDigest"));
+                assertTrue(hasColumn(upgraded, "EventReminders", "AlarmInstance"));
+                try (Cursor rows = upgraded.rawQuery(
+                        "SELECT _id, EventType, AlarmInstance FROM EventReminders ORDER BY _id",
+                        null)) {
+                    assertEquals(2, rows.getCount());
+                    assertTrue(rows.moveToFirst());
+                    assertEquals(51L, rows.getLong(0));
+                    assertEquals("MEDICATION_INTAKE", rows.getString(1));
+                    String first = rows.getString(2);
+                    assertTrue(first != null && first.matches(
+                            "[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}"));
+                    assertTrue(rows.moveToNext());
+                    assertEquals(52L, rows.getLong(0));
+                    assertEquals("MEDICATION_INTAKE", rows.getString(1));
+                    String second = rows.getString(2);
+                    assertTrue(second != null && !first.equals(second));
+                }
+            } finally {
+                helper.close();
+            }
+        } finally {
+            fixture.cleanup();
+        }
+    }
+
+    @Test
+    public void failedReminderBackfillRollsBackSchemaAndEveryPriorToken() {
+        Fixture fixture = new Fixture("reminder-instance-rollback");
+        try {
+            fixture.seedVersionThree(true);
+            DatabaseHelper helper = new DatabaseHelper(fixture.context);
+            try {
+                try {
+                    helper.getWritableDatabase();
+                    fail("A failed reminder backfill must abort the whole migration");
+                } catch (RuntimeException expected) {
+                    // Failed UPDATE on row 52 must undo row 51 and ALTER TABLE.
+                }
+            } finally {
+                helper.close();
+            }
+            try (SQLiteDatabase unchanged = SQLiteDatabase.openDatabase(
+                    fixture.databaseFile.getAbsolutePath(),
+                    null, SQLiteDatabase.OPEN_READONLY)) {
+                assertEquals(3, unchanged.getVersion());
+                assertFalse(hasColumn(unchanged, "EventReminders", "AlarmInstance"));
+                try (Cursor rows = unchanged.rawQuery(
+                        "SELECT _id, EventType FROM EventReminders ORDER BY _id", null)) {
+                    assertEquals(2, rows.getCount());
+                    assertTrue(rows.moveToFirst());
+                    assertEquals(51L, rows.getLong(0));
+                    assertTrue(rows.moveToNext());
+                    assertEquals(52L, rows.getLong(0));
+                }
+            }
+        } finally {
+            fixture.cleanup();
+        }
+    }
+
     @Test
     public void v1UpgradePreservesRecordsOnRealDevice() {
         Fixture fixture = new Fixture("successful-legacy-migration");
@@ -149,8 +243,85 @@ public class DatabaseMigrationSmokeTest {
                 assertSavedRecords(upgraded);
                 assertTrue(hasColumn(upgraded, "ActiveMedItems", "VisualizationType"));
                 assertTrue(hasColumn(upgraded, "HtmlCache", "Url"));
+                assertTrue(hasColumn(upgraded, "NewSchedules", "RecoveryOwnerDigest"));
             } finally {
                 helper.close();
+            }
+        } finally {
+            fixture.cleanup();
+        }
+    }
+
+
+    @Test
+    public void v4RecoveryOwnerMigrationPreservesSchedulesAndLeavesOwnerUnclaimed() {
+        Fixture fixture = new Fixture("recovery-owner-upgrade");
+        try {
+            try (SQLiteDatabase old = SQLiteDatabase.openOrCreateDatabase(
+                    fixture.databaseFile, null)) {
+                old.execSQL("CREATE TABLE NewSchedules (_id INTEGER PRIMARY KEY,"
+                        + " State VARCHAR, Patient BIGINT, Medicine BIGINT)");
+                old.execSQL("INSERT INTO NewSchedules (_id, State, Patient, Medicine)"
+                        + " VALUES (62, '[]', 7, 13)");
+                old.setVersion(4);
+            }
+            DatabaseHelper helper = new DatabaseHelper(fixture.context);
+            try {
+                SQLiteDatabase upgraded = helper.getWritableDatabase();
+                assertEquals(DatabaseHelper.DATABASE_VERSION, upgraded.getVersion());
+                assertTrue(hasColumn(upgraded, "NewSchedules", "RecoveryOwnerDigest"));
+                try (Cursor schedules = upgraded.rawQuery(
+                        "SELECT _id, State, Patient, Medicine, RecoveryOwnerDigest"
+                                + " FROM NewSchedules WHERE _id=62", null)) {
+                    assertTrue(schedules.moveToFirst());
+                    assertEquals(62L, schedules.getLong(0));
+                    assertEquals("[]", schedules.getString(1));
+                    assertEquals(7L, schedules.getLong(2));
+                    assertEquals(13L, schedules.getLong(3));
+                    assertTrue("Never fabricate an owner during a legacy upgrade",
+                            schedules.isNull(4));
+                }
+            } finally {
+                helper.close();
+            }
+        } finally {
+            fixture.cleanup();
+        }
+    }
+
+    @Test
+    public void invalidV4RecoveryMigrationRetainsDatabaseVersionAndUnrelatedRows() {
+        Fixture fixture = new Fixture("recovery-missing-table");
+        try {
+            try (SQLiteDatabase old = SQLiteDatabase.openOrCreateDatabase(
+                    fixture.databaseFile, null)) {
+                old.execSQL("CREATE TABLE Patients (_id INTEGER PRIMARY KEY, Name VARCHAR)");
+                old.execSQL("INSERT INTO Patients (_id, Name)"
+                        + " VALUES (87, 'Synthetic preserved patient')");
+                // Corrupt/missing old NewSchedules: do not upgrade blindly
+                // and do not delete user data to make the migration pass.
+                old.setVersion(4);
+            }
+            DatabaseHelper helper = new DatabaseHelper(fixture.context);
+            try {
+                try {
+                    helper.getWritableDatabase();
+                    fail("Missing previous schedule table must abort schema upgrade");
+                } catch (RuntimeException expected) {
+                    // SQLiteOpenHelper restores the previous schema version.
+                }
+            } finally {
+                helper.close();
+            }
+            try (SQLiteDatabase unchanged = SQLiteDatabase.openDatabase(
+                    fixture.databaseFile.getAbsolutePath(), null,
+                    SQLiteDatabase.OPEN_READONLY)) {
+                assertEquals(4, unchanged.getVersion());
+                try (Cursor rows = unchanged.rawQuery(
+                        "SELECT Name FROM Patients WHERE _id=87", null)) {
+                    assertTrue(rows.moveToFirst());
+                    assertEquals("Synthetic preserved patient", rows.getString(0));
+                }
             }
         } finally {
             fixture.cleanup();

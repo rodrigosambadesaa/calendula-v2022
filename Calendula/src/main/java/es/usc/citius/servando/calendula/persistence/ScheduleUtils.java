@@ -50,6 +50,7 @@ import es.usc.citius.servando.calendula.scheduling.model.EventType;
 import es.usc.citius.servando.calendula.scheduling.model.recur.DailyFixedTime;
 import es.usc.citius.servando.calendula.util.stock.StockUpdater;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 import es.usc.citius.servando.calendula.util.alerts.StockAlertHandler;
 
 /**
@@ -62,6 +63,17 @@ public class ScheduleUtils {
     private static final ScheduleUtils instance = new ScheduleUtils();
 
     private ScheduleUtils() {
+    }
+
+    /**
+     * The schedule and dose rows have ALREADY committed in SQLite. A later
+     * alarm/stock failure is a recovery problem, NOT a reason to invite the
+     * editor to insert a duplicate schedule or overwrite another recurrence.
+     */
+    public static final class PostCommitEffectsException extends RuntimeException {
+        public PostCommitEffectsException(RuntimeException cause) {
+            super("Schedule saved; post-commit reminders or stock checks need review", cause);
+        }
     }
 
     public static ScheduleUtils instance() {
@@ -95,26 +107,55 @@ public class ScheduleUtils {
     void persistNewScheduleRows(Context ctx, Schedule schedule,
                                Collection<EventInstance> precomputed) {
         if (ctx == null || schedule == null || schedule.getId() != null
-                || schedule.getPatient() == null
-                || schedule.getPatient().getId() == null
-                || schedule.getPatient().getId() <= 0L
+                || schedule.hasState(Schedule.ScheduleState.PENDING_REMINDER_RECOVERY)
+                || schedule.getRecoveryOwnerDigest() != null
+                || !PatientOwnerGuard.hasStableIdentity(schedule.getPatient())
                 || schedule.getMedicine() == null
-                || schedule.getMedicine().getId() == null) {
+                || schedule.getMedicine().getId() == null
+                || schedule.getMedicine().getId() <= 0L
+                || !PatientOwnerGuard.sameStableIdentity(
+                        schedule.getPatient(), schedule.getMedicine().getPatient())) {
             throw new IllegalArgumentException("New schedule must have a persisted owner and medicine");
+        }
+        // ORMLite mutates generated IDs on Java objects even when a later
+        // INSERT aborts the SQLite transaction. Keep the caller's complete
+        // unsaved draft intact so a retry cannot UPDATE phantom schedule/
+        // intake rows, nor accidentally carry another schedule's references.
+        final Patient originalPatient = schedule.getPatient();
+        final Medicine originalMedicine = schedule.getMedicine();
+        final java.util.IdentityHashMap<EventInstance, Long> originalEventIds =
+                new java.util.IdentityHashMap<>();
+        final java.util.IdentityHashMap<EventInstance, Long> originalEventRefs =
+                new java.util.IdentityHashMap<>();
+        final java.util.IdentityHashMap<EventInstance, Patient> originalEventPatients =
+                new java.util.IdentityHashMap<>();
+        if (precomputed != null) {
+            for (EventInstance event : precomputed) {
+                if (event != null) {
+                    originalEventIds.put(event, event.getId());
+                    originalEventRefs.put(event, event.getRef());
+                    originalEventPatients.put(event, event.getPatient());
+                }
+            }
         }
         final Collection<EventInstance> inserted;
         try {
             inserted = TransactionManager.callInTransaction(
                     DB.helper().getConnectionSource(),
                     (Callable<Collection<EventInstance>>) () -> {
-                        Patient owner = DB.patients().findById(schedule.getPatient().getId());
-                        Medicine medicine = DB.medicines().findById(schedule.getMedicine().getId());
-                        if (owner == null || medicine == null
+                        // Verify the stable owner BEFORE replacing the editor's
+                        // models with authoritative database rows. A restored
+                        // SQLite file may reuse the same numeric patient,
+                        // medicine and schedule IDs for a different profile.
+                        Patient expected = schedule.getPatient();
+                        Patient owner = DB.patients().findById(expected.getId());
+                        Medicine medicine = new Medicine();
+                        medicine.setId(schedule.getMedicine().getId());
+                        if (!PatientOwnerGuard.sameStableIdentity(expected, owner)
                                 || DB.medicines().refresh(medicine) != 1
-                                || (medicine.getPatient() != null
-                                    && (medicine.getPatient().getId() == null
-                                        || !owner.getId().equals(medicine.getPatient().getId())))) {
-                            throw new SQLException("New prescription owner or medicine is no longer valid");
+                                || !PatientOwnerGuard.sameStableIdentity(
+                                        expected, medicine.getPatient())) {
+                            throw new SQLException("New prescription stable owner or medicine changed");
                         }
                         // Use authoritative records, never a stale picker
                         // object, when creating the new prescription row.
@@ -131,9 +172,8 @@ public class ScheduleUtils {
                                     || e.getType() != EventType.MEDICATION_INTAKE
                                     || e.getTime() == null
                                     || (e.getPatient() != null
-                                        && (e.getPatient().getId() == null
-                                            || !schedule.getPatient().getId().equals(
-                                                    e.getPatient().getId())))) {
+                                        && !PatientOwnerGuard.sameStableIdentity(
+                                                schedule.getPatient(), e.getPatient()))) {
                                 throw new SQLException("Invalid new-schedule dose occurrence");
                             }
                             e.setPatient(schedule.getPatient());
@@ -142,15 +182,52 @@ public class ScheduleUtils {
                         Agenda.instance().addEvents(events);
                         return events;
                     });
-        } catch (SQLException error) {
-            throw new IllegalStateException("Could not atomically create schedule and occurrences", error);
+        } catch (SQLException | RuntimeException error) {
+            // Revert only the in-memory identities changed by the failed SQL
+            // phase. Never reset them for a post-COMMIT Android alarm failure:
+            // at that point the schedule row really exists in SQLite.
+            schedule.setId(null);
+            schedule.setPatient(originalPatient);
+            schedule.setMedicine(originalMedicine);
+            if (precomputed != null) {
+                for (EventInstance event : precomputed) {
+                    if (event != null) {
+                        event.setId(originalEventIds.get(event));
+                        event.setRef(originalEventRefs.get(event));
+                        event.setPatient(originalEventPatients.get(event));
+                    }
+                }
+            }
+            if (error instanceof SQLException) {
+                throw new IllegalStateException(
+                        "Could not atomically create schedule and occurrences", error);
+            }
+            // The other multi-catch alternative is an unchecked exception.
+            throw (RuntimeException) error;
         }
-        // The DB now has a complete prescription+occurrence set. Alert checks
-        // used to run inside ScheduleDao.save(), before event creation; move
-        // them after SQL COMMIT to avoid phantom side effects on rollback.
-        StockAlertHandler.checkStockAlerts(schedule.getMedicine());
-        if (!Agenda.instance().createReminders(ctx, inserted)) {
-            throw new IllegalStateException("New schedule reminders could not be persisted");
+        // The DB now has a complete prescription+occurrence set. Restore
+        // actionable dose reminders FIRST: stock calculations are secondary
+        // and must not prevent their post-COMMIT OS registration if they fail.
+        // Neither action runs while the SQLite transaction is uncommitted.
+        RuntimeException postCommitFailure = null;
+        try {
+            if (!Agenda.instance().createReminders(ctx, inserted)) {
+                throw new IllegalStateException("New schedule reminders could not be persisted");
+            }
+        } catch (RuntimeException recoveryFailed) {
+            postCommitFailure = recoveryFailed;
+        }
+        // Even when reminder recovery fails, assess stock independently.
+        // Both actions observe committed SQLite rows, never a phantom dose.
+        try {
+            StockAlertHandler.checkStockAlerts(schedule.getMedicine());
+        } catch (RuntimeException stockFailed) {
+            if (postCommitFailure == null) {
+                postCommitFailure = stockFailed;
+            }
+        }
+        if (postCommitFailure != null) {
+            throw new PostCommitEffectsException(postCommitFailure);
         }
     }
 
@@ -222,9 +299,7 @@ public class ScheduleUtils {
                                    Collection<EventInstance> desired) {
         requirePendingReconciliationInputs(schedule, from, desired);
         if (ctx == null || schedule.getId() <= 0L
-                || schedule.getPatient() == null
-                || schedule.getPatient().getId() == null
-                || schedule.getPatient().getId() <= 0L
+                || !PatientOwnerGuard.hasStableIdentity(schedule.getPatient())
                 || schedule.getMedicine() == null
                 || schedule.getMedicine().getId() == null
                 || schedule.getMedicine().getId() <= 0L) {
@@ -239,16 +314,43 @@ public class ScheduleUtils {
                         // itself would overwrite its new recurrence/dosages.
                         Schedule stored = new Schedule();
                         stored.setId(schedule.getId());
-                        Medicine medicine = DB.medicines().findById(schedule.getMedicine().getId());
+                        Medicine medicine = new Medicine();
+                        medicine.setId(schedule.getMedicine().getId());
+                        Patient expected = schedule.getPatient();
+                        Patient persistedOwner = DB.patients().findById(expected.getId());
+                        // A database restore may reuse an existing numeric
+                        // schedule, medicine or patient row ID. All links
+                        // must belong to the original stable patient code.
                         if (DB.schedules().refresh(stored) != 1
-                                || stored.getPatient() == null
-                                || !schedule.getPatient().getId().equals(stored.getPatient().getId())
-                                || medicine == null || DB.medicines().refresh(medicine) != 1
-                                || (medicine.getPatient() != null
-                                    && (medicine.getPatient().getId() == null
-                                        || !schedule.getPatient().getId().equals(
-                                                medicine.getPatient().getId())))) {
+                                || DB.medicines().refresh(medicine) != 1
+                                || stored.getMedicine() == null
+                                || stored.getMedicine().getId() == null
+                                || !medicine.getId().equals(stored.getMedicine().getId())
+                                || !PatientOwnerGuard.sameStableIdentity(
+                                        expected, persistedOwner)
+                                || !PatientOwnerGuard.sameStableIdentity(
+                                        expected, stored.getPatient())
+                                || !PatientOwnerGuard.sameStableIdentity(
+                                        expected, medicine.getPatient())
+                                || !PatientOwnerGuard.sameStableIdentity(
+                                        expected, stored.getMedicine().getPatient())
+                                || !PatientOwnerGuard.sameStableIdentity(
+                                        expected, schedule.getMedicine().getPatient())) {
                             throw new SQLException("Edited prescription ownership changed");
+                        }
+                        // A HIGH-alert release can have committed its
+                        // BLOCKED-state change while Android alarm rebuilding
+                        // is still pending. A stale editor's full-row UPDATE
+                        // would silently erase that durable obligation. Fail
+                        // closed until replay has completed successfully.
+                        if (stored.hasState(
+                                Schedule.ScheduleState.PENDING_REMINDER_RECOVERY)
+                                || stored.getRecoveryOwnerDigest() != null
+                                || schedule.hasState(
+                                        Schedule.ScheduleState.PENDING_REMINDER_RECOVERY)
+                                || schedule.getRecoveryOwnerDigest() != null) {
+                            throw new SQLException(
+                                    "Recover pending medication reminders before editing recurrence");
                         }
                         schedule.setMedicine(medicine);
                         if (DB.schedules().update(schedule) != 1) {
@@ -261,10 +363,25 @@ public class ScheduleUtils {
             throw new IllegalStateException("Could not atomically edit schedule and occurrences", failure);
         }
         // Platform alarms and stock notifications are not SQLite resources.
-        // Dispatch only AFTER a complete commit, so rollback cannot emit
-        // reminders or stock alerts based on a phantom new prescription.
-        StockAlertHandler.checkStockAlerts(schedule.getMedicine());
-        notifyCommittedScheduleOccurrences(ctx, toAdd);
+        // Dispatch only AFTER a complete commit. Dose reminders take
+        // precedence: an inventory/stock calculation failure must never
+        // suppress their recovery or hide the committed recurrence.
+        RuntimeException postCommitFailure = null;
+        try {
+            notifyCommittedScheduleOccurrences(ctx, toAdd);
+        } catch (RuntimeException recoveryFailed) {
+            postCommitFailure = recoveryFailed;
+        }
+        try {
+            StockAlertHandler.checkStockAlerts(schedule.getMedicine());
+        } catch (RuntimeException stockFailed) {
+            if (postCommitFailure == null) {
+                postCommitFailure = stockFailed;
+            }
+        }
+        if (postCommitFailure != null) {
+            throw new PostCommitEffectsException(postCommitFailure);
+        }
     }
 
     private static void requirePendingReconciliationInputs(
@@ -286,11 +403,9 @@ public class ScheduleUtils {
                     || event.getType() != EventType.MEDICATION_INTAKE
                     || event.getTime() == null
                     || !schedule.getId().equals(event.getRef())
-                    || (schedule.getPatient() != null
-                        && (event.getPatient() == null
-                            || event.getPatient().getId() == null
-                            || !schedule.getPatient().getId().equals(
-                                    event.getPatient().getId())))) {
+                    || (schedule.getId() > 0L
+                        && !PatientOwnerGuard.sameStableIdentity(
+                                schedule.getPatient(), event.getPatient()))) {
                 throw new SQLException("Generated occurrence has invalid schedule or patient identity");
             }
             if (!DB.eventInstances().exists(

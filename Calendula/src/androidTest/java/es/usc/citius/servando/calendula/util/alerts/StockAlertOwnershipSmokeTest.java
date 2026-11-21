@@ -61,6 +61,22 @@ public class StockAlertOwnershipSmokeTest {
             assertNotNull("Cross-patient input must not delete an owner's alert",
                     DB.alerts().findById(alert.id()));
 
+            // Deliberately reuse the same SQLite patient ID under a different
+            // durable account code. Unlike an ordinary foreign numeric ID,
+            // the old guard used to accept this stale callback and erase the
+            // genuine owner's LOW-stock warning.
+            Patient recycledIdOwner = new Patient();
+            recycledIdOwner.setId(owner.getId());
+            recycledIdOwner.setCode("ci-restored-other-owner-" + System.nanoTime());
+            Medicine recycledIdMedicine = new Medicine(
+                    "Stale recycled-owner medicine", Presentation.PILLS);
+            recycledIdMedicine.setId(medicine.getId());
+            recycledIdMedicine.setPatient(recycledIdOwner);
+            recycledIdMedicine.setStock(4f);
+            StockAlertHandler.checkStockAlerts(recycledIdMedicine);
+            assertNotNull("Same numeric ID with a different stable owner must not delete stock alert",
+                    DB.alerts().findById(alert.id()));
+
             Medicine stale = new Medicine("Old stock", Presentation.PILLS);
             stale.setId(medicine.getId());
             stale.setPatient(owner);

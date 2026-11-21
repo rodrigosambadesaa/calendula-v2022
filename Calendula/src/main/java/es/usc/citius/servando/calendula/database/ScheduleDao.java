@@ -35,6 +35,7 @@ import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 import es.usc.citius.servando.calendula.util.alerts.StockAlertHandler;
 
 public class ScheduleDao extends GenericDao<Schedule, Long> {
@@ -89,23 +90,35 @@ public class ScheduleDao extends GenericDao<Schedule, Long> {
         if (m == null || m.getId() == null || m.getId() <= 0L) {
             return Collections.emptyList();
         }
-        final Long suppliedOwner = m.getPatient() == null
-                ? null : m.getPatient().getId();
-        Medicine persisted = DB.medicines().findById(m.getId());
-        if (persisted == null || DB.medicines().refresh(persisted) != 1
-                || persisted.getPatient() == null
-                || persisted.getPatient().getId() == null
-                || persisted.getPatient().getId() <= 0L
-                || (suppliedOwner != null
-                    && !suppliedOwner.equals(persisted.getPatient().getId()))) {
+        // A caller's stale medicine may have exactly the same numeric ID as
+        // a replacement patient's restored medicine. Do not refresh the
+        // supplied model: its original stable owner code must be preserved.
+        Patient expected = m.getPatient();
+        if (!PatientOwnerGuard.hasStableIdentity(expected)) {
+            throw new IllegalStateException("Cannot query schedules without stable medicine owner");
+        }
+        Medicine persisted = new Medicine();
+        persisted.setId(m.getId());
+        if (DB.medicines().refresh(persisted) != 1
+                || !PatientOwnerGuard.sameStableIdentity(
+                        expected, persisted.getPatient())
+                || !PatientOwnerGuard.sameStableIdentity(
+                        expected, DB.patients().findById(expected.getId()))) {
             throw new IllegalStateException("Cannot query schedules for stale medicine owner");
         }
-        final Long ownerId = persisted.getPatient().getId();
         final List<Schedule> schedules = findBy(Schedule.COLUMN_MEDICINE, persisted.getId());
         for (Schedule schedule : schedules) {
-            if (schedule.getPatient() == null
-                    || !ownerId.equals(schedule.getPatient().getId())) {
-                throw new IllegalStateException("Medicine schedule belongs to another patient");
+            if (schedule == null || schedule.getMedicine() == null
+                    || schedule.getMedicine().getId() == null
+                    || !persisted.getId().equals(schedule.getMedicine().getId())
+                    || !PatientOwnerGuard.sameStableIdentity(
+                            expected, schedule.getPatient())
+                    || !PatientOwnerGuard.sameStableIdentity(
+                            expected, schedule.getMedicine().getPatient())) {
+                // Reject the entire result. Returning the first few valid
+                // schedules before discovering a foreign row would disclose
+                // a different patient's clinical treatment plan.
+                throw new IllegalStateException("Medicine schedule belongs to another stable owner");
             }
         }
         return schedules;
@@ -136,17 +149,22 @@ public class ScheduleDao extends GenericDao<Schedule, Long> {
      */
     public List<Schedule> findByMedicineAndState(Medicine medicine, Schedule.ScheduleState state) {
         if (medicine == null || medicine.getId() == null || medicine.getId() <= 0L
-                || medicine.getPatient() == null
-                || medicine.getPatient().getId() == null || state == null) {
+                || state == null) {
             return Collections.emptyList();
         }
-        // Snapshot the expected owner BEFORE refresh: ORMLite can return the
-        // very same cached instance, and refresh may mutate its patient field.
-        final Long expectedOwnerId = medicine.getPatient().getId();
-        Medicine stored = DB.medicines().findById(medicine.getId());
-        if (stored == null || DB.medicines().refresh(stored) != 1
-                || stored.getPatient() == null
-                || !expectedOwnerId.equals(stored.getPatient().getId())) {
+        final Patient expected = medicine.getPatient();
+        if (!PatientOwnerGuard.hasStableIdentity(expected)) {
+            return Collections.emptyList();
+        }
+        Medicine stored = new Medicine();
+        stored.setId(medicine.getId());
+        if (DB.medicines().refresh(stored) != 1
+                || !PatientOwnerGuard.sameStableIdentity(
+                        expected, stored.getPatient())
+                || !PatientOwnerGuard.sameStableIdentity(
+                        expected, DB.patients().findById(expected.getId()))) {
+            // A mismatched restored patient may not enumerate blocked
+            // schedules merely because the SQLite medicine ID was recycled.
             return Collections.emptyList();
         }
         try {
@@ -155,7 +173,19 @@ public class ScheduleDao extends GenericDao<Schedule, Long> {
                     .and().eq(Schedule.COLUMN_PATIENT, stored.getPatient())
                     .and().raw(Schedule.COLUMN_STATE + " LIKE '%" + state.value() + "%'")
                     .prepare();
-            return dao.query(preparedQuery);
+            List<Schedule> found = dao.query(preparedQuery);
+            for (Schedule schedule : found) {
+                if (!PatientOwnerGuard.sameStableIdentity(
+                            expected, schedule.getPatient())
+                        || schedule.getMedicine() == null
+                        || !stored.getId().equals(schedule.getMedicine().getId())
+                        || !PatientOwnerGuard.sameStableIdentity(
+                            expected, schedule.getMedicine().getPatient())
+                        || !schedule.hasState(state)) {
+                    throw new IllegalStateException("Blocked schedule owner changed");
+                }
+            }
+            return found;
         } catch (SQLException e) {
             LogUtil.e(TAG, "findByMedicineAndState failed");
             throw new RuntimeException("Error finding schedules", e);

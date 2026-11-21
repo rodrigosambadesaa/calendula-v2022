@@ -25,6 +25,7 @@ public class OfficialNotificationSourceValidationTest {
     private static Patient patient(long id) {
         Patient patient = new Patient();
         patient.setId(id);
+        patient.setCode("ci-official-source-owner-" + id);
         return patient;
     }
 
@@ -62,6 +63,38 @@ public class OfficialNotificationSourceValidationTest {
 
         source.setDosage(new DosageEntity());
         assertTrue("Correctly linked official treatment remains displayable",
+                IntakeNotificationMgr.canRenderOfficialSource(schedule, source));
+    }
+
+    @Test
+    public void restoredPatientIdOrUnidentifiedOwnerCannotRenderOfficialPrescription() {
+        Patient owner = patient(93011001L);
+        Schedule schedule = new Schedule();
+        schedule.setPatient(owner);
+        schedule.setActiveMedId(93011003L);
+        schedule.addState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL);
+
+        ActiveMedEntity source = new ActiveMedEntity();
+        source.setId(93011003L);
+        source.setType(ActiveMedType.DCPF);
+        source.setDosage(new DosageEntity());
+        source.setPatient(patient(93011001L));
+        assertTrue("Verified unchanged patient may see its official source",
+                IntakeNotificationMgr.canRenderOfficialSource(schedule, source));
+
+        Patient restoredOwner = patient(93011001L);
+        restoredOwner.setCode("ci-restored-different-patient");
+        source.setPatient(restoredOwner);
+        assertFalse("Recycled SQLite ID must not authorize another patient's treatment",
+                IntakeNotificationMgr.canRenderOfficialSource(schedule, source));
+
+        source.setPatient(patient(93011001L));
+        schedule.getPatient().setCode(null);
+        assertFalse("Missing schedule patient identity is not authorization",
+                IntakeNotificationMgr.canRenderOfficialSource(schedule, source));
+        schedule.getPatient().setCode("ci-official-source-owner-93011001");
+        source.getPatient().setCode(" ");
+        assertFalse("Blank imported owner identity is not authorization",
                 IntakeNotificationMgr.canRenderOfficialSource(schedule, source));
     }
 

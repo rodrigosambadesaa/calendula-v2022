@@ -58,6 +58,37 @@ public class AlertDeletionIdentitySmokeTest {
             forged.setMedicine(first);
             assertRejected(forged, saved.id());
 
+            // A database restore can give a different patient the same
+            // numeric row ID. The old code accepted this forged snapshot and
+            // could remove the replacement patient's persisted alert.
+            Patient recycledIdOwner = new Patient();
+            recycledIdOwner.setId(owner.getId());
+            recycledIdOwner.setCode("ci-alert-recycled-other-" + suffix);
+            forged.setPatient(recycledIdOwner);
+            assertRejected(forged, saved.id());
+
+            // The same restored-ID weakness must not permit creating a new
+            // HIGH clinical alert linked to another patient's medicine.
+            AllergyPatientAlert staleHigh = new AllergyPatientAlert();
+            staleHigh.setPatient(recycledIdOwner);
+            staleHigh.setMedicine(first);
+            staleHigh.setLevel(3);
+            boolean highRejected = false;
+            try {
+                AlertManager.createAlert(staleHigh);
+            } catch (RuntimeException expected) {
+                highRejected = true;
+            }
+            assertTrue("HIGH alert creation must reject a replaced stable owner",
+                    highRejected);
+            assertNull("Rejected alert must not acquire a persisted ID", staleHigh.id());
+            assertNotNull("Existing alert must be preserved", DB.alerts().findById(saved.id()));
+
+            Patient missingStableCode = new Patient();
+            missingStableCode.setId(owner.getId());
+            forged.setPatient(missingStableCode);
+            assertRejected(forged, saved.id());
+
             forged.setPatient(owner);
             forged.setMedicine(second);
             assertRejected(forged, saved.id());

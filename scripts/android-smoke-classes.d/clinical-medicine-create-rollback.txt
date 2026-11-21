@@ -1,0 +1,3 @@
+# Validate atomic creation and HIGH-allergy alert rollback on every emulator API.
+# Disposable invented patients and medication only (clinical issue #971).
+es.usc.citius.servando.calendula.util.alerts.AtomicMedicineCreationRollbackSmokeTest

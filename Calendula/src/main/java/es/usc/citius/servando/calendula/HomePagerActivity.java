@@ -60,7 +60,9 @@ import com.mikepenz.iconics.IconicsDrawable;
 import org.greenrobot.eventbus.Subscribe;
 import org.joda.time.DateTime;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Queue;
 
 import butterknife.BindView;
@@ -145,6 +147,7 @@ public class HomePagerActivity extends CalendulaActivity implements
     private HomePageAdapter mSectionsPagerAdapter;
     private LeftDrawerMgr drawerMgr;
     private Patient activePatient;
+    private boolean awaitingPatientReselection;
     private int pendingRefresh = -2;
     private Queue<Object> pendingEvents = new LinkedList<>();
     private Handler handler;
@@ -175,6 +178,11 @@ public class HomePagerActivity extends CalendulaActivity implements
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
+        // The recovery chooser has no clinical dashboard or pager yet.
+        // Action-bar callbacks must not dereference uninitialized views.
+        if (awaitingPatientReselection || mViewPager == null) {
+            return false;
+        }
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.home, menu);
         menuItems = new SparseArray<>(menu.size());
@@ -188,6 +196,9 @@ public class HomePagerActivity extends CalendulaActivity implements
 
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
+        if (awaitingPatientReselection || mViewPager == null || menuItems == null) {
+            return false;
+        }
 
         final int pageNum = mViewPager.getCurrentItem();
         final HomePages page = HomePages.getPage(pageNum);
@@ -323,7 +334,16 @@ public class HomePagerActivity extends CalendulaActivity implements
                         // stock info may need to be updated
                         ((MedicinesListFragment) getViewPagerFragment(HomePages.MEDICINES)).notifyDataChange();
                     } else if (event instanceof PersistenceEvents.ActiveUserChangeEvent) {
-                        activePatient = ((PersistenceEvents.ActiveUserChangeEvent) event).patient;
+                        Patient selected = ((PersistenceEvents.ActiveUserChangeEvent) event).patient;
+                        if (!sameDashboardOwner(activePatient, selected)) {
+                            // Switching accounts inside the drawer must hide
+                            // every cached clinical card, not just update the
+                            // title while fragments asynchronously reload.
+                            coordinatorLayout.setVisibility(View.INVISIBLE);
+                            recreate();
+                            return;
+                        }
+                        activePatient = selected;
                         updateTitle(mViewPager.getCurrentItem());
                         toolbarLayout.setContentScrimColor(activePatient.getColor());
                         fabMgr.onPatientUpdate(activePatient);
@@ -434,6 +454,17 @@ public class HomePagerActivity extends CalendulaActivity implements
     public void onNewIntent(Intent newIntent) {
         super.onNewIntent(newIntent);
         this.setIntent(newIntent);
+        // A deep link can arrive while the activity remains visible after a
+        // different patient was selected. Recheck the stable owner before
+        // interpreting any medication navigation request.
+        if (!awaitingPatientReselection && mViewPager != null
+                && !sameDashboardOwner(activePatient, DB.patients().getActive(this))) {
+            if (coordinatorLayout != null) {
+                coordinatorLayout.setVisibility(View.INVISIBLE);
+            }
+            recreate();
+            return;
+        }
         processIntent();
     }
 
@@ -446,6 +477,14 @@ public class HomePagerActivity extends CalendulaActivity implements
     protected void onCreate(Bundle savedInstanceState) {
 
         super.onCreate(savedInstanceState);
+        // Do not inflate any clinical dashboard or drawer until the selected
+        // row's stable owner has been verified. Restored numeric-only legacy
+        // preferences require an explicit choice, not a default fallback.
+        activePatient = DB.patients().getActive(this);
+        if (activePatient == null) {
+            promptForPatientReselection();
+            return;
+        }
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
 
@@ -468,7 +507,6 @@ public class HomePagerActivity extends CalendulaActivity implements
         homeProfileMgr = new HomeProfileMgr();
         homeProfileMgr.init(userInfoFragment, this);
 
-        activePatient = DB.patients().getActive(this);
         updateScrim(0);
 
 
@@ -544,15 +582,109 @@ public class HomePagerActivity extends CalendulaActivity implements
         processIntent();
     }
 
+    /**
+     * Missing, legacy or mismatched active-owner preferences must never load
+     * another patient's medicines by simply reusing a SQLite row number.
+     * The chooser displays only existing profile labels and requires a tap;
+     * no medication, schedule or clinical event is modified here.
+     */
+    private void promptForPatientReselection() {
+        awaitingPatientReselection = true;
+        // Capture stable identities BEFORE showing a label. A database
+        // restore may recycle an SQLite ID while this dialog is displayed;
+        // reloading that ID alone after a tap could select a different owner.
+        final List<Patient> available = new ArrayList<>();
+        List<Patient> discovered = DB.patients().findAll();
+        if (discovered != null) {
+            for (Patient candidate : discovered) {
+                if (candidate == null || candidate.getId() == null) {
+                    continue;
+                }
+                Patient verified = DB.patients().findByIdWithLocalIdentity(candidate.getId());
+                if (verified == null || verified.getCode() == null
+                        || verified.getCode().trim().isEmpty()) {
+                    continue;
+                }
+                // A previously identified patient changing between the list
+                // query and its canonical read must not enter the chooser.
+                if (candidate.getCode() != null && !candidate.getCode().trim().isEmpty()
+                        && !candidate.getCode().equals(verified.getCode())) {
+                    continue;
+                }
+                available.add(verified);
+            }
+        }
+        if (available.isEmpty()) {
+            startActivity(new Intent(this, StartActivity.class));
+            finish();
+            return;
+        }
+
+        String[] labels = new String[available.size()];
+        for (int i = 0; i < available.size(); i++) {
+            String name = available.get(i).getName();
+            labels[i] = name == null || name.trim().isEmpty()
+                    ? getString(R.string.patient_reselection_profile_number, i + 1)
+                    : name;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.patient_reselection_required)
+                .setCancelable(false)
+                .setItems(labels, (dialog, which) -> {
+                    if (which < 0 || which >= available.size()) {
+                        promptForPatientReselection();
+                        return;
+                    }
+                    try {
+                        // setActive rechecks the displayed snapshot's ID AND
+                        // stable code against SQLite at selection time.
+                        DB.patients().setActive(available.get(which));
+                        recreate();
+                    } catch (RuntimeException unavailable) {
+                        // Do not present a broken/removed owner as active.
+                        LogUtil.w(TAG, "Could not restore verified patient selection");
+                        promptForPatientReselection();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, (dialog, which) -> finish())
+                .show();
+    }
+
     @Override
     protected void onPostCreate(Bundle savedInstanceState) {
         super.onPostCreate(savedInstanceState);
     }
 
+    /**
+     * A cached clinical view belongs to a stable owner, not merely the
+     * database row number that might be recycled during a restore.
+     */
+    static boolean sameDashboardOwner(Patient displayed, Patient selected) {
+        return displayed != null && selected != null
+                && displayed.getId() != null && selected.getId() != null
+                && displayed.getId().equals(selected.getId())
+                && displayed.getCode() != null
+                && !displayed.getCode().trim().isEmpty()
+                && displayed.getCode().equals(selected.getCode());
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
+        if (awaitingPatientReselection) {
+            return;
+        }
         Patient p = DB.patients().getActive(this);
+        if (!sameDashboardOwner(activePatient, p)) {
+            // A different owner can become active while this activity is paused.
+            // Even if the SQLite ID is unchanged, never resume cached clinical
+            // fragments belonging to the previous stable identity.
+            if (coordinatorLayout != null) {
+                coordinatorLayout.setVisibility(View.INVISIBLE);
+            }
+            recreate();
+            return;
+        }
         drawerMgr.onActivityResume(p);
         active = true;
 
@@ -582,6 +714,11 @@ public class HomePagerActivity extends CalendulaActivity implements
     }//onActivityResult
 
     private void processIntent() {
+        // Deep links can arrive while a restored owner is still unverified.
+        // Do not open a medication tab before the explicit profile choice.
+        if (awaitingPatientReselection || mViewPager == null || getIntent() == null) {
+            return;
+        }
         final String action = getIntent().getStringExtra(IntentParams.EXTRA_ACTION);
         if (action != null && action.equals(IntentParams.ACTION_SHOW_ACTIVE_MEDS)) {
             mViewPager.setCurrentItem(HomePages.ACTIVE_MEDICATION.ordinal());
@@ -592,10 +729,7 @@ public class HomePagerActivity extends CalendulaActivity implements
         // A cached activity selection is not an authorization to display
         // provider metadata after switching profiles on another screen.
         Patient selectedNow = DB.patients().getActive(this);
-        if (activePatient == null || activePatient.getId() == null
-                || selectedNow == null || selectedNow.getId() == null
-                || !activePatient.getId().equals(selectedNow.getId())
-                || !java.util.Objects.equals(activePatient.getCode(), selectedNow.getCode())) {
+        if (!sameDashboardOwner(activePatient, selectedNow)) {
             Toast.makeText(this, R.string.active_med_no_last_updated_time,
                     Toast.LENGTH_SHORT).show();
             return;

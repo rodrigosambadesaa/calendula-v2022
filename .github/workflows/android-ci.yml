@@ -9,6 +9,8 @@ on:
   pull_request:
     branches:
       - main
+      # Also validate stacked clinical-security PRs before integration.
+      - 'integration/**'
   workflow_dispatch:
 
 permissions:

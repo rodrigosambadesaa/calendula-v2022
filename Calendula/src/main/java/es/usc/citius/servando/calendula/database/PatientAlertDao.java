@@ -30,6 +30,7 @@ import es.usc.citius.servando.calendula.persistence.Medicine;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.PatientAlert;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 
 public class PatientAlertDao extends GenericDao<PatientAlert, Long> {
 
@@ -58,16 +59,16 @@ public class PatientAlertDao extends GenericDao<PatientAlert, Long> {
      */
     private Medicine requireMedicineOwner(Medicine requested) {
         if (requested == null || requested.getId() == null
-                || requested.getId() <= 0L || requested.getPatient() == null
-                || requested.getPatient().getId() == null
-                || requested.getPatient().getId() <= 0L) {
+                || requested.getId() <= 0L
+                || !PatientOwnerGuard.hasStableIdentity(requested.getPatient())) {
             throw new IllegalArgumentException("An owned persisted medicine is required");
         }
-        final Long ownerId = requested.getPatient().getId();
+        Patient liveOwner = DB.patients().findById(requested.getPatient().getId());
         Medicine persisted = DB.medicines().findById(requested.getId());
-        if (persisted == null || DB.medicines().refresh(persisted) != 1
-                || persisted.getPatient() == null
-                || !ownerId.equals(persisted.getPatient().getId())) {
+        if (!PatientOwnerGuard.sameStableIdentity(requested.getPatient(), liveOwner)
+                || persisted == null || DB.medicines().refresh(persisted) != 1
+                || !PatientOwnerGuard.sameStableIdentity(
+                        liveOwner, persisted.getPatient())) {
             throw new IllegalStateException("Medicine owner is no longer current");
         }
         return persisted;
@@ -93,12 +94,20 @@ public class PatientAlertDao extends GenericDao<PatientAlert, Long> {
                         alert.getPatient() == null ? null : alert.getPatient().getId());
     }
 
+    /** A matching SQL ID is insufficient if backup/restore recycled that ID. */
+    static boolean belongsToStableMedicineOwner(PatientAlert alert, Medicine medicine) {
+        return alert != null && medicine != null
+                && medicine.getId() != null && medicine.getId() > 0L
+                && alert.getMedicine() != null
+                && medicine.getId().equals(alert.getMedicine().getId())
+                && PatientOwnerGuard.sameStableIdentity(
+                        medicine.getPatient(), alert.getPatient());
+    }
+
     private List<PatientAlert> requireSameOwner(
             Medicine medicine, List<PatientAlert> results) {
-        Long medicineId = medicine.getId();
-        Long patientId = medicine.getPatient().getId();
         for (PatientAlert result : results) {
-            if (!belongsToMedicineOwner(result, medicineId, patientId)) {
+            if (!belongsToStableMedicineOwner(result, medicine)) {
                 throw new IllegalStateException("Alert row belongs to another patient");
             }
         }
@@ -135,8 +144,7 @@ public class PatientAlertDao extends GenericDao<PatientAlert, Long> {
     public List<PatientAlert> findByPatientMedicineAndType(
             Patient p, Medicine m, String className) {
         Medicine stored = requireMedicineOwner(m);
-        if (p == null || p.getId() == null
-                || !p.getId().equals(stored.getPatient().getId())
+        if (!PatientOwnerGuard.sameStableIdentity(p, stored.getPatient())
                 || className == null || className.isEmpty()) {
             throw new IllegalArgumentException("Patient and alert type must match the medicine");
         }

@@ -65,9 +65,11 @@ public class PatientAllergenEqualityTest {
     public void reloadedPatientWithSamePrimaryKeyIsSameIdentityAfterNameChanges() {
         Patient original = new Patient();
         original.setId(9000005545L);
+        original.setCode("synthetic-immutable-owner");
         original.setName("Synthetic old patient name");
         Patient reloaded = new Patient();
         reloaded.setId(9000005545L);
+        reloaded.setCode("synthetic-immutable-owner");
         reloaded.setName("Synthetic renamed patient");
         PatientAllergen a = new PatientAllergen("Original allergy",
                 AllergenType.EXCIPIENT, new String("shared-key"), original);
@@ -75,6 +77,34 @@ public class PatientAllergenEqualityTest {
                 AllergenType.EXCIPIENT, new String("shared-key"), reloaded);
         assertEquals("Patient name/avatar updates cannot change persisted allergy identity", a, b);
         assertEquals(a.hashCode(), b.hashCode());
+    }
+
+    @Test
+    public void restoredPatientWithReusedRowIdMustNotAliasFormerPatientsAllergy() {
+        Patient original = new Patient();
+        original.setId(9000005555L);
+        original.setCode("ci-allergy-original-owner");
+        Patient successor = new Patient();
+        successor.setId(9000005555L);
+        successor.setCode("ci-allergy-restored-different-owner");
+        PatientAllergen beforeRestore = new PatientAllergen(
+                "Synthetic old allergy", AllergenType.EXCIPIENT,
+                "ci-shared-ingredient", original);
+        PatientAllergen afterRestore = new PatientAllergen(
+                "Synthetic other allergy", AllergenType.EXCIPIENT,
+                "ci-shared-ingredient", successor);
+        assertNotEquals("Recycled SQLite IDs must not identify the same allergen owner",
+                beforeRestore, afterRestore);
+        Set<PatientAllergen> both = new HashSet<>();
+        assertTrue(both.add(beforeRestore));
+        assertTrue(both.add(afterRestore));
+        assertEquals(2, both.size());
+
+        Patient unknown = new Patient();
+        unknown.setId(9000005555L);
+        assertNotEquals(beforeRestore, new PatientAllergen(
+                "Unknown restored owner", AllergenType.EXCIPIENT,
+                "ci-shared-ingredient", unknown));
     }
 
     @Test

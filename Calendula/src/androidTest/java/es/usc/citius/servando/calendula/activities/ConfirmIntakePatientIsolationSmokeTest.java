@@ -57,8 +57,10 @@ public class ConfirmIntakePatientIsolationSmokeTest {
     public void confirmationRejectsCrossPatientAndMalformedDosesOnAndroid() {
         Patient owner = new Patient();
         owner.setId(700001L);
+        owner.setCode("ci-verified-owner-700001");
         Patient other = new Patient();
         other.setId(700002L);
+        other.setCode("ci-verified-owner-700002");
         Medicine medicine = new Medicine("Synthetic confirmation medicine", Presentation.PILLS);
         medicine.setPatient(owner);
         Schedule schedule = new Schedule(medicine);
@@ -73,6 +75,19 @@ public class ConfirmIntakePatientIsolationSmokeTest {
 
         assertTrue(ConfirmIntakeGuard.verified(event, owner, slot, schedule, null));
         assertFalse(ConfirmIntakeGuard.verified(event, other, slot, schedule, null));
+        Patient recycled = new Patient();
+        recycled.setId(owner.getId());
+        recycled.setCode("ci-reused-id-different-owner");
+        assertFalse("A recycled patient ID cannot confirm another owner's medication",
+                ConfirmIntakeGuard.verified(event, recycled, slot, schedule, null));
+        recycled.setCode(null);
+        assertFalse(ConfirmIntakeGuard.verified(event, recycled, slot, schedule, null));
+        Patient codeLess = new Patient();
+        codeLess.setId(owner.getId());
+        owner.setCode(null);
+        assertFalse("Two missing stable IDs cannot authorize a dose change",
+                ConfirmIntakeGuard.verified(event, codeLess, slot, schedule, null));
+        owner.setCode("ci-verified-owner-700001");
 
         schedule.setActiveMedId(730001L);
         ActiveMedEntity imported = new ActiveMedEntity();

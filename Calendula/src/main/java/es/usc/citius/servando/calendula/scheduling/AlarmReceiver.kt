@@ -22,6 +22,7 @@ package es.usc.citius.servando.calendula.scheduling
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import es.usc.citius.servando.calendula.CalendulaApp
 import es.usc.citius.servando.calendula.util.IntentParams
 import es.usc.citius.servando.calendula.util.LogUtil
@@ -42,7 +43,9 @@ class AlarmReceiver : BroadcastReceiver() {
          */
         @JvmStatic
         fun isValidAlarmDispatch(action: String?, reminderId: Long): Boolean {
-            if (action == IntentParams.ACTION_DAILY_UPDATE) return true
+            // Daily maintenance has no clinical row identity. Do not accept
+            // a positive medication reminder ID under its maintenance action.
+            if (action == IntentParams.ACTION_DAILY_UPDATE) return reminderId <= 0L
             if (reminderId <= 0L) return false
             return when (action) {
                 IntentParams.ACTION_ALARM_REMINDER,
@@ -67,10 +70,36 @@ class AlarmReceiver : BroadcastReceiver() {
                 val reminderId = incoming.getLongExtra(IntentParams.EXTRA_REMINDER_ID, -1L)
                 if (!isValidAlarmDispatch(action, reminderId)) return null
 
+                if (action == IntentParams.ACTION_DAILY_UPDATE) {
+                    // This broadcast is created only by setDailyUpdateAlarm:
+                    // it has an action, but never a medication ID, consent,
+                    // alarm UUID or clinical URI. Reject replayed/mislabelled
+                    // medication callbacks rather than converting them into
+                    // maintenance jobs on upgrade or process restart.
+                    if (incoming.hasExtra(IntentParams.EXTRA_REMINDER_ID) ||
+                        incoming.hasExtra(IntentParams.EXTRA_ALARM_INSTANCE) ||
+                        incoming.hasExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT) ||
+                        incoming.data != null) return null
+                }
+
+                // PendingIntent equality ignores extras. Both the URI and
+                // the copied UUID must identify the exact same reminder instance.
+                // Also validate replayed JobIntentService work after process death.
                 val clinicalDecision =
                     action == IntentParams.ACTION_ALARM_CONFIRM ||
                     action == IntentParams.ACTION_ALARM_CANCEL ||
                     action == IntentParams.ACTION_ALARM_DELAY
+                val alarmInstance =
+                    if (action == IntentParams.ACTION_ALARM_REMINDER || clinicalDecision)
+                        incoming.getStringExtra(IntentParams.EXTRA_ALARM_INSTANCE)
+                    else null
+                if (action == IntentParams.ACTION_ALARM_REMINDER) {
+                    if (!IntentParams.isValidAlarmInstance(alarmInstance)) return null
+                    val expectedUri = Uri.parse(
+                        "content://${context.packageName}/calendula-reminders/$reminderId/$alarmInstance"
+                    )
+                    if (incoming.data != expectedUri) return null
+                }
                 val snapshot = if (clinicalDecision) {
                     incoming.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT)
                 } else {
@@ -84,10 +113,33 @@ class AlarmReceiver : BroadcastReceiver() {
                     // change the clinical plan the user actually saw.
                     return null
                 }
+                if (clinicalDecision) {
+                    if (!IntentParams.isValidAlarmInstance(alarmInstance)) return null
+                    val kind = when (action) {
+                        IntentParams.ACTION_ALARM_CONFIRM -> "CONFIRM"
+                        IntentParams.ACTION_ALARM_CANCEL -> "CANCEL"
+                        else -> "DELAY"
+                    }
+                    // Consent must be part of PendingIntent *identity*.
+                    // A replaced notification must not update the extras
+                    // behind an old confirm/cancel/snooze button.
+                    val expectedUri = Uri.parse(
+                        "calendula-reminder://notification/$reminderId/$alarmInstance/$kind/$snapshot"
+                    )
+                    if (incoming.data != expectedUri) return null
+                }
 
                 Intent(context, AlarmIntentService::class.java).apply {
                     putExtra(IntentParams.EXTRA_ACTION, action)
-                    putExtra(IntentParams.EXTRA_REMINDER_ID, reminderId)
+                    // A daily maintenance job must not acquire a synthetic
+                    // medication ID (-1) while crossing the persisted queue.
+                    if (action != IntentParams.ACTION_DAILY_UPDATE) {
+                        putExtra(IntentParams.EXTRA_REMINDER_ID, reminderId)
+                    }
+                    if (alarmInstance != null) {
+                        data = incoming.data
+                        putExtra(IntentParams.EXTRA_ALARM_INSTANCE, alarmInstance)
+                    }
                     if (snapshot != null) {
                         putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, snapshot)
                     }

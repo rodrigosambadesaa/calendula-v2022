@@ -59,7 +59,7 @@ public class OrphanReminderAlarmDeletionTest {
         EventReminderDao reminders = mock(EventReminderDao.class);
         EventInstanceDao instances = mock(EventInstanceDao.class);
         when(reminders.findById(r.getId())).thenReturn(r);
-        when(reminders.delete(r)).thenThrow(new SQLException("Synthetic SQLite failure"));
+        when(reminders.deleteIfSameInstance(r)).thenThrow(new SQLException("Synthetic SQLite failure"));
         PendingIntent original = lookup(context, r, PendingIntent.FLAG_UPDATE_CURRENT);
         try (MockedStatic<DB> db = mockStatic(DB.class)) {
             db.when(DB::eventReminders).thenReturn(reminders);
@@ -73,7 +73,7 @@ public class OrphanReminderAlarmDeletionTest {
             }
             assertNotNull("A surviving DB reminder must retain its OS token",
                     lookup(context, r, PendingIntent.FLAG_NO_CREATE));
-            verify(reminders).delete(r);
+            verify(reminders).deleteIfSameInstance(r);
         } finally {
             original.cancel();
         }
@@ -86,13 +86,13 @@ public class OrphanReminderAlarmDeletionTest {
         EventReminderDao reminders = mock(EventReminderDao.class);
         EventInstanceDao instances = mock(EventInstanceDao.class);
         when(reminders.findById(r.getId())).thenReturn(r, null);
-        when(reminders.delete(r)).thenReturn(1);
+        when(reminders.deleteIfSameInstance(r)).thenReturn(1);
         PendingIntent original = lookup(context, r, PendingIntent.FLAG_UPDATE_CURRENT);
         try (MockedStatic<DB> db = mockStatic(DB.class)) {
             db.when(DB::eventReminders).thenReturn(reminders);
             db.when(DB::eventInstances).thenReturn(instances);
             Agenda.instance().onReceiveAlarm(context, r.getId());
-            verify(reminders).delete(r);
+            verify(reminders).deleteIfSameInstance(r);
             assertNull("A deleted orphan must not leave an OS alarm token",
                     lookup(context, r, PendingIntent.FLAG_NO_CREATE));
         } finally {
@@ -107,7 +107,7 @@ public class OrphanReminderAlarmDeletionTest {
         EventReminderDao reminders = mock(EventReminderDao.class);
         EventInstanceDao instances = mock(EventInstanceDao.class);
         when(reminders.findById(r.getId())).thenReturn(r, r);
-        when(reminders.delete(r)).thenReturn(0);
+        when(reminders.deleteIfSameInstance(r)).thenReturn(0);
         PendingIntent original = lookup(context, r, PendingIntent.FLAG_UPDATE_CURRENT);
         try (MockedStatic<DB> db = mockStatic(DB.class)) {
             db.when(DB::eventReminders).thenReturn(reminders);
@@ -118,7 +118,7 @@ public class OrphanReminderAlarmDeletionTest {
             } catch (IllegalStateException expected) {
                 // No matching row was deleted; do not actively cancel the token.
             }
-            verify(reminders).delete(r);
+            verify(reminders).deleteIfSameInstance(r);
             assertNotNull("A zero-row delete must preserve the PendingIntent token",
                     lookup(context, r, PendingIntent.FLAG_NO_CREATE));
         } finally {
@@ -133,13 +133,13 @@ public class OrphanReminderAlarmDeletionTest {
         EventReminderDao reminders = mock(EventReminderDao.class);
         EventInstanceDao instances = mock(EventInstanceDao.class);
         when(reminders.findById(r.getId())).thenReturn(r, null);
-        when(reminders.delete(r)).thenReturn(0);
+        when(reminders.deleteIfSameInstance(r)).thenReturn(0);
         PendingIntent original = lookup(context, r, PendingIntent.FLAG_UPDATE_CURRENT);
         try (MockedStatic<DB> db = mockStatic(DB.class)) {
             db.when(DB::eventReminders).thenReturn(reminders);
             db.when(DB::eventInstances).thenReturn(instances);
             Agenda.instance().onReceiveAlarm(context, r.getId());
-            verify(reminders).delete(r);
+            verify(reminders).deleteIfSameInstance(r);
             assertNull("A verified absent row must not retain an obsolete OS token",
                     lookup(context, r, PendingIntent.FLAG_NO_CREATE));
         } finally {

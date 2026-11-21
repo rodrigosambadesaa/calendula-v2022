@@ -48,8 +48,10 @@ public class UnverifiedMedicationValidationTest {
         EventInstance event = syntheticEvent();
         Medicine medicine = new Medicine("Synthetic test medicine", Presentation.PILLS);
         Schedule schedule = new Schedule(medicine);
+        schedule.setId(9000003301L);
         Patient patient = new Patient();
         patient.setId(9000003311L);
+        patient.setCode("ci-notice-owner-3311");
         event.setPatient(patient);
         schedule.setPatient(patient);
 
@@ -86,6 +88,7 @@ public class UnverifiedMedicationValidationTest {
         medicine.setName("Synthetic test medicine");
         Patient another = new Patient();
         another.setId(9000003312L);
+        another.setCode("ci-notice-other-3312");
         medicine.setPatient(new Patient());
         assertFalse("An ambiguous medicine owner without database identity must not render",
                 IntakeNotificationMgr.canRenderMedication(event, schedule, patient));
@@ -104,12 +107,57 @@ public class UnverifiedMedicationValidationTest {
     }
 
     @Test
+    public void reusedSqlitePatientIdCannotClaimOtherOwnersNotificationMedicine() {
+        EventInstance event = syntheticEvent();
+        event.addParam(EventInstance.PARAM_DOSE, 1.5d);
+        Patient original = new Patient();
+        original.setId(9000003311L);
+        original.setCode("ci-original-notification-owner");
+        Patient replacement = new Patient();
+        replacement.setId(original.getId());
+        replacement.setCode("ci-other-notification-owner");
+
+        Medicine medicine = new Medicine("Synthetic owner-verified medicine",
+                Presentation.PILLS);
+        medicine.setPatient(original);
+        Schedule schedule = new Schedule(medicine);
+        schedule.setId(event.getRef());
+        schedule.setPatient(original);
+        event.setPatient(original);
+        assertTrue(IntakeNotificationMgr.canRenderMedication(event, schedule, original));
+
+        event.setPatient(replacement);
+        assertFalse("An old event ID cannot expose another owner's medication",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, original));
+        event.setPatient(original);
+        schedule.setPatient(replacement);
+        assertFalse("A stale schedule owner cannot expose another owner's medication",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, original));
+        schedule.setPatient(original);
+        medicine.setPatient(replacement);
+        assertFalse("Reused patient ID on a medicine cannot authorize its display",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, original));
+
+        medicine.setPatient(original);
+        schedule.setId(event.getRef() + 1L);
+        assertFalse("A mismatched schedule reference cannot approve a dose",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, original));
+        schedule.setId(event.getRef());
+        replacement.setCode(null);
+        event.setPatient(replacement);
+        assertFalse("A code-less event is not an authenticated clinical owner",
+                IntakeNotificationMgr.canRenderMedication(event, schedule, original));
+    }
+
+    @Test
     public void officialNotificationMustNotReadMissingOrCorruptNumericDose() {
         EventInstance event = syntheticEvent();
         Medicine medicine = new Medicine("Synthetic verified catalog medicine", Presentation.PILLS);
         Schedule schedule = new Schedule(medicine);
+        schedule.setId(9000003301L);
         Patient patient = new Patient();
         patient.setId(9000003313L);
+        patient.setCode("ci-notice-owner-3313");
         event.setPatient(patient);
         schedule.setPatient(patient);
         schedule.addState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL);
@@ -137,11 +185,13 @@ public class UnverifiedMedicationValidationTest {
         EventInstance event = syntheticEvent();
         Patient patient = new Patient();
         patient.setId(9000003323L);
+        patient.setCode("ci-notice-owner-3323");
         event.setPatient(patient);
         event.addParam(EventInstance.PARAM_DOSE, 1.0d);
         Medicine medicine = new Medicine("Synthetic status verification medicine",
                 Presentation.PILLS);
         Schedule schedule = new Schedule(medicine);
+        schedule.setId(9000003301L);
         schedule.setPatient(patient);
 
         assertTrue(IntakeNotificationMgr.canRenderMedication(event, schedule, patient));

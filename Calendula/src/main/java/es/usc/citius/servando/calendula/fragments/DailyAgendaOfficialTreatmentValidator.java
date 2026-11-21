@@ -20,6 +20,25 @@ public final class DailyAgendaOfficialTreatmentValidator {
     private DailyAgendaOfficialTreatmentValidator() {
     }
 
+    /**
+     * Imported prescriptions are clinical data. SQLite numeric patient IDs
+     * can be reused after restore or erasure: an ID-only match does not
+     * authorize using a provider's dose or instructions for another owner.
+     * Unidentified legacy rows must first be reconciled with a stable code.
+     */
+    static boolean sameStableOwner(Patient expected, Patient actual) {
+        if (expected == null || actual == null
+                || expected.getId() == null || expected.getId() <= 0L
+                || !expected.getId().equals(actual.getId())) {
+            return false;
+        }
+        String expectedCode = expected.getCode();
+        String actualCode = actual.getCode();
+        return expectedCode != null && !expectedCode.trim().isEmpty()
+                && actualCode != null && !actualCode.trim().isEmpty()
+                && expectedCode.equals(actualCode);
+    }
+
     public static boolean verifiedLink(Schedule schedule, ActiveMedEntity external) {
         if (schedule == null || !schedule.isBoundToActiveMed()
                 || schedule.getActiveMedId() == null || schedule.getActiveMedId() <= 0L
@@ -30,9 +49,7 @@ public final class DailyAgendaOfficialTreatmentValidator {
         }
         Patient scheduleOwner = schedule.getPatient();
         Patient externalOwner = external.getPatient();
-        return scheduleOwner != null && scheduleOwner.getId() != null
-                && externalOwner != null && externalOwner.getId() != null
-                && scheduleOwner.getId().equals(externalOwner.getId());
+        return sameStableOwner(scheduleOwner, externalOwner);
     }
 
     /**
@@ -42,10 +59,8 @@ public final class DailyAgendaOfficialTreatmentValidator {
      */
     public static boolean verifiedLinkForActivePatient(
             Schedule schedule, ActiveMedEntity external, Patient activePatient) {
-        return activePatient != null && activePatient.getId() != null
-                && activePatient.getId() > 0L
-                && schedule != null && schedule.getPatient() != null
-                && activePatient.getId().equals(schedule.getPatient().getId())
+        return schedule != null
+                && sameStableOwner(activePatient, schedule.getPatient())
                 && verifiedLink(schedule, external);
     }
 

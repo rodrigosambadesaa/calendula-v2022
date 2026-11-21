@@ -33,6 +33,7 @@ public class IntentParams {
     // Intent extras
     public static final String EXTRA_ACTION = extra("ACTION");
     public static final String EXTRA_REMINDER_ID = extra("REMINDER_ID");
+    public static final String EXTRA_ALARM_INSTANCE = extra("ALARM_INSTANCE");
     public static final String EXTRA_INTAKE_SNAPSHOT = extra("INTAKE_SNAPSHOT");
     public static final String EXTRA_DATETIME = extra("DATETIME");
     public static final String EXTRA_TIME = extra("TIME");
@@ -48,6 +49,16 @@ public class IntentParams {
     public static final String ACTION_ALARM_CONFIRM = action("ALARM_CONFIRM");
     public static final String ACTION_CREATE_REMINDER = action("CREATE_REMINDER");
     public static final String ACTION_SHOW_ACTIVE_MEDS = action("SHOW_ACTIVE_MEDS");
+
+    /**
+     * The UUID is an opaque per-reminder instance identifier, never a patient
+     * code, drug name or timestamp. Require the canonical random UUID shape
+     * before constructing/accepting OS alarm identities.
+     */
+    public static boolean isValidAlarmInstance(String instance) {
+        return instance != null && instance.matches(
+                "[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}");
+    }
 
     private static final String extra(String value) {
         return ID + ".EXTRA_" + value;

@@ -36,6 +36,8 @@ import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.events.PersistenceEvents;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.Schedule;
+import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
@@ -114,7 +116,17 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
      * Count-only query: no clinical details or other patients' rows are read.
      */
     public boolean hasUntimedMedicationForPatient(Patient patient) {
-        if (patient == null || patient.getId() == null || patient.getId() <= 0L) {
+        if (patient == null || patient.getId() == null || patient.getId() <= 0L
+                || patient.getCode() == null || patient.getCode().trim().isEmpty()) {
+            return false;
+        }
+        // A profile restored with a recycled numeric SQLite ID must not
+        // observe even the presence of another patient's malformed doses.
+        // Verify stable ownership before executing the count-only SQL query.
+        Patient live = DB.patients().findById(patient.getId());
+        if (live == null || !patient.getId().equals(live.getId())
+                || live.getCode() == null || live.getCode().trim().isEmpty()
+                || !patient.getCode().equals(live.getCode())) {
             return false;
         }
         try {
@@ -608,13 +620,26 @@ public class EventInstanceDao extends GenericDao<EventInstance, Long> {
         if (type != EventType.MEDICATION_INTAKE || ref == null || ref <= 0L) {
             return; // Non-medication events and synthetic negative fixture refs.
         }
-        Schedule schedule = DB.schedules().findById(ref);
-        if (schedule == null || DB.schedules().refresh(schedule) != 1
-                || schedule.getPatient() == null
-                || schedule.getPatient().getId() == null
-                || event == null || event.getPatient() == null
-                || !schedule.getPatient().getId().equals(event.getPatient().getId())) {
-            throw new SQLException("Occurrence has invalid persisted schedule patient");
+        Schedule schedule = new Schedule();
+        schedule.setId(ref);
+        if (DB.schedules().refresh(schedule) != 1 || event == null
+                || !PatientOwnerGuard.hasStableIdentity(schedule.getPatient())) {
+            throw new SQLException("Occurrence has no valid persisted schedule owner");
+        }
+        Patient expected = schedule.getPatient();
+        Medicine medicine = schedule.getMedicine() == null
+                || schedule.getMedicine().getId() == null
+                ? null : DB.medicines().findById(schedule.getMedicine().getId());
+        if (!PatientOwnerGuard.sameStableIdentity(
+                    expected, DB.patients().findById(expected.getId()))
+                || !PatientOwnerGuard.sameStableIdentity(expected, event.getPatient())
+                || medicine == null || DB.medicines().refresh(medicine) != 1
+                || !PatientOwnerGuard.sameStableIdentity(
+                        expected, medicine.getPatient())) {
+            // Both a stale event and a replaced medicine can keep the same
+            // numeric FK after restoring SQLite. Neither may authorize dose
+            // parameter updates or deletion of future pending intakes.
+            throw new SQLException("Occurrence has mismatched stable patient owner");
         }
     }
 

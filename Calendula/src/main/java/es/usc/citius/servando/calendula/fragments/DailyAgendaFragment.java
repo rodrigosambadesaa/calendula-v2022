@@ -75,6 +75,7 @@ import es.usc.citius.servando.calendula.util.DailyAgendaItemStub.DailyAgendaItem
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.IntentParams;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 import es.usc.citius.servando.calendula.util.HealthcareProviderTypeface;
@@ -138,6 +139,18 @@ public class DailyAgendaFragment extends Fragment {
 
     }
 
+
+    /**
+     * Agenda grouping must not combine two people merely because a restored
+     * SQLite database recycled their numeric patient ID.
+     */
+    static String stableAgendaOwnerKey(Patient owner) {
+        if (!PatientOwnerGuard.hasStableIdentity(owner)) {
+            return null;
+        }
+        return owner.getId() + ":" + owner.getCode();
+    }
+
     public List<DailyAgendaItemStub> buildItems() {
 
         Drawable providerDecorator = new IconicsDrawable(getContext())
@@ -176,7 +189,7 @@ public class DailyAgendaFragment extends Fragment {
         }
 
         for (DateTime dateTime : grouped.keySet()) {
-            Map<Long, DailyAgendaItemStub> patStubs = new HashMap<>();
+            Map<String, DailyAgendaItemStub> patStubs = new HashMap<>();
             List<EventInstance> eventInstances = grouped.get(dateTime);
             LocalTime time = dateTime.toLocalTime();
             LocalDate date = dateTime.toLocalDate();
@@ -199,6 +212,15 @@ public class DailyAgendaFragment extends Fragment {
                     continue;
                 }
                 Patient p = s.getPatient();
+                String ownerKey = stableAgendaOwnerKey(p);
+                // A schedule and event may share an obsolete owner snapshot.
+                // Confirm the *live* SQLite identity before creating any
+                // in-memory medication card or intake title.
+                if (ownerKey == null || !PatientOwnerGuard.sameStableIdentity(
+                        p, DB.patients().findById(p.getId()))) {
+                    LogUtil.w(TAG, "Skipping agenda event without live stable owner");
+                    continue;
+                }
                 ActiveMedEntity linkedOfficial = null;
                 if (s.isBoundToActiveMed()) {
                     linkedOfficial = DB.healthcareProviderDB().activeMeds()
@@ -206,8 +228,7 @@ public class DailyAgendaFragment extends Fragment {
                     if (!DailyAgendaOfficialTreatmentValidator.verifiedLink(s, linkedOfficial)) {
                         // Do not render another patient's imported treatment
                         // under this profile or hide a missing source silently.
-                        if (activePatient != null && activePatient.getId() != null
-                                && activePatient.getId().equals(p.getId())) {
+                        if (PatientOwnerGuard.sameStableIdentity(activePatient, p)) {
                             needsMedicationReview = true;
                         }
                         LogUtil.w(TAG, "Skipping unverified imported treatment reference");
@@ -215,14 +236,14 @@ public class DailyAgendaFragment extends Fragment {
                     }
                 }
 
-                if (patStubs.containsKey(p.getId())) {
-                    stub = patStubs.get(p.getId());
+                if (patStubs.containsKey(ownerKey)) {
+                    stub = patStubs.get(ownerKey);
                 } else {
                     stub = new DailyAgendaItemStub(date, time);
                     stub.title = ScheduleUtils.instance().getIntakeTitle(p, time, getContext());
                     stub.hasEvents = true;
                     stub.patient = p;
-                    patStubs.put(p.getId(), stub);
+                    patStubs.put(ownerKey, stub);
                 }
 
                 DailyAgendaItemStubElement el = new DailyAgendaItemStubElement();

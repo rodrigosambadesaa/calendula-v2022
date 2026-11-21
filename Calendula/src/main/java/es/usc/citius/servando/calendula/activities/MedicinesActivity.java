@@ -41,11 +41,7 @@ import com.github.javiersantos.materialstyleddialogs.MaterialStyledDialog;
 import com.github.javiersantos.materialstyleddialogs.enums.Style;
 import com.mikepenz.community_material_typeface_library.CommunityMaterial;
 
-import java.sql.SQLException;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.Callable;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -54,19 +50,18 @@ import es.usc.citius.servando.calendula.CalendulaApp;
 import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.allergies.AllergenFacade;
 import es.usc.citius.servando.calendula.allergies.AllergenVO;
-import es.usc.citius.servando.calendula.allergies.AllergyAlertUtil;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.drugdb.model.persistence.Prescription;
 import es.usc.citius.servando.calendula.events.PersistenceEvents;
 import es.usc.citius.servando.calendula.fragments.MedicineCreateOrEditFragment;
 import es.usc.citius.servando.calendula.persistence.Medicine;
-import es.usc.citius.servando.calendula.persistence.PatientAlert;
-import es.usc.citius.servando.calendula.persistence.alerts.AllergyPatientAlert;
+import es.usc.citius.servando.calendula.util.ClinicalScreenOwnerBinding;
 import es.usc.citius.servando.calendula.util.FragmentUtils;
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 import es.usc.citius.servando.calendula.util.Snack;
-import es.usc.citius.servando.calendula.util.alerts.AlertManager;
+import es.usc.citius.servando.calendula.util.alerts.AtomicMedicineAllergyEditor;
 
 public class MedicinesActivity extends CalendulaActivity implements MedicineCreateOrEditFragment.OnMedicineEditListener {
 
@@ -93,7 +88,23 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
     @BindView(R.id.add_button)
     FloatingActionButton fab;
     int color;
+    private static final String MEDICINE_EDITOR_OWNER_DOMAIN = "medicine-editor";
+    private ClinicalScreenOwnerBinding openedPatientBinding;
     private Long openedPatientId;
+
+    /**
+     * The fragment, UI callbacks and delayed writes must refer to the owner
+     * that originally opened this editor, even after restoring SQLite.
+     */
+    public boolean isOriginalEditorPatient(
+            es.usc.citius.servando.calendula.persistence.Patient candidate) {
+        if (openedPatientBinding == null || !openedPatientBinding.matches(candidate)) {
+            return false;
+        }
+        es.usc.citius.servando.calendula.persistence.Patient persisted =
+                DB.patients().findById(openedPatientBinding.getId());
+        return openedPatientBinding.matches(persisted);
+    }
 
     /**
      * Delayed allergy prompts may complete after changing patient profiles.
@@ -106,7 +117,11 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
         }
         es.usc.citius.servando.calendula.persistence.Patient active =
                 DB.patients().getActive(this);
-        Long activeId = active == null ? null : active.getId();
+        if (!isOriginalEditorPatient(active)
+                || !openedPatientBinding.matches(candidate.getPatient())) {
+            return false;
+        }
+        Long activeId = active.getId();
         Long ownerId = candidate.getPatient().getId();
         if (create) {
             return MedicineSaveOwnerGuard.canCreate(
@@ -119,10 +134,12 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
         if (persisted == null || DB.medicines().refresh(persisted) != 1) {
             return false;
         }
-        return MedicineSaveOwnerGuard.canModify(
-                openedPatientId, activeId, ownerId, candidate.getId(),
-                persisted.getPatient() == null ? null : persisted.getPatient().getId(),
-                persisted.getId());
+        return openedPatientBinding.matches(persisted.getPatient())
+                && PatientOwnerGuard.sameStableIdentity(candidate.getPatient(),
+                        persisted.getPatient())
+                && MedicineSaveOwnerGuard.canModify(
+                        openedPatientId, activeId, ownerId, candidate.getId(),
+                        persisted.getPatient().getId(), persisted.getId());
     }
 
     private void rejectStaleMedicineSave() {
@@ -136,9 +153,12 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
     private boolean canDisplaySelectedMedicine() {
         es.usc.citius.servando.calendula.persistence.Patient active =
                 DB.patients().getActive(this);
-        Long activeId = active == null ? null : active.getId();
+        if (!isOriginalEditorPatient(active) || mMedicineId == null) {
+            return false;
+        }
+        Long activeId = active.getId();
         if (openedPatientId == null || openedPatientId <= 0L
-                || !openedPatientId.equals(activeId) || mMedicineId == null) {
+                || !openedPatientId.equals(activeId)) {
             return false;
         }
         if (mMedicineId == -1L) {
@@ -151,9 +171,10 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
         if (persisted == null || DB.medicines().refresh(persisted) != 1) {
             return false;
         }
-        return MedicineSaveOwnerGuard.canOpenForEdit(
-                openedPatientId, activeId, mMedicineId, persisted.getId(),
-                persisted.getPatient() == null ? null : persisted.getPatient().getId());
+        return openedPatientBinding.matches(persisted.getPatient())
+                && MedicineSaveOwnerGuard.canOpenForEdit(
+                        openedPatientId, activeId, mMedicineId, persisted.getId(),
+                        persisted.getPatient().getId());
     }
 
     private void closeStaleMedicineEditor() {
@@ -163,7 +184,7 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
     }
 
     private static final String STATE_STARTED_SEARCH = "STATE_STARTED_SEARCH";
-    private static final String STATE_OPENED_PATIENT_ID = "STATE_OPENED_PATIENT_ID";
+    // The old ID-only restoration state deliberately cannot authorize a draft.
 
     private Prescription prescriptionToSet = null;
     private String prescriptionNameToSet = null;
@@ -308,9 +329,11 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
         // Configuration changes restore the draft editor's form state.
         // Never let it silently move from the originally opened patient to
         // whichever patient became active while the activity was paused.
-        openedPatientId = RestoredClinicalOwnerGuard.restoredOwnerOrNull(
-                savedInstanceState, STATE_OPENED_PATIENT_ID, opened.getId());
-        if (!MedicineSaveOwnerGuard.canRestoreEditor(openedPatientId, opened.getId())) {
+        openedPatientBinding = ClinicalScreenOwnerBinding.restoreOrCapture(
+                savedInstanceState, opened, MEDICINE_EDITOR_OWNER_DOMAIN);
+        openedPatientId = openedPatientBinding == null
+                ? null : openedPatientBinding.getId();
+        if (!isOriginalEditorPatient(opened)) {
             closeStaleMedicineEditor();
             return;
         }
@@ -353,8 +376,8 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         outState.putBoolean(STATE_STARTED_SEARCH, startedSearch);
-        if (openedPatientId != null && openedPatientId > 0L) {
-            outState.putLong(STATE_OPENED_PATIENT_ID, openedPatientId);
+        if (openedPatientBinding != null) {
+            openedPatientBinding.save(outState);
         }
         super.onSaveInstanceState(outState);
     }
@@ -362,7 +385,7 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
     @Override
     protected void onActivityResult(int requestCode, int resultCode, final Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (openedPatientId != null && !canDisplaySelectedMedicine()) {
+        if (!canDisplaySelectedMedicine()) {
             closeStaleMedicineEditor();
             return;
         }
@@ -459,43 +482,26 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
             return;
         }
         try {
-            // Evaluate the old prescription BEFORE persisting the new one.
-            boolean oldWarningInvalidated = oldAllergyWarningInvalidated(m);
-            if (allergies != null) {
-                // Replace an existing HIGH alert's allergen details in place,
-                // or create the new HIGH alert while the prior prescription is
-                // still stored. Never delete it afterward: the old order
-                // erased the *new* allergy warning on a prescription switch.
-                createAllergyAlerts(m, allergies);
-            }
-            DB.medicines().saveAndFireEvent(m);
-            if (allergies == null && oldWarningInvalidated) {
-                // Only now, after the medicine was successfully persisted, is
-                // it safe to remove the obsolete HIGH warning. A failed save
-                // must never leave the unchanged old prescription unprotected.
-                AllergyAlertUtil.removeAllergyAlerts(m);
-            }
-            Toast.makeText(this, getString(R.string.medicine_edited_message), Toast.LENGTH_SHORT).show();
+            // The editor no longer inserts HIGH warnings or sends medicine
+            // notifications in separate transactions before the medicine
+            // update succeeds. Only SQL mutations run inside this helper's
+            // single owner-validated SQLite transaction.
+            AtomicMedicineAllergyEditor.edit(this, m, allergies);
+            Toast.makeText(this, getString(R.string.medicine_edited_message),
+                    Toast.LENGTH_SHORT).show();
             finish();
-        } catch (RuntimeException | SQLException e) {
+        } catch (AtomicMedicineAllergyEditor.PostCommitRecoveryException committed) {
+            // The medicine IS saved; do not claim the SQL edit failed or
+            // invite an unsafe repeat using a now-stale prescription.
+            LogUtil.e(TAG, "Committed medicine edit needs schedule recovery");
+            Toast.makeText(this,
+                    R.string.medicine_saved_reminder_recovery_required,
+                    Toast.LENGTH_LONG).show();
+            finish();
+        } catch (RuntimeException error) {
             Snack.show(R.string.medicine_save_error_message, this);
             LogUtil.e(TAG, "Medicine update failed");
         }
-    }
-
-    /** Check whether a *persisted* prescription's allergy warning is stale. */
-    private boolean oldAllergyWarningInvalidated(final Medicine m) {
-        Medicine old = DB.medicines().findById(m.getId());
-        if (old == null || DB.medicines().refresh(old) != 1
-                || old.getPatient() == null || old.getPatient().getId() == null
-                || m.getPatient() == null || m.getPatient().getId() == null
-                || !old.getPatient().getId().equals(m.getPatient().getId())) {
-            throw new IllegalStateException("Medicine changed owner during allergy cleanup");
-        }
-        // Also handle a drug-database switch and removing a prescription.
-        // Whether the *new* medicine is linked must not drive this decision.
-        return MedicineAllergyTransitionGuard.prescriptionChanged(
-                old.getCn(), old.getDatabase(), m.getCn(), m.getDatabase());
     }
 
     private void createMedicine(final Medicine m, final List<AllergenVO> allergies) {
@@ -504,69 +510,24 @@ public class MedicinesActivity extends CalendulaActivity implements MedicineCrea
             return;
         }
         try {
-            DB.transaction(new Callable<Object>() {
-                @Override
-                public Object call() throws Exception {
-                    DB.medicines().save(m);
-                    if (allergies != null) {
-                        createAllergyAlerts(m, allergies);
-                    }
-
-                    DB.medicines().fireEvent();
-                    return null;
-                }
-            });
-
-            CalendulaApp.eventBus().post(new PersistenceEvents.MedicineAddedEvent(m.getId()));
-            Toast.makeText(this, getString(R.string.medicine_created_message), Toast.LENGTH_SHORT).show();
+            // Medicine and initial HIGH warning must COMMIT as one unit.
+            // The old DB.medicines().save() callback and nested
+            // AlertManager.createAlert() could notify Android of uncommitted
+            // doses or warnings if a later INSERT failed.
+            AtomicMedicineAllergyEditor.create(this, m, allergies);
+            Toast.makeText(this, R.string.medicine_created_message,
+                    Toast.LENGTH_SHORT).show();
             finish();
-        } catch (RuntimeException e) {
+        } catch (AtomicMedicineAllergyEditor.PostCommitRecoveryException committed) {
+            LogUtil.e(TAG, "Committed new medicine needs alert recovery");
+            Toast.makeText(this,
+                    R.string.medicine_saved_reminder_recovery_required,
+                    Toast.LENGTH_LONG).show();
+            finish();
+        } catch (RuntimeException failure) {
             Snack.show(R.string.medicine_save_error_message, this);
             LogUtil.e(TAG, "Medicine creation failed");
         }
-    }
-
-    /**
-     * Creates or updates allergy alert for a medicine with te given allergens.
-     *
-     * @param m         the medicine
-     * @param allergies the allergens
-     * @return <code>true</code> if changes have been made, <code>false</code> otherwise (error or no allergy changes)
-     */
-    private boolean createAllergyAlerts(final Medicine m, final List<AllergenVO> allergies)
-            throws SQLException {
-
-        final List<PatientAlert> allergyAlerts = DB.alerts().findByMedicineAndType(m, new AllergyPatientAlert().getType());
-        switch (allergyAlerts.size()) {
-            case 0:
-                AllergyPatientAlert alert = new AllergyPatientAlert(m, allergies);
-                AlertManager.createAlert(alert);
-                LogUtil.d(TAG, "createAllergyAlerts: New alert created");
-                return true;
-            case 1:
-                AllergyPatientAlert alert1 = (AllergyPatientAlert) allergyAlerts.get(0).map();
-                final AllergyPatientAlert.AllergyAlertInfo details = alert1.getDetails();
-                final Set<AllergenVO> previousAllergens = new HashSet<>(details.getAllergens());
-                final Set<AllergenVO> allergiesSet = new HashSet<>(allergies);
-                if (allergiesSet.equals(previousAllergens)) {
-                    //do nothing
-                    return false;
-                } else {
-                    details.setAllergens(allergies);
-                    alert1.setDetails(details);
-                    // A failed HIGH-alert update must abort the medication
-                    // operation rather than silently reporting a safe save.
-                    DB.alerts().update(alert1);
-                    return true;
-                }
-            default:
-                // Existing duplicates are not evidence that the patient has
-                // no allergy conflict. Refuse to save until clinical data are
-                // reviewed rather than silently ignoring ambiguous warnings.
-                throw new IllegalStateException(
-                        "Duplicate allergy alerts need review for this medicine");
-        }
-
     }
 
     /**

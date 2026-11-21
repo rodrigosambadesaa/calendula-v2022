@@ -225,7 +225,9 @@ public class LoginStateManager {
             editor.putBoolean(PreferenceKeys.PATIENTS_REMOVE_ACTIVE_ON_BOOT.key(), true);
             editor.apply();
         } else {
-            editor.remove(PreferenceKeys.PATIENTS_ACTIVE.key()).commit();
+            editor.remove(PreferenceKeys.PATIENTS_ACTIVE.key())
+                    .remove(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key())
+                    .remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key()).commit();
             clearRemoteSession(ctx);
         }
     }

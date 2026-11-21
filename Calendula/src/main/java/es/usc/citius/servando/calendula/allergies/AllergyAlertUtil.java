@@ -21,6 +21,7 @@ package es.usc.citius.servando.calendula.allergies;
 import android.content.Context;
 
 import com.j256.ormlite.stmt.PreparedQuery;
+import com.j256.ormlite.misc.TransactionManager;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -29,10 +30,12 @@ import java.util.concurrent.Callable;
 
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.PatientAlert;
 import es.usc.citius.servando.calendula.persistence.PatientAllergen;
 import es.usc.citius.servando.calendula.persistence.alerts.AllergyPatientAlert;
 import es.usc.citius.servando.calendula.util.LogUtil;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 import es.usc.citius.servando.calendula.util.alerts.AlertManager;
 
 
@@ -52,6 +55,60 @@ public class AllergyAlertUtil {
         // cross-patient rows. The scoped DAO refreshes and checks both owners.
         return DB.alerts().findByPatientMedicineAndType(m.getPatient(), m,
                 AllergyPatientAlert.class.getCanonicalName());
+    }
+
+    /**
+     * Updates only an existing HIGH allergy warning, using one SQLite unit.
+     * An alert loaded before a database restore may now share its row ID with
+     * a different patient's warning. Never trust an old mapped Java object
+     * or a successful UPDATE without a durable owner/medicine preflight.
+     *
+     * The medicine editor invokes this BEFORE writing a replacement drug.
+     * This protects this individual alert mutation and fails closed; it does
+     * not by itself make the ENTIRE medicine-and-allergy edit atomic (#971).
+     * No AlarmManager or UI event bus operation occurs in this transaction.
+     */
+    public static void updateExistingAllergyWarning(final AllergyPatientAlert proposed)
+            throws SQLException {
+        if (proposed == null || proposed.id() == null || proposed.id() <= 0L
+                || proposed.getMedicine() == null
+                || proposed.getMedicine().getId() == null
+                || proposed.getMedicine().getId() <= 0L
+                || !PatientOwnerGuard.hasStableIdentity(proposed.getPatient())
+                || !PatientOwnerGuard.sameStableIdentity(
+                        proposed.getPatient(), proposed.getMedicine().getPatient())
+                || proposed.getLevel() != PatientAlert.Level.HIGH
+                || !AllergyPatientAlert.class.getCanonicalName().equals(proposed.getType())) {
+            throw new SQLException("A persisted, owned HIGH allergy warning is required");
+        }
+        TransactionManager.callInTransaction(
+                DB.helper().getConnectionSource(), (Callable<Void>) () -> {
+                    final Patient owner = proposed.getPatient();
+                    final Patient livePatient = DB.patients().findById(owner.getId());
+                    final Medicine liveMedicine =
+                            DB.medicines().findById(proposed.getMedicine().getId());
+                    final PatientAlert existing = DB.alerts().findById(proposed.id());
+                    if (!PatientOwnerGuard.sameStableIdentity(owner, livePatient)
+                            || liveMedicine == null
+                            || DB.medicines().refresh(liveMedicine) != 1
+                            || !PatientOwnerGuard.sameStableIdentity(
+                                    owner, liveMedicine.getPatient())
+                            || existing == null
+                            || !AllergyPatientAlert.class.getCanonicalName()
+                                    .equals(existing.getType())
+                            || existing.getLevel() != PatientAlert.Level.HIGH
+                            || existing.getMedicine() == null
+                            || !proposed.getMedicine().getId()
+                                    .equals(existing.getMedicine().getId())
+                            || !PatientOwnerGuard.sameStableIdentity(
+                                    owner, existing.getPatient())) {
+                        throw new SQLException("Allergy warning owner changed before update");
+                    }
+                    if (DB.alerts().update(proposed) != 1) {
+                        throw new SQLException("Allergy warning update did not affect one row");
+                    }
+                    return null;
+                });
     }
 
     /**
@@ -92,9 +149,17 @@ public class AllergyAlertUtil {
                 || allergen.getType() == null || allergen.getIdentifier() == null) {
             throw new IllegalArgumentException("Persisted patient and allergen identity required");
         }
-        final Long ownerId = allergen.getPatient().getId();
-        if (DB.patients().findById(ownerId) == null) {
-            throw new IllegalStateException("Cannot clean allergy alerts for a deleted patient");
+        // Retain the original durable identity across the asynchronous
+        // allergen-edit/notification flow. A deleted patient ID may have been
+        // reused for a different account before this callback is executed.
+        final Patient ownerSnapshot = new Patient();
+        ownerSnapshot.setId(allergen.getPatient().getId());
+        ownerSnapshot.setCode(allergen.getPatient().getCode());
+        final Long ownerId = ownerSnapshot.getId();
+        if (!PatientOwnerGuard.sameStableIdentity(
+                ownerSnapshot, DB.patients().findById(ownerId))) {
+            throw new IllegalStateException(
+                    "Cannot clean allergy alerts for a missing or replaced patient");
         }
         final AllergenVO removedAllergen = new AllergenVO(allergen);
         final List<PatientAlert> toRemove = new ArrayList<>();
@@ -103,22 +168,26 @@ public class AllergyAlertUtil {
         DB.transaction(new Callable<Object>() {
             @Override
             public Object call() throws Exception {
+                if (!PatientOwnerGuard.sameStableIdentity(
+                        ownerSnapshot, DB.patients().findById(ownerId))) {
+                    throw new SQLException("Allergy alert owner changed before cleanup");
+                }
                 final PreparedQuery<PatientAlert> query = DB.alerts().queryBuilder().where()
                         .eq(PatientAlert.COLUMN_TYPE, AllergyPatientAlert.class.getCanonicalName())
                         .and().eq(PatientAlert.COLUMN_PATIENT, ownerId).prepare();
                 final List<PatientAlert> alerts = DB.alerts().query(query);
                 for (PatientAlert alert : alerts) {
                     if (alert == null || alert.id() == null
-                            || alert.getPatient() == null
-                            || !ownerId.equals(alert.getPatient().getId())
+                            || !PatientOwnerGuard.sameStableIdentity(
+                                    ownerSnapshot, alert.getPatient())
                             || alert.getMedicine() == null
                             || alert.getMedicine().getId() == null) {
                         throw new SQLException("Allergy alert owner is incomplete");
                     }
                     Medicine stored = DB.medicines().findById(alert.getMedicine().getId());
                     if (stored == null || DB.medicines().refresh(stored) != 1
-                            || stored.getPatient() == null
-                            || !ownerId.equals(stored.getPatient().getId())) {
+                            || !PatientOwnerGuard.sameStableIdentity(
+                                    ownerSnapshot, stored.getPatient())) {
                         throw new SQLException("Allergy alert and medicine owners differ");
                     }
                     AllergyPatientAlert mapped = (AllergyPatientAlert) alert.map();

@@ -79,6 +79,31 @@ public class StockAlertCardSmokeTest {
                     View.VISIBLE, holder.description.getVisibility());
             assertTrue(holder.description.getText().toString().contains("2"));
 
+            // A restored database can reuse the numeric patient ID for
+            // another owner. A stale card must not leak that owner's stock
+            // or expose a button opening the new patient's medicine editor.
+            Patient recycledOwner = new Patient();
+            recycledOwner.setId(owner.getId());
+            recycledOwner.setCode("ci-stale-stock-card-" + System.nanoTime());
+            StockRunningOutAlert staleCard = new StockRunningOutAlert(
+                    replenished, LocalDate.now());
+            staleCard.setPatient(recycledOwner);
+            provider.onBindViewHolder(holder, staleCard);
+            assertEquals("Stale account must not display inventory",
+                    View.GONE, holder.description.getVisibility());
+            assertEquals(context.getString(R.string.stock_estimate_unavailable),
+                    holder.duration.getText().toString());
+            assertEquals("Stale account must not open another owner's editor",
+                    View.GONE, holder.manageStockBtn.getVisibility());
+            assertFalse(holder.manageStockBtn.hasOnClickListeners());
+
+            // A valid card can still use a recycled RecyclerView holder.
+            provider.onBindViewHolder(holder,
+                    new StockRunningOutAlert(replenished, LocalDate.now()));
+            assertEquals(View.VISIBLE, holder.manageStockBtn.getVisibility());
+            assertEquals(View.VISIBLE, holder.description.getVisibility());
+            assertTrue(holder.description.getText().toString().contains("2"));
+
             provider.onBindViewHolder(holder,
                     new StockRunningOutAlert(missing, LocalDate.now()));
             assertEquals("Missing legacy quantity is unknown, not depleted",
