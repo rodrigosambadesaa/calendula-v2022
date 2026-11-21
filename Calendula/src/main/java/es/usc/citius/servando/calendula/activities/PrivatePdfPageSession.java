@@ -90,7 +90,7 @@ final class PrivatePdfPageSession implements AutoCloseable {
             try {
                 bitmap.eraseColor(Color.WHITE);
                 page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
-                try (ByteArrayOutputStream png = new ByteArrayOutputStream()) {
+                try (ByteArrayOutputStream png = new BoundedPngBuffer()) {
                     if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, png)
                             || png.size() > MAX_PNG_BYTES) {
                         throw new IOException("PDF page exceeds bounded image encoding");
@@ -104,6 +104,37 @@ final class PrivatePdfPageSession implements AutoCloseable {
             }
         } catch (RuntimeException invalidPage) {
             throw new IOException("PDF page could not be rendered", invalidPage);
+        }
+    }
+
+    /**
+     * Fail before ByteArrayOutputStream can grow beyond the PNG byte budget.
+     * A post-compression size check alone would permit excessive transient
+     * allocations for a hostile PDF on older, memory-constrained devices.
+     */
+    static final class BoundedPngBuffer extends ByteArrayOutputStream {
+        private void requireSpace(int bytes) {
+            if (bytes < 0 || bytes > MAX_PNG_BYTES - count) {
+                throw new IllegalStateException("Encoded PDF page exceeds byte limit");
+            }
+        }
+
+        @Override
+        public synchronized void write(int value) {
+            requireSpace(1);
+            super.write(value);
+        }
+
+        @Override
+        public synchronized void write(byte[] data, int offset, int length) {
+            if (data == null) {
+                throw new NullPointerException("PNG data");
+            }
+            if (offset < 0 || length < 0 || offset > data.length - length) {
+                throw new IndexOutOfBoundsException("Invalid PNG chunk");
+            }
+            requireSpace(length);
+            super.write(data, offset, length);
         }
     }
 
