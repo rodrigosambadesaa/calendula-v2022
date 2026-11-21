@@ -1,0 +1,2 @@
+# Synthetic private two-page PDF renderer and lifecycle cleanup.
+es.usc.citius.servando.calendula.activities.PrivatePdfPageSessionSmokeTest

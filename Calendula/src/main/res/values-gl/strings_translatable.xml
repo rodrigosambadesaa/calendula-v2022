@@ -514,4 +514,8 @@ Queres instalar a nova base de datos agora?"</string>
     <string name="aml_reminder_choose_title">Escolle un recordatorio para editar</string>
     <string name="aml_reminder_choice_item">Recordatorio %1$d</string>
     <string name="aml_reminder_unavailable">Non se pode abrir este recordatorio para o paciente seleccionado.</string>
+    <string name="pdf_previous_page">Anterior</string>
+    <string name="pdf_next_page">Seguinte</string>
+    <string name="pdf_page_indicator">Páxina %1$d de %2$d</string>
+    <string name="pdf_legacy_multipage_unavailable">Este PDF ten varias páxinas e non se pode previsualizar de forma segura en Android 6. Consulta o documento completo a través do teu provedor sanitario.</string>
 </resources>

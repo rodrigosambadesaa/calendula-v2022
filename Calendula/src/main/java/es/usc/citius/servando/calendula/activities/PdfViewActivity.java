@@ -1,19 +1,20 @@
 package es.usc.citius.servando.calendula.activities;
 
 import android.content.Context;
-import android.graphics.Bitmap;
 import android.graphics.Color;
-import android.graphics.pdf.PdfRenderer;
 import android.net.http.SslError;
+import android.view.Gravity;
 import android.os.BadParcelableException;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.ParcelFileDescriptor;
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 
-import android.util.Base64;
 import android.view.ActionMode;
 import android.view.LayoutInflater;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 import android.view.View;
 import android.webkit.SslErrorHandler;
 import android.webkit.WebResourceRequest;
@@ -32,10 +33,14 @@ import com.mikepenz.community_material_typeface_library.CommunityMaterial;
 
 import org.greenrobot.eventbus.Subscribe;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import es.usc.citius.servando.calendula.CalendulaActivity;
 import es.usc.citius.servando.calendula.CalendulaApp;
@@ -67,6 +72,21 @@ public class PdfViewActivity extends CalendulaActivity {
     private String openedPatientCode;
     private int requestedJobId = -1;
 
+    // PdfRenderer is not thread-safe. Open, page and close only on this worker.
+    // The temporary PDF is unlinked immediately after the renderer opens it.
+    private final ExecutorService pdfWorker = Executors.newSingleThreadExecutor();
+    private final AtomicInteger previewGeneration = new AtomicInteger();
+    private final AtomicBoolean openingPdf = new AtomicBoolean();
+    private volatile boolean previewClosed;
+    private PrivatePdfPageSession pdfSession; // Access exclusively on pdfWorker.
+    private int displayedPdfPage = -1;
+    private int totalPdfPages;
+    private LinearLayout pdfNavigation;
+    private Button previousPdfPage;
+    private Button nextPdfPage;
+    private TextView pdfPageIndicator;
+    private AlertDialog pdfSafetyWarningDialog;
+
     /** Do not trust a reused numeric patient ID after SQLite restoration. */
     private boolean sameOpeningPatient() {
         try {
@@ -84,9 +104,13 @@ public class PdfViewActivity extends CalendulaActivity {
         if (sameOpeningPatient()) {
             return false;
         }
+        previewGeneration.incrementAndGet();
         if (webView != null) {
             webView.setVisibility(View.INVISIBLE);
             webView.stopLoading();
+        }
+        if (pdfNavigation != null) {
+            pdfNavigation.setVisibility(View.INVISIBLE);
         }
         finish();
         return true;
@@ -102,6 +126,18 @@ public class PdfViewActivity extends CalendulaActivity {
 
     @Override
     protected void onDestroy() {
+        previewClosed = true;
+        previewGeneration.incrementAndGet();
+        // Queue cleanup after any in-flight page; never close PdfRenderer
+        // concurrently with its render call. The original PDF was unlinked
+        // on successful open, so process death cannot strand that file.
+        pdfWorker.execute(() -> {
+            if (pdfSession != null) {
+                pdfSession.close();
+                pdfSession = null;
+            }
+        });
+        pdfWorker.shutdown();
         // Stop receiving asynchronous provider responses before removing the
         // patient-specific view and pending UI callbacks.
         if (CalendulaApp.eventBus().isRegistered(this)) {
@@ -128,6 +164,10 @@ public class PdfViewActivity extends CalendulaActivity {
         if (loadingDialog != null) {
             loadingDialog.dismiss();
             loadingDialog = null;
+        }
+        if (pdfSafetyWarningDialog != null) {
+            pdfSafetyWarningDialog.dismiss();
+            pdfSafetyWarningDialog = null;
         }
         super.onDestroy();
     }
@@ -208,74 +248,190 @@ public class PdfViewActivity extends CalendulaActivity {
                 });
                 break;
             case SUCCESS:
-
-                // Provider PDF files can declare arbitrarily large page dimensions.
-                // Render within a fixed pixel budget before making a PNG data URL.
-                File pdfFile = url == null ? null : new File(url);
-                String imageDataUrl = null;
-                try {
-                    if (!ProviderPdfFilePolicy.isTrustedPdf(getCacheDir(), pdfFile)) {
-                        throw new IOException("Downloaded PDF is not a trusted private cache file");
-                    }
-                    try (ParcelFileDescriptor descriptor = ParcelFileDescriptor.open(
-                            pdfFile, ParcelFileDescriptor.MODE_READ_ONLY);
-                         PdfRenderer renderer = new PdfRenderer(descriptor)) {
-                        if (renderer.getPageCount() < 1) {
-                            throw new IOException("Downloaded PDF has no pages");
-                        }
-                        try (PdfRenderer.Page page = renderer.openPage(0)) {
-                            int[] size = PdfBitmapBounds.fit(page.getWidth(), page.getHeight());
-                            Bitmap bitmap = Bitmap.createBitmap(
-                                    size[0], size[1], Bitmap.Config.ARGB_8888);
-                            try {
-                                bitmap.eraseColor(Color.WHITE);
-                                page.render(bitmap, null, null,
-                                        PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
-                                try (ByteArrayOutputStream png = new ByteArrayOutputStream()) {
-                                    if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, png)) {
-                                        throw new IOException("Could not encode PDF page");
-                                    }
-                                    imageDataUrl = "data:image/png;base64,"
-                                            + Base64.encodeToString(png.toByteArray(), Base64.NO_WRAP);
-                                }
-                            } finally {
-                                bitmap.recycle();
-                            }
-                        }
-                    }
-                } catch (IOException | RuntimeException invalidPdf) {
-                    // Failure is not a successful document load. Never leave
-                    // the spinner indefinitely on missing/corrupt PDF files.
-                    LogUtil.w(TAG, "Unable to render a bounded PDF preview");
-                    hideLoading();
-                    handler.post(() -> {
-                        showErrorToast(getString(R.string.remote_extrainfo_generic_error));
-                        finish();
-                    });
-                } finally {
-                    // Temporary provider documents should not remain in storage,
-                    // including after a failed or malformed download.
-                    if (ProviderPdfFilePolicy.isTrustedPdf(getCacheDir(), pdfFile)
-                            && !pdfFile.delete()) {
-                        LogUtil.w(TAG, "Could not clean up provider PDF temporary file");
-                    }
-                }
-
-                if (imageDataUrl != null) {
-                    final String previewUrl = imageDataUrl;
-                    handler.post(() -> {
-                        if (isFinishing() || isDestroyed() || rejectChangedPatient()) {
-                            return;
-                        }
-                        webView.setWebViewClient(new PdfViewActivity.CustomWebViewClient(request));
-                        webView.loadUrl(previewUrl);
-                    });
-                }
+                // Never decode an entire medical PDF or preload later pages.
+                // A bounded, serialized worker renders only the requested page.
+                openPdfPreview(url == null ? null : new File(url));
                 break;
         }
 
     }
 
+    private void cleanTemporaryPdf(File source) {
+        if (ProviderPdfFilePolicy.isTrustedPdf(getCacheDir(), source)
+                && !source.delete()) {
+            LogUtil.w(TAG, "Unable to delete a private temporary PDF");
+        }
+    }
+
+    private void openPdfPreview(File source) {
+        // Two SUCCESS notifications for the same global provider job must
+        // not invalidate the first page's generation token or erase the PDF
+        // while the first open is still in progress.
+        if (!openingPdf.compareAndSet(false, true)) {
+            return;
+        }
+        final int generation = previewGeneration.incrementAndGet();
+        try {
+            pdfWorker.execute(() -> {
+                if (previewClosed || !sameOpeningPatient()) {
+                    cleanTemporaryPdf(source);
+                    if (!previewClosed) {
+                        handler.post(this::rejectChangedPatient);
+                    }
+                    return;
+                }
+                try {
+                    pdfSession = PrivatePdfPageSession.open(getCacheDir(), source);
+                    renderPdfPageOnWorker(0, generation);
+                } catch (PrivatePdfPageSession.UnsupportedLegacyMultipagePdfException legacy) {
+                    cleanTemporaryPdf(source);
+                    reportPdfFailure(generation, R.string.pdf_legacy_multipage_unavailable);
+                } catch (IOException | RuntimeException invalidPdf) {
+                    cleanTemporaryPdf(source);
+                    reportPdfFailure(generation);
+                }
+            });
+        } catch (RejectedExecutionException closed) {
+            cleanTemporaryPdf(source);
+        }
+    }
+
+    private void reportPdfFailure(int generation) {
+        reportPdfFailure(generation, R.string.remote_extrainfo_generic_error);
+    }
+
+    private void reportPdfFailure(int generation, int messageResourceId) {
+        // No URL or patient document contents may enter Logcat.
+        LogUtil.w(TAG, "Unable to render bounded private provider PDF page");
+        handler.post(() -> {
+            if (previewClosed || generation != previewGeneration.get()
+                    || isFinishing() || isDestroyed()) {
+                return;
+            }
+            if (rejectChangedPatient()) {
+                return;
+            }
+            hideLoading();
+            if (messageResourceId == R.string.pdf_legacy_multipage_unavailable) {
+                // A long clinical safety message must not disappear after a
+                // brief Toast. Require acknowledgement before leaving the
+                // protected viewer; never expose the PDF to another app.
+                pdfSafetyWarningDialog = new AlertDialog.Builder(this)
+                        .setMessage(messageResourceId)
+                        .setCancelable(false)
+                        .setPositiveButton(android.R.string.ok,
+                                (dialog, which) -> finish())
+                        .show();
+            } else {
+                showErrorToast(getString(messageResourceId));
+                finish();
+            }
+        });
+    }
+
+    private void renderPdfPageOnWorker(int index, int generation) {
+        if (previewClosed || generation != previewGeneration.get()) {
+            return;
+        }
+        if (!sameOpeningPatient()) {
+            handler.post(() -> {
+                if (!previewClosed) {
+                    rejectChangedPatient();
+                }
+            });
+            return;
+        }
+        try {
+            if (pdfSession == null) {
+                throw new IOException("No private PDF renderer is available");
+            }
+            PrivatePdfPageSession.RenderedPage image = pdfSession.render(index);
+            handler.post(() -> {
+                if (previewClosed || generation != previewGeneration.get()
+                        || isFinishing() || isDestroyed() || webView == null
+                        || rejectChangedPatient()) {
+                    return;
+                }
+                displayedPdfPage = image.index;
+                totalPdfPages = image.total;
+                ensurePdfNavigation();
+                updatePdfNavigation();
+                webView.setWebViewClient(new CustomWebViewClient(request, generation));
+                webView.loadUrl(image.imageUrl);
+            });
+        } catch (IOException | RuntimeException invalidPage) {
+            reportPdfFailure(generation);
+        }
+    }
+
+    private void requestPdfPage(int index) {
+        if (previewClosed || isFinishing() || isDestroyed()
+                || index < 0 || index >= totalPdfPages || rejectChangedPatient()) {
+            return;
+        }
+        int generation = previewGeneration.incrementAndGet();
+        if (previousPdfPage != null) {
+            previousPdfPage.setEnabled(false);
+        }
+        if (nextPdfPage != null) {
+            nextPdfPage.setEnabled(false);
+        }
+        try {
+            pdfWorker.execute(() -> renderPdfPageOnWorker(index, generation));
+        } catch (RejectedExecutionException closed) {
+            reportPdfFailure(generation);
+        }
+    }
+
+    /** Add navigation only to the PDF viewer, preserving the shared HTML layout. */
+    private void ensurePdfNavigation() {
+        if (pdfNavigation != null) {
+            return;
+        }
+        RelativeLayout root = (RelativeLayout) webView.getParent();
+        pdfNavigation = new LinearLayout(this);
+        pdfNavigation.setId(View.generateViewId());
+        pdfNavigation.setOrientation(LinearLayout.HORIZONTAL);
+        pdfNavigation.setGravity(Gravity.CENTER_VERTICAL);
+        pdfNavigation.setBackgroundColor(Color.WHITE);
+
+        previousPdfPage = new Button(this);
+        previousPdfPage.setText(R.string.pdf_previous_page);
+        previousPdfPage.setOnClickListener(v -> requestPdfPage(displayedPdfPage - 1));
+        pdfNavigation.addView(previousPdfPage,
+                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        pdfPageIndicator = new TextView(this);
+        pdfPageIndicator.setGravity(Gravity.CENTER);
+        pdfPageIndicator.setTextColor(Color.BLACK);
+        pdfPageIndicator.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        pdfNavigation.addView(pdfPageIndicator,
+                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        nextPdfPage = new Button(this);
+        nextPdfPage.setText(R.string.pdf_next_page);
+        nextPdfPage.setOnClickListener(v -> requestPdfPage(displayedPdfPage + 1));
+        pdfNavigation.addView(nextPdfPage,
+                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        RelativeLayout.LayoutParams footer = new RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.MATCH_PARENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT);
+        footer.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+        root.addView(pdfNavigation, footer);
+        RelativeLayout.LayoutParams preview = (RelativeLayout.LayoutParams) webView.getLayoutParams();
+        preview.addRule(RelativeLayout.ABOVE, pdfNavigation.getId());
+        webView.setLayoutParams(preview);
+    }
+
+    private void updatePdfNavigation() {
+        pdfPageIndicator.setText(getString(R.string.pdf_page_indicator,
+                displayedPdfPage + 1, totalPdfPages));
+        previousPdfPage.setEnabled(displayedPdfPage > 0);
+        nextPdfPage.setEnabled(displayedPdfPage < totalPdfPages - 1);
+    }
+
+    @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_webview);
@@ -368,6 +524,12 @@ public class PdfViewActivity extends CalendulaActivity {
     private void setupWebView(final WebViewRequest request) {
         // Restrict local device access before enabling JavaScript or loading any document.
         WebViewAccessPolicy.harden(webView.getSettings());
+        // Rendered provider PDFs are private data: the preview needs no
+        // scripts, remote subresources or browser storage, regardless of the
+        // original request's cache flags.
+        webView.getSettings().setJavaScriptEnabled(false);
+        webView.getSettings().setDomStorageEnabled(false);
+        webView.getSettings().setBlockNetworkLoads(true);
 
         //setup progressDialog
         String loadingMessage = request.getLoadingMessage();
@@ -383,9 +545,7 @@ public class PdfViewActivity extends CalendulaActivity {
         webView.getSettings().setDisplayZoomControls(false);
         webView.getSettings().setEnableSmoothTransition(true);
 
-        //enable AppCache if requested
-        if (request.getCacheType().equals(WebViewRequest.CacheType.APP_CACHE))
-            enableAppCache();
+        // PDF pages are local, bounded PNG data URLs; do not enable DOM cache.
 
     }
 
@@ -453,9 +613,11 @@ public class PdfViewActivity extends CalendulaActivity {
         protected final WebViewRequest request;
         protected final List<String> customCssSheets;
         protected boolean pageLoaded = false;
+        private final int generation;
 
-        public CustomWebViewClient(WebViewRequest request) {
+        public CustomWebViewClient(WebViewRequest request, int generation) {
             this.request = request;
+            this.generation = generation;
             this.customCssSheets = request.getCustomCss();
         }
 
@@ -484,14 +646,19 @@ public class PdfViewActivity extends CalendulaActivity {
 
         @Override
         public void onPageFinished(WebView view, String url) {
-
+            if (previewClosed || generation != previewGeneration.get()) {
+                return;
+            }
             pageLoaded = true;
             handler.postDelayed(new Runnable() {
                 @Override
                 public void run() {
-                    if (isFinishing() || isDestroyed() || rejectChangedPatient()) {
+                    if (previewClosed || generation != previewGeneration.get()
+                            || isFinishing() || isDestroyed() || webView == null
+                            || rejectChangedPatient()) {
                         return;
                     }
+                    webView.clearHistory(); // Do not retain earlier clinical pages.
                     webView.setVisibility(View.VISIBLE);
                     hideLoading();
                 }
@@ -503,6 +670,7 @@ public class PdfViewActivity extends CalendulaActivity {
 
         @Override
         public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+            if (previewClosed || generation != previewGeneration.get()) return;
             LogUtil.e(TAG, "Received error when trying to load page");
             showErrorToast(request.getConnectionErrorMessage());
             hideLoading();
@@ -511,6 +679,7 @@ public class PdfViewActivity extends CalendulaActivity {
 
         @Override
         public void onReceivedHttpError(WebView view, WebResourceRequest r, WebResourceResponse errorResponse) {
+            if (previewClosed || generation != previewGeneration.get()) return;
             LogUtil.e(TAG, "Received HTTP Error when trying to load page");
             showErrorToast(request.getNotFoundErrorMessage());
             hideLoading();
@@ -519,10 +688,11 @@ public class PdfViewActivity extends CalendulaActivity {
 
         @Override
         public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+            handler.cancel();
+            if (previewClosed || generation != previewGeneration.get()) return;
             // Overriding WebViewClient disables its default SSL-failure
             // cancellation. Finishing the Activity is NOT equivalent to
             // rejecting a still-pending TLS challenge.
-            handler.cancel();
             view.stopLoading();
             LogUtil.e(TAG, "Received SSL Error when trying to load page");
             showErrorToast(request.getConnectionErrorMessage());
