@@ -105,6 +105,53 @@ public class HttpDownloadUtilTest {
                 "https://example.test:443/db/archive.zip").getPort());
     }
 
+    @Test
+    public void ambiguousUriHostIsRejectedBeforeBackendPreflight() throws Exception {
+        // java.net.URL recognizes a nonempty host for these inputs, but
+        // java.net.URI cannot parse it as a real network host. A single
+        // ambiguous authority must not reach DNS probing or openConnection.
+        String[] invalid = {
+                "https://exa%6dple.test/db/archive.zip",
+                "https://example.test%40other.test/db/archive.zip",
+                "https://under_score.example.test/db/archive.zip",
+                "https://münchen.example.test/db/archive.zip"
+        };
+        for (String candidate : invalid) {
+            try {
+                HttpDownloadUtil.requireHttpUrl(candidate);
+                org.junit.Assert.fail("Unexpectedly accepted ambiguous backend host");
+            } catch (IOException expected) {
+                // URL parsing is deterministic: no live network request.
+            }
+        }
+    }
+
+    @Test
+    public void ordinaryDnsPunycodeAndIpv6BackendHostsRemainAllowed()
+            throws Exception {
+        assertEquals("EXAMPLE.TEST", HttpDownloadUtil.requireHttpUrl(
+                "https://EXAMPLE.TEST:443/db/archive.zip").getHost());
+        assertEquals("xn--mnchen-3ya.example", HttpDownloadUtil.requireHttpUrl(
+                "https://xn--mnchen-3ya.example/db/archive.zip").getHost());
+        assertEquals("[2001:db8::1]", HttpDownloadUtil.requireHttpUrl(
+                "https://[2001:db8::1]/db/archive.zip").getHost());
+    }
+
+    @Test(expected = IOException.class)
+    public void encodedHostInAbsoluteRedirectIsRejected() throws Exception {
+        HttpDownloadUtil.resolveRedirectUrl(
+                "https://example.test/db/archive.zip",
+                "https://example.test%40other.test/db/archive.zip");
+    }
+
+    @Test(expected = IOException.class)
+    public void encodedHostInInitialUrlIsRejectedBeforeRelativeRedirect()
+            throws Exception {
+        HttpDownloadUtil.resolveRedirectUrl(
+                "https://exa%6dple.test/db/archive.zip",
+                "../other.zip");
+    }
+
     @Test(expected = IOException.class)
     public void credentialedAbsoluteRedirectIsRejected() throws Exception {
         HttpDownloadUtil.resolveRedirectUrl(
