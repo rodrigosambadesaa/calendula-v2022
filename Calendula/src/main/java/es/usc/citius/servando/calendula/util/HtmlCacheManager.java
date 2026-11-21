@@ -313,10 +313,11 @@ public class HtmlCacheManager {
             if (htmlCacheEntries.isEmpty()) {
                 return null;
             } else if (htmlCacheEntries.size() > 1) {
-                LogUtil.w(TAG, "HTML cache hash collision or duplicate detected; removing duplicate entries");
-                for (HtmlCacheEntry entry : htmlCacheEntries) {
-                    remove(entry);
-                }
+                // Even if the normal schema enforces unique hashes, imported
+                // or corrupt legacy data must never cause an ambiguous read
+                // to delete a different patient's cached document. Fail
+                // closed; explicit cache maintenance can inspect such rows.
+                LogUtil.w(TAG, "Ambiguous HTML cache hash; no document returned or removed");
                 return null;
             }
             return htmlCacheEntries.get(0);
