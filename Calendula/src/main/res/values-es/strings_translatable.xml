@@ -515,4 +515,5 @@ Quieres instalar la nueva base de datos ahora?"</string>
     <string name="pdf_previous_page">Anterior</string>
     <string name="pdf_next_page">Siguiente</string>
     <string name="pdf_page_indicator">Página %1$d de %2$d</string>
+    <string name="pdf_legacy_multipage_unavailable">Este PDF tiene varias páginas y no se puede previsualizar de forma segura en Android 6. Consulta el documento completo a través de tu proveedor sanitario.</string>
 </resources>
