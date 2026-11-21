@@ -2,14 +2,14 @@ package es.usc.citius.servando.calendula.activities;
 
 import android.content.Context;
 import android.graphics.Color;
-import android.view.Gravity;
 import android.net.http.SslError;
+import android.view.Gravity;
 import android.os.BadParcelableException;
 import android.os.Bundle;
 import android.os.Handler;
- import androidx.annotation.NonNull;
+import androidx.annotation.NonNull;
 
- import android.view.ActionMode;
+import android.view.ActionMode;
 import android.view.LayoutInflater;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -32,12 +32,13 @@ import com.mikepenz.community_material_typeface_library.CommunityMaterial;
 
 import org.greenrobot.eventbus.Subscribe;
 
- import java.io.File;
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import es.usc.citius.servando.calendula.CalendulaActivity;
@@ -74,6 +75,7 @@ public class PdfViewActivity extends CalendulaActivity {
     // The temporary PDF is unlinked immediately after the renderer opens it.
     private final ExecutorService pdfWorker = Executors.newSingleThreadExecutor();
     private final AtomicInteger previewGeneration = new AtomicInteger();
+    private final AtomicBoolean openingPdf = new AtomicBoolean();
     private volatile boolean previewClosed;
     private PrivatePdfPageSession pdfSession; // Access exclusively on pdfWorker.
     private int displayedPdfPage = -1;
@@ -256,6 +258,12 @@ public class PdfViewActivity extends CalendulaActivity {
     }
 
     private void openPdfPreview(File source) {
+        // Two SUCCESS notifications for the same global provider job must
+        // not invalidate the first page's generation token or erase the PDF
+        // while the first open is still in progress.
+        if (!openingPdf.compareAndSet(false, true)) {
+            return;
+        }
         final int generation = previewGeneration.incrementAndGet();
         try {
             pdfWorker.execute(() -> {
@@ -264,11 +272,6 @@ public class PdfViewActivity extends CalendulaActivity {
                     if (!previewClosed) {
                         handler.post(this::rejectChangedPatient);
                     }
-                    return;
-                }
-                if (pdfSession != null) {
-                    // The same global provider job may dispatch more than once.
-                    cleanTemporaryPdf(source);
                     return;
                 }
                 try {
@@ -496,6 +499,12 @@ public class PdfViewActivity extends CalendulaActivity {
     private void setupWebView(final WebViewRequest request) {
         // Restrict local device access before enabling JavaScript or loading any document.
         WebViewAccessPolicy.harden(webView.getSettings());
+        // Rendered provider PDFs are private data: the preview needs no
+        // scripts, remote subresources or browser storage, regardless of the
+        // original request's cache flags.
+        webView.getSettings().setJavaScriptEnabled(false);
+        webView.getSettings().setDomStorageEnabled(false);
+        webView.getSettings().setBlockNetworkLoads(true);
 
         //setup progressDialog
         String loadingMessage = request.getLoadingMessage();
@@ -511,9 +520,7 @@ public class PdfViewActivity extends CalendulaActivity {
         webView.getSettings().setDisplayZoomControls(false);
         webView.getSettings().setEnableSmoothTransition(true);
 
-        //enable AppCache if requested
-        if (request.getCacheType().equals(WebViewRequest.CacheType.APP_CACHE))
-            enableAppCache();
+        // PDF pages are local, bounded PNG data URLs; do not enable DOM cache.
 
     }
 
