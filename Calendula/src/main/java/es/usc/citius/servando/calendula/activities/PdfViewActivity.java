@@ -248,6 +248,162 @@ public class PdfViewActivity extends CalendulaActivity {
 
     }
 
+    private void cleanTemporaryPdf(File source) {
+        if (ProviderPdfFilePolicy.isTrustedPdf(getCacheDir(), source)
+                && !source.delete()) {
+            LogUtil.w(TAG, "Unable to delete a private temporary PDF");
+        }
+    }
+
+    private void openPdfPreview(File source) {
+        final int generation = previewGeneration.incrementAndGet();
+        try {
+            pdfWorker.execute(() -> {
+                if (previewClosed || !sameOpeningPatient()) {
+                    cleanTemporaryPdf(source);
+                    if (!previewClosed) {
+                        handler.post(this::rejectChangedPatient);
+                    }
+                    return;
+                }
+                if (pdfSession != null) {
+                    // The same global provider job may dispatch more than once.
+                    cleanTemporaryPdf(source);
+                    return;
+                }
+                try {
+                    pdfSession = PrivatePdfPageSession.open(getCacheDir(), source);
+                    renderPdfPageOnWorker(0, generation);
+                } catch (IOException | RuntimeException invalidPdf) {
+                    cleanTemporaryPdf(source);
+                    reportPdfFailure(generation);
+                }
+            });
+        } catch (RejectedExecutionException closed) {
+            cleanTemporaryPdf(source);
+        }
+    }
+
+    private void reportPdfFailure(int generation) {
+        // No URL or patient document contents may enter Logcat.
+        LogUtil.w(TAG, "Unable to render bounded private provider PDF page");
+        handler.post(() -> {
+            if (previewClosed || generation != previewGeneration.get()
+                    || isFinishing() || isDestroyed()) {
+                return;
+            }
+            if (rejectChangedPatient()) {
+                return;
+            }
+            hideLoading();
+            showErrorToast(getString(R.string.remote_extrainfo_generic_error));
+            finish();
+        });
+    }
+
+    private void renderPdfPageOnWorker(int index, int generation) {
+        if (previewClosed || generation != previewGeneration.get()) {
+            return;
+        }
+        if (!sameOpeningPatient()) {
+            handler.post(() -> {
+                if (!previewClosed) {
+                    rejectChangedPatient();
+                }
+            });
+            return;
+        }
+        try {
+            if (pdfSession == null) {
+                throw new IOException("No private PDF renderer is available");
+            }
+            PrivatePdfPageSession.RenderedPage image = pdfSession.render(index);
+            handler.post(() -> {
+                if (previewClosed || generation != previewGeneration.get()
+                        || isFinishing() || isDestroyed() || webView == null
+                        || rejectChangedPatient()) {
+                    return;
+                }
+                displayedPdfPage = image.index;
+                totalPdfPages = image.total;
+                ensurePdfNavigation();
+                updatePdfNavigation();
+                webView.setWebViewClient(new CustomWebViewClient(request, generation));
+                webView.loadUrl(image.imageUrl);
+            });
+        } catch (IOException | RuntimeException invalidPage) {
+            reportPdfFailure(generation);
+        }
+    }
+
+    private void requestPdfPage(int index) {
+        if (previewClosed || isFinishing() || isDestroyed()
+                || index < 0 || index >= totalPdfPages || rejectChangedPatient()) {
+            return;
+        }
+        int generation = previewGeneration.incrementAndGet();
+        if (previousPdfPage != null) {
+            previousPdfPage.setEnabled(false);
+        }
+        if (nextPdfPage != null) {
+            nextPdfPage.setEnabled(false);
+        }
+        try {
+            pdfWorker.execute(() -> renderPdfPageOnWorker(index, generation));
+        } catch (RejectedExecutionException closed) {
+            reportPdfFailure(generation);
+        }
+    }
+
+    /** Add navigation only to the PDF viewer, preserving the shared HTML layout. */
+    private void ensurePdfNavigation() {
+        if (pdfNavigation != null) {
+            return;
+        }
+        RelativeLayout root = (RelativeLayout) webView.getParent();
+        pdfNavigation = new LinearLayout(this);
+        pdfNavigation.setId(View.generateViewId());
+        pdfNavigation.setOrientation(LinearLayout.HORIZONTAL);
+        pdfNavigation.setGravity(Gravity.CENTER_VERTICAL);
+        pdfNavigation.setBackgroundColor(Color.WHITE);
+
+        previousPdfPage = new Button(this);
+        previousPdfPage.setText(R.string.pdf_previous_page);
+        previousPdfPage.setOnClickListener(v -> requestPdfPage(displayedPdfPage - 1));
+        pdfNavigation.addView(previousPdfPage,
+                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        pdfPageIndicator = new TextView(this);
+        pdfPageIndicator.setGravity(Gravity.CENTER);
+        pdfPageIndicator.setTextColor(Color.BLACK);
+        pdfPageIndicator.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        pdfNavigation.addView(pdfPageIndicator,
+                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        nextPdfPage = new Button(this);
+        nextPdfPage.setText(R.string.pdf_next_page);
+        nextPdfPage.setOnClickListener(v -> requestPdfPage(displayedPdfPage + 1));
+        pdfNavigation.addView(nextPdfPage,
+                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        RelativeLayout.LayoutParams footer = new RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.MATCH_PARENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT);
+        footer.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+        root.addView(pdfNavigation, footer);
+        RelativeLayout.LayoutParams preview = (RelativeLayout.LayoutParams) webView.getLayoutParams();
+        preview.addRule(RelativeLayout.ABOVE, pdfNavigation.getId());
+        webView.setLayoutParams(preview);
+    }
+
+    private void updatePdfNavigation() {
+        pdfPageIndicator.setText(getString(R.string.pdf_page_indicator,
+                displayedPdfPage + 1, totalPdfPages));
+        previousPdfPage.setEnabled(displayedPdfPage > 0);
+        nextPdfPage.setEnabled(displayedPdfPage < totalPdfPages - 1);
+    }
+
+    @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_webview);
