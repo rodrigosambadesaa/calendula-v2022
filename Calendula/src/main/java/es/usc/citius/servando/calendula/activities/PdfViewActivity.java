@@ -8,6 +8,7 @@ import android.os.BadParcelableException;
 import android.os.Bundle;
 import android.os.Handler;
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 
 import android.view.ActionMode;
 import android.view.LayoutInflater;
@@ -84,6 +85,7 @@ public class PdfViewActivity extends CalendulaActivity {
     private Button previousPdfPage;
     private Button nextPdfPage;
     private TextView pdfPageIndicator;
+    private AlertDialog pdfSafetyWarningDialog;
 
     /** Do not trust a reused numeric patient ID after SQLite restoration. */
     private boolean sameOpeningPatient() {
@@ -162,6 +164,10 @@ public class PdfViewActivity extends CalendulaActivity {
         if (loadingDialog != null) {
             loadingDialog.dismiss();
             loadingDialog = null;
+        }
+        if (pdfSafetyWarningDialog != null) {
+            pdfSafetyWarningDialog.dismiss();
+            pdfSafetyWarningDialog = null;
         }
         super.onDestroy();
     }
@@ -306,8 +312,20 @@ public class PdfViewActivity extends CalendulaActivity {
                 return;
             }
             hideLoading();
-            showErrorToast(getString(messageResourceId));
-            finish();
+            if (messageResourceId == R.string.pdf_legacy_multipage_unavailable) {
+                // A long clinical safety message must not disappear after a
+                // brief Toast. Require acknowledgement before leaving the
+                // protected viewer; never expose the PDF to another app.
+                pdfSafetyWarningDialog = new AlertDialog.Builder(this)
+                        .setMessage(messageResourceId)
+                        .setCancelable(false)
+                        .setPositiveButton(android.R.string.ok,
+                                (dialog, which) -> finish())
+                        .show();
+            } else {
+                showErrorToast(getString(messageResourceId));
+                finish();
+            }
         });
     }
 
