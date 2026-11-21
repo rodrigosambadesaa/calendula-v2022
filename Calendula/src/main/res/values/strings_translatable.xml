@@ -489,4 +489,5 @@ Do you want to install the new database now?
     <string name="pdf_previous_page">Previous</string>
     <string name="pdf_next_page">Next</string>
     <string name="pdf_page_indicator">Page %1$d of %2$d</string>
+    <string name="pdf_legacy_multipage_unavailable">This PDF has multiple pages and cannot be safely previewed on Android 6. Review the complete document through your healthcare provider.</string>
 </resources>
