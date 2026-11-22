@@ -34,6 +34,67 @@ public class ZipUtilTest {
     public TemporaryFolder temp = new TemporaryFolder();
 
     @Test
+    public void zipEntryCopyFailsAfterBoundedStallWithoutManufacturingBytes()
+            throws Exception {
+        final int[] bulkReads = {0};
+        InputStream stalled = new InputStream() {
+            @Override
+            public int read() {
+                throw new AssertionError("ZIP copy must not invent single-byte progress");
+            }
+            @Override
+            public int read(byte[] bytes, int offset, int length) {
+                bulkReads[0]++;
+                return 0;
+            }
+        };
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
+            ZipUtil.copyEntryLimited(stalled, out, 64);
+            fail("ZIP stream that never progresses must fail closed");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("no progress"));
+        }
+        assertEquals(4, bulkReads[0]);
+        assertEquals(0, out.size());
+    }
+
+    @Test
+    public void zipEntryCopyPreservesNulBytesAfterTemporaryStalls() throws Exception {
+        byte[] expected = new byte[]{'A', 0, 'B'};
+        InputStream intermittent = new ByteArrayInputStream(expected) {
+            private int stalledReads = 2;
+            @Override
+            public synchronized int read(byte[] bytes, int off, int len) {
+                if (stalledReads-- > 0) {
+                    return 0;
+                }
+                return super.read(bytes, off, len);
+            }
+        };
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        assertEquals(3L, ZipUtil.copyEntryLimited(intermittent, out, 3L));
+        org.junit.Assert.assertArrayEquals(expected, out.toByteArray());
+    }
+
+    @Test
+    public void zipEntryCopyRejectsLimitOverflowBeforeWritingExcessBytes()
+            throws Exception {
+        byte[] entry = new byte[]{1, 2, 3, 4};
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
+            ZipUtil.copyEntryLimited(new ByteArrayInputStream(entry), out, 3L);
+            fail("ZIP entry must never bypass global uncompressed budget");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("byte limit"));
+        }
+        assertEquals(0, out.size());
+        assertEquals(0L, ZipUtil.copyEntryLimited(
+                new ByteArrayInputStream(new byte[0]),
+                new ByteArrayOutputStream(), 0L));
+    }
+
+    @Test
     public void unzipExtractsNestedDirectoryEntries() throws Exception {
         File archive = temp.newFile("nested.zip");
         File destination = temp.newFolder("destination");
