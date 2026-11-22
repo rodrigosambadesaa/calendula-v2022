@@ -14,6 +14,10 @@ import java.io.File;
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FilterInputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.zip.ZipEntry;
@@ -229,6 +233,95 @@ public class ZipUtilTest {
         assertEquals("new", readUtf8(existing));
         File[] left = destination.listFiles();
         assertEquals(1, left == null ? 0 : left.length);
+    }
+
+    @Test
+    public void streamCopyAllowsShortTemporaryStallAndKeepsExactPayload() throws Exception {
+        byte[] expected = "synthetic archive bytes".getBytes(StandardCharsets.UTF_8);
+        InputStream zeroOnce = new ByteArrayInputStream(expected) {
+            boolean initiallyStalled = true;
+            @Override
+            public synchronized int read(byte[] bytes, int off, int len) {
+                if (initiallyStalled) {
+                    initiallyStalled = false;
+                    return 0;
+                }
+                return super.read(bytes, off, len);
+            }
+        };
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ZipUtil.writeToStream(zeroOnce, output, false);
+        assertEquals("synthetic archive bytes",
+                new String(output.toByteArray(), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    public void permanentlyStalledStreamFailsAndClosesBothResources() throws Exception {
+        final boolean[] closed = new boolean[2];
+        InputStream stalled = new InputStream() {
+            @Override
+            public int read() {
+                return 0;
+            }
+            @Override
+            public int read(byte[] bytes, int off, int len) {
+                return 0;
+            }
+            @Override
+            public void close() {
+                closed[0] = true;
+            }
+        };
+        OutputStream output = new ByteArrayOutputStream() {
+            @Override
+            public void close() throws IOException {
+                super.close();
+                closed[1] = true;
+            }
+        };
+        try {
+            ZipUtil.writeToStream(stalled, output, true);
+            fail("The copy must not spin indefinitely on a broken stream");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("no progress"));
+        }
+        assertTrue("The input must close after failed copy", closed[0]);
+        assertTrue("The output must close after failed copy", closed[1]);
+    }
+
+    @Test
+    public void failedOutputWriteClosesInputAndOutputWhenRequested() throws Exception {
+        final boolean[] closed = new boolean[2];
+        InputStream input = new FilterInputStream(
+                new ByteArrayInputStream("x".getBytes(StandardCharsets.UTF_8))) {
+            @Override
+            public void close() throws IOException {
+                closed[0] = true;
+                super.close();
+            }
+        };
+        OutputStream output = new OutputStream() {
+            @Override
+            public void write(int value) throws IOException {
+                throw new IOException("synthetic storage failure");
+            }
+            @Override
+            public void write(byte[] bytes, int off, int len) throws IOException {
+                throw new IOException("synthetic storage failure");
+            }
+            @Override
+            public void close() {
+                closed[1] = true;
+            }
+        };
+        try {
+            ZipUtil.writeToStream(input, output, true);
+            fail("The injected failed write must propagate");
+        } catch (IOException expected) {
+            assertEquals("synthetic storage failure", expected.getMessage());
+        }
+        assertTrue(closed[0]);
+        assertTrue(closed[1]);
     }
 
     @Test(expected = IllegalArgumentException.class)
