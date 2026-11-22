@@ -1,6 +1,6 @@
 # Calendula v2022 — modernization status
 
-_Last reviewed: 2026-11-10. This is an unofficial development fork, not a released or medically validated product. Tests described below were verified on their respective PR revisions; do not interpret them as end-to-end certification._
+_Last reviewed: 2026-11-22. This is an unofficial development fork, not a released or medically validated product. Tests described below were verified on their respective PR revisions; do not interpret them as end-to-end certification._
 
 ## Verified build baseline
 
@@ -9,7 +9,7 @@ _Last reviewed: 2026-11-10. This is an unofficial development fork, not a releas
 | Minimum supported Android | API 23 (Android 6.0) |
 | Compile / target SDK | API 36 / API 36 |
 | Android Gradle Plugin | 8.10.1 |
-| Gradle wrapper | 8.14.6 |
+| Gradle wrapper | 8.14.7 |
 | Kotlin | 2.4.21 |
 | JDK | 17 |
 | Android 17 runtime | Isolated API 37.0 smoke workflow (SDK compile/target remain API 36) |
@@ -85,21 +85,37 @@ confirmation, inventory reconciliation, and representative migration tests
 cover all supported versions. Do not silently rewrite previously completed,
 cancelled or historically recorded intakes during automatic recovery.
 
-## Prerelease gates (reviewed 2026-11-10)
+## Prerelease gates (reviewed 2026-11-22)
 
-A first GitHub **technical prerelease** is distinct from approving this app for
-real medication management. A passing debug build does not justify a clinical
-release, and there is no claim of complete defect elimination.
+A first GitHub **technical prerelease** is distinct from approval for real medication
+management. No release has been published in this fork as of this review.
+The main branch after the 2026-11-22 merges of #991 (unidentified
+legacy HTML-cache owner) and #992 (zero-progress download reads) is
+`e2c8e839c856630010f7721bd6a230fa94da001e`.
+Those two PRs each passed Android CI, API 23/33/36, API 37 and JDK
+verification on their **own exact heads** before being merged; the new
+combined `main` needs independent post-merge checks. Do not cite
+either feature's green workflow as proof of a final combined release candidate.
 
-| Workstream | Current evidence | Next acceptance gate |
+| Workstream | Verified evidence and current state | Next acceptance gate |
 | --- | --- | --- |
-| Stable patient owner after restore (#946 / PR #950) | Three CI workflows green at PR head; draft | Independent privacy review; manual legacy selection, restore, logout and recycled-ID journeys |
-| Atomic patient erasure (#944 / PR #951) | Draft; workflow-level CI failures despite some passing emulator jobs | Reconcile with #950, investigate workflow failures, rerun complete matrix and exercise rollback, alarms and restart |
-| Recycled reminder IDs (PR #952) | Three CI workflows green at PR head; draft | Review the check-to-cancel race and integration with other reminder cleanup paths |
-| Smoke-class registration preflight (PR #953) | Merged 2026-11-10 | Run post-merge regression CI on `main` |
-| Medication decision/stock integrity (#525, #552) | Unresolved critical acceptance issues | Fault injection, concurrent actions, inventory invariants and restart recovery |
-| Legacy medical catalog replacement (#216) | Retired unsigned feed deliberately blocked | Trusted, transactional CIMA or equivalent import with migration verification |
-| Android behavior and integrations (#570) | Runtime compatibility smoke runs exist | Physical device journeys, Doze/reboot alarms, backups, OAuth/FHIR and Android 17 targetSdk audit |
+| Build and network/platform modernization | Android SDK 23–36 build, API 37 runtime checks, Gradle 8.14.7, JDK 17, Android CI and synthetic emulator tests; #991/#992 merged 2026-11-22 | Green checks on frozen combined main, signed reproducible artifact and independent hardware UX testing |
+| Stable patient identity, profile deletion and immutable alarm identity (#944/#946/#956/#961) | The overlapping clinical integration #960 / #969 is **DRAFT**; it has not been merged to main | Reconcile draft ancestry onto current main; independent owner, history, backup/restore and v4 migration review, followed by real-device regression |
+| Atomic allergen registration and HIGH alert reconciliation (#971/#975/#977) | Stacked PR #976 passed a synthetic CI matrix, but is **DRAFT** and targets the clinical integration branch rather than main | Resolve SQLite DAO delete anomaly, interrupted/rollback cases, warning ownership and real-device acceptance before merge |
+| Multi-page provider PDF (#983) | PR #990 **DRAFT**: API 23 system PDFium can crash on native page close; candidate fails closed for multi-page PDFs on Android 6 and renders one bounded page at a time on other APIs | Independent Android 6 renderer strategy, patient switch/process-death, memory, multi-page completeness and accessibility acceptance; not releasable merely because CI is green |
+| Medication and stock correctness (#525 / #552) | Partial SQLite atomicity and post-COMMIT improvements in main, but system-level recovery contract unresolved | Fault-injected death/restart, Doze, concurrent dose actions, inventory and pending-alarm recovery on actual devices |
+| Medical catalog replacement (#216) | Legacy unsigned remote SQL feed intentionally disabled; official CIMA HTTPS read-only exploration exists but **no transactional importer** | Authenticated source mapping, schema-safe import, rollback/history preservation, signed/provenanced offline fallback and device acceptance |
+| Android 17 behavior (#570) | Runtime API 37 tested; compile/target SDK remain **36** | Separate targetSdk 37 migration review, real hardware, screen resizing, notification and alarm policies |
+| Release process and sign-off | `docs/CLINICAL_ACCEPTANCE_RUNBOOK.md` defines evidence and defaults to **NO-GO**; no GitHub release published | Freeze versionCode/versionName and candidate SHA; evaluate all open P0/P1 issues, record manual independent PASS/FAIL, signing provenance, SHA-256 and disabled-feature notices |
+
+**Current decision: NO-GO for clinical release.** A technical preview can be
+considered only after a documented feature boundary prevents use of
+unvalidated medication-management paths, combined CI is green, and
+manual privacy/migration/hardware acceptance plus signing and provenance
+are available. There is **no reliable completion date** for the clinically
+functional release while authoritative catalog migration and independent
+clinical/device validation remain unfinished. Do not infer percentage
+completion from a count of passing CI jobs or merged pull requests.
 
 **Before publishing a first technical prerelease:** resolve the release-blocking
 clinical data-integrity problems or demonstrably isolate/disable unsafe features;
