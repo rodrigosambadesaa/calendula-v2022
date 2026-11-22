@@ -53,7 +53,7 @@ public class AvatarMgr {
     public static final Map<String, Integer> avatars;
 
     private static final String TAG = "AvatarMgr";
-    private static HashMap<String, int[]> cache = new HashMap<>();
+    private static final Map<String, int[]> cache = new HashMap<>();
 
     static {
         Map<String, Integer> map = new HashMap<>();
@@ -77,29 +77,50 @@ public class AvatarMgr {
         avatars = Collections.unmodifiableMap(map);
     }
 
+    /**
+     * Return resolved ARGB colors, never R.color identifiers. Callers receive
+     * their own copy so a UI change cannot mutate a cached patient's palette.
+     */
     public static int[] colorsFor(Resources res, String avatar) {
-
-        int[] colors = new int[]{
-                R.color.android_blue,
-                R.color.android_blue_light};
-
         if (!avatars.containsKey(avatar)) {
             LogUtil.w(TAG, "Invalid avatar ID; using default colors");
+            return defaultColors(res);
+        }
+        synchronized (cache) {
+            int[] cached = cache.get(avatar);
+            if (cached == null) {
+                cached = paletteColorsAndRecycle(
+                        res, BitmapFactory.decodeResource(res, avatars.get(avatar)));
+                cache.put(avatar, cached);
+            }
+            return cached.clone();
+        }
+    }
+
+    static int[] defaultColors(Resources res) {
+        return new int[]{
+                res.getColor(R.color.android_blue),
+                res.getColor(R.color.android_blue_light)
+        };
+    }
+
+    /**
+     * Takes ownership of the decoded thumbnail. Palette.generate() is
+     * synchronous; recycle on success AND if color extraction fails.
+     */
+    static int[] paletteColorsAndRecycle(Resources res, Bitmap thumbnail) {
+        int[] colors = defaultColors(res);
+        if (thumbnail == null) {
             return colors;
         }
-
-        if (!cache.containsKey(avatar)) {
-            Bitmap bm = BitmapFactory.decodeResource(res, avatars.get(avatar));
-            if (bm != null) {
-                Palette p = Palette.generate(bm);
-                colors = new int[]{
-                        p.getVibrantColor(res.getColor(R.color.android_blue)),
-                        p.getLightVibrantColor(res.getColor(R.color.android_blue_light))
-                };
-            }
-            cache.put(avatar, colors);
+        try {
+            Palette palette = Palette.generate(thumbnail);
+            colors[0] = palette.getVibrantColor(colors[0]);
+            colors[1] = palette.getLightVibrantColor(colors[1]);
+            return colors;
+        } finally {
+            thumbnail.recycle();
         }
-        return cache.get(avatar);
     }
 
     public static int res(String avatar) {
