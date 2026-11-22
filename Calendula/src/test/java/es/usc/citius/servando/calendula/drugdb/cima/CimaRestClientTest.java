@@ -87,7 +87,7 @@ public class CimaRestClientTest {
 
     @Test
     public void transientZeroLengthJsonReadKeepsFullUtf8Payload() throws Exception {
-        String json = "{\\\"nombre\\\":\\\"Ácido ascórbico\\\"}";
+        String json = "{\"nombre\":\"Ácido ascórbico\"}";
         byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
         InputStream transientStall = new ByteArrayInputStream(bytes) {
             boolean first = true;
