@@ -12,6 +12,8 @@ import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Date;
+import java.io.StringReader;
+import java.util.List;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -21,6 +23,37 @@ public class TokenUtilsTest {
     private static final String CLIENT_ID = "calendula-client";
     private static final long NOW_MS = 1_700_000_000_000L;
     private static final Date NOW = new Date(NOW_MS);
+
+    @Test
+    public void validPackagedPublicKeySetIsImmutableAndContainsExpectedModulus() {
+        List<JWTPublicKey> keys = TokenUtils.parsePublicKeys(
+                new StringReader("{\\\"keys\\\":[{\\\"n\\\":\\\"synthetic-modulus\\\",\\\"e\\\":\\\"AQAB\\\"}]}"));
+        assertTrue(keys.size() == 1);
+        assertTrue("synthetic-modulus".equals(keys.get(0).getN()));
+        try {
+            keys.clear();
+            org.junit.Assert.fail("The accepted signing key list must be immutable");
+        } catch (UnsupportedOperationException expected) {
+            // An authenticated keyset must not change during token verification.
+        }
+    }
+
+    @Test
+    public void emptyOrMalformedPackagedKeySetsFailClosed() {
+        String[] rejected = {
+                "null", "{}", "{\\\"keys\\\":null}", "{\\\"keys\\\":[]}",
+                "{\\\"keys\\\":[null]}",
+                "{\\\"keys\\\":[{\\\"n\\\":\\\"\\\",\\\"e\\\":\\\"AQAB\\\"}]}",
+                "{\\\"keys\\\":[{\\\"n\\\":\\\"some-modulus\\\"}]}",
+                "{\\\"keys\\\":[{\\\"n\\\":\\\"valid\\\",\\\"e\\\":\\\"AQAB\\\"},{}]}",
+                "{missing or invalid JSON"
+        };
+        for (String json : rejected) {
+            assertTrue("Malformed or incomplete local signing keys must not authorize tokens",
+                    TokenUtils.parsePublicKeys(new StringReader(json)).isEmpty());
+        }
+        assertTrue(TokenUtils.parsePublicKeys(null).isEmpty());
+    }
 
     @Test
     public void validAudienceAndTemporalClaimsAreAccepted() throws Exception {
