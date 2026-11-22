@@ -283,6 +283,54 @@ public class HttpDownloadUtilTest {
     }
 
     @Test
+    public void stalledBinaryStreamFailsWithoutFabricatingNullBytes() throws Exception {
+        final int[] bulkCalls = {0};
+        java.io.InputStream stalled = new java.io.InputStream() {
+            @Override
+            public int read(byte[] buffer, int offset, int length) {
+                bulkCalls[0]++;
+                return 0;
+            }
+
+            @Override
+            public int read() {
+                throw new AssertionError(
+                        "A zero-progress stream must not invent a single NUL byte");
+            }
+        };
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        try {
+            HttpDownloadUtil.copyLimited(stalled, output,
+                    HttpDownloadUtil.MAX_BINARY_DOWNLOAD_BYTES);
+            org.junit.Assert.fail("Permanently stalled binary stream should fail");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("no progress"));
+        }
+        assertEquals(0, output.size());
+        assertEquals("The detector must be bounded", 4, bulkCalls[0]);
+    }
+
+    @Test
+    public void transientZeroLengthBinaryReadsDoNotLoseValidPayload() throws Exception {
+        byte[] bytes = "A\\u0000B".replace("\\u0000", "\u0000")
+                .getBytes(StandardCharsets.UTF_8);
+        java.io.InputStream intermittent = new ByteArrayInputStream(bytes) {
+            private int zeroReads = 2;
+            @Override
+            public synchronized int read(byte[] b, int off, int len) {
+                if (zeroReads-- > 0) {
+                    return 0;
+                }
+                return super.read(b, off, len);
+            }
+        };
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        assertEquals(bytes.length, HttpDownloadUtil.copyLimited(
+                intermittent, output, bytes.length));
+        org.junit.Assert.assertArrayEquals(bytes, output.toByteArray());
+    }
+
+    @Test
     public void zeroLengthBulkTextReadMakesProgressWithoutLosingCharacters()
             throws Exception {
         StringReader unusual = new StringReader("abc") {
