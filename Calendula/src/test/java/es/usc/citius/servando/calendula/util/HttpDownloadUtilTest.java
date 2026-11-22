@@ -312,8 +312,7 @@ public class HttpDownloadUtilTest {
 
     @Test
     public void transientZeroLengthBinaryReadsDoNotLoseValidPayload() throws Exception {
-        byte[] bytes = "A\\u0000B".replace("\\u0000", "\u0000")
-                .getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = new byte[]{'A', 0, 'B'};
         java.io.InputStream intermittent = new ByteArrayInputStream(bytes) {
             private int zeroReads = 2;
             @Override
