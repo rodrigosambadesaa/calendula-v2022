@@ -112,6 +112,27 @@ public class WebViewActivityTest {
         assertEquals("$5 aXb", WebViewActivity.applyCssOverrides("a.b aXb", overrides));
     }
     @Test
+    public void oversizedCssOverrideIsRejectedBeforeBuildingExpandedString() {
+        Map<String, String> replacements = new HashMap<>();
+        char[] large = new char[WebViewActivity.MAX_CSS_ASSET_BYTES];
+        java.util.Arrays.fill(large, 'Z');
+        replacements.put("x", new String(large));
+        try {
+            WebViewActivity.applyCssOverrides("x x", replacements);
+            fail("Injected CSS must not grow beyond the resource budget");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("size budget"));
+        }
+    }
+
+    @Test
+    public void emptyCssReplacementKeysAreIgnoredWithoutUnboundedExpansion() {
+        Map<String, String> replacements = new HashMap<>();
+        replacements.put("", "many");
+        assertEquals("body{}", WebViewActivity.applyCssOverrides("body{}", replacements));
+    }
+
+    @Test
     public void externalBrowserHandoffDoesNotCrashWithoutHandlerOrPermission() {
         Context context = mock(Context.class);
         Intent target = new Intent(Intent.ACTION_VIEW,
