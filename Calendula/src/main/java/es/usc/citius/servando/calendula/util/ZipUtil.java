@@ -181,14 +181,38 @@ public class ZipUtil {
         }
     }
 
-    public static void writeToStream(InputStream in, OutputStream out, boolean closeOnExit) throws IOException {
-        byte[] bytes = new byte[2048];
-        for (int c = in.read(bytes); c != -1; c = in.read(bytes)) {
-            out.write(bytes, 0, c);
+    /**
+     * Copy with a bounded tolerance for a broken stream returning zero bytes
+     * without EOF. Cleanup must run even when a read or write throws, or the
+     * importer can leak file descriptors during failed archive setup.
+     */
+    public static void writeToStream(InputStream in, OutputStream out, boolean closeOnExit)
+            throws IOException {
+        if (in == null || out == null) {
+            throw new IllegalArgumentException("Both source and destination streams are required");
         }
-        if (closeOnExit) {
-            in.close();
-            out.close();
+        try {
+            byte[] bytes = new byte[2048];
+            int consecutiveEmptyReads = 0;
+            int read;
+            while ((read = in.read(bytes)) != -1) {
+                if (read == 0) {
+                    if (++consecutiveEmptyReads > 3) {
+                        throw new IOException("Stream copy made no progress");
+                    }
+                    continue;
+                }
+                consecutiveEmptyReads = 0;
+                out.write(bytes, 0, read);
+            }
+        } finally {
+            if (closeOnExit) {
+                try {
+                    in.close();
+                } finally {
+                    out.close();
+                }
+            }
         }
     }
 
