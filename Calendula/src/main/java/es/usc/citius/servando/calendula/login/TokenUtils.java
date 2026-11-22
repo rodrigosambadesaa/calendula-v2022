@@ -10,6 +10,10 @@ import com.nimbusds.jwt.SignedJWT;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.math.BigInteger;
 import java.security.KeyFactory;
 import java.security.interfaces.RSAPublicKey;
@@ -19,7 +23,6 @@ import java.util.List;
 
 import es.usc.citius.servando.calendula.BuildConfig;
 import es.usc.citius.servando.calendula.CalendulaApp;
-import es.usc.citius.servando.calendula.util.CloseableUtil;
 import es.usc.citius.servando.calendula.util.LogUtil;
 
 /**
@@ -151,17 +154,39 @@ public class TokenUtils {
     }
 
     private static List<JWTPublicKey> getPublicKeys() {
-
-        InputStream keyStream = null;
-        try {
-            keyStream = CalendulaApp.getContext().getAssets().open(SERVER_KEY_FILENAME);
-            final JWTPublicKeys jwtPublicKeys = new Gson().fromJson(new InputStreamReader(keyStream), JWTPublicKeys.class);
-            return jwtPublicKeys.getKeys();
-        } catch (IOException e) {
-            AuthLogPolicy.logFailure(TAG, AuthLogPolicy.Failure.TOKEN_VERIFICATION, e);
-            throw new RuntimeException(e);
-        } finally {
-            CloseableUtil.closeQuietly(keyStream);
+        // A corrupt/missing packaged key asset must reject authentication,
+        // not crash a login screen or leak a sensitive parsing exception.
+        try (InputStream stream = CalendulaApp.getContext().getAssets().open(
+                SERVER_KEY_FILENAME);
+             Reader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+            return parsePublicKeys(reader);
+        } catch (IOException | RuntimeException invalidKeyAsset) {
+            AuthLogPolicy.logFailure(TAG, AuthLogPolicy.Failure.TOKEN_VERIFICATION,
+                    invalidKeyAsset);
+            return Collections.emptyList();
         }
+    }
+
+    /** Validate the whole trusted key set before attempting any JWT signature. */
+    static List<JWTPublicKey> parsePublicKeys(Reader reader) {
+        if (reader == null) {
+            return Collections.emptyList();
+        }
+        JWTPublicKeys configured = new Gson().fromJson(reader, JWTPublicKeys.class);
+        if (configured == null || configured.getKeys() == null
+                || configured.getKeys().isEmpty()) {
+            return Collections.emptyList();
+        }
+        ArrayList<JWTPublicKey> accepted = new ArrayList<>();
+        for (JWTPublicKey key : configured.getKeys()) {
+            if (key == null || key.getN() == null || key.getN().trim().isEmpty()
+                    || key.getE() == null || key.getE().trim().isEmpty()) {
+                // Do not silently authenticate with a partial keyset when a
+                // previous signing key was omitted or corrupted in assets.
+                return Collections.emptyList();
+            }
+            accepted.add(key);
+        }
+        return Collections.unmodifiableList(accepted);
     }
 }
