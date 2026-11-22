@@ -87,7 +87,7 @@ The historical 2022 codebase is being modernized incrementally while preserving 
 - **minSdk:** API 23 (Android 6.0)
 - **compileSdk / targetSdk:** API 36 (Android 16)
 - **Android Gradle Plugin:** 8.10.1
-- **Gradle:** 8.14.6
+- **Gradle:** 8.14.7
 - **Kotlin:** 2.4.21
 - **JDK:** 17
 
@@ -109,7 +109,19 @@ resolved. See the modernization status document for the current acceptance crite
 See [Modernization status and remaining work](docs/MODERNIZATION_STATUS.md) for
 the current roadmap, residual risks, and validation criteria.
 
-**Release readiness (10 November 2026):** This fork is **not yet ready for a clinical-use release**. A first, explicitly non-clinical technical prerelease remains conditional on resolving relevant P0 integrity gates and validating the integrated result. The current review identifies unresolved patient-identity/erasure work (#946, #944), medication/stock transaction gates (#525, #552), Android 17 runtime-vs-target SDK validation (#570), and replacement of the retired medication database feed (#216). Green CI for an individual draft PR is not a substitute for merged-branch integration tests or manual verification. The maintained criteria and pending PR audit appear in [the modernization status](docs/MODERNIZATION_STATUS.md#prerelease-gates-reviewed-2026-11-10).
+**Release readiness (22 November 2026):** This fork has **no published
+release** and is **not approved for real medication management**. CI covers
+Android 6 (API 23), Android 13 (API 33), Android 16 (API 36) and an Android
+17 runtime (API 37), while the compile/target SDK remain at 36. The
+original unsigned prescription database update source is retired and
+deliberately disabled (#216). Medication/stock recovery (#525, #552),
+stable patient identity and alarm-ID migration (draft #960 / #969 / #976),
+and private multi-page PDF completeness on Android 6 (draft #990 / #983)
+still need independent acceptance; tests passing on a draft PR do not
+certify clinical safety. A limited experimental preview requires explicit
+feature restrictions, signed build provenance and end-to-end synthetic
+device/migration evidence. See [the current GO/NO-GO checklist](docs/MODERNIZATION_STATUS.md#prerelease-gates-reviewed-2026-11-22)
+and [clinical acceptance runbook](docs/CLINICAL_ACCEPTANCE_RUNBOOK.md).
 
 Dependency updates remain intentionally conservative where a new version changes library APIs, Android behavior or requires a coordinated migration. Dependabot is enabled, but major framework and library migrations should still be reviewed and validated in dedicated pull requests instead of being accepted as isolated version bumps.
 
