@@ -13,12 +13,69 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.io.StringReader;
+import java.net.HttpURLConnection;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class HttpDownloadUtilTest {
+
+    @Test
+    public void connectionFailureClosesPartialHttpSocket() throws Exception {
+        HttpURLConnection connection = mock(HttpURLConnection.class);
+        doThrow(new IOException("synthetic connect failure")).when(connection).connect();
+        try {
+            HttpDownloadUtil.configureAndReadStatus(connection);
+            org.junit.Assert.fail("Failed connection must not be usable");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("synthetic connect failure"));
+        }
+        verify(connection).disconnect();
+    }
+
+    @Test
+    public void responseStatusFailureClosesConnectedHttpSocket() throws Exception {
+        HttpURLConnection connection = mock(HttpURLConnection.class);
+        when(connection.getResponseCode()).thenThrow(
+                new IOException("synthetic status failure"));
+        try {
+            HttpDownloadUtil.configureAndReadStatus(connection);
+            org.junit.Assert.fail("Status read failure must not keep a socket alive");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("synthetic status failure"));
+        }
+        verify(connection).connect();
+        verify(connection).disconnect();
+    }
+
+    @Test
+    public void runtimeNetworkFailureAlsoDisconnectsSafely() throws Exception {
+        HttpURLConnection connection = mock(HttpURLConnection.class);
+        doThrow(new SecurityException("synthetic network permission loss"))
+                .when(connection).connect();
+        try {
+            HttpDownloadUtil.configureAndReadStatus(connection);
+            org.junit.Assert.fail("Android network error should propagate safely");
+        } catch (SecurityException expected) {
+            // The caller will fail closed and release its remaining resources.
+        }
+        verify(connection).disconnect();
+    }
+
+    @Test
+    public void successfulHttpStatusRemainsOwnedByDownloadCaller() throws Exception {
+        HttpURLConnection connection = mock(HttpURLConnection.class);
+        when(connection.getResponseCode()).thenReturn(200);
+        assertEquals(200, HttpDownloadUtil.configureAndReadStatus(connection));
+        verify(connection).connect();
+        verify(connection, never()).disconnect();
+    }
 
     @Test
     public void readLimitedTextReturnsContentWithinLimit() throws Exception {
