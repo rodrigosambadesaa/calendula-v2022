@@ -93,4 +93,36 @@ public class HomeProfileRecoveryTest {
         org.junit.Assert.assertThrows(IllegalArgumentException.class,
                 () -> HomeProfileMgr.selectNextBackgroundIndex(0, 0));
     }
+    @Test
+    public void homePaletteDecodingBoundsLargeWebpDimensions() {
+        assertEquals(1, HomeProfileMgr.paletteSampleSize(256, 256));
+        assertEquals(2, HomeProfileMgr.paletteSampleSize(512, 512));
+        assertEquals(4, HomeProfileMgr.paletteSampleSize(800, 300));
+        assertEquals(16, HomeProfileMgr.paletteSampleSize(4096, 2048));
+        assertEquals(1, HomeProfileMgr.paletteSampleSize(1, 1));
+
+        int hugeSample = HomeProfileMgr.paletteSampleSize(
+                Integer.MAX_VALUE, Integer.MAX_VALUE);
+        org.junit.Assert.assertTrue(hugeSample > 0);
+        long decodedSide = (Integer.MAX_VALUE + (long) hugeSample - 1) / hugeSample;
+        org.junit.Assert.assertTrue(decodedSide <= HomeProfileMgr.PALETTE_MAX_SIDE);
+    }
+
+    @Test
+    public void invalidWebpMetadataAndNullAssetsFailWithoutBitmapAllocation() {
+        for (int invalid : new int[]{Integer.MIN_VALUE, -1, 0}) {
+            assertEquals(0, HomeProfileMgr.paletteSampleSize(invalid, 128));
+            assertEquals(0, HomeProfileMgr.paletteSampleSize(128, invalid));
+        }
+        org.junit.Assert.assertNull(
+                HomeProfileMgr.getBitmapFromAsset(null, "home_bg_1.webp"));
+        org.junit.Assert.assertNull(
+                HomeProfileMgr.getBitmapFromAsset(
+                        org.robolectric.RuntimeEnvironment.getApplication(), ""));
+        org.junit.Assert.assertNull(
+                HomeProfileMgr.getBitmapFromAsset(
+                        org.robolectric.RuntimeEnvironment.getApplication(),
+                        "synthetic-nonexistent-home-background-8742.webp"));
+    }
+
 }

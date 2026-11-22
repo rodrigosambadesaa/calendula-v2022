@@ -121,13 +121,49 @@ public class HomeProfileMgr {
         return cache.get(path);
     }
 
+    // Palette.generate() only needs a small thumbnail, not the full-resolution
+    // WebP decoded for the home background. Picasso owns the displayed image.
+    static final int PALETTE_MAX_SIDE = 256;
+
+    static int paletteSampleSize(int sourceWidth, int sourceHeight) {
+        if (sourceWidth <= 0 || sourceHeight <= 0) {
+            return 0;
+        }
+        int sample = 1;
+        while ((sourceWidth + (long) sample - 1) / sample > PALETTE_MAX_SIDE
+                || (sourceHeight + (long) sample - 1) / sample > PALETTE_MAX_SIDE) {
+            if (sample >= 1 << 30) {
+                return 0;
+            }
+            sample *= 2;
+        }
+        return sample;
+    }
+
     public static Bitmap getBitmapFromAsset(Context context, String filePath) {
-        // Repeated home/background updates must not leak open asset file
-        // descriptors or retain decoder input streams after decoding.
+        if (context == null || filePath == null || filePath.isEmpty()) {
+            return null;
+        }
+        // Decode dimensions first without allocating full pixel buffers.
+        // Reopen the asset because decodeStream() consumes its InputStream.
         AssetManager assetManager = context.getAssets();
-        try (InputStream stream = assetManager.open(filePath)) {
-            return BitmapFactory.decodeStream(stream);
-        } catch (IOException missingAsset) {
+        try {
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            try (InputStream stream = assetManager.open(filePath)) {
+                BitmapFactory.decodeStream(stream, null, bounds);
+            }
+            int sample = paletteSampleSize(bounds.outWidth, bounds.outHeight);
+            if (sample < 1) {
+                return null;
+            }
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inSampleSize = sample;
+            try (InputStream stream = assetManager.open(filePath)) {
+                return BitmapFactory.decodeStream(stream, null, options);
+            }
+        } catch (IOException | IllegalArgumentException invalidAsset) {
+            // Missing or malformed local artwork must not crash the home.
             return null;
         }
     }
