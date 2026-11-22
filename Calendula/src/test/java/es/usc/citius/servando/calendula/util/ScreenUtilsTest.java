@@ -12,6 +12,7 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -42,6 +43,19 @@ public class ScreenUtilsTest {
         assertFalse(ScreenUtils.isSafePreviewSize(2001, 2001));
         assertFalse(ScreenUtils.isSafePreviewSize(Integer.MAX_VALUE, Integer.MAX_VALUE));
         assertFalse(ScreenUtils.isSafePreviewSize(1, 0));
+    }
+
+    @Test
+    public void decodedSourceMemoryIsBoundedBeforeCreatingPreviewBitmap() {
+        assertEquals(1, ScreenUtils.previewSampleSize(320, 240, 640, 480));
+        assertEquals(2, ScreenUtils.previewSampleSize(3999, 3999, 2000, 2000));
+        assertEquals(4, ScreenUtils.previewSampleSize(8000, 8000, 2000, 2000));
+        int hugeSample = ScreenUtils.previewSampleSize(
+                Integer.MAX_VALUE, Integer.MAX_VALUE, 1000, 1000);
+        long decodedSide = (Integer.MAX_VALUE + (long) hugeSample - 1)
+                / hugeSample;
+        assertTrue(decodedSide * decodedSide <= ScreenUtils.MAX_INTERMEDIATE_PIXELS);
+        assertEquals(0, ScreenUtils.previewSampleSize(10, 10, 0, 100));
     }
 
     @Test
