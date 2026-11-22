@@ -18,11 +18,12 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -40,6 +41,11 @@ public final class NetworkUtils {
 
     private static final String TAG = "NetworkUtils";
     private static final long BACKEND_DNS_TIMEOUT_MS = 1500L;
+    // Native DNS may not honor Thread.interrupt(). A new thread per request
+    // can accumulate indefinitely during repeated network failures. Bound both
+    // running resolvers and queued lookups, and reject overflow closed.
+    private static final ThreadPoolExecutor BACKEND_DNS_EXECUTOR =
+            newBoundedDnsExecutor(2, 4);
 
     private static final ConnectivityAndInternetAccess ACTIVE_CONNECTIVITY =
             new ConnectivityAndInternetAccess.Builder().build();
@@ -168,20 +174,20 @@ public final class NetworkUtils {
             LogUtil.w(TAG, "Backend preflight rejected: no usable active route for DNS");
             return false;
         }
-        ExecutorService executor = Executors.newSingleThreadExecutor(new ThreadFactory() {
-            @Override
-            public Thread newThread(Runnable runnable) {
-                Thread thread = new Thread(runnable, "calendula-backend-dns");
-                thread.setDaemon(true);
-                return thread;
-            }
-        });
-        Future<Boolean> future = executor.submit(new Callable<Boolean>() {
-            @Override
-            public Boolean call() throws Exception {
-                return backendHostResolver.resolves(host, network);
-            }
-        });
+        final Future<Boolean> future;
+        try {
+            future = BACKEND_DNS_EXECUTOR.submit(new Callable<Boolean>() {
+                @Override
+                public Boolean call() throws Exception {
+                    return backendHostResolver.resolves(host, network);
+                }
+            });
+        } catch (RejectedExecutionException saturated) {
+            // Never fall back to synchronous DNS (which can freeze the UI),
+            // nor skip DNS verification when the bounded executor is busy.
+            LogUtil.w(TAG, "Backend preflight rejected: DNS workers saturated");
+            return false;
+        }
 
         try {
             boolean resolved = Boolean.TRUE.equals(
@@ -194,12 +200,32 @@ public final class NetworkUtils {
             Thread.currentThread().interrupt();
             return false;
         } catch (ExecutionException | TimeoutException e) {
-            future.cancel(true);
             LogUtil.w(TAG, "Backend preflight rejected: DNS timeout/failure for " + host);
             return false;
         } finally {
-            executor.shutdownNow();
+            future.cancel(true);
+            // Queued cancelled tasks otherwise retain capacity until one of
+            // the potentially blocked DNS workers is able to consume them.
+            BACKEND_DNS_EXECUTOR.remove((Runnable) future);
         }
+    }
+
+    static ThreadPoolExecutor newBoundedDnsExecutor(int workers, int queuedLookups) {
+        if (workers < 1 || queuedLookups < 1) {
+            throw new IllegalArgumentException("DNS pool bounds must be positive");
+        }
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(
+                workers, workers, 30L, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<Runnable>(queuedLookups), new ThreadFactory() {
+                    @Override
+                    public Thread newThread(Runnable runnable) {
+                        Thread thread = new Thread(runnable, "calendula-backend-dns");
+                        thread.setDaemon(true);
+                        return thread;
+                    }
+                }, new ThreadPoolExecutor.AbortPolicy());
+        pool.allowCoreThreadTimeOut(true);
+        return pool;
     }
 
     static String backendHost(String url) {
