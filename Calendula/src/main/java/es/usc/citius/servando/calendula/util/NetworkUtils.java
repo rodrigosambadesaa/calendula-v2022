@@ -91,9 +91,12 @@ public final class NetworkUtils {
             new BackendHostResolver() {
                 @Override
                 public boolean resolves(String host, Network network) throws IOException {
-                    InetAddress[] addresses = network != null
-                            ? network.getAllByName(host)
-                            : InetAddress.getAllByName(host);
+                    // Never fall back to unbound process DNS when the
+                    // previously validated Android route disappears.
+                    if (network == null) {
+                        return false;
+                    }
+                    InetAddress[] addresses = network.getAllByName(host);
                     return addresses != null && addresses.length > 0;
                 }
             };
@@ -151,7 +154,20 @@ public final class NetworkUtils {
         }
 
         // Gate 3: the actual destination must resolve on the route that will carry the request.
-        final Network network = selectBackendNetwork(ctx);
+        // A VPN/Wi-Fi/mobile transition can remove the selected Android route
+        // while the active probe runs. An unbound process DNS lookup could use
+        // a different path and falsely authorize a clinical backend request.
+        final Network network;
+        try {
+            network = selectBackendNetwork(ctx);
+        } catch (RuntimeException routeUnavailable) {
+            LogUtil.w(TAG, "Backend preflight rejected: active network changed");
+            return false;
+        }
+        if (network == null) {
+            LogUtil.w(TAG, "Backend preflight rejected: no usable active route for DNS");
+            return false;
+        }
         ExecutorService executor = Executors.newSingleThreadExecutor(new ThreadFactory() {
             @Override
             public Thread newThread(Runnable runnable) {
