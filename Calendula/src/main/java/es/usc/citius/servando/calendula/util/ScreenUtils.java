@@ -25,9 +25,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.Matrix;
 import android.graphics.PointF;
-import android.graphics.RectF;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import androidx.annotation.ColorInt;
@@ -78,51 +76,72 @@ public class ScreenUtils {
     }
 
 
-    public static Bitmap getResizedBitmap(Context ctx, String pathOfInputImage, int dstWidth, int dstHeight) {
+    // Bound user-interface bitmap allocations even when an image has unusually
+    // large metadata dimensions. These checks precede any full bitmap decode.
+    static final long MAX_PREVIEW_PIXELS = 4_000_000L;
 
-        InputStream in = null;
-        try {
-            int inWidth = 0;
-            int inHeight = 0;
-
-            in = ctx.getAssets().open(pathOfInputImage);
-
-            // decode image size (decode metadata only, not the whole image)
-            BitmapFactory.Options options = new BitmapFactory.Options();
-            options.inJustDecodeBounds = true;
-            BitmapFactory.decodeStream(in, null, options);
-            in.close();
-
-            // save width and height
-            inWidth = options.outWidth;
-            inHeight = options.outHeight;
-
-            // decode full image pre-resized
-            in = ctx.getAssets().open(pathOfInputImage);
-            options = new BitmapFactory.Options();
-            // calc rought re-size (this is no exact resize)
-            options.inSampleSize = Math.max(inWidth / dstWidth, inHeight / dstHeight);
-            // decode full image
-            Bitmap roughBitmap = BitmapFactory.decodeStream(in, null, options);
-
-            // calc exact destination size
-            Matrix m = new Matrix();
-            RectF inRect = new RectF(0, 0, roughBitmap.getWidth(), roughBitmap.getHeight());
-            RectF outRect = new RectF(0, 0, dstWidth, dstHeight);
-            m.setRectToRect(inRect, outRect, Matrix.ScaleToFit.CENTER);
-            float[] values = new float[9];
-            m.getValues(values);
-
-            // resize bitmap
-            return Bitmap.createScaledBitmap(roughBitmap, (int) (roughBitmap.getWidth() * values[0]), (int) (roughBitmap.getHeight() * values[4]), true);
-
-        } catch (IOException e) {
-            LogUtil.e(TAG, "Unable to load display image resource");
-        } finally {
-            CloseableUtil.closeQuietly(in);
-        }
-        return null;
+    static boolean isSafePreviewSize(int width, int height) {
+        return width > 0 && height > 0
+                && (long) width * height <= MAX_PREVIEW_PIXELS;
     }
+
+    public static Bitmap getResizedBitmap(
+            Context ctx, String pathOfInputImage, int dstWidth, int dstHeight) {
+        if (ctx == null || pathOfInputImage == null || pathOfInputImage.isEmpty()
+                || !isSafePreviewSize(dstWidth, dstHeight)) {
+            return null;
+        }
+        try {
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            try (InputStream input = ctx.getAssets().open(pathOfInputImage)) {
+                BitmapFactory.decodeStream(input, null, bounds);
+            }
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+                // Corrupt or unsupported source; do not divide by zero or
+                // dereference the null bitmap returned by BitmapFactory.
+                return null;
+            }
+            int requestedScale = Math.max(
+                    bounds.outWidth / dstWidth, bounds.outHeight / dstHeight);
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inSampleSize = Math.max(1, requestedScale);
+
+            Bitmap source;
+            try (InputStream input = ctx.getAssets().open(pathOfInputImage)) {
+                source = BitmapFactory.decodeStream(input, null, options);
+            }
+            if (source == null) {
+                return null;
+            }
+            try {
+                float scale = Math.min(
+                        (float) dstWidth / source.getWidth(),
+                        (float) dstHeight / source.getHeight());
+                int width = Math.max(1, Math.min(dstWidth,
+                        Math.round(source.getWidth() * scale)));
+                int height = Math.max(1, Math.min(dstHeight,
+                        Math.round(source.getHeight() * scale)));
+                Bitmap scaled = Bitmap.createScaledBitmap(source, width, height, true);
+                if (scaled == source) {
+                    // Android can return the original when no resize is needed.
+                    // The caller now owns it and must decide when to recycle it.
+                    source = null;
+                }
+                return scaled;
+            } finally {
+                // Release the intermediate decoded bitmap promptly, rather
+                // than retaining two pixel buffers until the next GC.
+                if (source != null && !source.isRecycled()) {
+                    source.recycle();
+                }
+            }
+        } catch (IOException | IllegalArgumentException invalidImage) {
+            LogUtil.e(TAG, "Unable to decode display image resource");
+            return null;
+        }
+    }
+
 
     public static int equivalentNoAlpha(int color, float factor) {
 
