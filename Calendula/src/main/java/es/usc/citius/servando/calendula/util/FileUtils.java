@@ -24,7 +24,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 
 
 public class FileUtils {
@@ -37,28 +36,65 @@ public class FileUtils {
      * @return The File copy from the cache directory 
      * @throws IOException
      */
-    public static File getCacheFileFromAssets(Context context, String assetsPath, String finalName) throws IOException {
-        File cacheFile = new File(context.getCacheDir(), finalName);
-        try {
-            InputStream in = context.getAssets().open(assetsPath);
-            try {
-                OutputStream out = new FileOutputStream(cacheFile);
-                try {
-                    byte[] buf = new byte[1024];
-                    int len;
-                    while ((len = in.read(buf)) > 0) {
-                        out.write(buf, 0, len);
-                    }
-                } finally {
-                    out.close();
-                }
-            } finally {
-                in.close();
-            }
-        } catch (IOException e) {
-            throw new IOException("Could not open " + assetsPath, e);
+    public static File getCacheFileFromAssets(Context context, String assetsPath, String finalName)
+            throws IOException {
+        if (context == null) {
+            throw new IllegalArgumentException("Asset context is required");
         }
-        return cacheFile;
+        // A bundled database must never be made visible as a truncated
+        // cache file if reading the APK asset or writing to disk fails.
+        try (InputStream in = context.getAssets().open(assetsPath)) {
+            return copyAssetToCache(in, context.getCacheDir(), finalName);
+        } catch (IOException e) {
+            throw new IOException("Could not copy bundled asset to private cache", e);
+        }
+    }
+
+    /**
+     * Stage in the destination directory, then rename only after the complete
+     * stream has been copied and closed. The caller owns the input stream.
+     * Package-private for synthetic failure-injection tests, without Android
+     * AssetManager or patient records.
+     */
+    static File copyAssetToCache(InputStream in, File cacheDirectory, String finalName)
+            throws IOException {
+        if (in == null || cacheDirectory == null || finalName == null
+                || finalName.isEmpty() || ".".equals(finalName) || "..".equals(finalName)
+                || !new File(finalName).getName().equals(finalName)
+                || finalName.indexOf('\\') >= 0
+                || !cacheDirectory.isDirectory()) {
+            throw new IOException("Invalid private asset cache destination");
+        }
+        File destination = new File(cacheDirectory, finalName);
+        File stage = File.createTempFile(".calendula-asset-", ".tmp", cacheDirectory);
+        try {
+            try (FileOutputStream output = new FileOutputStream(stage)) {
+                byte[] buffer = new byte[8192];
+                int zeroReads = 0;
+                int read;
+                while ((read = in.read(buffer)) != -1) {
+                    if (read == 0) {
+                        if (++zeroReads > 3) {
+                            throw new IOException("Bundled asset stream made no progress");
+                        }
+                        continue;
+                    }
+                    zeroReads = 0;
+                    output.write(buffer, 0, read);
+                }
+            }
+            // Same-directory rename is atomic on Android filesystems. Never
+            // delete the old destination first: if replacement is unsupported
+            // or the filesystem fails, preserve the previously complete file.
+            if (!stage.renameTo(destination)) {
+                throw new IOException("Unable to install complete bundled asset into cache");
+            }
+            return destination;
+        } finally {
+            if (stage.exists() && !stage.delete()) {
+                // A failed cleanup must not conceal the original copy error.
+            }
+        }
     }
 
 } 
