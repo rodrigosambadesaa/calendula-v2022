@@ -27,7 +27,7 @@ public class TokenUtilsTest {
     @Test
     public void validPackagedPublicKeySetIsImmutableAndContainsExpectedModulus() {
         List<JWTPublicKey> keys = TokenUtils.parsePublicKeys(
-                new StringReader("{\\\"keys\\\":[{\\\"n\\\":\\\"synthetic-modulus\\\",\\\"e\\\":\\\"AQAB\\\"}]}"));
+                new StringReader("{\"keys\":[{\"n\":\"synthetic-modulus\",\"e\":\"AQAB\"}]}"));
         assertTrue(keys.size() == 1);
         assertTrue("synthetic-modulus".equals(keys.get(0).getN()));
         try {
@@ -41,11 +41,11 @@ public class TokenUtilsTest {
     @Test
     public void emptyOrMalformedPackagedKeySetsFailClosed() {
         String[] rejected = {
-                "null", "{}", "{\\\"keys\\\":null}", "{\\\"keys\\\":[]}",
-                "{\\\"keys\\\":[null]}",
-                "{\\\"keys\\\":[{\\\"n\\\":\\\"\\\",\\\"e\\\":\\\"AQAB\\\"}]}",
-                "{\\\"keys\\\":[{\\\"n\\\":\\\"some-modulus\\\"}]}",
-                "{\\\"keys\\\":[{\\\"n\\\":\\\"valid\\\",\\\"e\\\":\\\"AQAB\\\"},{}]}",
+                "null", "{}", "{\"keys\":null}", "{\"keys\":[]}",
+                "{\"keys\":[null]}",
+                "{\"keys\":[{\"n\":\"\",\"e\":\"AQAB\"}]}",
+                "{\"keys\":[{\"n\":\"some-modulus\"}]}",
+                "{\"keys\":[{\"n\":\"valid\",\"e\":\"AQAB\"},{}]}",
                 "{missing or invalid JSON"
         };
         for (String json : rejected) {
