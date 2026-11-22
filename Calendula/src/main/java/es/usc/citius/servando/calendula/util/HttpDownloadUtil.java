@@ -172,22 +172,20 @@ public class HttpDownloadUtil {
         long total = 0L;
         byte[] buffer = new byte[8192];
         int read;
+        int zeroReadCount = 0;
         while ((read = input.read(buffer)) != -1) {
             if (read == 0) {
-                // A nonconforming stream can repeatedly return zero without
-                // reaching EOF. Force a one-byte read rather than spinning
-                // forever on a broken/legacy HTTP stream implementation.
-                int next = input.read();
-                if (next == -1) {
-                    break;
+                // A bulk read that requests 8192 bytes must never report zero
+                // except on a broken InputStream. A read() fallback can return
+                // the legitimate NUL byte (0), indistinguishable from a
+                // permanently stalled implementation, and fabricate data.
+                // Retry briefly, then reject the incomplete download.
+                if (++zeroReadCount > 3) {
+                    throw new IOException("Binary download stream made no progress");
                 }
-                if (total >= maxBytes) {
-                    throw new IOException("Binary download exceeds maximum allowed size");
-                }
-                output.write(next);
-                total++;
                 continue;
             }
+            zeroReadCount = 0;
             if (read > maxBytes - total) {
                 throw new IOException("Binary download exceeds maximum allowed size");
             }
