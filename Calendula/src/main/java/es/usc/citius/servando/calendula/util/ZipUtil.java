@@ -78,7 +78,6 @@ public class ZipUtil {
             try (ZipInputStream zip = new ZipInputStream(
                     new BufferedInputStream(new FileInputStream(archive)))) {
                 ZipEntry entry;
-                byte[] buffer = new byte[8192];
 
                 while ((entry = zip.getNextEntry()) != null) {
                     if (++entries > maxEntries) {
@@ -110,14 +109,8 @@ public class ZipUtil {
                             throw new IOException("Could not create staged ZIP parent directory");
                         }
                         try (FileOutputStream output = new FileOutputStream(staged)) {
-                            int read;
-                            while ((read = zip.read(buffer)) != -1) {
-                                if (read > maxBytes - extractedBytes) {
-                                    throw new IOException("ZIP exceeds uncompressed byte limit");
-                                }
-                                output.write(buffer, 0, read);
-                                extractedBytes += read;
-                            }
+                            extractedBytes += copyEntryLimited(
+                                    zip, output, maxBytes - extractedBytes);
                         }
                         files.add(staged);
                         destinations.add(destination);
@@ -165,6 +158,37 @@ public class ZipUtil {
         } finally {
             deleteStagingTree(stage);
         }
+    }
+
+    /**
+     * Copy a single ZIP entry without permitting an unbounded CPU loop if a
+     * corrupted/decorated stream repeatedly returns zero instead of progress.
+     * Keep the global uncompressed archive byte budget enforced before writes.
+     */
+    static long copyEntryLimited(InputStream input, OutputStream output, long maxBytes)
+            throws IOException {
+        if (input == null || output == null || maxBytes < 0) {
+            throw new IllegalArgumentException("Invalid ZIP entry stream or byte budget");
+        }
+        byte[] buffer = new byte[8192];
+        int emptyReads = 0;
+        long copied = 0L;
+        int read;
+        while ((read = input.read(buffer)) != -1) {
+            if (read == 0) {
+                if (++emptyReads > 3) {
+                    throw new IOException("ZIP entry stream made no progress");
+                }
+                continue;
+            }
+            emptyReads = 0;
+            if (read > maxBytes - copied) {
+                throw new IOException("ZIP exceeds uncompressed byte limit");
+            }
+            output.write(buffer, 0, read);
+            copied += read;
+        }
+        return copied;
     }
 
     private static void deleteStagingTree(File file) {
