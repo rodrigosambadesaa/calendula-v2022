@@ -535,10 +535,37 @@ public class WebViewActivity extends CalendulaActivity {
         if (css == null || overrides == null || overrides.isEmpty()) {
             return css;
         }
+        if (css.length() > MAX_CSS_ASSET_BYTES) {
+            throw new IllegalArgumentException("CSS input exceeds size budget");
+        }
         String result = css;
         for (Map.Entry<String, String> entry : overrides.entrySet()) {
-            if (entry.getKey() != null && entry.getValue() != null) {
-                result = result.replace(entry.getKey(), entry.getValue());
+            String oldText = entry.getKey();
+            String newText = entry.getValue();
+            if (oldText == null || oldText.isEmpty() || newText == null) {
+                // Replacing the empty string injects content between every
+                // character and can expand a small stylesheet unexpectedly.
+                continue;
+            }
+            int occurrences = 0;
+            for (int offset = 0; ; ) {
+                int index = result.indexOf(oldText, offset);
+                if (index < 0) {
+                    break;
+                }
+                occurrences++;
+                offset = index + oldText.length();
+            }
+            // Preflight replacement growth BEFORE Java allocates the full
+            // result. Length is in UTF-16 code units; the subsequent byte
+            // budget also protects Base64/JS output for multibyte CSS.
+            long expandedChars = (long) result.length()
+                    + (long) occurrences * (newText.length() - (long) oldText.length());
+            if (expandedChars > MAX_CSS_ASSET_BYTES) {
+                throw new IllegalArgumentException("CSS replacement exceeds size budget");
+            }
+            if (occurrences != 0) {
+                result = result.replace(oldText, newText);
             }
         }
         return result;
