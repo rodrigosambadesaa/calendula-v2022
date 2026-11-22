@@ -324,6 +324,40 @@ public class ZipUtilTest {
         assertTrue(closed[1]);
     }
 
+    @Test
+    public void legacyTextHelperAllowsExactLimitAndMultibyteUtf8() throws Exception {
+        String content = "áé😀";
+        byte[] encoded = content.getBytes(StandardCharsets.UTF_8);
+        assertEquals(content, ZipUtil.writeToString(
+                new ByteArrayInputStream(encoded), content.length()));
+    }
+
+    @Test
+    public void oversizedTextStreamIsRejectedAndInputClosedOnFailure() throws Exception {
+        final boolean[] closed = new boolean[1];
+        InputStream input = new FilterInputStream(
+                new ByteArrayInputStream("123456".getBytes(StandardCharsets.UTF_8))) {
+            @Override
+            public void close() throws IOException {
+                closed[0] = true;
+                super.close();
+            }
+        };
+        try {
+            ZipUtil.writeToString(input, 5);
+            fail("Stream contents exceeded the explicit text budget");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("maximum length"));
+        }
+        assertTrue("The stream should be closed after rejecting oversized text", closed[0]);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void textStreamCannotBypassItsGlobalMemoryBudget() throws Exception {
+        ZipUtil.writeToString(new ByteArrayInputStream(new byte[0]),
+                ZipUtil.MAX_STREAM_TEXT_CHARS + 1);
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void unzipRejectsNegativeExtractionLimits() throws Exception {
         ZipUtil.unzip(temp.newFile("unused.zip"), temp.newFolder("unused"), -1, 1);
