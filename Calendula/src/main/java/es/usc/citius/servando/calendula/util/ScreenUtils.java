@@ -79,10 +79,39 @@ public class ScreenUtils {
     // Bound user-interface bitmap allocations even when an image has unusually
     // large metadata dimensions. These checks precede any full bitmap decode.
     static final long MAX_PREVIEW_PIXELS = 4_000_000L;
+    static final long MAX_INTERMEDIATE_PIXELS = 8_000_000L;
 
     static boolean isSafePreviewSize(int width, int height) {
         return width > 0 && height > 0
                 && (long) width * height <= MAX_PREVIEW_PIXELS;
+    }
+
+    /**
+     * Use powers of two for consistent BitmapFactory sampling on API 23+.
+     * Merely bounding the final scaled image is insufficient: decoding an
+     * unsampled 8000x8000 source can exhaust memory before scaling begins.
+     */
+    static int previewSampleSize(int sourceWidth, int sourceHeight,
+                                 int destinationWidth, int destinationHeight) {
+        if (sourceWidth <= 0 || sourceHeight <= 0
+                || !isSafePreviewSize(destinationWidth, destinationHeight)) {
+            return 0;
+        }
+        int sample = 1;
+        while (sample < Math.max(sourceWidth, sourceHeight)) {
+            long width = (sourceWidth + (long) sample - 1) / sample;
+            long height = (sourceHeight + (long) sample - 1) / sample;
+            if (width * height <= MAX_INTERMEDIATE_PIXELS
+                    && width <= 2L * destinationWidth
+                    && height <= 2L * destinationHeight) {
+                break;
+            }
+            if (sample >= 1 << 30) {
+                break;
+            }
+            sample *= 2;
+        }
+        return sample;
     }
 
     public static Bitmap getResizedBitmap(
@@ -102,10 +131,13 @@ public class ScreenUtils {
                 // dereference the null bitmap returned by BitmapFactory.
                 return null;
             }
-            int requestedScale = Math.max(
-                    bounds.outWidth / dstWidth, bounds.outHeight / dstHeight);
+            int requestedScale = previewSampleSize(
+                    bounds.outWidth, bounds.outHeight, dstWidth, dstHeight);
+            if (requestedScale < 1) {
+                return null;
+            }
             BitmapFactory.Options options = new BitmapFactory.Options();
-            options.inSampleSize = Math.max(1, requestedScale);
+            options.inSampleSize = requestedScale;
 
             Bitmap source;
             try (InputStream input = ctx.getAssets().open(pathOfInputImage)) {
