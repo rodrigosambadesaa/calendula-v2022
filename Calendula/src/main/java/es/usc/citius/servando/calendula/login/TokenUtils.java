@@ -172,7 +172,12 @@ public class TokenUtils {
         if (reader == null) {
             return Collections.emptyList();
         }
-        JWTPublicKeys configured = new Gson().fromJson(reader, JWTPublicKeys.class);
+        final JWTPublicKeys configured;
+        try {
+            configured = new Gson().fromJson(reader, JWTPublicKeys.class);
+        } catch (RuntimeException malformedKeyJson) {
+            return Collections.emptyList();
+        }
         if (configured == null || configured.getKeys() == null
                 || configured.getKeys().isEmpty()) {
             return Collections.emptyList();
