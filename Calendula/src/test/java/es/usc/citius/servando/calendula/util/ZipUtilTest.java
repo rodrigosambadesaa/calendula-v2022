@@ -95,6 +95,50 @@ public class ZipUtilTest {
     }
 
     @Test
+    public void failedLaterCommitRestoresExistingFilesAndRemovesNewEntries()
+            throws Exception {
+        File stage = temp.newFolder("rollback-stage");
+        File destination = temp.newFolder("rollback-target");
+        File existingA = new File(destination, "AEMPS.sql");
+        File existingB = new File(destination, "AEMPS.metadata");
+        writeUtf8(existingA, "trusted A");
+        writeUtf8(existingB, "trusted B");
+        File newDirectory = new File(destination, "new");
+        File newEntry = new File(newDirectory, "candidate.sql");
+
+        File stagedA = new File(stage, "replacement-A");
+        File stagedNew = new File(stage, "replacement-new");
+        writeUtf8(stagedA, "unverified A");
+        writeUtf8(stagedNew, "unverified new");
+
+        // Simulate a late rename failure *after* replacing A, installing
+        // a new entry and moving B into its rollback backup.
+        File missingStagedB = new File(stage, "missing-replacement");
+        try {
+            ZipUtil.commitStagedFiles(
+                    java.util.Arrays.asList(stagedA, stagedNew, missingStagedB),
+                    java.util.Arrays.asList(existingA, newEntry, existingB),
+                    java.util.Collections.singletonList(newDirectory),
+                    stage, destination.getCanonicalPath());
+            fail("A missing final staged entry must roll back earlier commits");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("commit staged ZIP entry"));
+        }
+
+        assertEquals("trusted A", readUtf8(existingA));
+        assertEquals("trusted B", readUtf8(existingB));
+        assertFalse("New files must not survive a failed commit", newEntry.exists());
+        assertFalse("New directories must be removed after rollback",
+                newDirectory.exists());
+    }
+
+    private static void writeUtf8(File file, String content) throws IOException {
+        try (FileOutputStream output = new FileOutputStream(file)) {
+            output.write(content.getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    @Test
     public void unzipExtractsNestedDirectoryEntries() throws Exception {
         File archive = temp.newFile("nested.zip");
         File destination = temp.newFolder("destination");
