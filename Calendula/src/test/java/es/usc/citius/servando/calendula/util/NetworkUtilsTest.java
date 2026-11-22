@@ -112,6 +112,46 @@ public class NetworkUtilsTest {
     }
 
     @Test
+    public void disconnectedBetweenActiveProbeAndDnsFailsClosed() throws Exception {
+        NetworkFixture fixture = connectedWifi();
+        ConnectivityManager manager = (ConnectivityManager)
+                fixture.context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        // isConnected() observes the usable Wi-Fi route. By the time the
+        // mock probe finishes, the route has vanished: never resolve through
+        // a process-global fallback or accidentally authorize a backend.
+        when(manager.getActiveNetwork()).thenReturn(fixture.network, (Network) null);
+        NetworkUtils.ActiveInternetProbe probe =
+                mock(NetworkUtils.ActiveInternetProbe.class);
+        NetworkUtils.BackendHostResolver resolver =
+                mock(NetworkUtils.BackendHostResolver.class);
+        when(probe.isReachable(fixture.context)).thenReturn(true);
+
+        assertFalse(NetworkUtils.isBackendAvailable(
+                fixture.context, BACKEND_URL, probe, resolver));
+        verify(probe).isReachable(fixture.context);
+        verifyNoMoreInteractions(resolver);
+    }
+
+    @Test
+    public void routeApiFailureDuringBackendDnsSelectionFailsClosed() throws Exception {
+        NetworkFixture fixture = connectedWifi();
+        ConnectivityManager manager = (ConnectivityManager)
+                fixture.context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        when(manager.getActiveNetwork()).thenReturn(fixture.network)
+                .thenThrow(new SecurityException("synthetic network permission change"));
+        NetworkUtils.ActiveInternetProbe probe =
+                mock(NetworkUtils.ActiveInternetProbe.class);
+        NetworkUtils.BackendHostResolver resolver =
+                mock(NetworkUtils.BackendHostResolver.class);
+        when(probe.isReachable(fixture.context)).thenReturn(true);
+
+        assertFalse(NetworkUtils.isBackendAvailable(
+                fixture.context, BACKEND_URL, probe, resolver));
+        verify(probe).isReachable(fixture.context);
+        verifyNoMoreInteractions(resolver);
+    }
+
+    @Test
     public void vpnWithoutUnderlyingNetworkStopsBeforeActiveProbe() throws Exception {
         Context context = mock(Context.class);
         ConnectivityManager manager = mock(ConnectivityManager.class);
