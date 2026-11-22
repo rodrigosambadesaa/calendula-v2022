@@ -12,6 +12,13 @@ import androidx.test.core.app.ApplicationProvider;
 
 import org.joda.time.Duration;
 
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+
 import com.j256.ormlite.dao.Dao;
 
 import java.lang.reflect.Field;
@@ -55,6 +62,38 @@ public class HtmlCacheManagerTest {
         }
         DB.init(ApplicationProvider.getApplicationContext());
         DB.dropAndCreateDatabase();
+    }
+
+    @Test
+    public void simultaneousCacheAccessReturnsOneSharedDaoOwner() throws Exception {
+        final int workers = 12;
+        ExecutorService pool = Executors.newFixedThreadPool(workers);
+        CountDownLatch ready = new CountDownLatch(workers);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            java.util.List<Future<HtmlCacheManager>> results = new java.util.ArrayList<>();
+            Callable<HtmlCacheManager> task = () -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Concurrent cache test could not start");
+                }
+                return HtmlCacheManager.getInstance();
+            };
+            for (int i = 0; i < workers; i++) {
+                results.add(pool.submit(task));
+            }
+            assertTrue("All cache readers should start together",
+                    ready.await(5, TimeUnit.SECONDS));
+            start.countDown();
+            HtmlCacheManager singleton = HtmlCacheManager.getInstance();
+            for (Future<HtmlCacheManager> result : results) {
+                assertTrue("Clinical HTML cache must have a single owner",
+                        singleton == result.get(5, TimeUnit.SECONDS));
+            }
+        } finally {
+            start.countDown();
+            pool.shutdownNow();
+        }
     }
 
     @Test

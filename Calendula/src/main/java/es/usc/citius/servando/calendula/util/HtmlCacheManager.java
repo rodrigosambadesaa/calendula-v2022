@@ -46,18 +46,23 @@ public class HtmlCacheManager {
     // Limit stored text before SQLite and WebView duplicate its memory.
     static final int MAX_CACHED_HTML_CHARS = 2_000_000;
     private static final String TAG = "HtmlCacheManager";
-    private static HtmlCacheManager theInstance = null;
     private Dao<HtmlCacheEntry, Long> dao = null;
     private DatabaseHelper daoHelper = null;
 
     private HtmlCacheManager() {
     }
 
+    /**
+     * Class initialization is synchronized by the JVM; a lazy unsynchronized
+     * singleton could create multiple independent DAO/helper holders when
+     * provider jobs and UI requests accessed the HTML cache concurrently.
+     */
+    private static final class Holder {
+        private static final HtmlCacheManager INSTANCE = new HtmlCacheManager();
+    }
+
     public static HtmlCacheManager getInstance() {
-        //lazy initialization
-        if (theInstance == null)
-            theInstance = new HtmlCacheManager();
-        return theInstance;
+        return Holder.INSTANCE;
     }
 
     /**
