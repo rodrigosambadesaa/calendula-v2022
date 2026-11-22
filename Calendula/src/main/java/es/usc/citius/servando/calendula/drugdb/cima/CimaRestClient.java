@@ -148,7 +148,18 @@ public final class CimaRestClient {
         byte[] buffer = new byte[8192];
         int count;
         int total = 0;
+        int emptyReads = 0;
         while ((count = input.read(buffer)) != -1) {
+            if (count == 0) {
+                // An unexpected zero-length bulk read must not become an
+                // unbounded CPU loop, particularly on a broken provider
+                // transport. Tolerate transient stalls, then fail closed.
+                if (++emptyReads > 3) {
+                    throw new IOException("CIMA response stream made no progress");
+                }
+                continue;
+            }
+            emptyReads = 0;
             if (count > limit - total) {
                 throw new IOException("CIMA response exceeds maximum size");
             }
