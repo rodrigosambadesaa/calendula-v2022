@@ -498,11 +498,34 @@ public class WebViewActivity extends CalendulaActivity {
         return HtmlCacheManager.getInstance().isCachedForPatient(openedPatientId, openedPatientCode, url);
     }
 
+    // These are packaged CSS assets, not patient or provider HTML documents.
+    // A deliberately small cap prevents a broken stream from causing an
+    // unbounded Base64/JavaScript allocation in the embedded medical viewer.
+    static final int MAX_CSS_ASSET_BYTES = 256 * 1024;
+
     static byte[] readFully(InputStream inputStream) throws IOException {
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        return readFully(inputStream, MAX_CSS_ASSET_BYTES);
+    }
+
+    static byte[] readFully(InputStream inputStream, int maxBytes) throws IOException {
+        if (inputStream == null || maxBytes < 0 || maxBytes > MAX_CSS_ASSET_BYTES) {
+            throw new IllegalArgumentException("Invalid CSS stream or byte budget");
+        }
+        ByteArrayOutputStream output = new ByteArrayOutputStream(Math.min(maxBytes, 4096));
         byte[] chunk = new byte[4096];
         int read;
+        int zeroReads = 0;
         while ((read = inputStream.read(chunk)) != -1) {
+            if (read == 0) {
+                if (++zeroReads > 3) {
+                    throw new IOException("CSS stream made no progress");
+                }
+                continue;
+            }
+            zeroReads = 0;
+            if (read > maxBytes - output.size()) {
+                throw new IOException("CSS asset exceeds byte budget");
+            }
             output.write(chunk, 0, read);
         }
         return output.toByteArray();
@@ -533,6 +556,9 @@ public class WebViewActivity extends CalendulaActivity {
                 if (overrides != null && !overrides.isEmpty()) {
                     String css = applyCssOverrides(new String(buffer, "UTF-8"), overrides);
                     buffer = css.getBytes("UTF-8");
+                }
+                if (buffer.length > MAX_CSS_ASSET_BYTES) {
+                    throw new IOException("CSS overrides exceed byte budget");
                 }
                 //encode CSS string in base64
                 String encoded = Base64.encodeToString(buffer, Base64.NO_WRAP);
