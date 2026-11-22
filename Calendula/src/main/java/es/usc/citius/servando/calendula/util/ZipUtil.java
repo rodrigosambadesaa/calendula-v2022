@@ -73,6 +73,7 @@ public class ZipUtil {
         final java.util.List<File> directories = new java.util.ArrayList<>();
         long extractedBytes = 0L;
         int entries = 0;
+        boolean preserveStage = false;
 
         try {
             try (ZipInputStream zip = new ZipInputStream(
@@ -138,25 +139,135 @@ public class ZipUtil {
                 }
             }
 
-            // No destination file is touched until ZIP CRC, entry-count and byte limits
-            // have all succeeded. Each same-volume rename is atomic for that file.
+            // ZIP validation is complete. Keep originals in the staging volume
+            // until every destination has been installed, and roll back on I/O
+            // failures so a later failed rename cannot leave a partial catalog.
+            commitStagedFiles(files, destinations, directories, stage, rootPath);
+        } catch (IncompleteZipRollbackException failure) {
+            // Recovery failed: never delete the only remaining backup copies.
+            // The exception includes the recovery directory for diagnostics.
+            preserveStage = true;
+            throw failure;
+        } finally {
+            if (!preserveStage) {
+                deleteStagingTree(stage);
+            }
+        }
+    }
+
+    /**
+     * Install a validated set of staged files. Package-private to allow a
+     * deterministic test that fails the *second* rename without depending on
+     * platform filesystem permissions.
+     */
+    static void commitStagedFiles(java.util.List<File> files,
+                                  java.util.List<File> destinations,
+                                  java.util.List<File> directories,
+                                  File stage, String rootPath) throws IOException {
+        if (files.size() != destinations.size()) {
+            throw new IllegalArgumentException("ZIP staged files and targets differ");
+        }
+        // A unique, same-volume directory not controlled by archive entry names.
+        File backupDir = File.createTempFile(".calendula-zip-backup-", ".tmp", stage);
+        if (!backupDir.delete() || !backupDir.mkdir()) {
+            throw new IOException("Unable to prepare ZIP rollback directory");
+        }
+
+        File[] backups = new File[files.size()];
+        boolean[] installed = new boolean[files.size()];
+        java.util.List<File> createdDirectories = new java.util.ArrayList<>();
+        try {
             for (File directory : directories) {
-                if (!directory.isDirectory() && !directory.mkdirs()) {
-                    throw new IOException("Could not create ZIP destination directory");
-                }
+                ensureInstallDirectory(directory, rootPath, createdDirectories);
             }
             for (int i = 0; i < files.size(); i++) {
                 File destination = destinations.get(i);
-                File parent = destination.getParentFile();
-                if (parent == null || (!parent.isDirectory() && !parent.mkdirs())) {
-                    throw new IOException("Could not create ZIP destination parent");
+                ensureInstallDirectory(destination.getParentFile(), rootPath,
+                        createdDirectories);
+
+                if (destination.exists()) {
+                    if (!destination.isFile()) {
+                        throw new IOException("ZIP destination is not a file");
+                    }
+                    File backup = new File(backupDir, i + ".bak");
+                    if (!destination.renameTo(backup)) {
+                        throw new IOException("Unable to back up existing ZIP destination");
+                    }
+                    backups[i] = backup;
                 }
                 if (!files.get(i).renameTo(destination)) {
                     throw new IOException("Unable to commit staged ZIP entry");
                 }
+                installed[i] = true;
             }
-        } finally {
-            deleteStagingTree(stage);
+        } catch (IOException | RuntimeException failure) {
+            IOException recoveryFailure =
+                    rollbackStagedFiles(destinations, backups, installed, createdDirectories);
+            if (recoveryFailure != null) {
+                IncompleteZipRollbackException incomplete = new IncompleteZipRollbackException(
+                        "ZIP installation and rollback failed; original files may remain at "
+                                + backupDir.getAbsolutePath(), failure);
+                incomplete.addSuppressed(recoveryFailure);
+                throw incomplete;
+            }
+            throw failure;
+        }
+    }
+
+    private static void ensureInstallDirectory(File directory, String rootPath,
+                                                java.util.List<File> created)
+            throws IOException {
+        if (directory == null) {
+            throw new IOException("Missing ZIP destination parent directory");
+        }
+        if (directory.isDirectory()) {
+            return;
+        }
+        if (directory.exists() || directory.getPath().equals(rootPath)) {
+            throw new IOException("ZIP destination directory is inaccessible");
+        }
+        ensureInstallDirectory(directory.getParentFile(), rootPath, created);
+        if (directory.mkdir()) {
+            created.add(directory);
+        } else if (!directory.isDirectory()) {
+            throw new IOException("Could not create ZIP destination directory");
+        }
+    }
+
+    private static IOException rollbackStagedFiles(java.util.List<File> destinations,
+                                                    File[] backups, boolean[] installed,
+                                                    java.util.List<File> createdDirectories) {
+        IOException failure = null;
+        // Undo in reverse order to restore all original files, including one
+        // moved into backup immediately before a subsequent failed rename.
+        for (int i = destinations.size() - 1; i >= 0; i--) {
+            File destination = destinations.get(i);
+            if (installed[i] && !destination.delete()) {
+                failure = addRollbackFailure(failure, "Unable to remove installed ZIP entry");
+            }
+            if (backups[i] != null && !backups[i].renameTo(destination)) {
+                failure = addRollbackFailure(failure, "Unable to restore original ZIP entry");
+            }
+        }
+        for (int i = createdDirectories.size() - 1; i >= 0; i--) {
+            if (!createdDirectories.get(i).delete()) {
+                failure = addRollbackFailure(failure, "Unable to remove newly created ZIP directory");
+            }
+        }
+        return failure;
+    }
+
+    private static IOException addRollbackFailure(IOException previous, String message) {
+        IOException next = new IOException(message);
+        if (previous != null) {
+            next.addSuppressed(previous);
+        }
+        return next;
+    }
+
+    private static final class IncompleteZipRollbackException extends IOException {
+        IncompleteZipRollbackException(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 
