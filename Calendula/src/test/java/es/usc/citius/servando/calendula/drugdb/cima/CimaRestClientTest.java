@@ -9,6 +9,7 @@ package es.usc.citius.servando.calendula.drugdb.cima;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
@@ -81,6 +82,48 @@ public class CimaRestClientTest {
             fail("A response exceeding the byte cap must fail");
         } catch (IOException expected) {
             // A forged or missing Content-Length cannot bypass the streamed limit.
+        }
+    }
+
+    @Test
+    public void transientZeroLengthJsonReadKeepsFullUtf8Payload() throws Exception {
+        String json = "{\"nombre\":\"Ácido ascórbico\"}";
+        byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
+        InputStream transientStall = new ByteArrayInputStream(bytes) {
+            boolean first = true;
+            @Override
+            public synchronized int read(byte[] buffer, int off, int len) {
+                if (first) {
+                    first = false;
+                    return 0;
+                }
+                return super.read(buffer, off, len);
+            }
+        };
+        assertEquals(json, CimaRestClient.readBoundedUtf8(
+                transientStall, bytes.length));
+    }
+
+    @Test
+    public void persistentZeroLengthJsonReadsFailWithoutCpuSpin() throws Exception {
+        InputStream permanentlyStalled = new InputStream() {
+            int reads;
+            @Override
+            public int read() {
+                reads++;
+                return 0;
+            }
+            @Override
+            public int read(byte[] buffer, int off, int len) {
+                reads++;
+                return 0;
+            }
+        };
+        try {
+            CimaRestClient.readBoundedUtf8(permanentlyStalled, 256);
+            fail("An invalid stream must not spin indefinitely");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("no progress"));
         }
     }
 
