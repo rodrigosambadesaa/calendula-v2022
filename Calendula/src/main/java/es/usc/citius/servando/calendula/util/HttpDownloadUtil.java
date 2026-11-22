@@ -239,6 +239,58 @@ public class HttpDownloadUtil {
             }
 
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            boolean handedOffToCaller = false;
+            try {
+                int responseCode = configureAndReadStatus(connection);
+                if (isRedirectCode(responseCode)) {
+                    String location = connection.getHeaderField("Location");
+
+                    if (location == null || location.trim().isEmpty()) {
+                        throw new IOException("Backend redirect is missing Location header");
+                    }
+                    if (redirects >= MAX_REDIRECTS) {
+                        throw new IOException("Too many backend redirects");
+                    }
+
+                    String nextUrl = resolveRedirectUrl(currentUrl, location);
+                    if (isHttpsDowngrade(currentUrl, nextUrl)) {
+                        throw new IOException("Refusing HTTPS to HTTP backend redirect");
+                    }
+
+                    // The next iteration revalidates VPN, DNS and redirect.
+                    currentUrl = nextUrl;
+                    continue;
+                }
+                if (responseCode < HttpURLConnection.HTTP_OK
+                        || responseCode >= HttpURLConnection.HTTP_MULT_CHOICE) {
+                    throw new IOException("Backend returned HTTP " + responseCode);
+                }
+                handedOffToCaller = true;
+                return connection;
+            } finally {
+                // Includes network/setup exceptions, absent redirect headers,
+                // malformed redirect URLs and unexpected runtime failures.
+                // A successful 2xx response remains owned by downloadFile()
+                // or downloadFileToText(), whose finally block closes it.
+                if (!handedOffToCaller) {
+                    connection.disconnect();
+                }
+            }
+        }
+
+        throw new IOException("Too many backend redirects");
+    }
+
+    /**
+     * Configure one connection and obtain its status without transferring
+     * ownership. A transport/setup failure must not retain a half-open socket.
+     * The caller's encompassing finally handles redirects and later failures.
+     */
+    static int configureAndReadStatus(HttpURLConnection connection) throws IOException {
+        if (connection == null) {
+            throw new IllegalArgumentException("HTTP connection is required");
+        }
+        try {
             connection.setInstanceFollowRedirects(false);
             connection.setRequestMethod("GET");
             connection.setDoInput(true);
@@ -246,39 +298,14 @@ public class HttpDownloadUtil {
             connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
             connection.setReadTimeout(READ_TIMEOUT_MS);
             connection.connect();
-
-            int responseCode = connection.getResponseCode();
-            if (isRedirectCode(responseCode)) {
-                String location = connection.getHeaderField("Location");
-                connection.disconnect();
-
-                if (location == null || location.trim().isEmpty()) {
-                    throw new IOException("Backend redirect is missing Location header");
-                }
-                if (redirects >= MAX_REDIRECTS) {
-                    throw new IOException("Too many backend redirects");
-                }
-
-                String nextUrl = resolveRedirectUrl(currentUrl, location);
-                if (isHttpsDowngrade(currentUrl, nextUrl)) {
-                    throw new IOException("Refusing HTTPS to HTTP backend redirect");
-                }
-
-                // Do not open the redirected URL here. Loop first so every actual
-                // request destination passes the mandatory VPN-aware backend preflight.
-                currentUrl = nextUrl;
-                continue;
-            }
-
-            if (responseCode < HttpURLConnection.HTTP_OK
-                    || responseCode >= HttpURLConnection.HTTP_MULT_CHOICE) {
-                connection.disconnect();
-                throw new IOException("Backend returned HTTP " + responseCode);
-            }
-            return connection;
+            return connection.getResponseCode();
+        } catch (IOException | RuntimeException failure) {
+            // This helper is testable without a live host. Cleanup also occurs
+            // at the outer handoff gate, so an exception before connection
+            // ownership transfer cannot leak the pending HTTP connection.
+            connection.disconnect();
+            throw failure;
         }
-
-        throw new IOException("Too many backend redirects");
     }
 
     static boolean isRedirectCode(int responseCode) {
