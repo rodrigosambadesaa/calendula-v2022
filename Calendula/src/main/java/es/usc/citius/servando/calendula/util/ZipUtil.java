@@ -19,7 +19,6 @@
 package es.usc.citius.servando.calendula.util;
 
 import java.io.BufferedInputStream;
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -27,6 +26,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -181,28 +182,78 @@ public class ZipUtil {
         }
     }
 
-    public static void writeToStream(InputStream in, OutputStream out, boolean closeOnExit) throws IOException {
-        byte[] bytes = new byte[2048];
-        for (int c = in.read(bytes); c != -1; c = in.read(bytes)) {
-            out.write(bytes, 0, c);
+    /**
+     * Copy with a bounded tolerance for a broken stream returning zero bytes
+     * without EOF. Cleanup must run even when a read or write throws, or the
+     * importer can leak file descriptors during failed archive setup.
+     */
+    public static void writeToStream(InputStream in, OutputStream out, boolean closeOnExit)
+            throws IOException {
+        if (in == null || out == null) {
+            throw new IllegalArgumentException("Both source and destination streams are required");
         }
-        if (closeOnExit) {
-            in.close();
-            out.close();
+        try {
+            byte[] bytes = new byte[2048];
+            int consecutiveEmptyReads = 0;
+            int read;
+            while ((read = in.read(bytes)) != -1) {
+                if (read == 0) {
+                    if (++consecutiveEmptyReads > 3) {
+                        throw new IOException("Stream copy made no progress");
+                    }
+                    continue;
+                }
+                consecutiveEmptyReads = 0;
+                out.write(bytes, 0, read);
+            }
+        } finally {
+            if (closeOnExit) {
+                try {
+                    in.close();
+                } finally {
+                    out.close();
+                }
+            }
         }
     }
 
-    public static String writeToString(InputStream stream) throws java.io.IOException {
-        StringBuffer fileData = new StringBuffer(1000);
-        BufferedReader reader = new BufferedReader(new InputStreamReader(stream, "utf-8"));
-        char[] buf = new char[1024];
-        int numRead = 0;
-        while ((numRead = reader.read(buf)) != -1) {
-            String readData = String.valueOf(buf, 0, numRead);
-            fileData.append(readData);
-            buf = new char[1024];
+    // Historical text conversion is public even though current callers use
+    // dedicated bounded HTTP helpers. Do not allow arbitrary input to grow a
+    // medical document buffer without a maximum.
+    static final int MAX_STREAM_TEXT_CHARS = 2_000_000;
+
+    public static String writeToString(InputStream stream) throws IOException {
+        return writeToString(stream, MAX_STREAM_TEXT_CHARS);
+    }
+
+    static String writeToString(InputStream stream, int maxChars) throws IOException {
+        if (stream == null) {
+            throw new IllegalArgumentException("Input stream is required");
         }
-        reader.close();
+        if (maxChars < 0 || maxChars > MAX_STREAM_TEXT_CHARS) {
+            throw new IllegalArgumentException("Invalid maximum text length");
+        }
+        StringBuilder fileData = new StringBuilder(Math.min(maxChars, 1024));
+        // Preserve the historical ownership contract: this helper closes the
+        // input, including when decoding, reading or capacity checking fails.
+        try (Reader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+            char[] buf = new char[1024];
+            int emptyReads = 0;
+            int numRead;
+            while ((numRead = reader.read(buf)) != -1) {
+                if (numRead == 0) {
+                    if (++emptyReads > 3) {
+                        throw new IOException("Text stream made no progress");
+                    }
+                    continue;
+                }
+                emptyReads = 0;
+                if (numRead > maxChars - fileData.length()) {
+                    throw new IOException("Text stream exceeds the maximum length");
+                }
+                fileData.append(buf, 0, numRead);
+            }
+        }
         return fileData.toString();
     }
 }
