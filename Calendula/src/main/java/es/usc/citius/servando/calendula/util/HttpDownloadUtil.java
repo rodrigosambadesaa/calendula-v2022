@@ -173,6 +173,21 @@ public class HttpDownloadUtil {
         byte[] buffer = new byte[8192];
         int read;
         while ((read = input.read(buffer)) != -1) {
+            if (read == 0) {
+                // A nonconforming stream can repeatedly return zero without
+                // reaching EOF. Force a one-byte read rather than spinning
+                // forever on a broken/legacy HTTP stream implementation.
+                int next = input.read();
+                if (next == -1) {
+                    break;
+                }
+                if (total >= maxBytes) {
+                    throw new IOException("Binary download exceeds maximum allowed size");
+                }
+                output.write(next);
+                total++;
+                continue;
+            }
             if (read > maxBytes - total) {
                 throw new IOException("Binary download exceeds maximum allowed size");
             }
@@ -190,7 +205,19 @@ public class HttpDownloadUtil {
         StringBuilder sb = new StringBuilder(Math.min(maxChars, 4096));
         char[] buffer = new char[4096];
         int read;
+        int zeroReadCount = 0;
         while ((read = reader.read(buffer)) != -1) {
+            if (read == 0) {
+                // Reader.read() may itself be implemented using read(char[]),
+                // so a single-char fallback cannot reliably tell a byte of
+                // data from another zero-progress read. Retry a small bounded
+                // number of times, then fail rather than spin or invent NULs.
+                if (++zeroReadCount > 3) {
+                    throw new IOException("Text response reader made no progress");
+                }
+                continue;
+            }
+            zeroReadCount = 0;
             if (sb.length() + read > maxChars) {
                 throw new IOException("Text response exceeds maximum allowed size");
             }
