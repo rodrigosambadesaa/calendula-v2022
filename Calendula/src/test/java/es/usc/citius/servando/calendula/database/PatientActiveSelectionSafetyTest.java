@@ -87,6 +87,7 @@ public class PatientActiveSelectionSafetyTest {
         Context context = ApplicationProvider.getApplicationContext();
         SharedPreferences.Editor editor = mock(SharedPreferences.Editor.class);
         when(editor.remove(anyString())).thenReturn(editor);
+        when(editor.putBoolean(eq(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key()), eq(true))).thenReturn(editor);
         when(raw.queryForId(98433L)).thenReturn(null);
         doReturn(null).when(subject).getDefault();
 
@@ -94,11 +95,16 @@ public class PatientActiveSelectionSafetyTest {
              MockedStatic<CalendulaApp> app = mockStatic(CalendulaApp.class)) {
             prefs.when(() -> PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1))
                     .thenReturn(98433L);
+            prefs.when(() -> PreferenceUtils.getString(
+                    PreferenceKeys.PATIENTS_ACTIVE_OWNER, null))
+                    .thenReturn("a".repeat(64));
             prefs.when(PreferenceUtils::edit).thenReturn(editor);
             app.when(CalendulaApp::getContext).thenReturn(context);
 
             assertNull(subject.getActive(context));
             verify(editor).remove(PreferenceKeys.PATIENTS_ACTIVE.key());
+            verify(editor).remove(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key());
+            verify(editor).putBoolean(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key(), true);
             verify(editor).apply();
             prefs.verify(PreferenceUtils::edit);
         }
@@ -117,11 +123,93 @@ public class PatientActiveSelectionSafetyTest {
         try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
             prefs.when(() -> PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1))
                     .thenReturn(98434L);
+            prefs.when(() -> PreferenceUtils.getString(
+                    PreferenceKeys.PATIENTS_ACTIVE_OWNER, null))
+                    .thenReturn(PatientDao.stablePatientDigest(sameIdDifferentBox.getCode()));
             assertTrue(subject.isActive(sameIdDifferentBox, null));
             assertFalse(subject.isActive(unsaved, null));
             assertFalse(subject.isActive(null, null));
         }
     }
+    @Test
+    public void bareRowIdCannotActivateAnOwnerAfterDatabaseRestore() throws Exception {
+        Dao<Patient, Long> raw = rawDao();
+        PatientDao subject = createSubject(raw);
+        Patient replacement = new Patient();
+        replacement.setId(98522L);
+        replacement.setCode("local-ci-restored-replacement");
+        when(raw.queryForId(98522L)).thenReturn(replacement);
+        String oldDigest = PatientDao.stablePatientDigest("local-ci-previous-owner");
+
+        try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
+            prefs.when(() -> PreferenceUtils.getLong(
+                    PreferenceKeys.PATIENTS_ACTIVE, -1L)).thenReturn(98522L);
+            prefs.when(() -> PreferenceUtils.getString(
+                    PreferenceKeys.PATIENTS_ACTIVE_OWNER, null)).thenReturn(oldDigest);
+
+            assertThrows("A recycled ID alone must not select a new clinical owner",
+                    IllegalArgumentException.class, () -> subject.setActiveById(98522L));
+            // No owner preference, alarm or notification should change.
+            prefs.verify(PreferenceUtils::edit, org.mockito.Mockito.never());
+        }
+    }
+
+    @Test
+    public void idOnlyActivationCannotBypassExplicitReselectionMarker() throws Exception {
+        Dao<Patient, Long> raw = rawDao();
+        PatientDao subject = createSubject(raw);
+        Patient replacement = new Patient();
+        replacement.setId(98524L);
+        replacement.setCode("local-ci-reselection-required");
+        when(raw.queryForId(98524L)).thenReturn(replacement);
+        String digest = PatientDao.stablePatientDigest(replacement.getCode());
+        try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
+            prefs.when(() -> PreferenceUtils.getLong(
+                    PreferenceKeys.PATIENTS_ACTIVE, -1L)).thenReturn(98524L);
+            prefs.when(() -> PreferenceUtils.getString(
+                    PreferenceKeys.PATIENTS_ACTIVE_OWNER, null)).thenReturn(digest);
+            prefs.when(() -> PreferenceUtils.getBoolean(
+                    PreferenceKeys.PATIENTS_RESELECTION_REQUIRED, false)).thenReturn(true);
+            assertThrows(IllegalArgumentException.class,
+                    () -> subject.setActiveById(98524L));
+            prefs.verify(PreferenceUtils::edit, org.mockito.Mockito.never());
+        }
+    }
+
+    @Test
+    public void bareRowIdMayRefreshOnlyItsAlreadyBoundActiveOwner() throws Exception {
+        Dao<Patient, Long> raw = rawDao();
+        PatientDao subject = createSubject(raw);
+        Context context = ApplicationProvider.getApplicationContext();
+        Patient current = new Patient();
+        current.setId(98523L);
+        current.setCode("local-ci-verified-current-owner");
+        when(raw.queryForId(98523L)).thenReturn(current);
+        String digest = PatientDao.stablePatientDigest(current.getCode());
+        SharedPreferences.Editor editor = mock(SharedPreferences.Editor.class);
+        when(editor.putLong(PreferenceKeys.PATIENTS_ACTIVE.key(), 98523L)).thenReturn(editor);
+        when(editor.putString(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key(), digest))
+                .thenReturn(editor);
+        when(editor.remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key()))
+                .thenReturn(editor);
+        EventBus events = mock(EventBus.class);
+        try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class);
+             MockedStatic<CalendulaApp> app = mockStatic(CalendulaApp.class)) {
+            prefs.when(() -> PreferenceUtils.getLong(
+                    PreferenceKeys.PATIENTS_ACTIVE, -1L)).thenReturn(98523L);
+            prefs.when(() -> PreferenceUtils.getString(
+                    PreferenceKeys.PATIENTS_ACTIVE_OWNER, null)).thenReturn(digest);
+            prefs.when(PreferenceUtils::edit).thenReturn(editor);
+            app.when(CalendulaApp::getContext).thenReturn(context);
+            app.when(CalendulaApp::eventBus).thenReturn(events);
+            subject.setActiveById(98523L);
+            verify(editor).putString(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key(), digest);
+            verify(editor).apply();
+            verify(events).post(org.mockito.ArgumentMatchers.any(
+                    es.usc.citius.servando.calendula.events.PersistenceEvents.ActiveUserChangeEvent.class));
+        }
+    }
+
     @Test
     public void recycledPatientIdCannotAuthorizeActivationOrActiveProfileCheck()
             throws Exception {
@@ -140,6 +228,9 @@ public class PatientActiveSelectionSafetyTest {
         try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
             prefs.when(() -> PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1))
                     .thenReturn(98441L);
+            prefs.when(() -> PreferenceUtils.getString(
+                    PreferenceKeys.PATIENTS_ACTIVE_OWNER, null))
+                    .thenReturn(PatientDao.stablePatientDigest(persisted.getCode()));
             assertFalse("Reused ID with changed owner code is not active",
                     subject.isActive(stale, null));
             assertFalse("Unknown patient identity is not active",
@@ -153,7 +244,7 @@ public class PatientActiveSelectionSafetyTest {
     }
 
     @Test
-    public void legacyLocalDefaultCanBeRecognizedUntilStableCodeMigration()
+    public void legacyUnboundSelectionCannotAuthorizeClinicalAccess()
             throws Exception {
         Dao<Patient, Long> raw = rawDao();
         PatientDao subject = createSubject(raw);
@@ -168,7 +259,7 @@ public class PatientActiveSelectionSafetyTest {
         try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
             prefs.when(() -> PreferenceUtils.getLong(PreferenceKeys.PATIENTS_ACTIVE, -1))
                     .thenReturn(98442L);
-            assertTrue(subject.isActive(reloaded, null));
+            assertFalse(subject.isActive(reloaded, null));
             reloaded.setCode("ci-stale-code");
             assertFalse(subject.isActive(reloaded, null));
         }
@@ -206,6 +297,9 @@ public class PatientActiveSelectionSafetyTest {
         SharedPreferences.Editor editor = mock(SharedPreferences.Editor.class);
         EventBus eventBus = mock(EventBus.class);
         when(editor.putLong(anyString(), eq(98435L))).thenReturn(editor);
+        when(editor.putString(eq(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key()), anyString()))
+                .thenReturn(editor);
+        when(editor.remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key())).thenReturn(editor);
 
         try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class);
              MockedStatic<CalendulaApp> app = mockStatic(CalendulaApp.class)) {
@@ -214,6 +308,8 @@ public class PatientActiveSelectionSafetyTest {
             prefs.when(PreferenceUtils::edit).thenReturn(editor);
             subject.setActive(staleFromUi);
             verify(editor).putLong(PreferenceKeys.PATIENTS_ACTIVE.key(), 98435L);
+            verify(editor).putString(eq(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key()),
+                    eq(PatientDao.stablePatientDigest(existing.getCode())));
             verify(editor).apply();
             ArgumentCaptor<es.usc.citius.servando.calendula.events.PersistenceEvents.ActiveUserChangeEvent> event =
                     ArgumentCaptor.forClass(
@@ -237,6 +333,9 @@ public class PatientActiveSelectionSafetyTest {
         when(raw.queryForId(98435L)).thenReturn(newPatient);
         SharedPreferences.Editor editor = mock(SharedPreferences.Editor.class);
         when(editor.putLong(anyString(), eq(98435L))).thenReturn(editor);
+        when(editor.putString(eq(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key()), anyString()))
+                .thenReturn(editor);
+        when(editor.remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key())).thenReturn(editor);
         EventBus bus = mock(EventBus.class);
 
         try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class);
@@ -246,6 +345,9 @@ public class PatientActiveSelectionSafetyTest {
             prefs.when(PreferenceUtils::edit).thenReturn(editor);
             prefs.when(() -> PreferenceUtils.getLong(
                     PreferenceKeys.PATIENTS_ACTIVE, -1L)).thenReturn(98434L, 98435L);
+            prefs.when(() -> PreferenceUtils.getString(
+                    PreferenceKeys.PATIENTS_ACTIVE_OWNER, null))
+                    .thenReturn(null, PatientDao.stablePatientDigest(newPatient.getCode()));
             app.when(CalendulaApp::getContext).thenReturn(context);
             app.when(CalendulaApp::eventBus).thenReturn(bus);
 
@@ -263,6 +365,48 @@ public class PatientActiveSelectionSafetyTest {
     }
 
     @Test
+    public void sameRecycledNumericIdWithDifferentBindingCancelsOldProviderNotification()
+            throws Exception {
+        Dao<Patient, Long> raw = rawDao();
+        PatientDao subject = createSubject(raw);
+        Context context = ApplicationProvider.getApplicationContext();
+        Patient replacement = new Patient();
+        replacement.setId(98603L);
+        replacement.setCode("local-ci-new-owner");
+        when(raw.queryForId(98603L)).thenReturn(replacement);
+        SharedPreferences.Editor editor = mock(SharedPreferences.Editor.class);
+        when(editor.putLong(eq(PreferenceKeys.PATIENTS_ACTIVE.key()), eq(98603L)))
+                .thenReturn(editor);
+        when(editor.putString(eq(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key()), anyString()))
+                .thenReturn(editor);
+        when(editor.remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key()))
+                .thenReturn(editor);
+        EventBus bus = mock(EventBus.class);
+        String oldDigest = PatientDao.stablePatientDigest("local-ci-old-owner");
+        String newDigest = PatientDao.stablePatientDigest(replacement.getCode());
+
+        try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class);
+             MockedStatic<CalendulaApp> app = mockStatic(CalendulaApp.class);
+             MockedStatic<ActiveMedNotification> notification =
+                     mockStatic(ActiveMedNotification.class)) {
+            prefs.when(() -> PreferenceUtils.getLong(
+                    PreferenceKeys.PATIENTS_ACTIVE, -1L)).thenReturn(98603L);
+            prefs.when(() -> PreferenceUtils.getString(
+                    PreferenceKeys.PATIENTS_ACTIVE_OWNER, null)).thenReturn(oldDigest);
+            prefs.when(PreferenceUtils::edit).thenReturn(editor);
+            app.when(CalendulaApp::getContext).thenReturn(context);
+            app.when(CalendulaApp::eventBus).thenReturn(bus);
+
+            subject.setActive(replacement);
+            verify(editor).putString(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key(),
+                    newDigest);
+            verify(editor).remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key());
+            verify(editor).apply();
+            notification.verify(() -> ActiveMedNotification.cancel(context), times(1));
+        }
+    }
+
+    @Test
     public void corruptedActivePatientPreferenceCannotImpersonateAnOwner() throws Exception {
         PatientDao subject = createSubject(rawDao());
         Patient previouslySelected = new Patient();
@@ -272,6 +416,40 @@ public class PatientActiveSelectionSafetyTest {
                     .thenThrow(new ClassCastException("Synthetic restored String"));
             assertFalse("A broken patient selection is never authorization",
                     subject.isActive(previouslySelected, null));
+        }
+    }
+
+    @Test
+    public void deletedSelectionMarkerForcesExplicitRecoveryEvenWithoutSavedId()
+            throws Exception {
+        PatientDao subject = spy(createSubject(rawDao()));
+        Context context = ApplicationProvider.getApplicationContext();
+        try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
+            prefs.when(() -> PreferenceUtils.getLong(
+                    PreferenceKeys.PATIENTS_ACTIVE, -1L)).thenReturn(-1L);
+            prefs.when(() -> PreferenceUtils.getBoolean(
+                    PreferenceKeys.PATIENTS_RESELECTION_REQUIRED, false))
+                    .thenReturn(true);
+            assertNull(subject.getActive(context));
+            org.mockito.Mockito.verify(subject, org.mockito.Mockito.never()).getDefault();
+        }
+    }
+
+    @Test
+    public void corruptOrphanedBindingCannotSelectFallbackDefault()
+            throws Exception {
+        PatientDao subject = spy(createSubject(rawDao()));
+        Context context = ApplicationProvider.getApplicationContext();
+        try (MockedStatic<PreferenceUtils> prefs = mockStatic(PreferenceUtils.class)) {
+            prefs.when(() -> PreferenceUtils.getLong(
+                    PreferenceKeys.PATIENTS_ACTIVE, -1L)).thenReturn(-1L);
+            prefs.when(() -> PreferenceUtils.getBoolean(
+                    PreferenceKeys.PATIENTS_RESELECTION_REQUIRED, false)).thenReturn(false);
+            prefs.when(() -> PreferenceUtils.getString(
+                    PreferenceKeys.PATIENTS_ACTIVE_OWNER, null))
+                    .thenThrow(new ClassCastException("Synthetic corrupted digest type"));
+            assertNull(subject.getActive(context));
+            org.mockito.Mockito.verify(subject, org.mockito.Mockito.never()).getDefault();
         }
     }
 

@@ -19,6 +19,7 @@ import static org.mockito.Mockito.mockStatic;
 import org.mockito.MockedStatic;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
+import es.usc.citius.servando.calendula.util.ProviderRevisionGuard;
 import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.database.PatientDao;
@@ -111,7 +112,7 @@ public class ActiveMedNotificationPrivacyTest {
             verify(editor).putString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY.key(),
                     "Synthetic owned summary");
             verify(editor).putString(PreferenceKeys.REMOTE_LAST_GOOD_UPDATE_SUMMARY_OWNER.key(),
-                    "11001:provider-a");
+                    ProviderRevisionGuard.ownerKey(11001L, "provider-a"));
             verify(editor, times(1)).apply();
         }
     }

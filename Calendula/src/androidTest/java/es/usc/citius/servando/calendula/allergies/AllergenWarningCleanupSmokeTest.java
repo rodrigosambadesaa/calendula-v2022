@@ -52,6 +52,38 @@ public class AllergenWarningCleanupSmokeTest {
             assertEquals(1, DB.alerts().create(firstAlert));
             assertEquals(1, DB.alerts().create(secondAlert));
 
+            // Simulate a restored patient that has inherited precisely the
+            // same numeric SQLite ID but NOT the same stable local code.
+            // Neither the original HIGH warning nor its details may change.
+            Patient recycled = new Patient();
+            recycled.setId(owner.getId());
+            recycled.setCode("ci-different-restored-owner-" + seed);
+            PatientAllergen staleRemoval = new PatientAllergen(a, recycled);
+            try {
+                AllergyAlertUtil.removeAllergyAlerts(context, staleRemoval);
+                fail("Recycled SQLite patient ID authorized stale allergen cleanup");
+            } catch (IllegalStateException expected) {
+                // The preflight must reject before mutating any warning row.
+            }
+            assertNotNull(DB.alerts().findById(firstAlert.id()));
+            AllergyPatientAlert preserved = (AllergyPatientAlert)
+                    DB.alerts().findById(secondAlert.id()).map();
+            assertEquals(2, preserved.getDetails().getAllergens().size());
+
+            Patient ownerWithoutCode = new Patient();
+            ownerWithoutCode.setId(owner.getId());
+            try {
+                AllergyAlertUtil.removeAllergyAlerts(context,
+                        new PatientAllergen(a, ownerWithoutCode));
+                fail("Ownerless restored patient unexpectedly authorized warning cleanup");
+            } catch (IllegalArgumentException expected) {
+                // A legacy unowned profile requires identity migration.
+            }
+            assertNotNull(DB.alerts().findById(firstAlert.id()));
+            assertEquals(2, ((AllergyPatientAlert)
+                    DB.alerts().findById(secondAlert.id()).map())
+                    .getDetails().getAllergens().size());
+
             PatientAllergen removed = new PatientAllergen(a, owner);
             AllergyAlertUtil.removeAllergyAlerts(context, removed);
 

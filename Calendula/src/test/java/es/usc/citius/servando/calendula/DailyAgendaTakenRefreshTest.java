@@ -30,6 +30,7 @@ public class DailyAgendaTakenRefreshTest {
     private Patient patient(long id) {
         Patient p = new Patient();
         p.setId(id);
+        p.setCode("ci-agenda-current-" + id);
         return p;
     }
 
@@ -103,5 +104,39 @@ public class DailyAgendaTakenRefreshTest {
         stub.patient = patient(901001L);
         DailyAgendaRecyclerAdapter.refreshTakenStatus(stub, null);
         assertFalse(item.taken);
+    }
+
+    @Test
+    public void recycledIdOrMissingStableOwnerCannotFlipAnotherPatientsTakenStatus() {
+        Patient oldOwner = patient(901001L);
+        DailyAgendaItemStub stub = new DailyAgendaItemStub(
+                DateTime.now().toLocalDate(), DateTime.now().toLocalTime());
+        stub.patient = oldOwner;
+        DailyAgendaItemStub.DailyAgendaItemStubElement current =
+                new DailyAgendaItemStub.DailyAgendaItemStubElement();
+        current.eventId = 2000000L;
+        stub.meds.add(current);
+
+        Patient replacement = patient(901001L);
+        replacement.setCode("ci-unrelated-replacement");
+        DailyAgendaRecyclerAdapter.refreshTakenStatus(stub,
+                Collections.singletonList(event(2000000L, replacement, true)));
+        assertFalse("Recycled patient ID is not authority for taken status", current.taken);
+
+        Patient unidentified = patient(901001L);
+        unidentified.setCode(null);
+        DailyAgendaRecyclerAdapter.refreshTakenStatus(stub,
+                Collections.singletonList(event(2000000L, unidentified, true)));
+        assertFalse("Missing stable code cannot change the displayed dose", current.taken);
+
+        stub.patient.setCode(null);
+        DailyAgendaRecyclerAdapter.refreshTakenStatus(stub,
+                Collections.singletonList(event(2000000L, patient(901001L), true)));
+        assertFalse("A stale unidentified UI row cannot absorb new clinical status", current.taken);
+
+        stub.patient.setCode("ci-agenda-current-901001");
+        DailyAgendaRecyclerAdapter.refreshTakenStatus(stub,
+                Collections.singletonList(event(2000000L, patient(901001L), true)));
+        assertTrue("Matching current owner and event may update the taken indicator", current.taken);
     }
 }

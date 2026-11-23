@@ -42,6 +42,8 @@ public class DeferredLogoutRestoreTest {
     public void incompatibleFlagPerformsPendingLogoutWithoutDeletingAnyPatient() {
         SharedPreferences.Editor editor = mock(SharedPreferences.Editor.class);
         when(editor.remove(PreferenceKeys.PATIENTS_ACTIVE.key())).thenReturn(editor);
+        when(editor.remove(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key())).thenReturn(editor);
+        when(editor.remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key())).thenReturn(editor);
         when(editor.remove(PreferenceKeys.PATIENTS_REMOVE_ACTIVE_ON_BOOT.key()))
                 .thenReturn(editor);
         when(editor.commit()).thenReturn(true);
@@ -53,6 +55,8 @@ public class DeferredLogoutRestoreTest {
             assertTrue(RemoveActivePatientOnBootModule.shouldRemoveActivePatient());
             new RemoveActivePatientOnBootModule().onApplicationStartup(null);
             verify(editor).remove(PreferenceKeys.PATIENTS_ACTIVE.key());
+            verify(editor).remove(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key());
+            verify(editor).remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key());
             verify(editor).remove(PreferenceKeys.PATIENTS_REMOVE_ACTIVE_ON_BOOT.key());
             verify(editor).commit();
         }

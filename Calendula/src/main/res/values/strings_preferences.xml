@@ -56,6 +56,8 @@
 
     <!-- Patients -->
     <string name="prefkey_patients_active" translatable="false">active_patient</string>
+    <string name="prefkey_patients_active_owner" translatable="false">active_patient_owner_sha256</string>
+    <string name="prefkey_patients_reselection_required" translatable="false">active_patient_explicit_reselection_required</string>
     <string name="prefkey_patients_remove_active_on_boot" translatable="false">patients_remove_active_on_boot</string>
 
     <!--Remote -->

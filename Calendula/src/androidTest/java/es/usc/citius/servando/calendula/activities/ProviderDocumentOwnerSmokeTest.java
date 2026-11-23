@@ -74,7 +74,11 @@ public class ProviderDocumentOwnerSmokeTest {
                     && DB.patients().findById(previous.getId()) != null) {
                 DB.patients().setActive(previous);
             } else {
-                PreferenceUtils.edit().remove(PreferenceKeys.PATIENTS_ACTIVE.key()).commit();
+                PreferenceUtils.edit()
+                        .remove(PreferenceKeys.PATIENTS_ACTIVE.key())
+                        .remove(PreferenceKeys.PATIENTS_ACTIVE_OWNER.key())
+                        .remove(PreferenceKeys.PATIENTS_RESELECTION_REQUIRED.key())
+                        .commit();
             }
             for (Patient patient : new Patient[]{first, second}) {
                 if (patient.getId() != null

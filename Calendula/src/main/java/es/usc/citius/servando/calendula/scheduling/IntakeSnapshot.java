@@ -20,6 +20,8 @@ import es.usc.citius.servando.calendula.persistence.Schedule;
 import es.usc.citius.servando.calendula.scheduling.model.EventInstance;
 import es.usc.citius.servando.calendula.scheduling.model.EventReminder;
 import es.usc.citius.servando.calendula.scheduling.model.EventType;
+import es.usc.citius.servando.calendula.util.IntentParams;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 
 /**
  * An opaque digest of the exact pending doses visible in a notification.
@@ -46,13 +48,12 @@ public final class IntakeSnapshot {
         }
         List<EventInstance> sorted = new ArrayList<>(visible);
         HashSet<Long> seen = new HashSet<>();
-        Long expectedPatientId = null;
+        es.usc.citius.servando.calendula.persistence.Patient expectedOwner = null;
         for (EventInstance event : sorted) {
             if (event == null || event.getId() == null || event.getId() <= 0L
                     || event.getRef() == null || event.getRef() <= 0L
                     || event.getTime() == null
-                    || event.getPatient() == null || event.getPatient().getId() == null
-                    || event.getPatient().getId() <= 0L
+                    || !PatientOwnerGuard.hasStableIdentity(event.getPatient())
                     || event.getType() != EventType.MEDICATION_INTAKE
                     || event.completed() || event.cancelled()
                     || !seen.add(event.getId())) {
@@ -60,10 +61,10 @@ public final class IntakeSnapshot {
             }
             // Never issue a single consent fingerprint for multiple patients.
             // The SQLite write still independently rechecks persisted owners.
-            Long eventPatientId = event.getPatient().getId();
-            if (expectedPatientId == null) {
-                expectedPatientId = eventPatientId;
-            } else if (!expectedPatientId.equals(eventPatientId)) {
+            if (expectedOwner == null) {
+                expectedOwner = event.getPatient();
+            } else if (!PatientOwnerGuard.sameStableIdentity(
+                    expectedOwner, event.getPatient())) {
                 return null;
             }
         }
@@ -93,6 +94,7 @@ public final class IntakeSnapshot {
             append(canonical, Long.toString(event.getId()));
             append(canonical, event.getType().name());
             append(canonical, Long.toString(event.getPatient().getId()));
+            append(canonical, event.getPatient().getCode());
             append(canonical, Long.toString(event.getRef()));
             append(canonical, Long.toString(event.getTime().getMillis()));
             append(canonical, dose);
@@ -118,10 +120,9 @@ public final class IntakeSnapshot {
     public static String fingerprint(List<EventInstance> visible, EventReminder reminder,
                                      Map<Long, Schedule> displayedSchedules) {
         if (reminder == null || reminder.getId() == null || reminder.getId() <= 0L
-                || reminder.getPatient() == null
-                || reminder.getPatient().getId() == null
-                || reminder.getPatient().getId() <= 0L
+                || !PatientOwnerGuard.hasStableIdentity(reminder.getPatient())
                 || reminder.getEventType() != EventType.MEDICATION_INTAKE
+                || !IntentParams.isValidAlarmInstance(reminder.getAlarmInstance())
                 || reminder.getDateTime() == null || reminder.getNextTime() == null) {
             return null;
         }
@@ -130,17 +131,20 @@ public final class IntakeSnapshot {
             return null;
         }
         for (EventInstance event : visible) {
-            if (event == null || event.getPatient() == null
-                    || !reminder.getPatient().getId().equals(event.getPatient().getId())) {
+            if (event == null || !PatientOwnerGuard.sameStableIdentity(
+                    reminder.getPatient(), event.getPatient())) {
                 // An event from another patient's calendar must never be
                 // actionable from this reminder, even if its own schedule
                 // happens to be valid or a different owner remains active.
                 return null;
             }
         }
-        StringBuilder combined = new StringBuilder("reminder-snapshot-v2:");
+        StringBuilder combined = new StringBuilder("reminder-snapshot-v3:");
         append(combined, Long.toString(reminder.getId()));
+        // Recycled SQLite IDs must never recreate an old notification digest.
+        append(combined, reminder.getAlarmInstance());
         append(combined, Long.toString(reminder.getPatient().getId()));
+        append(combined, reminder.getPatient().getCode());
         append(combined, reminder.getEventType().name());
         append(combined, Long.toString(reminder.getDateTime().getMillis()));
         append(combined, Long.toString(reminder.getNextTime().getMillis()));
@@ -157,14 +161,16 @@ public final class IntakeSnapshot {
                     : displayedSchedules.get(event.getId());
             if (schedule == null || schedule.getId() == null
                     || !event.getRef().equals(schedule.getId())
-                    || schedule.getPatient() == null
-                    || schedule.getPatient().getId() == null
-                    || !event.getPatient().getId().equals(schedule.getPatient().getId())) {
+                    || !PatientOwnerGuard.sameStableIdentity(
+                            event.getPatient(), schedule.getPatient())) {
                 return null;
             }
             Medicine medicine = schedule.getMedicine();
             if (medicine == null || medicine.getId() == null
-                    || medicine.getName() == null) {
+                    || medicine.getName() == null
+                    || (medicine.getPatient() != null
+                    && !PatientOwnerGuard.sameStableIdentity(
+                            event.getPatient(), medicine.getPatient()))) {
                 return null;
             }
             String medicineName = medicine.getName();
@@ -181,13 +187,15 @@ public final class IntakeSnapshot {
             append(combined, Long.toString(event.getId()));
             append(combined, Long.toString(schedule.getId()));
             append(combined, Long.toString(schedule.getPatient().getId()));
+            append(combined, schedule.getPatient().getCode());
             append(combined, Long.toString(medicine.getId()));
             append(combined, medicineName);
             append(combined, medicine.getPresentation() == null
                     ? null : medicine.getPresentation().toString());
             append(combined, medicine.getPatient() == null
-                    || medicine.getPatient().getId() == null
                     ? null : Long.toString(medicine.getPatient().getId()));
+            append(combined, medicine.getPatient() == null
+                    ? null : medicine.getPatient().getCode());
             append(combined, schedule.getState() == null
                     ? null : schedule.getState().toString());
             append(combined, schedule.getActiveMedId() == null

@@ -62,6 +62,7 @@ import es.usc.citius.servando.calendula.healthcareprovider.persistence.RepeatTyp
 import es.usc.citius.servando.calendula.util.IconUtils;
 import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.RoutineDeleteAction;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 
 
 public class RoutinesListFragment extends Fragment {
@@ -170,14 +171,11 @@ public class RoutinesListFragment extends Fragment {
     static boolean ownsRoutine(Routine routine, Patient active) {
         return routine != null && routine.getId() != null && routine.getId() > 0L
                 && routine.getTime() != null && routine.getName() != null
-                && routine.getPatient() != null && routine.getPatient().getId() != null
-                && active != null && active.getId() != null && active.getId() > 0L
-                && active.getId().equals(routine.getPatient().getId());
+                && PatientOwnerGuard.sameStableIdentity(active, routine.getPatient());
     }
 
     static boolean ownsEveryRoutine(Patient active, List<Routine> rows) {
-        if (active == null || active.getId() == null || active.getId() <= 0L
-                || rows == null) {
+        if (!PatientOwnerGuard.hasStableIdentity(active) || rows == null) {
             return false;
         }
         for (Routine routine : rows) {
@@ -192,9 +190,9 @@ public class RoutinesListFragment extends Fragment {
                                          long currentGeneration, Patient requested,
                                          Patient selected, List<Routine> rows) {
         return requestedGeneration == currentGeneration
-                && requested != null && selected != null
-                && requested.getId() != null && requested.getId() > 0L
-                && requested.getId().equals(selected.getId())
+                && PatientOwnerGuard.sameStableIdentity(requested, selected)
+                // Even an empty stale query must not hide the new owner's
+                // routines after SQLite reuse of the same row number.
                 && ownsEveryRoutine(requested, rows);
     }
 
