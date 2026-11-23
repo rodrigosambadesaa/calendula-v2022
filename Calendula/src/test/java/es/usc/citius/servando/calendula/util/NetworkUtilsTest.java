@@ -16,11 +16,18 @@ import android.net.Network;
 import android.net.NetworkCapabilities;
 
 import org.junit.Test;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import org.junit.runner.RunWith;
 import org.mockito.InOrder;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.inOrder;
@@ -33,6 +40,56 @@ import static org.mockito.Mockito.when;
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 27)
 public class NetworkUtilsTest {
+
+    @Test
+    public void boundedDnsExecutorRejectsExcessLookupsWithoutGrowingThreads() throws Exception {
+        ThreadPoolExecutor pool = NetworkUtils.newBoundedDnsExecutor(1, 1);
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        Future<?> active = null;
+        Future<?> queued = null;
+        try {
+            active = pool.submit(() -> {
+                started.countDown();
+                release.await();
+                return null;
+            });
+            assertTrue("First DNS task should start", started.await(5, TimeUnit.SECONDS));
+            queued = pool.submit(() -> null);
+            assertEquals(1, pool.getActiveCount());
+            assertEquals(1, pool.getQueue().size());
+            assertEquals(1, pool.getMaximumPoolSize());
+            try {
+                pool.submit(() -> null);
+                org.junit.Assert.fail("Bounded DNS worker pool must reject overflow");
+            } catch (RejectedExecutionException expected) {
+                // Saturation rejects the backend preflight rather than creating
+                // another potentially uninterruptible native DNS worker.
+            }
+        } finally {
+            release.countDown();
+            if (active != null) active.get(5, TimeUnit.SECONDS);
+            if (queued != null) queued.get(5, TimeUnit.SECONDS);
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    public void dnsExecutorWorkersAreDaemonThreadsAndInvalidSizesAreRejected() {
+        ThreadPoolExecutor pool = NetworkUtils.newBoundedDnsExecutor(2, 4);
+        try {
+            Thread worker = pool.getThreadFactory().newThread(() -> { });
+            assertTrue(worker.isDaemon());
+            assertEquals(2, pool.getMaximumPoolSize());
+            assertEquals(4, pool.getQueue().remainingCapacity());
+            org.junit.Assert.assertThrows(IllegalArgumentException.class,
+                    () -> NetworkUtils.newBoundedDnsExecutor(0, 1));
+            org.junit.Assert.assertThrows(IllegalArgumentException.class,
+                    () -> NetworkUtils.newBoundedDnsExecutor(1, 0));
+        } finally {
+            pool.shutdownNow();
+        }
+    }
 
     private static final String BACKEND_URL =
             "https://www.aemps.gob.es/cima/dochtml/p/example";
