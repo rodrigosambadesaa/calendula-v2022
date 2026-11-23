@@ -152,6 +152,34 @@ public class ReminderPendingIntentSmokeTest {
     }
 
     @Test
+    public void lateCancellationOfRecycledRowDoesNotCancelReplacementAlarm() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        EventReminder removed = new EventReminder();
+        removed.setId(9000000088L);
+        EventReminder replacement = new EventReminder();
+        replacement.setId(removed.getId());
+
+        PendingIntent old = token(context, removed);
+        PendingIntent current = token(context, replacement);
+        try {
+            assertFalse("The same SQLite row ID must NOT alias a new alarm instance",
+                    old.equals(current));
+            Agenda.instance().cancelAlarm(context, removed);
+            assertNull("Only the removed instance's token is retired",
+                    PendingIntent.getBroadcast(context, 0,
+                            Agenda.reminderBroadcastIntent(context, removed),
+                            PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+            assertNotNull("A replacement alarm must survive late old-token cleanup",
+                    PendingIntent.getBroadcast(context, 0,
+                            Agenda.reminderBroadcastIntent(context, replacement),
+                            PendingIntentFlags.immutable(PendingIntent.FLAG_NO_CREATE)));
+        } finally {
+            old.cancel();
+            current.cancel();
+        }
+    }
+
+    @Test
     public void distinctReminderIdsProduceDistinctPendingIntents() {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         EventReminder a = new EventReminder();

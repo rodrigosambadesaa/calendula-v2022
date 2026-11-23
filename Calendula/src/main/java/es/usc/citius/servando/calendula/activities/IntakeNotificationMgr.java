@@ -62,6 +62,7 @@ import es.usc.citius.servando.calendula.util.AvatarMgr;
 import es.usc.citius.servando.calendula.util.IntentParams;
 import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.PendingIntentFlags;
+import es.usc.citius.servando.calendula.util.PatientOwnerGuard;
 import es.usc.citius.servando.calendula.util.PreferenceKeys;
 import es.usc.citius.servando.calendula.util.PreferenceUtils;
 
@@ -94,6 +95,38 @@ public class IntakeNotificationMgr {
         return intent;
     }
 
+    /** Bind a clinical action to its immutable OS alarm instance, not a reused SQL ID. */
+    static Intent identifyNotificationAction(Intent intent, String buttonKind,
+                                             long reminderId, String alarmInstance) {
+        if (!IntentParams.isValidAlarmInstance(alarmInstance)) {
+            throw new IllegalArgumentException("An immutable reminder instance is required");
+        }
+        identifyNotificationAction(intent, buttonKind, reminderId);
+        String identity = "calendula-reminder://notification/"
+                + reminderId + "/" + alarmInstance + "/" + buttonKind;
+        if ("CONFIRM".equals(buttonKind) || "CANCEL".equals(buttonKind)
+                || "DELAY".equals(buttonKind)) {
+            // FLAG_UPDATE_CURRENT modifies extras of an existing PendingIntent.
+            // If a prescription changes after a user saw a notification, the
+            // old button MUST keep its old consent, not inherit the newly
+            // displayed dose snapshot through a reused Android token.
+            final String snapshot;
+            try {
+                snapshot = intent.getStringExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT);
+            } catch (RuntimeException invalidExtras) {
+                throw new IllegalArgumentException("A valid displayed-dose digest is required",
+                        invalidExtras);
+            }
+            if (snapshot == null || !snapshot.matches("[0-9a-f]{64}")) {
+                throw new IllegalArgumentException("A valid displayed-dose digest is required");
+            }
+            identity += "/" + snapshot;
+        }
+        intent.setData(Uri.parse(identity));
+        intent.putExtra(IntentParams.EXTRA_ALARM_INSTANCE, alarmInstance);
+        return intent;
+    }
+
     /**
      * Official prescription notification lines contain no numeric dose.
      * Never parse a missing/malformed legacy Bundle field in that branch.
@@ -115,12 +148,12 @@ public class IntakeNotificationMgr {
                                        Patient expectedPatient) {
         if (event == null || event.getType() != EventType.MEDICATION_INTAKE
                 || event.completed() || event.cancelled()
-                || schedule == null || event.getRef() == null
-                || expectedPatient == null || expectedPatient.getId() == null
-                || event.getPatient() == null || event.getPatient().getId() == null
-                || schedule.getPatient() == null || schedule.getPatient().getId() == null
-                || !expectedPatient.getId().equals(event.getPatient().getId())
-                || !expectedPatient.getId().equals(schedule.getPatient().getId())) {
+                || schedule == null || event.getRef() == null || event.getRef() <= 0L
+                || schedule.getId() == null || !event.getRef().equals(schedule.getId())
+                || !PatientOwnerGuard.sameStableIdentity(
+                        expectedPatient, event.getPatient())
+                || !PatientOwnerGuard.sameStableIdentity(
+                        expectedPatient, schedule.getPatient())) {
             // A schedule for another patient must never leak medicine details.
             return false;
         }
@@ -134,8 +167,9 @@ public class IntakeNotificationMgr {
         // Preserve legacy shared catalog medicines with no patient owner, but
         // never display a specifically assigned medicine to a different user.
         Patient medicineOwner = medicine.getPatient();
-        if (medicineOwner != null && (medicineOwner.getId() == null
-                || !expectedPatient.getId().equals(medicineOwner.getId()))) {
+        if (medicineOwner != null
+                && !PatientOwnerGuard.sameStableIdentity(
+                        expectedPatient, medicineOwner)) {
             return false;
         }
         if (!schedule.hasState(Schedule.ScheduleState.CREATED_FROM_OFFICIAL)) {
@@ -252,9 +286,24 @@ public class IntakeNotificationMgr {
                 && reminder.getId() > 0L
                 && reminder.getEventType() == EventType.MEDICATION_INTAKE
                 && reminder.getDateTime() != null
-                && reminder.getPatient() != null
-                && reminder.getPatient().getId() != null
-                && reminder.getPatient().getId() > 0L;
+                && PatientOwnerGuard.hasStableIdentity(reminder.getPatient());
+    }
+
+    /**
+     * Check the real persisted owner before reading clinical rows. A cached
+     * reminder may survive a backup restore that reuses the numeric patient
+     * ID for someone else. This probe does not access or log medication data.
+     */
+    static boolean hasLiveNotificationOwner(Patient patient) {
+        if (!PatientOwnerGuard.hasStableIdentity(patient)) {
+            return false;
+        }
+        try {
+            return PatientOwnerGuard.sameStableIdentity(
+                    patient, DB.patients().findById(patient.getId()));
+        } catch (RuntimeException unavailable) {
+            return false;
+        }
     }
 
     public static void notify(final Context context, EventReminder reminder, boolean lost) {
@@ -282,6 +331,13 @@ public class IntakeNotificationMgr {
         if (!isVerifiedMedicationReminderIdentity(reminder)) {
             // Show only the existing generic review notice; never perform a
             // null/foreign type SQLite lookup or create dose-action buttons.
+            alertUnverifiedMedicationData(context, reminder);
+            return;
+        }
+        // A copied reminder can outlive patient erasure and backup restore.
+        // Verify the live durable owner before selecting ANY private events:
+        // a recycled numeric patient ID is not authorization to display doses.
+        if (!hasLiveNotificationOwner(patient)) {
             alertUnverifiedMedicationData(context, reminder);
             return;
         }
@@ -371,10 +427,12 @@ public class IntakeNotificationMgr {
             final Intent delay = new Intent(context, AlarmReceiver.class);
             delay.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_DELAY);
             delay.putExtra(IntentParams.EXTRA_REMINDER_ID, reminder.getId());
+            delay.putExtra(IntentParams.EXTRA_ALARM_INSTANCE, reminder.getAlarmInstance());
             // delay intent sent on click delay button
             final Intent cancel = new Intent(context, AlarmReceiver.class);
             cancel.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_CANCEL);
             cancel.putExtra(IntentParams.EXTRA_REMINDER_ID, reminder.getId());
+            cancel.putExtra(IntentParams.EXTRA_ALARM_INSTANCE, reminder.getAlarmInstance());
             intents = new Pair<>(delay, cancel);
         }
 
@@ -395,6 +453,7 @@ public class IntakeNotificationMgr {
         final Intent confirmAll = new Intent(context, AlarmReceiver.class);
         confirmAll.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_CONFIRM);
         confirmAll.putExtra(IntentParams.EXTRA_REMINDER_ID, reminder.getId());
+        confirmAll.putExtra(IntentParams.EXTRA_ALARM_INSTANCE, reminder.getAlarmInstance());
         confirmAll.putExtra(IntentParams.EXTRA_INTAKE_SNAPSHOT, visibleSnapshot);
 
         NotificationOptions options = new NotificationOptions();
@@ -409,6 +468,10 @@ public class IntakeNotificationMgr {
         final Intent defaultIntent = new Intent(context, ConfirmActivity.class);
         defaultIntent.putExtra(IntentParams.EXTRA_ACTION, IntentParams.ACTION_ALARM_REMINDER);
         defaultIntent.putExtra(IntentParams.EXTRA_PATIENT_ID, patient.getId());
+        // The OPEN tap must resolve the exact immutable persisted reminder,
+        // not a different patient after SQLite reuses either numeric row ID.
+        defaultIntent.putExtra(IntentParams.EXTRA_REMINDER_ID, reminder.getId());
+        defaultIntent.putExtra(IntentParams.EXTRA_ALARM_INSTANCE, reminder.getAlarmInstance());
         defaultIntent.putExtra(IntentParams.EXTRA_DATETIME, dateTime.toString(ISODateTimeFormat.dateTimeNoMillis()));
 
         notify(context, reminder.getId(), title, intents, confirmAll, defaultIntent, options);
@@ -426,10 +489,13 @@ public class IntakeNotificationMgr {
         }
         final NotificationManagerCompat nm = NotificationManagerCompat.from(context);
         nm.cancel(makeTag(e), e.getId().intValue());
+        // Retire old pre-v4 ID-only notification tags too. Modern tags include
+        // the opaque instance and cannot cancel a new owner's notification.
+        nm.cancel("REMINDER-" + e.getId(), e.getId().intValue());
     }
 
     private static String makeTag(EventReminder reminder) {
-        return "REMINDER-" + reminder.getId();
+        return "REMINDER-" + reminder.getId() + "-" + reminder.getAlarmInstance();
     }
 
     private static void showInsistentScreen(Context context, Intent i) {
@@ -455,12 +521,19 @@ public class IntakeNotificationMgr {
             return;
         }
 
+        final String alarmInstance = confirmIntent.getStringExtra(
+                IntentParams.EXTRA_ALARM_INSTANCE);
+        if (!IntentParams.isValidAlarmInstance(alarmInstance)) {
+            // A corrupted/restored reminder may not create actionable tokens.
+            LogUtil.w(TAG, "Suppressing notification with invalid alarm instance");
+            return;
+        }
         final Resources res = context.getResources();
         // prepare notification intents
         PendingIntent defaultIntent = PendingIntent.getActivity(
                 context,
                 id,
-                identifyNotificationAction(intent, "OPEN", reminderId),
+                identifyNotificationAction(intent, "OPEN", reminderId, alarmInstance),
                 PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
         PendingIntent delayIntent = null;
         PendingIntent cancelIntent = null;
@@ -470,17 +543,17 @@ public class IntakeNotificationMgr {
             delayIntent = PendingIntent.getBroadcast(
                     context,
                     id,
-                    identifyNotificationAction(actionIntents.first, "DELAY", reminderId),
+                    identifyNotificationAction(actionIntents.first, "DELAY", reminderId, alarmInstance),
                     PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
             cancelIntent = PendingIntent.getBroadcast(
                     context,
                     id,
-                    identifyNotificationAction(actionIntents.second, "CANCEL", reminderId),
+                    identifyNotificationAction(actionIntents.second, "CANCEL", reminderId, alarmInstance),
                     PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
             confirmAllIntent = PendingIntent.getBroadcast(
                     context,
                     id,
-                    identifyNotificationAction(confirmIntent, "CONFIRM", reminderId),
+                    identifyNotificationAction(confirmIntent, "CONFIRM", reminderId, alarmInstance),
                     PendingIntentFlags.immutable(PendingIntent.FLAG_UPDATE_CURRENT));
         }
 

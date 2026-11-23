@@ -26,6 +26,7 @@ public class MedicationNotificationIdentityGuardTest {
         reminder.setId(reminderId);
         Patient owner = new Patient();
         owner.setId(patientId);
+        owner.setCode("ci-notification-identity-owner");
         reminder.setPatient(owner);
         reminder.setNextTime(when);
         return reminder;
@@ -46,6 +47,19 @@ public class MedicationNotificationIdentityGuardTest {
                 reminder(EventType.MEDICATION_INTAKE, 1001L, null)));
         assertFalse(IntakeNotificationMgr.isVerifiedMedicationReminderIdentity(
                 reminder(EventType.MEDICATION_INTAKE, 1001L, 0L)));
+    }
+
+    @Test
+    public void unidentifiedOwnerWithValidNumericIdCannotAuthorizeMedicationNotification() {
+        EventReminder synthetic = reminder(EventType.MEDICATION_INTAKE, 1001L, 2002L);
+        synthetic.getPatient().setCode(null);
+        assertFalse(IntakeNotificationMgr.isVerifiedMedicationReminderIdentity(synthetic));
+        synthetic.getPatient().setCode("");
+        assertFalse(IntakeNotificationMgr.isVerifiedMedicationReminderIdentity(synthetic));
+        synthetic.getPatient().setCode("  ");
+        assertFalse(IntakeNotificationMgr.isVerifiedMedicationReminderIdentity(synthetic));
+        synthetic.getPatient().setCode("ci-notification-identity-owner");
+        assertTrue(IntakeNotificationMgr.isVerifiedMedicationReminderIdentity(synthetic));
     }
 
     @Test

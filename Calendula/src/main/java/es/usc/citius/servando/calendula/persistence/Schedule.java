@@ -57,6 +57,7 @@ public class Schedule implements EventProvider {
     public static final String COLUMN_SCANNED = "Scanned";
     public static final String COLUMN_PATIENT = "Patient";
     public static final String COLUMN_STATE = "State";
+    public static final String COLUMN_RECOVERY_OWNER_DIGEST = "RecoveryOwnerDigest";
     public static final String COLUMN_RECUR = "Recur";
     public static final String BOUND_TO = "BoundTo";
     public static final Long DEFAULT_DOSAGE_KEY = -10l;
@@ -79,6 +80,12 @@ public class Schedule implements EventProvider {
     private Patient patient;
     @DatabaseField(columnName = COLUMN_STATE, persisterClass = ScheduleStatePersister.class)
     private EnumSet<ScheduleState> state = EnumSet.noneOf(ScheduleState.class);
+
+    // No patient code, medicine name, prescription or raw owner identifier is
+    // stored here. This domain-separated digest binds a post-COMMIT replay
+    // obligation to the original owner across SQLite ID reuse.
+    @DatabaseField(columnName = COLUMN_RECOVERY_OWNER_DIGEST)
+    private String recoveryOwnerDigest;
 
     @DatabaseField(columnName = COLUMN_RECUR, persisterClass = RecurringEventPersister.class)
     private RecurringEvent recur;
@@ -229,6 +236,14 @@ public class Schedule implements EventProvider {
         this.state.remove(state);
     }
 
+    public String getRecoveryOwnerDigest() {
+        return recoveryOwnerDigest;
+    }
+
+    public void setRecoveryOwnerDigest(String digest) {
+        this.recoveryOwnerDigest = digest;
+    }
+
 
     public void setRecur(RecurringEvent recur) {
         this.recur = recur;
@@ -294,7 +309,11 @@ public class Schedule implements EventProvider {
         PENDING_REVIEW_AFTER_UPDATE("PENDING_REVIEW_AFTER_UPDATE"),
         PENDING_REVIEW_AFTER_DELETE("PENDING_REVIEW_AFTER_DELETE"),
         DIFFERS_FROM_OFFICIAL("DIFFERS_FROM_OFFICIAL"),
-        CREATED_FROM_OFFICIAL("CREATED_FROM_OFFICIAL");
+        CREATED_FROM_OFFICIAL("CREATED_FROM_OFFICIAL"),
+        // Persisted in the same SQLite transaction that releases a HIGH
+        // allergy block. Survives process death before Android reminders
+        // can be rebuilt. This does NOT itself enable event generation.
+        PENDING_REMINDER_RECOVERY("PENDING_REMINDER_RECOVERY");
 
         String value;
 

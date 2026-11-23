@@ -47,14 +47,29 @@ Mark each item PASS, FAIL or NOT RUN with a device/database fixture, precise tes
 | Prescription and provider identity | Official FHIR treatment, dispensation and asynchronous results must be bound to selected patient **and** exact treatment/medicine revision; no cross-owner source display |
 | Alerts and allergies | Read and update only matching stable owner; cross-owner/malformed rows abort; HIGH allergy warnings are not lost on a failed medication update; blocked schedules remain consistent |
 | Profile erasure | Remove A atomically, preserving B's medicines, alerts, pickups, routines, intake history and alarms; trigger SQL failure halfway and verify full rollback |
-| Database migration | Restore representative legacy schema versions through v4 into disposable databases; preserve all committed medication and dose history; roll back deliberately failed migrations |
+| Database migration | Restore representative legacy schema versions through v5 into disposable databases; verify that recovery-owner digests are NULL on old schedules and no old owner identity is guessed; preserve all committed medication and dose history; roll back deliberately failed migrations |
 | Backup and recovery | Restore an old backup with recycled row IDs; no stale UI, PendingIntent or active selection is authorized for the successor |
 | Alarm identity | Schedule, reschedule, deliver and cancel immutable UUID-backed reminder; reject stale ID/UUID, notification URI, displayed-dose fingerprint, and queued job replay |
-| Restart and clock | App process death; force stop; reboot; timezone/DST and wall-clock changes; Doze; permission removal/regrant; no missed, duplicate or cross-patient deliveries |
+| Restart and clock | App process death after a committed HIGH-warning removal but before alarm registration; owner-bound pending recovery marker; force stop; reboot; timezone/DST and wall-clock changes; Doze; permission removal/regrant; no missed, duplicate or cross-patient deliveries |
 | External catalog | The retired unsigned archive remains blocked. A replacement catalog must have authenticated source, integrity verification and a migration test before enabling installation |
 | Accessibility and UX | Large fonts, screen reader, Spanish/Galician strings, navigation and notification visibility; Android 6 and 17 plus at least one tablet/large-screen form factor |
 
 Any FAIL in ownership, dose/stock integrity, deletion atomicity, alarm isolation or migration is a release blocker, even when the app builds.
+
+## 3a. SQLite v5 post-COMMIT recovery and owner isolation
+
+This draft uses a nullable `NewSchedules.RecoveryOwnerDigest` (schema v5) and a serialized `PENDING_REMINDER_RECOVERY` schedule state. It is an **at-least-once recovery protocol**, not proof that the OS has delivered a clinical notification. The marker must be inserted within the SAME SQLite transaction that removes the final HIGH allergy block and cleared only after all future occurrences and OS alarm reconciliation return successfully.
+
+For a disposable test database, document each transition and retain the exact CI report:
+
+1. Create a synthetic patient with a unique stable code, a medicine, two future schedules and a HIGH allergy alert. Confirm both schedules are BLOCKED.
+2. Delete the last HIGH alert while injecting an EventInstances INSERT failure **after the SQL deletion commits**. Confirm the alert is deleted, the schedule is unblocked and BOTH recovery state and owner digest are durably persisted.
+3. Terminate/restart the process, remove the fault and trigger the ordinary startup/boot recovery. Confirm eligible pending occurrences reappear and the recovery marker and digest disappear only after successful reminder reconciliation.
+4. Replay startup/boot a second time. Confirm no duplicate pending, completed or cancelled doses or stock changes. Independently verify actual PendingIntent registrations on a physical test device.
+5. In a synthetic restored-ID scenario, change the original owner digest while preserving the same numeric SQLite IDs. Recovery must refuse the record and must **not** reconstruct or display medication for the replacement patient. Do not clear an untrusted marker automatically.
+6. Inject failure during v4-to-v5 upgrade; verify rollback of the schema bump, original patient/medicine/schedule data and records of prior intake decisions. A v1/v2/v3/v4 fixture must never obtain an invented owner digest.
+
+The fingerprint is SHA-256 over a domain-separated owner identity, **not encryption** or proof of identity beyond the app's trusted SQLite owner record. A stale or low-entropy owner code may be guessable. Keep clinical data, tokens and test fixtures out of CI logs; independent privacy and backup/restore review remain required.
 
 ## 4. Representative physical-device verification
 

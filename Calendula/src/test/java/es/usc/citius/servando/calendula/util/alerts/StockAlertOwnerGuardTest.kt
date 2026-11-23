@@ -16,6 +16,22 @@ class StockAlertOwnerGuardTest {
     }
 
     @Test
+    fun recycledPatientIdsNeedExactPersistedStableOwnerCode() {
+        assertTrue(StockAlertHandler.samePersistedMedicineAndStableOwner(
+            100L, 200L, "synthetic-original", 100L, 200L, "synthetic-original"))
+        assertFalse(StockAlertHandler.samePersistedMedicineAndStableOwner(
+            100L, 200L, "synthetic-old", 100L, 200L, "synthetic-new"))
+        assertFalse(StockAlertHandler.samePersistedMedicineAndStableOwner(
+            100L, 200L, null, 100L, 200L, "synthetic-original"))
+        assertFalse(StockAlertHandler.samePersistedMedicineAndStableOwner(
+            100L, 200L, "  ", 100L, 200L, "synthetic-original"))
+        assertFalse(StockAlertHandler.samePersistedMedicineAndStableOwner(
+            100L, 200L, "synthetic-original", 100L, 201L, "synthetic-original"))
+        assertFalse(StockAlertHandler.samePersistedMedicineAndStableOwner(
+            100L, 200L, "synthetic-original", 101L, 200L, "synthetic-original"))
+    }
+
+    @Test
     fun missingStaleAndCrossPatientOwnerAreRejected() {
         assertFalse(StockAlertHandler.samePersistedMedicineOwner(null, 200L, 100L, 200L))
         assertFalse(StockAlertHandler.samePersistedMedicineOwner(100L, null, 100L, 200L))

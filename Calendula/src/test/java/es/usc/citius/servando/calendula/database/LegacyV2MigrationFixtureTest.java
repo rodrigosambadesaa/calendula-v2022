@@ -75,6 +75,13 @@ public class LegacyV2MigrationFixtureTest {
                     + "_id INTEGER PRIMARY KEY AUTOINCREMENT, "
                     + "HashCode INTEGER, Timestamp VARCHAR, "
                     + "Data VARCHAR, ttl BIGINT)");
+            legacy.execSQL("CREATE TABLE EventReminders (_id INTEGER PRIMARY KEY,"
+                    + " DateTime VARCHAR, NextTime VARCHAR, EventType VARCHAR, Patient BIGINT)");
+            // Retain the legacy prescription table when exercising the v5
+            // nullable recovery-owner migration. No patients or schedules
+            // are silently fabricated during upgrades.
+            legacy.execSQL("CREATE TABLE NewSchedules (_id INTEGER PRIMARY KEY,"
+                    + " State VARCHAR, Patient BIGINT, Medicine BIGINT)");
             legacy.setVersion(2);
         }
 

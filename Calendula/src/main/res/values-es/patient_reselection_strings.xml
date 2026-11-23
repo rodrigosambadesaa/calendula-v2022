@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="patient_reselection_required">Seleccione el perfil de paciente correcto para continuar</string>
+    <string name="patient_reselection_profile_number">Perfil de paciente %1$d</string>
+</resources>

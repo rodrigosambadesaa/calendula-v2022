@@ -24,6 +24,7 @@ public class RoutineOwnerGuardTest {
     private Patient patient(long id) {
         Patient p = new Patient();
         p.setId(id);
+        p.setCode("ci-routine-" + id);
         return p;
     }
 
@@ -41,6 +42,11 @@ public class RoutineOwnerGuardTest {
         assertNotSame(active.getId(), reloaded.getId());
         assertTrue(RoutineOwnerGuard.isOwnedBy(
                 routine(800345L, reloaded), active));
+        reloaded.setCode("ci-restored-other-owner");
+        assertFalse("A restored ID must never open a previous owner's routine",
+                RoutineOwnerGuard.isOwnedBy(routine(800345L, reloaded), active));
+        reloaded.setCode(null);
+        assertFalse(RoutineOwnerGuard.isOwnedBy(routine(800345L, reloaded), active));
     }
 
     @Test
@@ -59,6 +65,10 @@ public class RoutineOwnerGuardTest {
         Routine saved = routine(800345L, active);
         assertFalse(RoutineOwnerGuard.hasActivePatient(null));
         assertFalse(RoutineOwnerGuard.hasActivePatient(new Patient()));
+        Patient unidentified = patient(600123L);
+        unidentified.setCode(null);
+        assertFalse(RoutineOwnerGuard.hasActivePatient(unidentified));
+        assertFalse(RoutineOwnerGuard.isOwnedBy(saved, unidentified));
         assertFalse(RoutineOwnerGuard.isOwnedBy(saved, null));
         assertFalse(RoutineOwnerGuard.isOwnedBy(saved, new Patient()));
         assertFalse(RoutineOwnerGuard.isOwnedBy(

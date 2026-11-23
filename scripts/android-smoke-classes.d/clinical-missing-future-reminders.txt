@@ -1,0 +1,2 @@
+# Recover missing EventReminder SQL rows after a committed medication occurrence.
+es.usc.citius.servando.calendula.scheduling.MissingFutureReminderRecoverySmokeTest

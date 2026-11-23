@@ -31,6 +31,7 @@ public class IntakeSnapshotPatientOwnerTest {
     private static Patient patient(long id) {
         Patient patient = new Patient();
         patient.setId(id);
+        patient.setCode("ci-consent-owner-" + id);
         return patient;
     }
 
@@ -73,6 +74,24 @@ public class IntakeSnapshotPatientOwnerTest {
     }
 
     @Test
+    public void recycledReminderRowIdCannotReproducePreviousClinicalConsent() {
+        Patient owner = patient(101L);
+        EventInstance dose = event(11L, 21L, owner);
+        Map<Long, Schedule> rendered = new HashMap<>();
+        rendered.put(dose.getId(), schedule(21L, owner));
+        EventReminder before = reminder(owner);
+        EventReminder after = reminder(owner);
+        String first = IntakeSnapshot.fingerprint(
+                Collections.singletonList(dose), before, rendered);
+        String second = IntakeSnapshot.fingerprint(
+                Collections.singletonList(dose), after, rendered);
+        assertNotNull(first);
+        assertNotNull(second);
+        assertNotEquals("Even identical patient/medicine/time/row IDs must not copy consent",
+                first, second);
+    }
+
+    @Test
     public void mixedOrInvalidOwnersAndReferencesCannotCreateConsentDigest() {
         Patient a = patient(101L);
         EventInstance first = event(11L, 21L, a);
@@ -88,6 +107,64 @@ public class IntakeSnapshotPatientOwnerTest {
         assertNull(IntakeSnapshot.fingerprint(Collections.singletonList(first)));
         first.setPatient(a);
         assertNotNull(IntakeSnapshot.fingerprint(Collections.singletonList(first)));
+    }
+
+    @Test
+    public void recycledPatientIdCannotProduceConsentFromMixedClinicalOwners() {
+        Patient original = patient(101L);
+        Patient replacement = patient(101L);
+        replacement.setCode("ci-replaced-owner-code");
+
+        EventInstance first = event(11L, 21L, original);
+        EventInstance second = event(12L, 22L, replacement);
+        assertNull("Different stable owners cannot share a pending-dose digest",
+                IntakeSnapshot.fingerprint(Arrays.asList(first, second)));
+
+        String originalConsent = IntakeSnapshot.fingerprint(
+                Collections.singletonList(first));
+        String replacementConsent = IntakeSnapshot.fingerprint(
+                Collections.singletonList(second));
+        assertNotNull(originalConsent);
+        assertNotNull(replacementConsent);
+        first.setPatient(replacement);
+        assertNotEquals("A reused row ID with changed stable code changes consent",
+                originalConsent, IntakeSnapshot.fingerprint(
+                        Collections.singletonList(first)));
+
+        first.setPatient(original);
+        Map<Long, Schedule> rendered = new HashMap<>();
+        rendered.put(first.getId(), schedule(21L, original));
+        assertNull("A reminder for a replacement owner may not approve the old event",
+                IntakeSnapshot.fingerprint(Collections.singletonList(first),
+                        reminder(replacement), rendered));
+        rendered.put(first.getId(), schedule(21L, replacement));
+        assertNull("A replaced schedule owner may not approve the old event",
+                IntakeSnapshot.fingerprint(Collections.singletonList(first),
+                        reminder(original), rendered));
+        Schedule originalSchedule = schedule(21L, original);
+        originalSchedule.getMedicine().setPatient(replacement);
+        rendered.put(first.getId(), originalSchedule);
+        assertNull("A medication bound to another stable owner invalidates consent",
+                IntakeSnapshot.fingerprint(Collections.singletonList(first),
+                        reminder(original), rendered));
+    }
+
+    @Test
+    public void unidentifiedPatientCodesCannotCreateActionConsent() {
+        Patient original = patient(101L);
+        EventInstance item = event(11L, 21L, original);
+        Patient legacy = patient(101L);
+        legacy.setCode(null);
+        item.setPatient(legacy);
+        assertNull(IntakeSnapshot.fingerprint(Collections.singletonList(item)));
+        legacy.setCode(" ");
+        assertNull(IntakeSnapshot.fingerprint(Collections.singletonList(item)));
+        item.setPatient(original);
+        Map<Long, Schedule> rendered = new HashMap<>();
+        rendered.put(item.getId(), schedule(21L, original));
+        assertNull("A missing reminder owner code is not valid authorization",
+                IntakeSnapshot.fingerprint(Collections.singletonList(item),
+                        reminder(legacy), rendered));
     }
 
     @Test

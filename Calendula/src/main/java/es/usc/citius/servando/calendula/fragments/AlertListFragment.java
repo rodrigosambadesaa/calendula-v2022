@@ -40,6 +40,7 @@ import es.usc.citius.servando.calendula.R;
 import es.usc.citius.servando.calendula.adapters.AlertViewRecyclerAdapter;
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.persistence.Medicine;
+import es.usc.citius.servando.calendula.persistence.Patient;
 import es.usc.citius.servando.calendula.persistence.PatientAlert;
 import es.usc.citius.servando.calendula.persistence.alerts.AllergyPatientAlert;
 import es.usc.citius.servando.calendula.persistence.alerts.DrivingCautionAlert;
@@ -116,14 +117,14 @@ public class AlertListFragment extends Fragment {
             return typed;
         }
         Medicine current = DB.medicines().findById(m.getId());
-        es.usc.citius.servando.calendula.persistence.Patient activePatient =
-                DB.patients().getActive(getContext());
-        Long activeOwnerId = activePatient == null ? null : activePatient.getId();
+        Patient activePatient = DB.patients().getActive(getContext());
+        Patient openedOwner = m.getPatient();
+        Patient liveOwner = openedOwner.getId() == null ? null
+                : DB.patients().findById(openedOwner.getId());
         if (current == null || DB.medicines().refresh(current) != 1
-                || current.getPatient() == null
-                || !ClinicalAlertOwnerGuard.isCurrent(
-                    m.getId(), m.getPatient().getId(), current.getId(),
-                    current.getPatient().getId(), activeOwnerId)) {
+                || !ClinicalAlertOwnerGuard.isCurrentStable(
+                    m.getId(), openedOwner, current.getId(),
+                    current.getPatient(), activePatient, liveOwner)) {
             return typed;
         }
         List<PatientAlert> original = DB.alerts().findByMedicineSortByLevel(current);

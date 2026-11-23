@@ -650,10 +650,16 @@ public class PendingDoseSelectionSmokeTest {
     }
 
     @Test
-    public void replayingAgendaGenerationCannotDuplicateOrRewriteTakenDose() {
+    public void replayingAgendaGenerationCannotDuplicateOrRewriteTakenDose() throws Exception {
         assertTrue(DB.initialized);
         DateTime slot = DateTime.now().plusHours(17).withMillisOfSecond(0);
         Long syntheticRef = -System.nanoTime();
+        // A replay of a clinical medication event must carry the same
+        // persistent, stable owner identity on every invocation. The old
+        // ownerless fixture was rejected correctly by the fail-closed guard.
+        Patient owner = new Patient();
+        owner.setCode("ci-agenda-replay-" + System.nanoTime());
+        owner.setName("Synthetic same-patient agenda replay");
 
         EventInstance original = new EventInstance(slot, EventType.MEDICATION_INTAKE);
         original.setRef(syntheticRef);
@@ -673,6 +679,11 @@ public class PendingDoseSelectionSmokeTest {
         newSlot.setRef(syntheticRef);
         newSlot.addParam(EventInstance.PARAM_DOSE, 2.0d);
         try {
+            assertEquals(1, DB.patients().create(owner));
+            for (EventInstance event : new EventInstance[]{
+                    original, replay, replayTwice, newSlot}) {
+                event.setPatient(owner);
+            }
             Agenda.instance().addEvents(java.util.Collections.singletonList(original));
             assertNotNull(original.getId());
             Agenda.instance().addEvents(java.util.Arrays.asList(replay, replayTwice, newSlot));
@@ -697,6 +708,9 @@ public class PendingDoseSelectionSmokeTest {
                 if (event.getId() != null && DB.eventInstances().findById(event.getId()) != null) {
                     DB.eventInstances().remove(event);
                 }
+            }
+            if (owner.getId() != null && DB.patients().findById(owner.getId()) != null) {
+                DB.patients().remove(owner);
             }
         }
     }

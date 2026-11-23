@@ -9,6 +9,8 @@ import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
+import es.usc.citius.servando.calendula.persistence.ScheduleUtils;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -22,6 +24,28 @@ public class ScheduleBuildSaveActionTest {
         final boolean[] ran = {false};
         assertTrue(ScheduleBuildActivity.runSaveAction(() -> ran[0] = true));
         assertTrue("Successful write callback must have run", ran[0]);
+    }
+
+    @Test
+    public void committedScheduleWithFailedReminderHasDistinctNonRetryOutcome() {
+        final int[] attempts = {0};
+        assertEquals(ScheduleBuildActivity.SaveOutcome.COMMITTED_NEEDS_RECOVERY,
+                ScheduleBuildActivity.runSaveActionWithOutcome(() -> {
+                    attempts[0]++;
+                    throw new ScheduleUtils.PostCommitEffectsException(
+                            new IllegalStateException("synthetic reminder registration failed"));
+                }));
+        assertEquals("Already committed SQL must not be silently retried", 1, attempts[0]);
+    }
+
+    @Test
+    public void uncommittedFailureAndSuccessfulWriteAreNotConfusedWithRecovery() {
+        assertEquals(ScheduleBuildActivity.SaveOutcome.SAVED,
+                ScheduleBuildActivity.runSaveActionWithOutcome(() -> {}));
+        assertEquals(ScheduleBuildActivity.SaveOutcome.REJECTED,
+                ScheduleBuildActivity.runSaveActionWithOutcome(() -> {
+                    throw new IllegalStateException("synthetic SQLite transaction aborted");
+                }));
     }
 
     @Test
