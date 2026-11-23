@@ -135,7 +135,9 @@ public class AEMPSPrescriptionDBMgr extends PrescriptionDBMgr {
         final File uncompressedFile = new File(baseDirectory, "AEMPS.sql");
 
         LogUtil.d(TAG, "setup: uncompressing downloaded database");
-        ZipUtil.unzip(downloadFile, baseDirectory);
+        // The archive must itself contain the expected SQL payload.
+        // Never reuse a leftover AEMPS.sql or accept unrelated ZIP entries.
+        ZipUtil.unzipRequiredFile(downloadFile, baseDirectory, "AEMPS.sql");
 
         TransactionManager.callInTransaction(connection, new Callable<Object>() {
             @Override
