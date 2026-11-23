@@ -113,12 +113,29 @@ public class AEMPSPrescriptionDBMgr extends PrescriptionDBMgr {
             return originalName;
         }
 
-        final String dose = rawDose.trim();
-        final String doseFirstPart = dose.contains(" ") ? dose.split(" ")[0] : dose;
-
-        if (originalName.contains(doseFirstPart)) {
-            int index = originalName.indexOf(doseFirstPart);
-            return originalName.substring(0, index);
+        final String doseToken = rawDose.trim().split("\\s+", 2)[0];
+        // The numeric part of a dose may also occur inside a brand or a
+        // different strength (e.g. B12 with dose "12 mg", or 100 mg when the
+        // selected dose is "10 mg"). Never truncate at such substrings.
+        int index = originalName.indexOf(doseToken);
+        while (index >= 0) {
+            final int end = index + doseToken.length();
+            boolean leftBoundary = index == 0
+                    || !Character.isLetterOrDigit(originalName.charAt(index - 1));
+            boolean rightBoundary = end == originalName.length()
+                    || !Character.isDigit(originalName.charAt(end));
+            // "1" must not match the beginning of a decimal strength "1.5".
+            boolean decimalContinuation = end + 1 < originalName.length()
+                    && (originalName.charAt(end) == '.'
+                            || originalName.charAt(end) == ',')
+                    && Character.isDigit(originalName.charAt(end + 1));
+            if (index > 0 && leftBoundary && rightBoundary && !decimalContinuation) {
+                String displayName = originalName.substring(0, index).trim();
+                if (!displayName.isEmpty()) {
+                    return displayName;
+                }
+            }
+            index = originalName.indexOf(doseToken, index + doseToken.length());
         }
         return originalName;
     }
