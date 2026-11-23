@@ -95,6 +95,58 @@ public class AEMPSPrescriptionDBMgrTest {
     }
 
     @Test
+    public void shortNameDoesNotCutBrandContainingDoseDigits() {
+        Prescription prescription = new Prescription();
+        prescription.setName("VITAMINA B12 COMPLEJO");
+        prescription.setDose("12 mg");
+        assertEquals("VITAMINA B12 COMPLEJO", manager.shortName(prescription));
+    }
+
+    @Test
+    public void shortNameDoesNotConfuseTenWithHundredMilligrams() {
+        Prescription prescription = new Prescription();
+        prescription.setName("MEDICAMENTO 100 MG");
+        prescription.setDose("10 mg");
+        assertEquals("MEDICAMENTO 100 MG", manager.shortName(prescription));
+    }
+
+    @Test
+    public void shortNameTruncatesAtActualDoseAfterBrand() {
+        Prescription prescription = new Prescription();
+        prescription.setName("VITAMINA B12 12 MG COMPRIMIDOS");
+        prescription.setDose("12 mg");
+        assertEquals("VITAMINA B12", manager.shortName(prescription));
+    }
+
+    @Test
+    public void shortNameAcceptsDoseWithoutSpaceBeforeUnit() {
+        Prescription prescription = new Prescription();
+        prescription.setName("MEDICAMENTO 5mg comprimidos");
+        prescription.setDose("5 mg");
+        assertEquals("MEDICAMENTO", manager.shortName(prescription));
+    }
+
+    @Test
+    public void shortNameRejectsDecimalPrefixAndEmptyBrand() {
+        Prescription prescription = new Prescription();
+        prescription.setName("PRODUCTO 1.5 MG");
+        prescription.setDose("1 mg");
+        assertEquals("PRODUCTO 1.5 MG", manager.shortName(prescription));
+
+        prescription.setName("10 MG COMPRIMIDOS");
+        prescription.setDose("10 mg");
+        assertEquals("10 MG COMPRIMIDOS", manager.shortName(prescription));
+    }
+
+    @Test
+    public void shortNameDoesNotConfuseDoseInAlphaNumericIdentifier() {
+        Prescription prescription = new Prescription();
+        prescription.setName("SERIE N5 COMPUESTO");
+        prescription.setDose("5 mg");
+        assertEquals("SERIE N5 COMPUESTO", manager.shortName(prescription));
+    }
+
+    @Test
     public void shortNameHandlesMissingPrescription() {
         assertNull(manager.shortName(null));
     }
