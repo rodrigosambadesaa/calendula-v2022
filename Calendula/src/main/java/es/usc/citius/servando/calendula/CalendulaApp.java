@@ -31,11 +31,6 @@ import com.google.android.gms.security.ProviderInstaller;
 import org.greenrobot.eventbus.EventBus;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.lang.ref.WeakReference;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
@@ -45,7 +40,6 @@ import javax.net.ssl.SSLContext;
 
 import es.usc.citius.servando.calendula.database.DB;
 import es.usc.citius.servando.calendula.modules.ModuleManager;
-import es.usc.citius.servando.calendula.util.CloseableUtil;
 import es.usc.citius.servando.calendula.util.LocaleHelper;
 import es.usc.citius.servando.calendula.util.LogUtil;
 import es.usc.citius.servando.calendula.util.NetworkUtils;
@@ -100,34 +94,24 @@ public class CalendulaApp extends Application {
         return mContext;
     }
 
+    /**
+     * Legacy raw-file export is deliberately disabled.
+     *
+     * Copying SQLite's main database file while the application is running is
+     * not a consistent backup: committed data can still live in the WAL, and
+     * concurrent writes can invalidate the copied image. Never expose a
+     * potentially incomplete medication/patient database as a valid export.
+     *
+     * A future replacement must use a supported consistent SQLite snapshot,
+     * validate the result and publish it only after an atomic file commit.
+     *
+     * @deprecated Unsafe export API retained only to fail explicitly for
+     *             callers compiled against the historical method.
+     */
+    @Deprecated
     public void exportDatabase(Context context, String databaseName, File out) {
-        final File dbPath = context.getDatabasePath(databaseName);
-
-        // If the database already exists, return
-        if (!dbPath.exists()) {
-            LogUtil.d(TAG, "Database not found");
-            return;
-        }
-
-        // Try to copy database file
-        InputStream inputStream = null;
-        OutputStream output = null;
-        try {
-            inputStream = new FileInputStream(dbPath);
-            output = new FileOutputStream(out);
-            byte[] buffer = new byte[8192];
-            int length;
-
-            while ((length = inputStream.read(buffer, 0, 8192)) > 0) {
-                output.write(buffer, 0, length);
-            }
-
-            output.flush();
-        } catch (IOException e) {
-            LogUtil.e(TAG, "Failed to export database");
-        } finally {
-            CloseableUtil.closeQuietly(inputStream, output);
-        }
+        throw new UnsupportedOperationException(
+                "Raw SQLite database export is unsafe and is disabled");
     }
 
     @Override
