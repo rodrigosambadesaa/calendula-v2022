@@ -86,6 +86,66 @@ public class ZipExtractionSmokeTest {
         }
     }
 
+    @Test
+    public void missingAempsSqlNeverReusesOldCatalogOnDevice() throws Exception {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        File sandbox = new File(context.getCacheDir(),
+                "zip-required-manifest-" + System.nanoTime());
+        assertTrue(sandbox.mkdirs());
+        try {
+            File destination = new File(sandbox, "database");
+            assertTrue(destination.mkdirs());
+            File previous = new File(destination, "AEMPS.sql");
+            write(previous, "old synthetic SQL");
+
+            File archive = new File(sandbox, "missing-sql.zip");
+            try (ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(archive))) {
+                zip.putNextEntry(new ZipEntry("incorrect.sql"));
+                zip.write("not a catalog".getBytes(StandardCharsets.UTF_8));
+                zip.closeEntry();
+            }
+
+            try {
+                ZipUtil.unzipRequiredFile(archive, destination, "AEMPS.sql");
+                fail("AEMPS import must reject a ZIP without its SQL payload");
+            } catch (IOException expected) {
+                // An old SQL file must never be re-used for a new install.
+            }
+            assertEquals("old synthetic SQL", read(previous));
+            assertTrue(destination.listFiles() != null
+                    && destination.listFiles().length == 1);
+        } finally {
+            deleteTree(sandbox);
+        }
+    }
+
+    @Test
+    public void singleFileAempsSqlManifestInstallsOnDevice() throws Exception {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        File sandbox = new File(context.getCacheDir(),
+                "zip-valid-manifest-" + System.nanoTime());
+        assertTrue(sandbox.mkdirs());
+        try {
+            File destination = new File(sandbox, "database");
+            assertTrue(destination.mkdirs());
+            File previous = new File(destination, "AEMPS.sql");
+            write(previous, "old");
+            File archive = new File(sandbox, "new-sql.zip");
+            try (ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(archive))) {
+                zip.putNextEntry(new ZipEntry("AEMPS.sql"));
+                zip.write("new synthetic SQL".getBytes(StandardCharsets.UTF_8));
+                zip.closeEntry();
+            }
+
+            ZipUtil.unzipRequiredFile(archive, destination, "AEMPS.sql");
+            assertEquals("new synthetic SQL", read(previous));
+            assertTrue(destination.listFiles() != null
+                    && destination.listFiles().length == 1);
+        } finally {
+            deleteTree(sandbox);
+        }
+    }
+
     private static void write(File file, String value) throws IOException {
         try (FileOutputStream stream = new FileOutputStream(file)) {
             stream.write(value.getBytes(StandardCharsets.UTF_8));
