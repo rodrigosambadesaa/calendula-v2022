@@ -52,7 +52,7 @@ public class ZipUtil {
         if (requiredFileName == null || requiredFileName.isEmpty()
                 || ".".equals(requiredFileName) || "..".equals(requiredFileName)
                 || requiredFileName.contains("/") || requiredFileName.contains("\\")
-                || requiredFileName.indexOf('\\0') >= 0) {
+                || requiredFileName.indexOf(0) >= 0) {
             throw new IllegalArgumentException("Expected a top-level ZIP file name");
         }
         unzip(archive, path, MAX_UNCOMPRESSED_BYTES, MAX_ENTRIES, requiredFileName);
