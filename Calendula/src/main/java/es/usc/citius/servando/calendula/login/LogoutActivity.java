@@ -24,6 +24,7 @@ import android.graphics.PorterDuff;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.widget.ProgressBar;
 
@@ -61,6 +62,15 @@ public class LogoutActivity extends AppCompatActivity {
     View loggedInLayout;
 
     private AuthorizationService mAuthService;
+    private final Handler logoutHandler = new Handler(Looper.getMainLooper());
+    private final Runnable scheduledLogout = new Runnable() {
+        @Override
+        public void run() {
+            if (!isFinishing() && !isDestroyed() && mAuthService != null) {
+                makeLogoutRequest();
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -84,32 +94,57 @@ public class LogoutActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
-        final Handler handler = new Handler();
-        handler.postDelayed(() -> makeLogoutRequest(),1000L);
+        logoutHandler.removeCallbacks(scheduledLogout);
+        if (!isFinishing() && mAuthService != null) {
+            logoutHandler.postDelayed(scheduledLogout, 1000L);
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        logoutHandler.removeCallbacks(scheduledLogout);
+        super.onStop();
     }
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
+        logoutHandler.removeCallbacks(scheduledLogout);
         if (mAuthService != null) {
             mAuthService.dispose();
+            mAuthService = null;
         }
+        super.onDestroy();
     }
 
     private void makeLogoutRequest() {
 
+        // Late authentication callbacks must never use a disposed service.
+        if (isFinishing() || isDestroyed() || mAuthService == null) {
+            return;
+        }
         CustomTabManager tabManager = mAuthService.getCustomTabManager();
         CustomTabsClient client = tabManager.getClient();
         CustomTabsSession session = tabManager.createSession(new CustomTabsCallback() {
             @Override
             public void onNavigationEvent(int navigationEvent, Bundle extras) {
-                if (navigationEvent == CustomTabsCallback.NAVIGATION_FINISHED) {
-                    Intent intent = new Intent(LogoutActivity.this, StartActivity.class);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                    startActivity(intent);
-                    finish();
+                if (navigationEvent != CustomTabsCallback.NAVIGATION_FINISHED) {
+                    return;
                 }
+                // Custom Tabs callbacks are asynchronous and may outlive the
+                // Activity; only a live Activity may navigate or finish.
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (isFinishing() || isDestroyed()) {
+                            return;
+                        }
+                        Intent intent = new Intent(LogoutActivity.this, StartActivity.class);
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                        startActivity(intent);
+                        finish();
+                    }
+                });
             }
         });
         CustomTabsIntent customTabsIntent = new CustomTabsIntent.Builder(session)
