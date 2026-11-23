@@ -139,6 +139,106 @@ public class ZipUtilTest {
     }
 
     @Test
+    public void requiredCatalogRejectsMissingSqlWithoutReusingStaleFile()
+            throws Exception {
+        File destination = temp.newFolder("required-catalog-missing");
+        File existing = new File(destination, "AEMPS.sql");
+        writeUtf8(existing, "previous trusted catalog");
+        File archive = temp.newFile("wrong-catalog.zip");
+
+        try (ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(archive))) {
+            zip.putNextEntry(new ZipEntry("unrelated.sql"));
+            zip.write("not a catalog".getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        }
+
+        try {
+            ZipUtil.unzipRequiredFile(archive, destination, "AEMPS.sql");
+            fail("An archive without the required SQL file must not be accepted");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("required single-file catalog"));
+        }
+        assertEquals("previous trusted catalog", readUtf8(existing));
+        assertFalse(new File(destination, "unrelated.sql").exists());
+        assertEquals(1, destination.listFiles().length);
+    }
+
+    @Test
+    public void requiredCatalogRejectsUnexpectedLaterEntryWithoutReplacingSql()
+            throws Exception {
+        File destination = temp.newFolder("required-catalog-extra");
+        File existing = new File(destination, "AEMPS.sql");
+        writeUtf8(existing, "previous trusted catalog");
+        File archive = temp.newFile("unexpected-extra.zip");
+
+        try (ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(archive))) {
+            zip.putNextEntry(new ZipEntry("AEMPS.sql"));
+            zip.write("new candidate".getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+            zip.putNextEntry(new ZipEntry("extra.txt"));
+            zip.write("unexpected".getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        }
+
+        try {
+            ZipUtil.unzipRequiredFile(archive, destination, "AEMPS.sql");
+            fail("Extra ZIP entries must invalidate a single-file catalog");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("required single-file catalog"));
+        }
+        assertEquals("previous trusted catalog", readUtf8(existing));
+        assertFalse(new File(destination, "extra.txt").exists());
+        assertEquals(1, destination.listFiles().length);
+    }
+
+    @Test
+    public void requiredCatalogRejectsEmptyArchiveAndZeroLengthSql()
+            throws Exception {
+        File destination = temp.newFolder("required-catalog-empty");
+        File existing = new File(destination, "AEMPS.sql");
+        writeUtf8(existing, "previous trusted catalog");
+        File noEntries = temp.newFile("no-entries.zip");
+        File emptySql = temp.newFile("zero-bytes.zip");
+        try (ZipOutputStream ignored = new ZipOutputStream(new FileOutputStream(noEntries))) {
+            // Valid ZIP archive, without any entries.
+        }
+        try (ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(emptySql))) {
+            zip.putNextEntry(new ZipEntry("AEMPS.sql"));
+            zip.closeEntry();
+        }
+
+        for (File archive : new File[]{noEntries, emptySql}) {
+            try {
+                ZipUtil.unzipRequiredFile(archive, destination, "AEMPS.sql");
+                fail("Missing or empty SQL must be rejected");
+            } catch (IOException expected) {
+                assertTrue(expected.getMessage().contains("missing or empty"));
+            }
+            assertEquals("previous trusted catalog", readUtf8(existing));
+            assertEquals(1, destination.listFiles().length);
+        }
+    }
+
+    @Test
+    public void requiredCatalogInstallsExactlyOneValidSqlFile() throws Exception {
+        File destination = temp.newFolder("required-catalog-valid");
+        File existing = new File(destination, "AEMPS.sql");
+        writeUtf8(existing, "old");
+        File archive = temp.newFile("valid-required.zip");
+
+        try (ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(archive))) {
+            zip.putNextEntry(new ZipEntry("AEMPS.sql"));
+            zip.write("new catalog".getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        }
+
+        ZipUtil.unzipRequiredFile(archive, destination, "AEMPS.sql");
+        assertEquals("new catalog", readUtf8(existing));
+        assertEquals("No staging or backup directories must remain",
+                1, destination.listFiles().length);
+    }
+
+    @Test
     public void unzipExtractsNestedDirectoryEntries() throws Exception {
         File archive = temp.newFile("nested.zip");
         File destination = temp.newFolder("destination");

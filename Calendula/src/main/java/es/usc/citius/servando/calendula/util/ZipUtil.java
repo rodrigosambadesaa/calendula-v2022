@@ -43,12 +43,33 @@ public class ZipUtil {
     }
 
     /**
+     * Extract exactly one named top-level file. Medical catalog importers
+     * must never fall back to an older file when the ZIP omits its payload,
+     * or install additional files from a purported one-file archive.
+     */
+    public static void unzipRequiredFile(File archive, File path, String requiredFileName)
+            throws IOException {
+        if (requiredFileName == null || requiredFileName.isEmpty()
+                || ".".equals(requiredFileName) || "..".equals(requiredFileName)
+                || requiredFileName.contains("/") || requiredFileName.contains("\\")
+                || requiredFileName.indexOf(0) >= 0) {
+            throw new IllegalArgumentException("Expected a top-level ZIP file name");
+        }
+        unzip(archive, path, MAX_UNCOMPRESSED_BYTES, MAX_ENTRIES, requiredFileName);
+    }
+
+    /**
      * Stage an entire archive before installing its entries. Previous implementations
      * replaced existing files as they streamed ZIP entries, so a corrupt or hostile
      * *later* entry could leave a partially installed prescription database.
      */
     static void unzip(File archive, File path, long maxBytes, int maxEntries)
             throws IOException {
+        unzip(archive, path, maxBytes, maxEntries, null);
+    }
+
+    private static void unzip(File archive, File path, long maxBytes, int maxEntries,
+                              String requiredFileName) throws IOException {
         if (maxBytes < 0 || maxEntries < 0) {
             throw new IllegalArgumentException("Extraction limits must be nonnegative");
         }
@@ -84,6 +105,11 @@ public class ZipUtil {
                     if (++entries > maxEntries) {
                         throw new IOException("Too many ZIP archive entries");
                     }
+                    if (requiredFileName != null
+                            && (entry.isDirectory()
+                                    || !requiredFileName.equals(entry.getName()))) {
+                        throw new IOException("ZIP does not match required single-file catalog");
+                    }
 
                     File destination = new File(path, entry.getName()).getCanonicalFile();
                     String destinationPath = destination.getPath();
@@ -118,6 +144,13 @@ public class ZipUtil {
                     }
                     zip.closeEntry();
                 }
+            }
+
+            // Reject empty ZIP files instead of silently accepting a stale
+            // AEMPS.sql left by an earlier import.
+            if (requiredFileName != null && (entries != 1 || files.size() != 1
+                    || files.get(0).length() == 0L)) {
+                throw new IOException("Required catalog file is missing or empty");
             }
 
             // Validate all requested filesystem types before moving any staged file.
